@@ -43,5 +43,6 @@
     "terms": "https://manus.im/terms",
     "result": "Manus states the user owns generated Output and may use it commercially, subject to applicable law and third-party rights. The user remains responsible for review, legality, and third-party AI-service terms; no separate model-specific license was exposed in the generation schema."
   },
-  "humanVerdict": "PENDING"
+  "humanVerdict": "ACCEPT",
+  "humanVerdictAtUtc": "2026-08-14T13:09:02Z"
 }

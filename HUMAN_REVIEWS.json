@@ -13,6 +13,8 @@
     "rejectedTake": "omni_take_001",
     "rejectedAtUtc": "2026-08-14T13:01:21Z",
     "currentTake": "omni_take_002",
-    "currentVerdict": "PENDING"
+    "currentVerdict": "ACCEPT",
+    "reviewedAtUtc": "2026-08-14T13:09:02Z",
+    "webdevCheckpoint": "b278ee89"
   }
 }

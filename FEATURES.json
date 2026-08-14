@@ -27,8 +27,11 @@
         "Human visual verdict recorded"
       ],
       "evidence": "visual",
-      "status": "pending_human",
-      "commits": []
+      "status": "passing",
+      "commits": [
+        "d2420be7e0bc24bbfc055052c8d17bd7b7397821",
+        "756478631260408227e7d29e6cb4c52c218e2cdd"
+      ]
     },
     {
       "id": "web-preview",
