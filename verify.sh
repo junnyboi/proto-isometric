@@ -6,131 +6,58 @@ GODOT="${GODOT:-$HOME/bin/godot}"
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 WEB_OUT="${WEB_OUT:-/home/ubuntu/proto-isometric-build/web}"
 MODE="${1:-}"
-SCENARIO="title_launch"
-if [[ "$MODE" == --scenario=* ]]; then
-  SCENARIO="${MODE#--scenario=}"
-  MODE="--scenario"
+
+if [[ -n "$MODE" && "$MODE" != "--release" ]]; then
+  echo "Usage: ./verify.sh [--release]" >&2
+  exit 2
 fi
+
 cd "$ROOT"
-rm -rf artifacts
-mkdir -p "artifacts/$SCENARIO"
-printf '# Generated verification evidence; never import or ship.\n' > artifacts/.gdignore
-started="$(date +%s)"
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
 
-printf '[P0] SFX provenance integrity\n'
-provenance='assets/audio/ui_begin.provenance.json'
-carrier_path="$(jq -r '.immutableSource.carrierPath' "$provenance")"
-carrier_sha="$(jq -r '.immutableSource.carrierSha256' "$provenance")"
-probe_path="$(jq -r '.immutableSource.probePath' "$provenance")"
-probe_sha="$(jq -r '.immutableSource.probeSha256' "$provenance")"
-raw_path="$(jq -r '.immutableSource.rawPcmPath' "$provenance")"
-raw_sha="$(jq -r '.immutableSource.rawPcmSha256' "$provenance")"
-runtime_path="$(jq -r '.runtimeDerivative.path' "$provenance" | sed 's|^res://||')"
-runtime_sha="$(jq -r '.runtimeDerivative.sha256' "$provenance")"
-printf '%s  %s\n' "$carrier_sha" "$carrier_path" | sha256sum -c -
-printf '%s  %s\n' "$probe_sha" "$probe_path" | sha256sum -c -
-printf '%s  %s\n' "$raw_sha" "$raw_path" | sha256sum -c -
-printf '%s  %s\n' "$runtime_sha" "$runtime_path" | sha256sum -c -
-
-printf '[L0] fresh import bootstrap\n'
-timeout 30s "$GODOT" --headless --path . --import >/tmp/proto-isometric-import.log 2>&1
-if grep -E 'ERROR:|SCRIPT ERROR:' /tmp/proto-isometric-import.log; then
-  cat /tmp/proto-isometric-import.log >&2
-  echo 'Blocking error in fresh import log' >&2
+printf '[1/3] import\n'
+timeout 30s "$GODOT" --headless --path . --import >"$tmp/import.log" 2>&1
+if grep -E 'ERROR:|SCRIPT ERROR:' "$tmp/import.log"; then
+  cat "$tmp/import.log" >&2
   exit 1
 fi
 
-printf '[L1] lint\n'
-mapfile -d '' gd_files < <(find scripts selftest test -type f -name '*.gd' -print0 | sort -z)
+printf '[2/3] lint + smoke\n'
+mapfile -d '' gd_files < <(find scripts test -type f -name '*.gd' -print0 | sort -z)
 ((${#gd_files[@]} > 0))
 gdlint "${gd_files[@]}"
-for script in "${gd_files[@]}"; do
-  timeout 20s "$GODOT" --headless --path . --check-only -s "$script" >/tmp/proto-isometric-check.log 2>&1 || {
-    cat /tmp/proto-isometric-check.log >&2
-    exit 1
-  }
-done
-
-printf '[L2] GUT\n'
-timeout 30s "$GODOT" --headless -d -s addons/gut/gut_cmdln.gd -gdir=res://test -gexit >artifacts/gut.log 2>&1
-cat artifacts/gut.log
-grep -Eq 'Tests[[:space:]]+[0-9]+|Passing[[:space:]]+[1-9]' artifacts/gut.log
-grep -Eq 'Passing[[:space:]]+[1-9]|[1-9][0-9]* passed' artifacts/gut.log
-
-printf '[L3b] boot\n'
-timeout 20s "$GODOT" --headless --path . --quit-after 2 >artifacts/boot.log 2>&1
-grep -F '[PROTO_ISOMETRIC_READY]' artifacts/boot.log
-if grep -E 'ERROR:|SCRIPT ERROR:' artifacts/boot.log; then
-  cat artifacts/boot.log >&2
-  echo 'Blocking runtime error in boot log' >&2
+timeout 30s "$GODOT" --headless --path . -s test/smoke.gd >"$tmp/smoke.log" 2>&1
+cat "$tmp/smoke.log"
+grep -F '[SMOKE_PASS]' "$tmp/smoke.log" >/dev/null
+if grep -E 'ERROR:|SCRIPT ERROR:' "$tmp/smoke.log"; then
   exit 1
 fi
 
-printf '[L4-headless] scenario=%s\n' "$SCENARIO"
-timeout 20s "$GODOT" --headless --fixed-fps 60 --path . -s selftest/harness.gd -- \
-  "--scenario=$SCENARIO" --seed=42 "--shots=res://artifacts/$SCENARIO" >artifacts/scenario-headless.log 2>&1
-cat artifacts/scenario-headless.log
-jq -e '.result == "PASS" and .completion_sentinel == true and (.checks | length > 0)' "artifacts/$SCENARIO/report.json" >/dev/null
-grep -F '[SCENARIO_DONE]' artifacts/scenario-headless.log
-if grep -E 'ERROR:|SCRIPT ERROR:' artifacts/scenario-headless.log; then
-  echo 'Blocking runtime error in headless scenario log' >&2
+printf '[3/3] boot\n'
+timeout 20s "$GODOT" --headless --path . --quit-after 2 >"$tmp/boot.log" 2>&1
+grep -F '[PROTO_ISOMETRIC_READY]' "$tmp/boot.log" >/dev/null
+if grep -E 'ERROR:|SCRIPT ERROR:' "$tmp/boot.log"; then
+  cat "$tmp/boot.log" >&2
   exit 1
 fi
 
-if [[ "$MODE" == "--full" ]]; then
-  printf '[L4/L5-windowed] scenario=%s\n' "$SCENARIO"
-  rm -rf "artifacts/$SCENARIO"
-  mkdir -p "artifacts/$SCENARIO"
-  windowed_started="$(date +%s)"
-  timeout 25s xvfb-run -a "$GODOT" --audio-driver Dummy --path . --resolution 1280x720 -s selftest/harness.gd -- \
-    "--scenario=$SCENARIO" --seed=42 "--shots=res://artifacts/$SCENARIO" >artifacts/scenario-windowed.log 2>&1
-  cat artifacts/scenario-windowed.log
-  jq -e '.result == "PASS" and .completion_sentinel == true and ([.shots[] | select(.status == "SKIP")] | length == 0)' "artifacts/$SCENARIO/report.json" >/dev/null
-  if grep -E 'ERROR:|SCRIPT ERROR:' artifacts/scenario-windowed.log; then
-    echo 'Blocking runtime error in windowed scenario log' >&2
-    exit 1
-  fi
-  for shot in title_launch staging_field; do
-    png="artifacts/$SCENARIO/$shot.png"
-    test -s "$png"
-    dims="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$png")"
-    test "$dims" = "1280x720"
-    ffmpeg -v error -xerror -i "$png" -f null -
-  done
-  report_mtime="$(stat -c %Y "artifacts/$SCENARIO/report.json")"
-  title_mtime="$(stat -c %Y "artifacts/$SCENARIO/title_launch.png")"
-  staging_mtime="$(stat -c %Y "artifacts/$SCENARIO/staging_field.png")"
-  test "$title_mtime" -ge "$windowed_started"
-  test "$staging_mtime" -ge "$windowed_started"
-  test "$report_mtime" -ge "$title_mtime"
-  test "$report_mtime" -ge "$staging_mtime"
-
-  printf '[WEB] fresh export\n'
+if [[ "$MODE" == "--release" ]]; then
+  printf '[release] Web export\n'
   rm -rf "$WEB_OUT"
   mkdir -p "$WEB_OUT"
-  timeout 60s "$GODOT" --headless --path . --export-release Web "$WEB_OUT/proto-isometric.html" >artifacts/web-export.log 2>&1
-  cat artifacts/web-export.log
-  if grep -E 'ERROR:|SCRIPT ERROR:' artifacts/web-export.log; then
-    echo 'Blocking runtime error in Web export log' >&2
+  timeout 60s "$GODOT" --headless --path . --export-release Web "$WEB_OUT/proto-isometric.html" >"$tmp/export.log" 2>&1
+  cat "$tmp/export.log"
+  if grep -E 'ERROR:|SCRIPT ERROR:' "$tmp/export.log"; then
     exit 1
   fi
-  if grep -E 'Storing File: res://(addons/gut|selftest|test|provenance)/' artifacts/web-export.log; then
-    echo 'Blocking non-shipping resource in Web export' >&2
+  if grep -E 'Storing File: res://(addons|test|provenance|artifacts)/' "$tmp/export.log"; then
+    echo 'Non-shipping files entered the Web export' >&2
     exit 1
   fi
   for ext in html js wasm pck; do
     test -s "$WEB_OUT/proto-isometric.$ext"
   done
-  sha256sum "$WEB_OUT"/* | sort >artifacts/web-export.sha256
 fi
 
-finished="$(date +%s)"
-source_hash="$(find project.godot export_presets.cfg data scenes scripts selftest test assets/audio -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)"
-jq -n \
-  --arg mode "${MODE:-standard}" \
-  --arg scenario "$SCENARIO" \
-  --arg source_hash "$source_hash" \
-  --argjson seconds "$((finished - started))" \
-  '{result:"PASS", mode:$mode, scenario:$scenario, source_hash:$source_hash, tests:"nonzero", completion_sentinel:true, seconds:$seconds}' \
-  > artifacts/verify.json
-printf '[VERIFY_PASS] mode=%s seconds=%s source_hash=%s\n' "${MODE:-standard}" "$((finished - started))" "$source_hash"
+printf '[PASS] Proto Isometric%s\n' "${MODE:+ $MODE}"

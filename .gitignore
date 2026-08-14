@@ -1,6 +1,6 @@
 .godot/
 artifacts/
+build/
 .DS_Store
 *.tmp
 *.log
-provenance/**/*.import

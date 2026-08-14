@@ -277,12 +277,5 @@ func prepare_for_shutdown() -> void:
 
 func _trigger_begin_audio() -> void:
 	_audio_trigger_count += 1
-	if _audio_player.stream != null and not _is_harness_run():
+	if _audio_player.stream != null and DisplayServer.get_name() != "headless":
 		_audio_player.play()
-
-
-func _is_harness_run() -> bool:
-	for argument: String in OS.get_cmdline_user_args():
-		if argument.begins_with("--scenario="):
-			return true
-	return false
