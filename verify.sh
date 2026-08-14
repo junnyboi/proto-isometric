@@ -16,6 +16,14 @@ rm -rf artifacts
 mkdir -p "artifacts/$SCENARIO"
 started="$(date +%s)"
 
+printf '[L0] fresh import bootstrap\n'
+timeout 30s "$GODOT" --headless --path . --import >/tmp/proto-isometric-import.log 2>&1
+if grep -E 'ERROR:|SCRIPT ERROR:' /tmp/proto-isometric-import.log; then
+  cat /tmp/proto-isometric-import.log >&2
+  echo 'Blocking error in fresh import log' >&2
+  exit 1
+fi
+
 printf '[L1] lint\n'
 mapfile -d '' gd_files < <(find scripts selftest test -type f -name '*.gd' -print0 | sort -z)
 ((${#gd_files[@]} > 0))
@@ -27,10 +35,6 @@ for script in "${gd_files[@]}"; do
   }
 done
 
-printf '[L3a] import\n'
-timeout 30s "$GODOT" --headless --path . --import >/tmp/proto-isometric-import.log 2>&1
-! grep -E 'ERROR:|SCRIPT ERROR:' /tmp/proto-isometric-import.log
-
 printf '[L2] GUT\n'
 timeout 30s "$GODOT" --headless -d -s addons/gut/gut_cmdln.gd -gdir=res://test -gexit >artifacts/gut.log 2>&1
 cat artifacts/gut.log
@@ -40,7 +44,11 @@ grep -Eq 'Passing[[:space:]]+[1-9]|[1-9][0-9]* passed' artifacts/gut.log
 printf '[L3b] boot\n'
 timeout 20s "$GODOT" --headless --path . --quit-after 2 >artifacts/boot.log 2>&1
 grep -F '[PROTO_ISOMETRIC_READY]' artifacts/boot.log
-! grep -E 'ERROR:|SCRIPT ERROR:' artifacts/boot.log
+if grep -E 'ERROR:|SCRIPT ERROR:' artifacts/boot.log; then
+  cat artifacts/boot.log >&2
+  echo 'Blocking runtime error in boot log' >&2
+  exit 1
+fi
 
 printf '[L4-headless] scenario=%s\n' "$SCENARIO"
 timeout 20s "$GODOT" --headless --fixed-fps 60 --path . -s selftest/harness.gd -- \
