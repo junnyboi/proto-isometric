@@ -28,8 +28,8 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _begin_button.visible and event.is_action_pressed("ui_accept"):
-		_on_begin_pressed()
 		get_viewport().set_input_as_handled()
+		_on_begin_pressed()
 
 
 func _draw() -> void:
@@ -238,11 +238,9 @@ func _on_begin_pressed() -> void:
 	if _field_visible:
 		return
 	_field_visible = true
-	_title_panel.visible = false
-	_staging_panel.visible = true
 	_trigger_begin_audio()
-	queue_redraw()
 	print("[PROTO_ISOMETRIC_BEGIN]")
+	get_tree().change_scene_to_file("res://scenes/isometric_map.tscn")
 
 
 func is_title_visible() -> bool:

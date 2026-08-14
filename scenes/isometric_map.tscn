@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/isometric_map.gd" id="1_map"]
+
+[node name="IsometricMap" type="Node2D"]
+script = ExtResource("1_map")
