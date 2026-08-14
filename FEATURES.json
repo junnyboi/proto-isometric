@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "features": [
+    {
+      "id": "bootstrap-headless",
+      "title": "Pinned Godot 4.7.1 headless toolchain",
+      "acceptance": [
+        "Verified engine binary hash",
+        "Verified no-threads Web template hash",
+        "Fresh project import succeeds"
+      ],
+      "evidence": "integration",
+      "status": "passing",
+      "commits": []
+    },
+    {
+      "id": "launch-title",
+      "title": "Launch title and Begin interaction",
+      "acceptance": [
+        "Title screen is the main scene",
+        "PROTO ISOMETRIC is visible at launch",
+        "Begin opens the staging field",
+        "Current windowed captures exist",
+        "Human visual verdict recorded"
+      ],
+      "evidence": "visual",
+      "status": "pending_human",
+      "commits": []
+    },
+    {
+      "id": "web-preview",
+      "title": "Godot WASM WebDev preview",
+      "acceptance": [
+        "Fresh HTML, JS, WASM, and PCK export files exist",
+        "Browser loads the exported title screen",
+        "Browser Begin interaction succeeds"
+      ],
+      "evidence": "integration",
+      "status": "pending_release",
+      "commits": []
+    }
+  ]
+}
