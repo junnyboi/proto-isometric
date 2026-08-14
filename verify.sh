@@ -14,7 +14,23 @@ fi
 cd "$ROOT"
 rm -rf artifacts
 mkdir -p "artifacts/$SCENARIO"
+printf '# Generated verification evidence; never import or ship.\n' > artifacts/.gdignore
 started="$(date +%s)"
+
+printf '[P0] SFX provenance integrity\n'
+provenance='assets/audio/ui_begin.provenance.json'
+carrier_path="$(jq -r '.immutableSource.carrierPath' "$provenance")"
+carrier_sha="$(jq -r '.immutableSource.carrierSha256' "$provenance")"
+probe_path="$(jq -r '.immutableSource.probePath' "$provenance")"
+probe_sha="$(jq -r '.immutableSource.probeSha256' "$provenance")"
+raw_path="$(jq -r '.immutableSource.rawPcmPath' "$provenance")"
+raw_sha="$(jq -r '.immutableSource.rawPcmSha256' "$provenance")"
+runtime_path="$(jq -r '.runtimeDerivative.path' "$provenance" | sed 's|^res://||')"
+runtime_sha="$(jq -r '.runtimeDerivative.sha256' "$provenance")"
+printf '%s  %s\n' "$carrier_sha" "$carrier_path" | sha256sum -c -
+printf '%s  %s\n' "$probe_sha" "$probe_path" | sha256sum -c -
+printf '%s  %s\n' "$raw_sha" "$raw_path" | sha256sum -c -
+printf '%s  %s\n' "$runtime_sha" "$runtime_path" | sha256sum -c -
 
 printf '[L0] fresh import bootstrap\n'
 timeout 30s "$GODOT" --headless --path . --import >/tmp/proto-isometric-import.log 2>&1
@@ -94,6 +110,14 @@ if [[ "$MODE" == "--full" ]]; then
   mkdir -p "$WEB_OUT"
   timeout 60s "$GODOT" --headless --path . --export-release Web "$WEB_OUT/proto-isometric.html" >artifacts/web-export.log 2>&1
   cat artifacts/web-export.log
+  if grep -E 'ERROR:|SCRIPT ERROR:' artifacts/web-export.log; then
+    echo 'Blocking runtime error in Web export log' >&2
+    exit 1
+  fi
+  if grep -E 'Storing File: res://(addons/gut|selftest|test|provenance)/' artifacts/web-export.log; then
+    echo 'Blocking non-shipping resource in Web export' >&2
+    exit 1
+  fi
   for ext in html js wasm pck; do
     test -s "$WEB_OUT/proto-isometric.$ext"
   done

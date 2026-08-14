@@ -3,3 +3,4 @@ artifacts/
 .DS_Store
 *.tmp
 *.log
+provenance/**/*.import

@@ -16,6 +16,7 @@ var _title_label: Label
 var _begin_button: Button
 var _audio_player: AudioStreamPlayer
 var _field_visible: bool = false
+var _audio_trigger_count: int = 0
 
 
 func _ready() -> void:
@@ -239,8 +240,7 @@ func _on_begin_pressed() -> void:
 	_field_visible = true
 	_title_panel.visible = false
 	_staging_panel.visible = true
-	if _audio_player.stream != null and not _is_harness_run():
-		_audio_player.play()
+	_trigger_begin_audio()
 	queue_redraw()
 	print("[PROTO_ISOMETRIC_BEGIN]")
 
@@ -265,10 +265,20 @@ func is_audio_ready() -> bool:
 	return _audio_player != null and _audio_player.stream != null
 
 
+func get_audio_trigger_count() -> int:
+	return _audio_trigger_count
+
+
 func prepare_for_shutdown() -> void:
 	if _audio_player != null:
 		_audio_player.stop()
 		_audio_player.stream = null
+
+
+func _trigger_begin_audio() -> void:
+	_audio_trigger_count += 1
+	if _audio_player.stream != null and not _is_harness_run():
+		_audio_player.play()
 
 
 func _is_harness_run() -> bool:

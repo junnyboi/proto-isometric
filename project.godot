@@ -15,10 +15,6 @@ window/size/window_height_override=720
 window/size/resizable=false
 window/stretch/mode="disabled"
 
-[editor_plugins]
-
-enabled=PackedStringArray("res://addons/gut/plugin.cfg")
-
 [gui]
 
 theme/custom="res://data/ui_theme.tres"

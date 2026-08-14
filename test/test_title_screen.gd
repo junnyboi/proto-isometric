@@ -20,4 +20,5 @@ func test_title_scene_builds_launch_controls() -> void:
 	assert_gte(title_label.get_theme_font_size("font_size"), 64)
 	assert_eq(begin_button.text, "BEGIN  >")
 	assert_gte(begin_button.get_theme_font_size("font_size"), 32)
+	assert_eq(int(scene.call("get_audio_trigger_count")), 0)
 	assert_false(bool(scene.call("is_staging_visible")))

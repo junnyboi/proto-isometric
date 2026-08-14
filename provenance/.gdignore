@@ -1,0 +1,1 @@
+# Immutable generation provenance only; never import or ship as runtime Godot resources.

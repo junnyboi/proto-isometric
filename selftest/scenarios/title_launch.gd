@@ -55,6 +55,12 @@ func run(harness: Object) -> void:
 	)
 	harness.call(
 		"check",
+		"audio_trigger_born_zero",
+		int(scene.call("get_audio_trigger_count")) == 0,
+		"count=%d" % int(scene.call("get_audio_trigger_count"))
+	)
+	harness.call(
+		"check",
 		"staging_born_hidden",
 		not staging_panel.visible,
 		"visible=%s" % str(staging_panel.visible)
@@ -72,6 +78,12 @@ func run(harness: Object) -> void:
 		"begin_opens_staging",
 		bool(scene.call("is_staging_visible")),
 		"staging_visible=%s" % str(scene.call("is_staging_visible"))
+	)
+	harness.call(
+		"check",
+		"begin_triggers_audio_once",
+		int(scene.call("get_audio_trigger_count")) == 1,
+		"count=%d" % int(scene.call("get_audio_trigger_count"))
 	)
 	await harness.call("shot", "staging_field")
 	harness.call("done")
