@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "cueId": "ui_begin",
+  "takeId": "omni_take_001",
+  "generator": {
+    "tool": "Manus generate_video",
+    "model": "gemini-omni-flash-preview",
+    "generatedAtUtc": "2026-08-14T12:10:36Z",
+    "prompt": "A visually simple dark tactical interface with one amber isometric glyph that activates once after a clean lead-in. The sound is one concise polished sci-fi interface activation: a tactile ceramic click, a short warm electronic confirmation chirp, and a restrained crystalline tail under half a second. Sound effect only. No speech, voice, music, melody, or continuous ambience. One isolated event with a clean silent lead-in and tail.",
+    "generateAudio": true,
+    "durationSeconds": 3
+  },
+  "immutableSource": {
+    "carrierPath": "provenance/ui_begin/omni_take_001/carrier.mp4",
+    "carrierSha256": "b2693a9206e6c143740b3eaa4b9f6b67f33c0f65a3e4588d11b7998c0e4cc732",
+    "probePath": "provenance/ui_begin/omni_take_001/probe.json",
+    "probeSha256": "5f1f41a140230df08279530394acf7b52736ac783b45121c4b444c25ff101727",
+    "rawPcmPath": "provenance/ui_begin/omni_take_001/extracted.raw.wav",
+    "rawPcmSha256": "64a73f80df38a0b73de4d2d8a52b19b58fba384381f27f183de63a7aa14b52ae"
+  },
+  "runtimeDerivative": {
+    "sha256": "3bee8295246fe9ed83c863257f810ef01564f18ca90d68c62031f00f9cd8ae7d",
+    "processingCommand": "ffmpeg -ss 1.08 -to 1.45 -i extracted.raw.wav -c:a pcm_s16le -ar 48000 -ac 2 ui_begin.wav",
+    "trimStartSeconds": 1.08,
+    "trimEndSeconds": 1.45,
+    "durationSeconds": 0.37,
+    "sampleRate": 48000,
+    "channels": 2,
+    "codec": "pcm_s16le"
+  },
+  "humanVerdict": "REJECT",
+  "humanVerdictAtUtc": "2026-08-14T13:01:21Z",
+  "humanVerdictNote": "User rejected the Begin SFX without changing the accepted visual candidate."
+}
