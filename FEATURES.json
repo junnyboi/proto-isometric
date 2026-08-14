@@ -42,8 +42,12 @@
         "Browser Begin interaction succeeds"
       ],
       "evidence": "integration",
-      "status": "pending_release",
-      "commits": []
+      "status": "passing",
+      "publishedUrl": "https://proto-web-bylaknug.manus.space",
+      "webdevCheckpoint": "5b247201",
+      "commits": [
+        "993dd0a6c941d9f8e2d5ca6fbb78ddb885b21f4a"
+      ]
     }
   ]
 }
