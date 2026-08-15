@@ -82,14 +82,17 @@ The current Godot increment establishes the map as a procedural system rather th
 | Controls | WASD and arrow-key eight-direction drive, Shift run, Space/J/K impact, Escape return |
 | Navigation | Accelerated screen-space movement converted into eight isometric grid vectors with terrain blocking and deceleration |
 | Actor | Eight-facing Cardinal animation adapter with approved-atlas auto-binding and a procedural proxy fallback |
-| Interaction | Impact-strike rock destruction and automatic scrap collection |
-| Camera | Eased follow with velocity look-ahead, fixed orientation, and screen-locked telemetry |
+| Interaction | Contact-frame rock destruction, deterministic debris bursts, and automatic scrap collection |
+| Camera | Eased follow, velocity look-ahead, and bounded contact-frame impact shake |
+| Persistence | Atomic JSON save of remaining rocks, world scrap, scrap inventory, Cardinal cell, and facing |
 | Feedback | Live facing vector, normalized drive speed, grid coordinate, scrap total, impact state, and status panel |
 | Rendering | Procedural CanvasItem drawing with no final-art dependency |
 
 The procedural proxy remains deliberately disposable, but its animation state machine is not. Approved horizontal square-cell atlases named `cardinal_walk_<direction>.png` and `cardinal_attack_<direction>.png` replace the proxy automatically without changing movement, facing, impact, grid, or camera APIs. The adapter derives a shared cell size and normalizes it to the current runtime presentation height. The final visual footprint should be validated against the accepted sprite scale before collision expands beyond one navigation anchor.
 
-Camera follow uses a fixed orthographic orientation, exponential easing, and a short velocity-based look-ahead capped to prevent Cardinal from drifting toward the screen edge. Telemetry remains in a `CanvasLayer`, so it does not slide with the world. Impact shake is intentionally deferred until the accepted attack timing defines the correct contact frame.
+Camera follow uses a fixed orthographic orientation, exponential easing, and a short velocity-based look-ahead capped to prevent Cardinal from drifting toward the screen edge. Telemetry remains in a `CanvasLayer`, so it does not slide with the world. The attack state emits exactly one contact signal: terrain mutation, deterministic rock and dust fragments, and a decaying camera offset all begin on that frame. The timing constant can be ratcheted to the accepted attack sheet's exact contact index without changing gameplay code.
+
+The desert is mutable across scene and browser-session boundaries. The save is validated before application and replaced through a temporary file plus rollback backup. A malformed or incompatible save is ignored in full, preventing a half-loaded terrain state or corrupted scrap economy.
 
 ## Smallest Playable Roadmap
 

@@ -1,9 +1,13 @@
 extends Node2D
 
+signal impact_frame
+
 const DIRECTIONS: Array[StringName] = [&"N", &"NE", &"E", &"SE", &"S", &"SW", &"W", &"NW"]
 const STATES: Array[StringName] = [&"walk", &"attack"]
 const SHEET_ROOT: String = "res://assets/cardinal"
 const TARGET_RUNTIME_HEIGHT: float = 148.0
+const ATTACK_DURATION: float = 0.42
+const ATTACK_CONTACT_TIME: float = 0.22
 
 const BONE: Color = Color("d9b28d")
 const BONE_LIGHT: Color = Color("f0c7a0")
@@ -20,6 +24,7 @@ var _moving: bool = false
 var _speed_ratio: float = 0.0
 var _gait_phase: float = 0.0
 var _attack_time: float = 0.0
+var _impact_emitted: bool = false
 var _using_proxy: bool = true
 var _source_cell_size: int = 0
 
@@ -41,6 +46,10 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if _attack_time > 0.0:
 		_attack_time = maxf(_attack_time - delta, 0.0)
+		var attack_elapsed: float = ATTACK_DURATION - _attack_time
+		if not _impact_emitted and attack_elapsed >= ATTACK_CONTACT_TIME:
+			_impact_emitted = true
+			impact_frame.emit()
 		if _attack_time == 0.0:
 			_apply_animation()
 	if _moving:
@@ -61,7 +70,8 @@ func set_motion(facing: StringName, moving: bool, speed_ratio: float) -> void:
 
 
 func play_attack() -> void:
-	_attack_time = 0.36
+	_attack_time = ATTACK_DURATION
+	_impact_emitted = false
 	_apply_animation()
 	queue_redraw()
 
@@ -142,7 +152,7 @@ func _draw() -> void:
 	var side: float = direction.x
 	var backness: float = -direction.y
 	var gait: float = sin(_gait_phase) * (5.0 * clampf(_speed_ratio, 0.0, 1.0)) if _moving else 0.0
-	var attack: float = sin((_attack_time / 0.36) * PI) if _attack_time > 0.0 else 0.0
+	var attack: float = sin((_attack_time / ATTACK_DURATION) * PI) if _attack_time > 0.0 else 0.0
 	var body_y: float = -76.0 + absf(sin(_gait_phase * 2.0)) * 2.0 if _moving else -76.0
 
 	_draw_flat_ellipse(Vector2(0.0, 3.0), Vector2(56.0, 17.0), Color(0.05, 0.04, 0.03, 0.34))

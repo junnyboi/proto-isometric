@@ -1,12 +1,16 @@
 extends Node2D
 
 const CardinalAvatarScript: GDScript = preload("res://scripts/cardinal_avatar.gd")
+const ImpactEffectsScript: GDScript = preload("res://scripts/impact_effects.gd")
+const WorldStateStoreScript: GDScript = preload("res://scripts/world_state_store.gd")
 
 const GRID_SIZE: Vector2i = Vector2i(18, 18)
 const TILE_SIZE: Vector2 = Vector2(90.0, 45.0)
 const MAP_ORIGIN: Vector2 = Vector2(760.0, 70.0)
 const START_CELL: Vector2i = Vector2i(8, 10)
-
+const SAVE_SCHEMA: int = 1
+const DEFAULT_SAVE_PATH: String = "user://walkers-wake-world.json"
+const INVALID_CELL: Vector2i = Vector2i(-9999, -9999)
 const WALK_SPEED: float = 150.0
 const RUN_MULTIPLIER: float = 1.5
 const ACCELERATION: float = 310.0
@@ -25,6 +29,8 @@ const AMBER: Color = Color("f5a62d")
 const INK: Color = Color("11151a")
 const GRID_LINE: Color = Color(0.18, 0.12, 0.08, 0.32)
 
+@export var save_path: String = DEFAULT_SAVE_PATH
+
 var _terrain: Dictionary = {}
 var _elevation: Dictionary = {}
 var _blocked: Dictionary = {}
@@ -42,18 +48,25 @@ var _is_running: bool = false
 var _impact_flash: float = 0.0
 var _status_hold_time: float = 0.0
 var _attack_was_pressed: bool = false
+var _pending_impact_cell: Vector2i = INVALID_CELL
+var _pending_impact_breaks_rock: bool = false
 
 var _avatar: Node2D
 var _camera: Camera2D
+var _effects: Node2D
+var _state_store: RefCounted
 var _status_label: Label
 var _interaction_label: Label
 
 
 func _ready() -> void:
 	_generate_desert()
+	_build_state_store(save_path)
+	_load_world_state()
 	_robot_visual_position = grid_to_screen(_robot_grid)
 	_build_avatar()
 	_build_camera()
+	_build_impact_effects()
 	_build_interface()
 	_collect_scrap_at(_robot_grid)
 	_sync_avatar()
@@ -67,10 +80,15 @@ func _process(delta: float) -> void:
 	if attack_pressed and not _attack_was_pressed:
 		attack()
 	_attack_was_pressed = attack_pressed
-	update_drive(screen_direction, delta, _is_run_pressed())
+	var drive_direction: Vector2i = (
+		Vector2i.ZERO if _pending_impact_cell != INVALID_CELL else screen_direction
+	)
+	update_drive(drive_direction, delta, _is_run_pressed())
 	_update_camera_follow(delta)
 	_impact_flash = maxf(_impact_flash - delta, 0.0)
 	_status_hold_time = maxf(_status_hold_time - delta, 0.0)
+	if _effects != null:
+		_effects.call("advance", delta)
 	_sync_avatar()
 	queue_redraw()
 
@@ -90,7 +108,7 @@ func _draw() -> void:
 			_draw_tile(Vector2i(x, y))
 	_draw_drive_vector()
 	if _impact_flash > 0.0:
-		draw_arc(_robot_visual_position, 74.0, 0.0, TAU, 40, AMBER, 5.0 * _impact_flash / 0.22)
+		draw_arc(_robot_visual_position, 74.0, 0.0, TAU, 40, AMBER, 5.0 * _impact_flash / 0.36)
 
 
 func grid_to_screen(cell: Vector2i) -> Vector2:
@@ -124,6 +142,8 @@ func update_drive(screen_direction: Vector2i, delta: float, running: bool = fals
 	var normalized_direction: Vector2i = Vector2i(
 		clampi(screen_direction.x, -1, 1), clampi(screen_direction.y, -1, 1)
 	)
+	if _pending_impact_cell != INVALID_CELL:
+		normalized_direction = Vector2i.ZERO
 	var has_input: bool = normalized_direction != Vector2i.ZERO
 	_is_running = running and has_input
 
@@ -204,19 +224,35 @@ func _facing_to_screen_direction(facing: StringName) -> Vector2i:
 
 
 func attack() -> bool:
-	if _avatar != null:
-		_avatar.call("play_attack")
-	_velocity = _velocity.move_toward(Vector2.ZERO, DECELERATION * 0.08)
+	if _avatar == null or _pending_impact_cell != INVALID_CELL:
+		return false
+	_velocity = Vector2.ZERO
 	var screen_direction: Vector2i = _facing_to_screen_direction(_facing)
 	var target: Vector2i = _robot_grid + _screen_direction_to_grid_delta(screen_direction)
+	_pending_impact_cell = target
+	_pending_impact_breaks_rock = bool(_destructible_rocks.get(target, false))
+	_status_hold_time = 0.7
+	_update_status("IMPACT // WINDUP // SCRAP %03d" % _scrap_count)
+	_avatar.call("play_attack")
+	return _pending_impact_breaks_rock
+
+
+func _on_avatar_impact_frame() -> void:
+	if _pending_impact_cell == INVALID_CELL:
+		return
+	var target: Vector2i = _pending_impact_cell
+	var breaks_rock: bool = _pending_impact_breaks_rock
+	_pending_impact_cell = INVALID_CELL
+	_pending_impact_breaks_rock = false
 	_impact_flash = 0.36
 	_status_hold_time = 0.7
-	if bool(_destructible_rocks.get(target, false)):
-		_break_rock(target)
+	if breaks_rock and _break_rock(target):
+		if _effects != null:
+			_effects.call("emit_rock_impact", grid_to_screen(target), target)
+		_save_world_state()
 		_update_status("IMPACT // ROCK SALVAGED // SCRAP %03d" % _scrap_count)
-		return true
+		return
 	_update_status("IMPACT // CLEAR // SCRAP %03d" % _scrap_count)
-	return false
 
 
 func place_destructible_rock(cell: Vector2i) -> bool:
@@ -226,6 +262,7 @@ func place_destructible_rock(cell: Vector2i) -> bool:
 	_destructible_rocks[cell] = true
 	_terrain[cell] = &"rock"
 	_elevation[cell] = 2
+	_save_world_state()
 	queue_redraw()
 	return true
 
@@ -318,6 +355,173 @@ func get_status_text() -> String:
 	return _status_label.text if _status_label != null else ""
 
 
+func _exit_tree() -> void:
+	_save_world_state()
+
+
+func _build_state_store(path: String) -> void:
+	_state_store = WorldStateStoreScript.new() as RefCounted
+	_state_store.call("configure", path)
+
+
+func _load_world_state() -> bool:
+	if _state_store == null:
+		return false
+	var snapshot: Dictionary = _state_store.call("load_snapshot") as Dictionary
+	if snapshot.is_empty():
+		var load_error: String = str(_state_store.call("get_last_error"))
+		if not load_error.is_empty():
+			push_warning("Ignoring world save: %s" % load_error)
+		return false
+	if not _is_valid_snapshot(snapshot):
+		push_warning("Ignoring incompatible or malformed world save.")
+		return false
+	_apply_snapshot(snapshot)
+	return true
+
+
+func _save_world_state() -> bool:
+	if _state_store == null:
+		return false
+	var saved: bool = bool(_state_store.call("save_snapshot", _make_snapshot()))
+	if not saved:
+		push_warning("World save failed: %s" % str(_state_store.call("get_last_error")))
+	return saved
+
+
+func _make_snapshot() -> Dictionary:
+	var rocks: Array[Array] = []
+	for cell: Variant in _destructible_rocks:
+		var rock_cell: Vector2i = cell as Vector2i
+		rocks.append([rock_cell.x, rock_cell.y])
+	rocks.sort_custom(
+		func(a: Array, b: Array) -> bool: return a[1] < b[1] or (a[1] == b[1] and a[0] < b[0])
+	)
+
+	var scrap_entries: Array[Dictionary] = []
+	for cell: Variant in _scrap:
+		var scrap_cell: Vector2i = cell as Vector2i
+		scrap_entries.append(
+			{"cell": [scrap_cell.x, scrap_cell.y], "amount": int(_scrap[scrap_cell])}
+		)
+	scrap_entries.sort_custom(
+		func(a: Dictionary, b: Dictionary) -> bool:
+			var a_cell: Array = a["cell"] as Array
+			var b_cell: Array = b["cell"] as Array
+			return a_cell[1] < b_cell[1] or (a_cell[1] == b_cell[1] and a_cell[0] < b_cell[0])
+	)
+	return {
+		"schema": SAVE_SCHEMA,
+		"grid_size": [GRID_SIZE.x, GRID_SIZE.y],
+		"rocks": rocks,
+		"scrap": scrap_entries,
+		"scrap_total": _scrap_count,
+		"robot_cell": [_robot_grid.x, _robot_grid.y],
+		"facing": String(_facing),
+	}
+
+
+func _is_valid_snapshot(snapshot: Dictionary) -> bool:
+	var robot_cell: Vector2i = _decode_cell(snapshot.get("robot_cell", []))
+	var facing_value: StringName = StringName(str(snapshot.get("facing", "")))
+	var rock_values: Variant = snapshot.get("rocks", null)
+	var scrap_values: Variant = snapshot.get("scrap", null)
+	return (
+		int(snapshot.get("schema", -1)) == SAVE_SCHEMA
+		and _grid_matches(snapshot.get("grid_size", []))
+		and int(snapshot.get("scrap_total", -1)) >= 0
+		and robot_cell != INVALID_CELL
+		and facing_value in [&"N", &"NE", &"E", &"SE", &"S", &"SW", &"W", &"NW"]
+		and rock_values is Array
+		and scrap_values is Array
+		and _rock_snapshot_is_valid(rock_values as Array, robot_cell)
+		and _scrap_snapshot_is_valid(scrap_values as Array, rock_values as Array)
+	)
+
+
+func _grid_matches(value: Variant) -> bool:
+	if not value is Array or (value as Array).size() != 2:
+		return false
+	var grid: Array = value as Array
+	if (
+		(not grid[0] is int and not grid[0] is float)
+		or (not grid[1] is int and not grid[1] is float)
+	):
+		return false
+	return int(grid[0]) == GRID_SIZE.x and int(grid[1]) == GRID_SIZE.y
+
+
+func _rock_snapshot_is_valid(values: Array, robot_cell: Vector2i) -> bool:
+	var rock_cells: Dictionary = {}
+	for value: Variant in values:
+		var cell: Vector2i = _decode_cell(value)
+		if cell == INVALID_CELL or rock_cells.has(cell):
+			return false
+		rock_cells[cell] = true
+	return not rock_cells.has(robot_cell)
+
+
+func _scrap_snapshot_is_valid(values: Array, rock_values: Array) -> bool:
+	var rock_cells: Dictionary = {}
+	for value: Variant in rock_values:
+		rock_cells[_decode_cell(value)] = true
+	var scrap_cells: Dictionary = {}
+	for value: Variant in values:
+		if not value is Dictionary:
+			return false
+		var entry: Dictionary = value as Dictionary
+		var cell: Vector2i = _decode_cell(entry.get("cell", []))
+		var amount: int = int(entry.get("amount", 0))
+		if (
+			cell == INVALID_CELL
+			or rock_cells.has(cell)
+			or scrap_cells.has(cell)
+			or amount <= 0
+			or amount > 999
+		):
+			return false
+		scrap_cells[cell] = true
+	return true
+
+
+func _apply_snapshot(snapshot: Dictionary) -> void:
+	_blocked.clear()
+	_destructible_rocks.clear()
+	_scrap.clear()
+	for value: Variant in snapshot["rocks"] as Array:
+		var cell: Vector2i = _decode_cell(value)
+		_blocked[cell] = true
+		_destructible_rocks[cell] = true
+	for y: int in range(GRID_SIZE.y):
+		for x: int in range(GRID_SIZE.x):
+			var cell: Vector2i = Vector2i(x, y)
+			if bool(_destructible_rocks.get(cell, false)):
+				_terrain[cell] = &"rock"
+				_elevation[cell] = 2
+			elif _terrain.get(cell, &"sand") == &"rock":
+				_terrain[cell] = &"sand"
+				_elevation[cell] = 0
+	for value: Variant in snapshot["scrap"] as Array:
+		var entry: Dictionary = value as Dictionary
+		_scrap[_decode_cell(entry["cell"])] = int(entry["amount"])
+	_scrap_count = int(snapshot["scrap_total"])
+	_robot_grid = _decode_cell(snapshot["robot_cell"])
+	_facing = StringName(str(snapshot["facing"]))
+
+
+func _decode_cell(value: Variant) -> Vector2i:
+	if not value is Array or (value as Array).size() != 2:
+		return INVALID_CELL
+	var coordinates: Array = value as Array
+	if (
+		(not coordinates[0] is int and not coordinates[0] is float)
+		or (not coordinates[1] is int and not coordinates[1] is float)
+	):
+		return INVALID_CELL
+	var cell: Vector2i = Vector2i(int(coordinates[0]), int(coordinates[1]))
+	return cell if _is_in_bounds(cell) else INVALID_CELL
+
+
 func _snap_camera_to_robot() -> void:
 	if _camera != null:
 		_camera.position = _robot_visual_position
@@ -365,6 +569,9 @@ func _collect_scrap_at(cell: Vector2i) -> int:
 	_scrap.erase(cell)
 	_scrap_count += amount
 	_status_hold_time = 0.9
+	if _effects != null:
+		_effects.call("emit_scrap_pickup", grid_to_screen(cell), amount)
+	_save_world_state()
 	_update_status("SCRAP COLLECTED +%d // TOTAL %03d" % [amount, _scrap_count])
 	queue_redraw()
 	return amount
@@ -441,6 +648,7 @@ func _build_avatar() -> void:
 	_avatar.name = "CardinalAvatar"
 	_avatar.position = _robot_visual_position
 	_avatar.z_index = 20
+	_avatar.connect("impact_frame", Callable(self, "_on_avatar_impact_frame"))
 	add_child(_avatar)
 
 
@@ -455,6 +663,14 @@ func _build_camera() -> void:
 	_camera.limit_top = -600
 	_camera.limit_bottom = 1600
 	add_child(_camera)
+
+
+func _build_impact_effects() -> void:
+	_effects = ImpactEffectsScript.new() as Node2D
+	_effects.name = "ImpactEffects"
+	_effects.z_index = 30
+	_effects.call("bind_camera", _camera)
+	add_child(_effects)
 
 
 func _sync_avatar() -> void:

@@ -47,7 +47,12 @@ func _test_isometric_map() -> void:
 	_check(packed_map != null, "map scene loads")
 	if packed_map == null:
 		return
+	var save_path: String = "/tmp/proto-isometric-smoke-world.json"
+	var malformed_path: String = "/tmp/proto-isometric-smoke-malformed.json"
+	_clear_test_save(save_path)
+	_clear_test_save(malformed_path)
 	var map: Node = packed_map.instantiate()
+	map.set("save_path", save_path)
 	get_root().add_child(map)
 	await process_frame
 	await process_frame
@@ -142,11 +147,46 @@ func _test_isometric_map() -> void:
 		"rock blocks direct drive",
 	)
 	_check(map.call("get_robot_position") == blocked_position, "blocked drive does not move")
-	_check(bool(map.call("attack")), "impact attack breaks facing rock")
+	var effects: Node2D = map.get_node("ImpactEffects") as Node2D
+	_check(effects != null, "impact effects controller exists")
+	_check(bool(map.call("attack")), "impact attack targets facing rock")
+	_check(bool(map.call("has_destructible_rock", Vector2i(4, 4))), "rock survives windup frames")
+	_check(int(effects.call("get_emission_count")) == 0, "windup emits no premature debris")
+	var windup_position: Vector2 = map.call("get_robot_position") as Vector2
+	map.call("update_drive", Vector2i(1, 1), 0.05, false)
+	_check(
+		map.call("get_robot_position") == windup_position, "Cardinal braces through strike windup"
+	)
+	avatar.call("_process", 0.23)
 	_check("ROCK SALVAGED" in str(map.call("get_status_text")), "impact feedback remains readable")
 	_check(not bool(map.call("has_destructible_rock", Vector2i(4, 4))), "rock is destroyed")
 	_check(bool(map.call("is_walkable", Vector2i(4, 4))), "destroyed rock becomes walkable")
 	_check(bool(map.call("has_scrap", Vector2i(4, 4))), "destroyed rock drops scrap")
+	_check(int(effects.call("get_emission_count")) == 1, "contact frame emits one debris burst")
+	_check(int(effects.call("get_particle_count")) >= 20, "rock impact emits debris particles")
+	_check(float(effects.call("get_shake_remaining")) > 0.0, "contact frame starts camera shake")
+	_check(
+		(effects.call("get_camera_offset") as Vector2).length() <= 11.01, "camera shake is bounded"
+	)
+	avatar.call("_process", 0.23)
+	_check(int(effects.call("get_emission_count")) == 1, "attack contact cannot fire twice")
+	effects.call("advance", 1.0)
+	_check(int(effects.call("get_particle_count")) == 0, "debris particles expire")
+	_check(effects.call("get_camera_offset") == Vector2.ZERO, "camera shake resets cleanly")
+
+	map.free()
+	await process_frame
+	map = packed_map.instantiate()
+	map.set("save_path", save_path)
+	get_root().add_child(map)
+	await process_frame
+	await process_frame
+	_check(
+		not bool(map.call("has_destructible_rock", Vector2i(4, 4))),
+		"broken rock persists on reload"
+	)
+	_check(bool(map.call("has_scrap", Vector2i(4, 4))), "dropped scrap persists on reload")
+	_check(map.call("get_robot_grid") == Vector2i(3, 4), "Cardinal position persists on reload")
 	_check(bool(map.call("place_robot", Vector2i(4, 4))), "Cardinal enters cleared tile")
 	_check(int(map.call("get_scrap_count")) == 2, "Cardinal collects dropped scrap")
 	_check(
@@ -154,6 +194,20 @@ func _test_isometric_map() -> void:
 		"collection feedback remains readable"
 	)
 	_check(not bool(map.call("has_scrap", Vector2i(4, 4))), "collected scrap leaves world")
+	map.free()
+	await process_frame
+	map = packed_map.instantiate()
+	map.set("save_path", save_path)
+	get_root().add_child(map)
+	await process_frame
+	await process_frame
+	_check(
+		not bool(map.call("has_destructible_rock", Vector2i(4, 4))),
+		"terrain mutation stays persistent"
+	)
+	_check(not bool(map.call("has_scrap", Vector2i(4, 4))), "collected scrap stays absent")
+	_check(int(map.call("get_scrap_count")) == 2, "scrap inventory persists on reload")
+	_check(map.call("get_robot_grid") == Vector2i(4, 4), "post-collection position persists")
 
 	map.call("place_robot", Vector2i(0, 0))
 	_check(
@@ -163,6 +217,28 @@ func _test_isometric_map() -> void:
 
 	map.free()
 	await process_frame
+	var malformed: FileAccess = FileAccess.open(malformed_path, FileAccess.WRITE)
+	malformed.store_string("{not valid world state")
+	malformed.close()
+	map = packed_map.instantiate()
+	map.set("save_path", malformed_path)
+	get_root().add_child(map)
+	await process_frame
+	await process_frame
+	_check(
+		bool(map.call("has_destructible_rock", Vector2i(4, 4))), "malformed save falls back safely"
+	)
+	_check(int(map.call("get_scrap_count")) == 0, "malformed save cannot corrupt inventory")
+	map.free()
+	await process_frame
+	_clear_test_save(save_path)
+	_clear_test_save(malformed_path)
+
+
+func _clear_test_save(path: String) -> void:
+	for candidate: String in [path, path + ".tmp", path + ".bak"]:
+		if FileAccess.file_exists(candidate):
+			DirAccess.remove_absolute(candidate)
 
 
 func _check(condition: bool, label: String) -> void:
