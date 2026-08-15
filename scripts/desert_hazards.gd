@@ -246,13 +246,18 @@ func _apply_contact_damage(hazard: Dictionary, delta: float) -> void:
 
 
 func _sandstorm_cells(hazard: Dictionary) -> Array[Vector2i]:
-	var size: Vector2i = Vector2i(2, 3)
+	var size: Vector2i = _sandstorm_size(hazard)
 	var top_left: Vector2i = Vector2i((hazard["position"] as Vector2).round())
 	var cells: Array[Vector2i] = []
 	for y: int in range(size.y):
 		for x: int in range(size.x):
 			cells.append(top_left + Vector2i(x, y))
 	return cells
+
+
+func _sandstorm_size(hazard: Dictionary) -> Vector2i:
+	var direction: Vector2 = hazard["direction"] as Vector2
+	return Vector2i(2, 3) if not is_zero_approx(direction.x) else Vector2i(3, 2)
 
 
 func _sandstorm_is_outside(hazard: Dictionary) -> bool:
@@ -360,7 +365,7 @@ func _draw_sandstorm(hazard: Dictionary) -> void:
 			Color(0.72, 0.38, 0.15, 0.18),
 		)
 	var top_left: Vector2 = hazard["position"] as Vector2
-	var size: Vector2 = Vector2(2.0, 3.0)
+	var size: Vector2 = Vector2(_sandstorm_size(hazard))
 	var screen_direction: Vector2 = (
 		(_grid_to_screen(direction) - _grid_to_screen(Vector2.ZERO)).normalized()
 	)

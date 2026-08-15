@@ -28,7 +28,7 @@ Press **Enter** or select **BEGIN** to enter the desert. Use **WASD** or the **a
 
 Rock destruction resolves on Cardinal's attack contact frame with bounded camera shake, rock fragments, and dust. Broken rocks, uncollected scrap, collected scrap inventory, chassis integrity, Cardinal's cell, and facing are saved atomically to `user://walkers-wake-world.json` and restored when the desert scene or Web session returns. Invalid saves are ignored without partially mutating the world.
 
-Dust devils telegraph for three seconds, activate as fast single-tile hazards for 20 seconds, and deal two chassis damage per second. Six-tile sandstorms cross the map from any edge and deal one chassis damage per second. Both are indestructible and nonblocking, so survival depends on movement rather than punching the weather. Multiple instances of both hazards can coexist.
+Dust devils telegraph for three seconds, activate as fast single-tile hazards for 20 seconds, and deal two chassis damage per second. Six-tile sandstorms cross the map from any edge with their three-tile side leading for maximum coverage and deal one chassis damage per second. Both are indestructible and nonblocking, so survival depends on movement rather than punching the weather. Multiple instances of both hazards can coexist.
 
 Chassis hits flash Cardinal and the screen, throw bounded sparks and camera kick, identify the damage source in the HUD, and play a short generated armor-impact cue. At zero chassis Cardinal enters a persistent shutdown state: drive, impact, collection, and field repair remain offline until the player returns to the title. The shutdown overlay and low-pitched final cue make the failure state unambiguous.
 

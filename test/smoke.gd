@@ -172,10 +172,21 @@ func _test_isometric_map() -> void:
 		),
 		"sandstorm footprint is exactly two by three",
 	)
+	var east_front_tiles: int = 0
+	for cell: Vector2i in footprint:
+		if cell.x == 6:
+			east_front_tiles += 1
+	_check(east_front_tiles == 3, "eastbound sandstorm leads with three tiles")
 	hazards.call("advance", 1.0)
 	_check(int(map.call("_get_chassis")) == 97, "sandstorm deals one chassis damage per second")
 	_check(bool(map.call("is_walkable", Vector2i(5, 7))), "sandstorm does not block traversal")
-	hazards.call("spawn_sandstorm", Vector2i(10, 10), Vector2i.UP, 0.0)
+	var north_storm: int = int(hazards.call("spawn_sandstorm", Vector2i(10, 10), Vector2i.UP, 0.0))
+	var north_footprint: Array = hazards.call("get_sandstorm_footprint", north_storm) as Array
+	var north_front_tiles: int = 0
+	for cell: Vector2i in north_footprint:
+		if cell.y == 10:
+			north_front_tiles += 1
+	_check(north_front_tiles == 3, "northbound sandstorm leads with three tiles")
 	_check(int(hazards.call("get_hazard_count", &"sandstorm")) == 2, "multiple sandstorms coexist")
 	hazards.call("clear_hazards")
 	hazards.call("set_player_cell", Vector2i(-9999, -9999))
