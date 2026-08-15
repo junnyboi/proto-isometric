@@ -3,6 +3,10 @@ extends Node2D
 const CardinalAvatarScript: GDScript = preload("res://scripts/cardinal_avatar.gd")
 const ImpactEffectsScript: GDScript = preload("res://scripts/impact_effects.gd")
 const WorldStateStoreScript: GDScript = preload("res://scripts/world_state_store.gd")
+const SAND_TEXTURE: Texture2D = preload("res://assets/textures/terrain/desert_sand.png")
+const SALT_TEXTURE: Texture2D = preload("res://assets/textures/terrain/salt_crust.png")
+const ROCK_TEXTURE: Texture2D = preload("res://assets/textures/terrain/iron_rock.png")
+const RUIN_TEXTURE: Texture2D = preload("res://assets/textures/terrain/ancient_ruin.png")
 
 const GRID_SIZE: Vector2i = Vector2i(18, 18)
 const TILE_SIZE: Vector2 = Vector2(90.0, 45.0)
@@ -18,6 +22,7 @@ const DECELERATION: float = 390.0
 const CAMERA_RESPONSE: float = 4.8
 const CAMERA_LOOK_AHEAD_SECONDS: float = 0.32
 const CAMERA_MAX_LEAD: float = 82.0
+const TERRAIN_TEXTURE_PERIOD_CELLS: float = 4.0
 
 const SAND: Color = Color("d79a45")
 const SAND_LIGHT: Color = Color("e8b861")
@@ -37,6 +42,12 @@ var _blocked: Dictionary = {}
 var _destructible_rocks: Dictionary = {}
 var _scrap: Dictionary = {}
 var _scrap_count: int = 0
+var _terrain_textures: Dictionary = {
+	&"sand": SAND_TEXTURE,
+	&"salt": SALT_TEXTURE,
+	&"rock": ROCK_TEXTURE,
+	&"ruin": RUIN_TEXTURE,
+}
 
 var _robot_grid: Vector2i = START_CELL
 var _robot_visual_position: Vector2
@@ -60,6 +71,8 @@ var _interaction_label: Label
 
 
 func _ready() -> void:
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	_generate_desert()
 	_build_state_store(save_path)
 	_load_world_state()
@@ -733,6 +746,14 @@ func _draw_tile(cell: Vector2i) -> void:
 		)
 
 	draw_colored_polygon(points, color)
+	var terrain_texture: Texture2D = _terrain_textures.get(terrain_id) as Texture2D
+	if terrain_texture != null:
+		draw_polygon(
+			points,
+			PackedColorArray([Color.WHITE]),
+			_terrain_uvs(cell),
+			terrain_texture,
+		)
 	for edge: int in range(4):
 		draw_line(points[edge], points[(edge + 1) % 4], GRID_LINE, 1.2)
 
@@ -743,6 +764,19 @@ func _draw_tile(cell: Vector2i) -> void:
 		_draw_rock(center)
 	if int(_scrap.get(cell, 0)) > 0:
 		_draw_scrap(center, int(_scrap[cell]))
+
+
+func _terrain_uvs(cell: Vector2i) -> PackedVector2Array:
+	var origin: Vector2 = Vector2(cell) / TERRAIN_TEXTURE_PERIOD_CELLS
+	var half_step: float = 0.5 / TERRAIN_TEXTURE_PERIOD_CELLS
+	return PackedVector2Array(
+		[
+			origin + Vector2(-half_step, -half_step),
+			origin + Vector2(half_step, -half_step),
+			origin + Vector2(half_step, half_step),
+			origin + Vector2(-half_step, half_step),
+		]
+	)
 
 
 func _draw_rock(center: Vector2) -> void:

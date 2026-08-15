@@ -30,6 +30,8 @@ Rock destruction resolves on Cardinal's attack contact frame with bounded camera
 
 The camera follows Cardinal with eased motion and velocity look-ahead. Approved square-cell directional sheets dropped into `assets/cardinal/` are auto-bound through the contract in [`assets/cardinal/SOURCES.md`](assets/cardinal/SOURCES.md); missing sheets use the animated procedural proxy.
 
+Terrain shape, elevation, collision, and persistence remain procedural. Four accepted 512×512 material textures in `assets/textures/terrain/` are mapped continuously across tile tops on a four-cell period, with explicit repeat/filter behavior and deterministic color fallbacks.
+
 ## Concept
 
 Read [`docs/concept/WALKERS_WAKE_PROPOSAL.md`](docs/concept/WALKERS_WAKE_PROPOSAL.md) for the proposed direct-control exploration, caravan, and archaeological-discovery design.

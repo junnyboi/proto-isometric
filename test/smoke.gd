@@ -63,6 +63,28 @@ func _test_isometric_map() -> void:
 	_check(map.call("screen_to_grid", projected) == sample, "2:1 projection round trip")
 	_check(not bool(map.call("is_walkable", Vector2i(4, 4))), "rock tile blocks movement")
 	_check(bool(map.call("is_walkable", Vector2i(5, 7))), "sand tile is walkable")
+	var texture_paths: Array[String] = [
+		"res://assets/textures/terrain/desert_sand.png",
+		"res://assets/textures/terrain/salt_crust.png",
+		"res://assets/textures/terrain/iron_rock.png",
+		"res://assets/textures/terrain/ancient_ruin.png",
+	]
+	for texture_path: String in texture_paths:
+		var texture: Texture2D = load(texture_path) as Texture2D
+		_check(texture != null, "%s texture loads" % texture_path.get_file())
+		_check(
+			texture.get_size() == Vector2(512.0, 512.0), "%s runtime size" % texture_path.get_file()
+		)
+	_check(
+		int(map.get("texture_repeat")) == CanvasItem.TEXTURE_REPEAT_ENABLED,
+		"terrain textures repeat explicitly",
+	)
+	var uv_origin: PackedVector2Array = (
+		map.call("_terrain_uvs", Vector2i.ZERO) as PackedVector2Array
+	)
+	var uv_east: PackedVector2Array = map.call("_terrain_uvs", Vector2i(1, 0)) as PackedVector2Array
+	_check(uv_origin[1].is_equal_approx(uv_east[0]), "east tile top UV is continuous")
+	_check(uv_origin[2].is_equal_approx(uv_east[3]), "east tile bottom UV is continuous")
 
 	var avatar: Node2D = map.call("get_avatar") as Node2D
 	_check(avatar != null, "Cardinal avatar exists")
