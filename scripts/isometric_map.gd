@@ -1,8 +1,12 @@
 extends Node2D
 
 const CardinalAvatarScript: GDScript = preload("res://scripts/cardinal_avatar.gd")
+const DesertAtmosphereScript: GDScript = preload("res://scripts/desert_atmosphere.gd")
+const DesertHazardsScript: GDScript = preload("res://scripts/desert_hazards.gd")
+const FieldHudScript: GDScript = preload("res://scripts/field_hud.gd")
 const ImpactEffectsScript: GDScript = preload("res://scripts/impact_effects.gd")
 const WorldStateStoreScript: GDScript = preload("res://scripts/world_state_store.gd")
+const HEAT_HAZE_SHADER: Shader = preload("res://shaders/heat_haze.gdshader")
 const SAND_TEXTURE: Texture2D = preload("res://assets/textures/terrain/desert_sand.png")
 const SALT_TEXTURE: Texture2D = preload("res://assets/textures/terrain/salt_crust.png")
 const ROCK_TEXTURE: Texture2D = preload("res://assets/textures/terrain/iron_rock.png")
@@ -23,6 +27,10 @@ const CAMERA_RESPONSE: float = 4.8
 const CAMERA_LOOK_AHEAD_SECONDS: float = 0.32
 const CAMERA_MAX_LEAD: float = 82.0
 const TERRAIN_TEXTURE_PERIOD_CELLS: float = 4.0
+const TERRAIN_UV_VARIATION: float = 0.035
+const MAX_CHASSIS: int = 100
+const REPAIR_COST: int = 5
+const REPAIR_AMOUNT: int = 35
 
 const SAND: Color = Color("d79a45")
 const SAND_LIGHT: Color = Color("e8b861")
@@ -41,7 +49,9 @@ var _elevation: Dictionary = {}
 var _blocked: Dictionary = {}
 var _destructible_rocks: Dictionary = {}
 var _scrap: Dictionary = {}
+var _outposts: Dictionary = {}
 var _scrap_count: int = 0
+var _chassis: int = MAX_CHASSIS
 var _terrain_textures: Dictionary = {
 	&"sand": SAND_TEXTURE,
 	&"salt": SALT_TEXTURE,
@@ -63,11 +73,12 @@ var _pending_impact_cell: Vector2i = INVALID_CELL
 var _pending_impact_breaks_rock: bool = false
 
 var _avatar: Node2D
+var _atmosphere: Node2D
 var _camera: Camera2D
 var _effects: Node2D
+var _hazards: Node2D
+var _hud: CanvasLayer
 var _state_store: RefCounted
-var _status_label: Label
-var _interaction_label: Label
 
 
 func _ready() -> void:
@@ -80,8 +91,12 @@ func _ready() -> void:
 	_build_avatar()
 	_build_camera()
 	_build_impact_effects()
+	_build_atmosphere()
+	_build_hazards()
 	_build_interface()
+	_build_heat_haze()
 	_collect_scrap_at(_robot_grid)
+	_refresh_outpost_interface()
 	_sync_avatar()
 	queue_redraw()
 	print("[ISOMETRIC_MAP_READY]")
@@ -102,6 +117,12 @@ func _process(delta: float) -> void:
 	_status_hold_time = maxf(_status_hold_time - delta, 0.0)
 	if _effects != null:
 		_effects.call("advance", delta)
+	if _atmosphere != null:
+		_atmosphere.call("advance", delta)
+	if _hazards != null:
+		_hazards.call("set_player_cell", _robot_grid)
+		_hazards.call("advance", delta)
+	_refresh_outpost_interface()
 	_sync_avatar()
 	queue_redraw()
 
@@ -312,6 +333,43 @@ func get_scrap_count() -> int:
 	return _scrap_count
 
 
+func _get_chassis() -> int:
+	return _chassis
+
+
+func _apply_chassis_damage(amount: int, source: StringName = &"hazard") -> int:
+	var damage: int = mini(maxi(amount, 0), _chassis)
+	if damage <= 0:
+		return 0
+	_chassis -= damage
+	_status_hold_time = 0.7
+	_update_status(
+		(
+			"%s CONTACT -%02d // CHASSIS %03d/%03d"
+			% [String(source).to_upper(), damage, _chassis, MAX_CHASSIS]
+		)
+	)
+	_refresh_outpost_interface()
+	_save_world_state()
+	return damage
+
+
+func _is_at_outpost() -> bool:
+	return bool(_outposts.get(_robot_grid, false))
+
+
+func _repair_chassis() -> bool:
+	if not _is_at_outpost() or _scrap_count < REPAIR_COST or _chassis >= MAX_CHASSIS:
+		return false
+	_scrap_count -= REPAIR_COST
+	_chassis = mini(_chassis + REPAIR_AMOUNT, MAX_CHASSIS)
+	_status_hold_time = 1.0
+	_update_status("OUTPOST REPAIR // CHASSIS %03d // SCRAP %03d" % [_chassis, _scrap_count])
+	_refresh_outpost_interface()
+	_save_world_state()
+	return true
+
+
 func get_robot_grid() -> Vector2i:
 	return _robot_grid
 
@@ -325,6 +383,9 @@ func place_robot(cell: Vector2i) -> bool:
 	_is_moving = false
 	_is_running = false
 	_collect_scrap_at(cell)
+	if _hazards != null:
+		_hazards.call("set_player_cell", cell)
+	_refresh_outpost_interface()
 	_update_drive_status()
 	_sync_avatar()
 	queue_redraw()
@@ -355,6 +416,18 @@ func get_avatar() -> Node2D:
 	return _avatar
 
 
+func _get_atmosphere() -> Node2D:
+	return _atmosphere
+
+
+func _get_hazards() -> Node2D:
+	return _hazards
+
+
+func _get_outpost_interface() -> Control:
+	return _hud.call("get_outpost_interface") as Control if _hud != null else null
+
+
 func get_camera_position() -> Vector2:
 	return _camera.position if _camera != null else Vector2.ZERO
 
@@ -365,7 +438,7 @@ func get_camera_target() -> Vector2:
 
 
 func get_status_text() -> String:
-	return _status_label.text if _status_label != null else ""
+	return str(_hud.call("get_status_text")) if _hud != null else ""
 
 
 func _exit_tree() -> void:
@@ -429,6 +502,7 @@ func _make_snapshot() -> Dictionary:
 		"rocks": rocks,
 		"scrap": scrap_entries,
 		"scrap_total": _scrap_count,
+		"chassis": _chassis,
 		"robot_cell": [_robot_grid.x, _robot_grid.y],
 		"facing": String(_facing),
 	}
@@ -443,6 +517,8 @@ func _is_valid_snapshot(snapshot: Dictionary) -> bool:
 		int(snapshot.get("schema", -1)) == SAVE_SCHEMA
 		and _grid_matches(snapshot.get("grid_size", []))
 		and int(snapshot.get("scrap_total", -1)) >= 0
+		and int(snapshot.get("chassis", MAX_CHASSIS)) >= 0
+		and int(snapshot.get("chassis", MAX_CHASSIS)) <= MAX_CHASSIS
 		and robot_cell != INVALID_CELL
 		and facing_value in [&"N", &"NE", &"E", &"SE", &"S", &"SW", &"W", &"NW"]
 		and rock_values is Array
@@ -518,6 +594,7 @@ func _apply_snapshot(snapshot: Dictionary) -> void:
 		var entry: Dictionary = value as Dictionary
 		_scrap[_decode_cell(entry["cell"])] = int(entry["amount"])
 	_scrap_count = int(snapshot["scrap_total"])
+	_chassis = int(snapshot.get("chassis", MAX_CHASSIS))
 	_robot_grid = _decode_cell(snapshot["robot_cell"])
 	_facing = StringName(str(snapshot["facing"]))
 
@@ -584,6 +661,7 @@ func _collect_scrap_at(cell: Vector2i) -> int:
 	_status_hold_time = 0.9
 	if _effects != null:
 		_effects.call("emit_scrap_pickup", grid_to_screen(cell), amount)
+	_refresh_outpost_interface()
 	_save_world_state()
 	_update_status("SCRAP COLLECTED +%d // TOTAL %03d" % [amount, _scrap_count])
 	queue_redraw()
@@ -623,6 +701,13 @@ func _generate_desert() -> void:
 				terrain_id = &"ruin"
 			_terrain[cell] = terrain_id
 			_elevation[cell] = 2 if terrain_id == &"rock" else (1 if terrain_id == &"ruin" else 0)
+
+	for cell: Vector2i in [Vector2i(1, 10), Vector2i(8, 4), Vector2i(15, 8)]:
+		_outposts[cell] = true
+		_terrain[cell] = &"ruin"
+		_elevation[cell] = 1
+		_blocked.erase(cell)
+		_destructible_rocks.erase(cell)
 
 	_place_scrap(Vector2i(9, 9), 1)
 	_place_scrap(Vector2i(10, 7), 2)
@@ -684,6 +769,43 @@ func _build_impact_effects() -> void:
 	_effects.z_index = 30
 	_effects.call("bind_camera", _camera)
 	add_child(_effects)
+
+
+func _build_atmosphere() -> void:
+	_atmosphere = DesertAtmosphereScript.new() as Node2D
+	_atmosphere.name = "DesertAtmosphere"
+	_atmosphere.z_index = 50
+	add_child(_atmosphere)
+
+
+func _build_hazards() -> void:
+	_hazards = DesertHazardsScript.new() as Node2D
+	_hazards.name = "DesertHazards"
+	_hazards.z_index = 40
+	_hazards.call("configure", GRID_SIZE, TILE_SIZE, MAP_ORIGIN)
+	_hazards.call("set_player_cell", _robot_grid)
+	_hazards.connect("damage_tick", Callable(self, "_on_hazard_damage"))
+	add_child(_hazards)
+
+
+func _on_hazard_damage(amount: int, source: StringName) -> void:
+	_apply_chassis_damage(amount, source)
+
+
+func _build_heat_haze() -> void:
+	var layer: CanvasLayer = CanvasLayer.new()
+	layer.name = "HeatHazeLayer"
+	layer.layer = 1
+	add_child(layer)
+	var haze: ColorRect = ColorRect.new()
+	haze.name = "HeatHaze"
+	haze.position = Vector2.ZERO
+	haze.size = Vector2(1280.0, 720.0)
+	haze.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var material: ShaderMaterial = ShaderMaterial.new()
+	material.shader = HEAT_HAZE_SHADER
+	haze.material = material
+	layer.add_child(haze)
 
 
 func _sync_avatar() -> void:
@@ -750,7 +872,7 @@ func _draw_tile(cell: Vector2i) -> void:
 	if terrain_texture != null:
 		draw_polygon(
 			points,
-			PackedColorArray([Color.WHITE]),
+			_terrain_tints(cell),
 			_terrain_uvs(cell),
 			terrain_texture,
 		)
@@ -760,6 +882,8 @@ func _draw_tile(cell: Vector2i) -> void:
 	if terrain_id == &"ruin":
 		draw_circle(center, 6.0, TEAL.darkened(0.15))
 		draw_arc(center, 13.0, 0.0, TAU, 20, TEAL, 2.0)
+	if bool(_outposts.get(cell, false)):
+		_draw_outpost(center)
 	if bool(_destructible_rocks.get(cell, false)):
 		_draw_rock(center)
 	if int(_scrap.get(cell, 0)) > 0:
@@ -767,16 +891,38 @@ func _draw_tile(cell: Vector2i) -> void:
 
 
 func _terrain_uvs(cell: Vector2i) -> PackedVector2Array:
-	var origin: Vector2 = Vector2(cell) / TERRAIN_TEXTURE_PERIOD_CELLS
-	var half_step: float = 0.5 / TERRAIN_TEXTURE_PERIOD_CELLS
-	return PackedVector2Array(
-		[
-			origin + Vector2(-half_step, -half_step),
-			origin + Vector2(half_step, -half_step),
-			origin + Vector2(half_step, half_step),
-			origin + Vector2(-half_step, half_step),
-		]
-	)
+	var result: PackedVector2Array = PackedVector2Array()
+	for point: Vector2 in _terrain_grid_vertices(cell):
+		var warp: Vector2 = (
+			Vector2(
+				sin(point.x * 0.31 + point.y * 0.17),
+				cos(point.y * 0.27 - point.x * 0.13),
+			)
+			* TERRAIN_UV_VARIATION
+		)
+		result.append(point / TERRAIN_TEXTURE_PERIOD_CELLS + warp)
+	return result
+
+
+func _terrain_tints(cell: Vector2i) -> PackedColorArray:
+	var result: PackedColorArray = PackedColorArray()
+	for point: Vector2 in _terrain_grid_vertices(cell):
+		var wave: float = (
+			(sin(point.x * 0.39) + cos(point.y * 0.33) + sin((point.x + point.y) * 0.16)) / 3.0
+		)
+		var brightness: float = 0.96 + wave * 0.055
+		result.append(Color(brightness * 1.025, brightness, brightness * 0.96, 1.0))
+	return result
+
+
+func _terrain_grid_vertices(cell: Vector2i) -> Array[Vector2]:
+	var center: Vector2 = Vector2(cell)
+	return [
+		center + Vector2(-0.5, -0.5),
+		center + Vector2(0.5, -0.5),
+		center + Vector2(0.5, 0.5),
+		center + Vector2(-0.5, 0.5),
+	]
 
 
 func _draw_rock(center: Vector2) -> void:
@@ -785,6 +931,13 @@ func _draw_rock(center: Vector2) -> void:
 	draw_circle(center + Vector2(18.0, 2.0), 12.0, ROCK.darkened(0.18))
 	draw_line(center + Vector2(0.0, -24.0), center + Vector2(-5.0, 4.0), INK, 3.0)
 	draw_line(center + Vector2(-5.0, 4.0), center + Vector2(9.0, 12.0), INK, 3.0)
+
+
+func _draw_outpost(center: Vector2) -> void:
+	draw_arc(center, 20.0, 0.0, TAU, 24, AMBER, 3.0)
+	draw_arc(center, 28.0, 0.0, TAU, 32, TEAL, 2.0)
+	for direction: Vector2 in [Vector2.UP, Vector2.RIGHT, Vector2.DOWN, Vector2.LEFT]:
+		draw_line(center + direction * 21.0, center + direction * 29.0, AMBER, 4.0)
 
 
 func _draw_scrap(center: Vector2, amount: int) -> void:
@@ -804,53 +957,15 @@ func _draw_drive_vector() -> void:
 
 
 func _build_interface() -> void:
-	var layer: CanvasLayer = CanvasLayer.new()
-	add_child(layer)
-	var panel: ColorRect = ColorRect.new()
-	panel.position = Vector2(28.0, 28.0)
-	panel.size = Vector2(430.0, 246.0)
-	panel.color = Color(0.04, 0.055, 0.06, 0.9)
-	layer.add_child(panel)
+	_hud = FieldHudScript.new() as CanvasLayer
+	_hud.name = "FieldHUD"
+	_hud.connect("repair_requested", Callable(self, "_repair_chassis"))
+	add_child(_hud)
 
-	var title: Label = Label.new()
-	title.position = Vector2(24.0, 18.0)
-	title.size = Vector2(380.0, 48.0)
-	title.text = "CARDINAL // FIELD DRIVE"
-	title.add_theme_font_size_override("font_size", 30)
-	title.add_theme_color_override("font_color", AMBER)
-	panel.add_child(title)
 
-	var subtitle: Label = Label.new()
-	subtitle.position = Vector2(25.0, 66.0)
-	subtitle.size = Vector2(380.0, 54.0)
-	subtitle.text = "HEAVY FRAME ONLINE\nCLEAR ROCK. RECOVER SCRAP."
-	subtitle.add_theme_font_size_override("font_size", 18)
-	subtitle.add_theme_color_override("font_color", Color("d8d0b5"))
-	panel.add_child(subtitle)
-
-	_status_label = Label.new()
-	_status_label.position = Vector2(25.0, 128.0)
-	_status_label.size = Vector2(380.0, 32.0)
-	_status_label.text = "VECTOR SE // DRIVE 0.00 // SCRAP 000"
-	_status_label.add_theme_font_size_override("font_size", 15)
-	_status_label.add_theme_color_override("font_color", TEAL)
-	panel.add_child(_status_label)
-
-	_interaction_label = Label.new()
-	_interaction_label.position = Vector2(25.0, 162.0)
-	_interaction_label.size = Vector2(380.0, 26.0)
-	_interaction_label.text = "SPACE / J / K: IMPACT STRIKE"
-	_interaction_label.add_theme_font_size_override("font_size", 14)
-	_interaction_label.add_theme_color_override("font_color", AMBER)
-	panel.add_child(_interaction_label)
-
-	var help: Label = Label.new()
-	help.position = Vector2(25.0, 202.0)
-	help.size = Vector2(390.0, 24.0)
-	help.text = "WASD/ARROWS: 8D   SHIFT: RUN   ESC: RETURN"
-	help.add_theme_font_size_override("font_size", 12)
-	help.add_theme_color_override("font_color", Color("9f9787"))
-	panel.add_child(help)
+func _refresh_outpost_interface() -> void:
+	if _hud != null:
+		_hud.call("set_outpost_state", _is_at_outpost(), _scrap_count, _chassis, MAX_CHASSIS)
 
 
 func _update_drive_status() -> void:
@@ -858,12 +973,12 @@ func _update_drive_status() -> void:
 		return
 	_update_status(
 		(
-			"VECTOR %s // DRIVE %.2f // %d,%d // SCRAP %03d"
-			% [_facing, get_speed_ratio(), _robot_grid.x, _robot_grid.y, _scrap_count]
+			"VECTOR %s // DRIVE %.2f // %d,%d // CH %03d // SCRAP %03d"
+			% [_facing, get_speed_ratio(), _robot_grid.x, _robot_grid.y, _chassis, _scrap_count]
 		)
 	)
 
 
 func _update_status(text: String) -> void:
-	if _status_label != null:
-		_status_label.text = text
+	if _hud != null:
+		_hud.call("set_status", text)

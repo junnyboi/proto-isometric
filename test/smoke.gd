@@ -85,6 +85,103 @@ func _test_isometric_map() -> void:
 	var uv_east: PackedVector2Array = map.call("_terrain_uvs", Vector2i(1, 0)) as PackedVector2Array
 	_check(uv_origin[1].is_equal_approx(uv_east[0]), "east tile top UV is continuous")
 	_check(uv_origin[2].is_equal_approx(uv_east[3]), "east tile bottom UV is continuous")
+	var tint_origin: PackedColorArray = (
+		map.call("_terrain_tints", Vector2i.ZERO) as PackedColorArray
+	)
+	var tint_east: PackedColorArray = map.call("_terrain_tints", Vector2i(1, 0)) as PackedColorArray
+	var tint_far: PackedColorArray = (
+		map.call("_terrain_tints", Vector2i(12, 12)) as PackedColorArray
+	)
+	_check(tint_origin[1].is_equal_approx(tint_east[0]), "east tile tint is continuous")
+	_check(not tint_origin[0].is_equal_approx(tint_far[0]), "terrain tint varies at low frequency")
+	var atmosphere: Node2D = map.call("_get_atmosphere") as Node2D
+	_check(atmosphere != null, "wind-blown sand atmosphere exists")
+	_check(int(atmosphere.call("get_particle_count")) >= 90, "ambient sand has dense particles")
+	var wind_before: float = float(atmosphere.call("get_wind_intensity"))
+	atmosphere.call("advance", 1.0)
+	_check(float(atmosphere.call("get_wind_intensity")) != wind_before, "desert wind breathes")
+	var heat_haze: ColorRect = map.get_node("HeatHazeLayer/HeatHaze") as ColorRect
+	_check(heat_haze != null, "heat haze overlay exists")
+	_check(heat_haze.material is ShaderMaterial, "heat haze shader is active")
+	var outpost_interface: Control = map.call("_get_outpost_interface") as Control
+	_check(outpost_interface != null, "outpost interface exists")
+	_check(
+		bool(outpost_interface.call("are_locked_actions_disabled")),
+		"crafting and upgrades stay locked"
+	)
+	_check(not bool(outpost_interface.call("is_repair_enabled")), "repair starts unavailable")
+
+	var hazards: Node2D = map.call("_get_hazards") as Node2D
+	_check(hazards != null, "environmental hazard controller exists")
+	hazards.call("set_auto_spawn", false)
+	hazards.call("clear_hazards")
+	var moving_tornado: int = int(hazards.call("spawn_tornado", Vector2i(5, 5), 0.0, 20.0, 3.2))
+	var tornado_start: Vector2i = hazards.call("get_tornado_cell", moving_tornado) as Vector2i
+	hazards.call("advance", 0.6)
+	_check(
+		hazards.call("get_tornado_cell", moving_tornado) != tornado_start,
+		"active tornado moves rapidly",
+	)
+	hazards.call("clear_hazards")
+	hazards.call("spawn_tornado", Vector2i(2, 2))
+	hazards.call("spawn_tornado", Vector2i(12, 12))
+	_check(int(hazards.call("get_hazard_count", &"tornado")) == 2, "multiple tornadoes coexist")
+	hazards.call("clear_hazards")
+	_check(bool(map.call("place_robot", Vector2i(5, 7))), "place Cardinal for hazard damage")
+	var tornado_id: int = int(hazards.call("spawn_tornado", Vector2i(5, 7), 3.0, 20.0, 0.0))
+	hazards.call("advance", 2.9)
+	_check(
+		hazards.call("get_tornado_state", tornado_id) == &"forming",
+		"tornado telegraphs for three seconds"
+	)
+	_check(int(map.call("_get_chassis")) == 100, "forming tornado causes no damage")
+	hazards.call("advance", 0.1)
+	_check(
+		hazards.call("get_tornado_state", tornado_id) == &"active",
+		"tornado activates after telegraph"
+	)
+	hazards.call("advance", 0.9)
+	_check(int(map.call("_get_chassis")) == 98, "tornado deals two chassis damage per second")
+	_check(bool(map.call("is_walkable", Vector2i(5, 7))), "tornado does not block traversal")
+	hazards.call("set_player_cell", Vector2i(-9999, -9999))
+	hazards.call("advance", 19.0)
+	_check(
+		hazards.call("get_tornado_state", tornado_id) == &"active",
+		"tornado survives until 20 seconds",
+	)
+	hazards.call("advance", 0.2)
+	_check(
+		hazards.call("get_tornado_state", tornado_id) == &"missing",
+		"tornado fades and disappears after 20 seconds",
+	)
+	hazards.call("set_player_cell", Vector2i(5, 7))
+	var storm_id: int = int(hazards.call("spawn_sandstorm", Vector2i(5, 7), Vector2i.RIGHT, 0.0))
+	var footprint: Array = hazards.call("get_sandstorm_footprint", storm_id) as Array
+	_check(footprint.size() == 6, "sandstorm occupies six tiles")
+	_check(
+		(
+			Vector2i(5, 7) in footprint
+			and Vector2i(6, 7) in footprint
+			and Vector2i(5, 9) in footprint
+			and Vector2i(6, 9) in footprint
+		),
+		"sandstorm footprint is exactly two by three",
+	)
+	hazards.call("advance", 1.0)
+	_check(int(map.call("_get_chassis")) == 97, "sandstorm deals one chassis damage per second")
+	_check(bool(map.call("is_walkable", Vector2i(5, 7))), "sandstorm does not block traversal")
+	hazards.call("spawn_sandstorm", Vector2i(10, 10), Vector2i.UP, 0.0)
+	_check(int(hazards.call("get_hazard_count", &"sandstorm")) == 2, "multiple sandstorms coexist")
+	hazards.call("clear_hazards")
+	hazards.call("set_player_cell", Vector2i(-9999, -9999))
+	hazards.call("set_auto_spawn", true)
+	hazards.call("advance", 12.1)
+	_check(int(hazards.call("get_hazard_count", &"tornado")) >= 1, "tornadoes spawn periodically")
+	_check(
+		int(hazards.call("get_hazard_count", &"sandstorm")) >= 1, "sandstorms spawn from map edges"
+	)
+	hazards.call("set_auto_spawn", false)
+	hazards.call("clear_hazards")
 
 	var avatar: Node2D = map.call("get_avatar") as Node2D
 	_check(avatar != null, "Cardinal avatar exists")
@@ -230,6 +327,32 @@ func _test_isometric_map() -> void:
 	_check(not bool(map.call("has_scrap", Vector2i(4, 4))), "collected scrap stays absent")
 	_check(int(map.call("get_scrap_count")) == 2, "scrap inventory persists on reload")
 	_check(map.call("get_robot_grid") == Vector2i(4, 4), "post-collection position persists")
+	_check(int(map.call("_get_chassis")) == 97, "hazard chassis damage persists")
+	var outpost_cell: Vector2i = Vector2i(1, 10)
+	_check(bool(map.call("_place_scrap", outpost_cell, 5)), "stage repair scrap at outpost")
+	_check(bool(map.call("place_robot", outpost_cell)), "Cardinal enters harvested outpost")
+	_check(bool(map.call("_is_at_outpost")), "outpost service link activates")
+	outpost_interface = map.call("_get_outpost_interface") as Control
+	_check(
+		bool(outpost_interface.call("is_repair_enabled")), "repair unlocks with scrap and damage"
+	)
+	_check(bool(map.call("_repair_chassis")), "outpost repairs Cardinal")
+	_check(int(map.call("_get_chassis")) == 100, "repair restores chassis")
+	_check(int(map.call("get_scrap_count")) == 2, "repair consumes five scrap")
+	_check(
+		bool(outpost_interface.call("are_locked_actions_disabled")),
+		"locked actions remain disabled at outpost"
+	)
+	map.free()
+	await process_frame
+	map = packed_map.instantiate()
+	map.set("save_path", save_path)
+	get_root().add_child(map)
+	await process_frame
+	await process_frame
+	_check(int(map.call("_get_chassis")) == 100, "repaired chassis persists")
+	_check(int(map.call("get_scrap_count")) == 2, "post-repair scrap persists")
+	_check(bool(map.call("_is_at_outpost")), "outpost position persists")
 
 	map.call("place_robot", Vector2i(0, 0))
 	_check(
