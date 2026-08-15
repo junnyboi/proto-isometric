@@ -6,6 +6,7 @@ const DesertAtmosphereScript: GDScript = preload("res://scripts/desert_atmospher
 const DesertHazardsScript: GDScript = preload("res://scripts/desert_hazards.gd")
 const FieldHudScript: GDScript = preload("res://scripts/field_hud.gd")
 const ImpactEffectsScript: GDScript = preload("res://scripts/impact_effects.gd")
+const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const IsometricControlsScript: GDScript = preload("res://scripts/isometric_controls.gd")
 const TerrainHazeScript: GDScript = preload("res://scripts/terrain_haze.gd")
 const WorldStateStoreScript: GDScript = preload("res://scripts/world_state_store.gd")
@@ -15,11 +16,10 @@ const SALT_TEXTURE: Texture2D = preload("res://assets/textures/terrain/salt_crus
 const ROCK_TEXTURE: Texture2D = preload("res://assets/textures/terrain/iron_rock.png")
 const RUIN_TEXTURE: Texture2D = preload("res://assets/textures/terrain/ancient_ruin.png")
 
-const GRID_SIZE: Vector2i = Vector2i(18, 18)
 const TILE_SIZE: Vector2 = Vector2(90.0, 45.0)
 const MAP_ORIGIN: Vector2 = Vector2(760.0, 70.0)
 const START_CELL: Vector2i = Vector2i(8, 10)
-const SAVE_SCHEMA: int = 1
+const SAVE_SCHEMA: int = 2
 const DEFAULT_SAVE_PATH: String = "user://walkers-wake-world.json"
 const INVALID_CELL: Vector2i = Vector2i(-9999, -9999)
 const WALK_SPEED: float = 150.0
@@ -86,15 +86,18 @@ var _hud: CanvasLayer
 var _object_layer: CanvasLayer
 var _state_store: RefCounted
 var _terrain_haze: Node2D
+var _visible_cells: Array[Vector2i] = []
+var _world: RefCounted
 var _world_objects: Node2D
 
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
-	_generate_desert()
+	_build_world_stream()
 	_build_state_store(save_path)
 	_load_world_state()
+	_stream_world()
 	_robot_visual_position = grid_to_screen(_robot_grid)
 	_build_camera()
 	_build_world_layers()
@@ -158,12 +161,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _draw() -> void:
 	_draw_world_backdrop()
-	for diagonal: int in range(GRID_SIZE.x + GRID_SIZE.y - 1):
-		for y: int in range(GRID_SIZE.y):
-			var x: int = diagonal - y
-			if x < 0 or x >= GRID_SIZE.x:
-				continue
-			_draw_tile(Vector2i(x, y))
+	for cell: Vector2i in _visible_cells:
+		_draw_tile(cell)
 	_draw_drive_vector()
 	if _impact_flash > 0.0:
 		draw_arc(_robot_visual_position, 74.0, 0.0, TAU, 40, AMBER, 5.0 * _impact_flash / 0.36)
@@ -188,11 +187,11 @@ func screen_to_grid(point: Vector2) -> Vector2i:
 
 
 func _is_in_bounds(cell: Vector2i) -> bool:
-	return cell.x >= 0 and cell.y >= 0 and cell.x < GRID_SIZE.x and cell.y < GRID_SIZE.y
+	return _world != null and bool(_world.call("is_valid_cell", cell))
 
 
 func is_walkable(cell: Vector2i) -> bool:
-	return _is_in_bounds(cell) and not bool(_blocked.get(cell, false))
+	return _world != null and bool(_world.call("is_walkable", cell))
 
 
 func update_drive(screen_direction: Vector2i, delta: float, running: bool = false) -> bool:
@@ -276,12 +275,8 @@ func _on_avatar_impact_frame() -> void:
 
 
 func place_destructible_rock(cell: Vector2i) -> bool:
-	if not _is_in_bounds(cell) or cell == _robot_grid:
+	if _world == null or not bool(_world.call("place_rock", cell, _robot_grid)):
 		return false
-	_blocked[cell] = true
-	_destructible_rocks[cell] = true
-	_terrain[cell] = &"rock"
-	_elevation[cell] = 2
 	_refresh_haze_mask()
 	_save_world_state()
 	queue_redraw()
@@ -289,22 +284,16 @@ func place_destructible_rock(cell: Vector2i) -> bool:
 
 
 func _break_rock(cell: Vector2i) -> bool:
-	if not bool(_destructible_rocks.get(cell, false)):
+	if _world == null or not bool(_world.call("break_rock", cell)):
 		return false
-	_destructible_rocks.erase(cell)
-	_blocked.erase(cell)
-	_terrain[cell] = &"sand"
-	_elevation[cell] = 0
-	_scrap[cell] = int(_scrap.get(cell, 0)) + 2
 	_refresh_haze_mask()
 	queue_redraw()
 	return true
 
 
 func _place_scrap(cell: Vector2i, amount: int = 1) -> bool:
-	if not is_walkable(cell) or amount <= 0:
+	if _world == null or not bool(_world.call("place_scrap", cell, amount)):
 		return false
-	_scrap[cell] = int(_scrap.get(cell, 0)) + amount
 	queue_redraw()
 	return true
 
@@ -396,6 +385,7 @@ func place_robot(cell: Vector2i) -> bool:
 	_velocity = Vector2.ZERO
 	_is_moving = false
 	_is_running = false
+	_stream_world()
 	_collect_scrap_at(cell)
 	if _hazards != null:
 		_hazards.call("set_player_cell", cell)
@@ -423,7 +413,7 @@ func get_facing() -> StringName:
 
 
 func get_grid_size() -> Vector2i:
-	return GRID_SIZE
+	return Vector2i(-1, -1)
 
 
 func get_avatar() -> Node2D:
@@ -480,123 +470,31 @@ func _save_world_state() -> bool:
 
 
 func _make_snapshot() -> Dictionary:
-	var rocks: Array[Array] = []
-	for cell: Variant in _destructible_rocks:
-		var rock_cell: Vector2i = cell as Vector2i
-		rocks.append([rock_cell.x, rock_cell.y])
-	rocks.sort_custom(
-		func(a: Array, b: Array) -> bool: return a[1] < b[1] or (a[1] == b[1] and a[0] < b[0])
-	)
-
-	var scrap_entries: Array[Dictionary] = []
-	for cell: Variant in _scrap:
-		var scrap_cell: Vector2i = cell as Vector2i
-		scrap_entries.append(
-			{"cell": [scrap_cell.x, scrap_cell.y], "amount": int(_scrap[scrap_cell])}
-		)
-	scrap_entries.sort_custom(
-		func(a: Dictionary, b: Dictionary) -> bool:
-			var a_cell: Array = a["cell"] as Array
-			var b_cell: Array = b["cell"] as Array
-			return a_cell[1] < b_cell[1] or (a_cell[1] == b_cell[1] and a_cell[0] < b_cell[0])
-	)
-	return {
-		"schema": SAVE_SCHEMA,
-		"grid_size": [GRID_SIZE.x, GRID_SIZE.y],
-		"rocks": rocks,
-		"scrap": scrap_entries,
-		"scrap_total": _scrap_count,
-		"chassis": _chassis,
-		"robot_cell": [_robot_grid.x, _robot_grid.y],
-		"facing": String(_facing),
-	}
+	var snapshot: Dictionary = _world.call("make_snapshot") as Dictionary
+	snapshot["schema"] = SAVE_SCHEMA
+	snapshot["scrap_total"] = _scrap_count
+	snapshot["chassis"] = _chassis
+	snapshot["robot_cell"] = [_robot_grid.x, _robot_grid.y]
+	snapshot["facing"] = String(_facing)
+	return snapshot
 
 
 func _is_valid_snapshot(snapshot: Dictionary) -> bool:
 	var robot_cell: Vector2i = _decode_cell(snapshot.get("robot_cell", []))
 	var facing_value: StringName = StringName(str(snapshot.get("facing", "")))
-	var rock_values: Variant = snapshot.get("rocks", null)
-	var scrap_values: Variant = snapshot.get("scrap", null)
 	return (
-		int(snapshot.get("schema", -1)) == SAVE_SCHEMA
-		and _grid_matches(snapshot.get("grid_size", []))
+		int(snapshot.get("schema", -1)) in [1, SAVE_SCHEMA]
 		and int(snapshot.get("scrap_total", -1)) >= 0
 		and int(snapshot.get("chassis", MAX_CHASSIS)) >= 0
 		and int(snapshot.get("chassis", MAX_CHASSIS)) <= MAX_CHASSIS
 		and robot_cell != INVALID_CELL
 		and facing_value in [&"N", &"NE", &"E", &"SE", &"S", &"SW", &"W", &"NW"]
-		and rock_values is Array
-		and scrap_values is Array
-		and _rock_snapshot_is_valid(rock_values as Array, robot_cell)
-		and _scrap_snapshot_is_valid(scrap_values as Array, rock_values as Array)
+		and bool(_world.call("is_valid_snapshot", snapshot, robot_cell))
 	)
 
 
-func _grid_matches(value: Variant) -> bool:
-	if not value is Array or (value as Array).size() != 2:
-		return false
-	var grid: Array = value as Array
-	if (
-		(not grid[0] is int and not grid[0] is float)
-		or (not grid[1] is int and not grid[1] is float)
-	):
-		return false
-	return int(grid[0]) == GRID_SIZE.x and int(grid[1]) == GRID_SIZE.y
-
-
-func _rock_snapshot_is_valid(values: Array, robot_cell: Vector2i) -> bool:
-	var rock_cells: Dictionary = {}
-	for value: Variant in values:
-		var cell: Vector2i = _decode_cell(value)
-		if cell == INVALID_CELL or rock_cells.has(cell):
-			return false
-		rock_cells[cell] = true
-	return not rock_cells.has(robot_cell)
-
-
-func _scrap_snapshot_is_valid(values: Array, rock_values: Array) -> bool:
-	var rock_cells: Dictionary = {}
-	for value: Variant in rock_values:
-		rock_cells[_decode_cell(value)] = true
-	var scrap_cells: Dictionary = {}
-	for value: Variant in values:
-		if not value is Dictionary:
-			return false
-		var entry: Dictionary = value as Dictionary
-		var cell: Vector2i = _decode_cell(entry.get("cell", []))
-		var amount: int = int(entry.get("amount", 0))
-		if (
-			cell == INVALID_CELL
-			or rock_cells.has(cell)
-			or scrap_cells.has(cell)
-			or amount <= 0
-			or amount > 999
-		):
-			return false
-		scrap_cells[cell] = true
-	return true
-
-
 func _apply_snapshot(snapshot: Dictionary) -> void:
-	_blocked.clear()
-	_destructible_rocks.clear()
-	_scrap.clear()
-	for value: Variant in snapshot["rocks"] as Array:
-		var cell: Vector2i = _decode_cell(value)
-		_blocked[cell] = true
-		_destructible_rocks[cell] = true
-	for y: int in range(GRID_SIZE.y):
-		for x: int in range(GRID_SIZE.x):
-			var cell: Vector2i = Vector2i(x, y)
-			if bool(_destructible_rocks.get(cell, false)):
-				_terrain[cell] = &"rock"
-				_elevation[cell] = 2
-			elif _terrain.get(cell, &"sand") == &"rock":
-				_terrain[cell] = &"sand"
-				_elevation[cell] = 0
-	for value: Variant in snapshot["scrap"] as Array:
-		var entry: Dictionary = value as Dictionary
-		_scrap[_decode_cell(entry["cell"])] = int(entry["amount"])
+	_world.call("apply_snapshot", snapshot)
 	_scrap_count = int(snapshot["scrap_total"])
 	_chassis = int(snapshot.get("chassis", MAX_CHASSIS))
 	_robot_grid = _decode_cell(snapshot["robot_cell"])
@@ -604,16 +502,8 @@ func _apply_snapshot(snapshot: Dictionary) -> void:
 
 
 func _decode_cell(value: Variant) -> Vector2i:
-	if not value is Array or (value as Array).size() != 2:
-		return INVALID_CELL
-	var coordinates: Array = value as Array
-	if (
-		(not coordinates[0] is int and not coordinates[0] is float)
-		or (not coordinates[1] is int and not coordinates[1] is float)
-	):
-		return INVALID_CELL
-	var cell: Vector2i = Vector2i(int(coordinates[0]), int(coordinates[1]))
-	return cell if _is_in_bounds(cell) else INVALID_CELL
+	var cell: Vector2i = _world.call("decode_cell", value) as Vector2i
+	return cell if _is_in_bounds(cell) and cell != INVALID_CELL else INVALID_CELL
 
 
 func _update_camera_follow(delta: float) -> void:
@@ -636,6 +526,7 @@ func _move_velocity(delta: float) -> bool:
 	_robot_visual_position = candidate
 	if candidate_grid != _robot_grid:
 		_robot_grid = candidate_grid
+		_stream_world()
 		_collect_scrap_at(_robot_grid)
 	return true
 
@@ -654,10 +545,9 @@ func _can_transition(from: Vector2i, target: Vector2i) -> bool:
 func _collect_scrap_at(cell: Vector2i) -> int:
 	if _shutdown:
 		return 0
-	var amount: int = int(_scrap.get(cell, 0))
+	var amount: int = int(_world.call("collect_scrap", cell)) if _world != null else 0
 	if amount <= 0:
 		return 0
-	_scrap.erase(cell)
 	_scrap_count += amount
 	_status_hold_time = 0.9
 	if _effects != null:
@@ -669,51 +559,33 @@ func _collect_scrap_at(cell: Vector2i) -> int:
 	return amount
 
 
-func _generate_desert() -> void:
-	var rocks: Array[Vector2i] = [
-		Vector2i(2, 3),
-		Vector2i(3, 3),
-		Vector2i(4, 4),
-		Vector2i(12, 2),
-		Vector2i(13, 3),
-		Vector2i(14, 4),
-		Vector2i(5, 12),
-		Vector2i(6, 13),
-		Vector2i(11, 12),
-		Vector2i(12, 12),
-		Vector2i(13, 11),
-		Vector2i(15, 14),
-		Vector2i(3, 15),
-	]
-	for cell: Vector2i in rocks:
-		_blocked[cell] = true
-		_destructible_rocks[cell] = true
+func _build_world_stream() -> void:
+	_world = InfiniteWorldScript.new() as RefCounted
+	(
+		_world
+		. call(
+			"configure",
+			_terrain,
+			_elevation,
+			_blocked,
+			_destructible_rocks,
+			_scrap,
+			_outposts,
+		)
+	)
 
-	for y: int in range(GRID_SIZE.y):
-		for x: int in range(GRID_SIZE.x):
-			var cell: Vector2i = Vector2i(x, y)
-			var value: int = posmod(x * 19 + y * 31 + x * y * 7, 100)
-			var terrain_id: StringName = &"sand"
-			if bool(_blocked.get(cell, false)):
-				terrain_id = &"rock"
-			elif value < 11:
-				terrain_id = &"salt"
-			elif value < 18:
-				terrain_id = &"ruin"
-			_terrain[cell] = terrain_id
-			_elevation[cell] = 2 if terrain_id == &"rock" else (1 if terrain_id == &"ruin" else 0)
 
-	for cell: Vector2i in [Vector2i(1, 10), Vector2i(8, 4), Vector2i(15, 8)]:
-		_outposts[cell] = true
-		_terrain[cell] = &"ruin"
-		_elevation[cell] = 1
-		_blocked.erase(cell)
-		_destructible_rocks.erase(cell)
-
-	_place_scrap(Vector2i(9, 9), 1)
-	_place_scrap(Vector2i(10, 7), 2)
-	_place_scrap(Vector2i(7, 13), 1)
-	_place_scrap(Vector2i(14, 8), 2)
+func _stream_world() -> void:
+	if _world == null:
+		return
+	_world.call("stream_around", _robot_grid)
+	_visible_cells = _world.call("visible_cells", _robot_grid) as Array[Vector2i]
+	if _world_objects != null:
+		_world_objects.call("set_visible_cells", _visible_cells)
+	if _terrain_haze != null:
+		_terrain_haze.call("set_visible_cells", _visible_cells)
+	_refresh_haze_mask()
+	queue_redraw()
 
 
 func _read_screen_direction() -> Vector2i:
@@ -760,13 +632,13 @@ func _build_world_layers() -> void:
 		_world_objects
 		. call(
 			"configure",
-			GRID_SIZE,
 			_destructible_rocks,
 			_scrap,
 			_outposts,
 			Callable(self, "grid_to_screen"),
 		)
 	)
+	_world_objects.call("set_visible_cells", _visible_cells)
 
 
 func _build_avatar() -> void:
@@ -784,10 +656,7 @@ func _build_camera() -> void:
 	_camera.position = _robot_visual_position
 	_camera.enabled = true
 	_camera.ignore_rotation = true
-	_camera.limit_left = -900
-	_camera.limit_right = 2500
-	_camera.limit_top = -600
-	_camera.limit_bottom = 1600
+	_camera.zoom = Vector2(1.2, 1.2)
 	add_child(_camera)
 
 
@@ -817,7 +686,7 @@ func _build_hazards() -> void:
 	_hazards = DesertHazardsScript.new() as Node2D
 	_hazards.name = "DesertHazards"
 	_hazards.z_index = 40
-	_hazards.call("configure", GRID_SIZE, TILE_SIZE, MAP_ORIGIN)
+	_hazards.call("configure", TILE_SIZE, MAP_ORIGIN, _world.call("get_cull_radius"))
 	_hazards.call("set_player_cell", _robot_grid)
 	_hazards.connect("damage_tick", Callable(self, "_on_hazard_damage"))
 	_effects_layer.add_child(_hazards)
@@ -830,8 +699,9 @@ func _on_hazard_damage(amount: int, source: StringName) -> void:
 func _build_heat_haze() -> void:
 	_terrain_haze = TerrainHazeScript.new() as Node2D
 	_terrain_haze.name = "TerrainHaze"
-	_terrain_haze.call("configure", _terrain, GRID_SIZE, TILE_SIZE, MAP_ORIGIN)
+	_terrain_haze.call("configure", _terrain, TILE_SIZE, MAP_ORIGIN)
 	add_child(_terrain_haze)
+	_terrain_haze.call("set_visible_cells", _visible_cells)
 
 
 func _refresh_haze_mask() -> void:
@@ -847,10 +717,8 @@ func _sync_avatar() -> void:
 
 
 func _draw_world_backdrop() -> void:
-	draw_rect(Rect2(-1000.0, -800.0, 3800.0, 2800.0), Color("24170f"))
-	for band: int in range(12):
-		var color: Color = Color("6f3925").lerp(Color("24170f"), float(band) / 11.0)
-		draw_rect(Rect2(-1000.0, -600.0 + float(band) * 105.0, 3800.0, 108.0), color)
+	var backdrop_origin: Vector2 = _robot_visual_position - Vector2(2000.0, 1500.0)
+	draw_rect(Rect2(backdrop_origin, Vector2(4000.0, 3000.0)), Color("24170f"))
 
 
 func _draw_tile(cell: Vector2i) -> void:

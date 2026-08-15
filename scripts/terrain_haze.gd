@@ -3,16 +3,13 @@ extends Node2D
 const HEAT_HAZE_SHADER: Shader = preload("res://shaders/heat_haze.gdshader")
 
 var _terrain: Dictionary = {}
-var _grid_size: Vector2i = Vector2i.ZERO
+var _visible_cells: Array[Vector2i] = []
 var _tile_size: Vector2 = Vector2.ZERO
 var _map_origin: Vector2 = Vector2.ZERO
 
 
-func configure(
-	terrain: Dictionary, grid_size: Vector2i, tile_size: Vector2, map_origin: Vector2
-) -> void:
+func configure(terrain: Dictionary, tile_size: Vector2, map_origin: Vector2) -> void:
 	_terrain = terrain
-	_grid_size = grid_size
 	_tile_size = tile_size
 	_map_origin = map_origin
 
@@ -26,25 +23,26 @@ func _ready() -> void:
 
 
 func _draw() -> void:
-	for y: int in range(_grid_size.y):
-		for x: int in range(_grid_size.x):
-			var cell: Vector2i = Vector2i(x, y)
-			if not has_haze_at(cell):
-				continue
+	for cell: Vector2i in _visible_cells:
+		if has_haze_at(cell):
 			draw_colored_polygon(_tile_polygon(cell), Color.WHITE)
 
 
 func has_haze_at(cell: Vector2i) -> bool:
-	return _terrain.get(cell, &"sand") == &"sand"
+	return _terrain.get(cell, &"void") == &"sand"
 
 
 func get_haze_tile_count() -> int:
 	var count: int = 0
-	for y: int in range(_grid_size.y):
-		for x: int in range(_grid_size.x):
-			if has_haze_at(Vector2i(x, y)):
-				count += 1
+	for cell: Vector2i in _visible_cells:
+		if has_haze_at(cell):
+			count += 1
 	return count
+
+
+func set_visible_cells(cells: Array[Vector2i]) -> void:
+	_visible_cells = cells
+	queue_redraw()
 
 
 func refresh_mask() -> void:

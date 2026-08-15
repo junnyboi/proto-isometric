@@ -57,7 +57,13 @@ func _test_isometric_map() -> void:
 	await process_frame
 	await process_frame
 
-	_check(map.call("get_grid_size") == Vector2i(18, 18), "expanded grid size")
+	_check(map.call("get_grid_size") == Vector2i(-1, -1), "world reports unbounded grid")
+	var world: RefCounted = map.get("_world") as RefCounted
+	_check(world != null, "lazy world stream exists")
+	_check(
+		int(world.call("get_loaded_chunk_count")) == 25, "stream keeps five by five chunks active"
+	)
+	_check(int(world.call("get_active_cell_count")) <= 25 * 64, "active terrain memory is bounded")
 	var sample: Vector2i = Vector2i(5, 3)
 	var projected: Vector2 = map.call("grid_to_screen", sample) as Vector2
 	_check(map.call("screen_to_grid", projected) == sample, "2:1 projection round trip")
@@ -111,13 +117,23 @@ func _test_isometric_map() -> void:
 	_check(not bool(heat_haze.call("has_haze_at", Vector2i(0, 0))), "salt tile rejects haze")
 	_check(not bool(heat_haze.call("has_haze_at", Vector2i(2, 3))), "rock tile rejects haze")
 	_check(not bool(heat_haze.call("has_haze_at", Vector2i(8, 4))), "ruin tile rejects haze")
-	_check(int(heat_haze.call("get_haze_tile_count")) < 18 * 18, "haze mask excludes non-sand")
+	_check(
+		int(heat_haze.call("get_haze_tile_count")) < int(world.call("get_render_cell_limit")),
+		"haze mask excludes non-sand",
+	)
 	var haze_shader: Shader = (heat_haze.material as ShaderMaterial).shader
 	_check("MODEL_MATRIX" in haze_shader.code, "sand ripple phase uses world coordinates")
 	_check(world_object_layer.layer == 2, "rocks and interactables render above ripple")
 	_check(world_effects_layer.layer == 3, "environmental enemies render above objects")
 	_check(world_object_layer.follow_viewport_enabled, "object layer follows the world camera")
 	_check(world_objects.has_method("_draw_rock"), "rocks use the high-layer renderer")
+	_check(
+		(
+			int(world_objects.call("get_visible_cell_count"))
+			== int(world.call("get_render_cell_limit"))
+		),
+		"terrain and object graphics are viewport culled",
+	)
 	var field_hud: CanvasLayer = map.get_node("FieldHUD") as CanvasLayer
 	_check(field_hud.layer > world_effects_layer.layer, "HUD renders above world effects")
 	var outpost_interface: Control = field_hud.call("get_outpost_interface") as Control
@@ -437,11 +453,26 @@ func _test_isometric_map() -> void:
 	_check(int(map.call("get_scrap_count")) == 2, "post-repair scrap persists")
 	_check(bool(map.call("_is_at_outpost")), "outpost position persists")
 
-	map.call("place_robot", Vector2i(0, 0))
+	world = map.get("_world") as RefCounted
+	var far_cell: Vector2i = Vector2i(-32, -24)
+	_check(bool(map.call("place_robot", far_cell)), "Cardinal crosses former map bounds")
+	var far_terrain: StringName = world.call("terrain_at", far_cell) as StringName
+	_check(far_terrain != &"void", "far terrain generates lazily")
+	_check(int(world.call("get_loaded_chunk_count")) == 25, "far travel evicts old chunks")
 	_check(
-		not bool(map.call("update_drive", Vector2i(-1, -1), 0.05, false)),
-		"map edge blocks drive",
+		not bool(world.call("is_cell_loaded", Vector2i(8, 8))), "starter chunks unload offscreen"
 	)
+	_check(int(world.call("get_active_cell_count")) <= 25 * 64, "far travel keeps memory bounded")
+	_check(
+		bool(map.call("place_destructible_rock", far_cell + Vector2i.RIGHT)), "far mutation saves"
+	)
+	_check(
+		bool(map.call("place_robot", Vector2i(0, 0))), "Cardinal returns across chunk boundaries"
+	)
+	_check(bool(map.call("place_robot", far_cell)), "Cardinal revisits generated terrain")
+	_check(world.call("terrain_at", far_cell) == far_terrain, "procedural terrain is deterministic")
+	var follow_zoom: Vector2 = (map.get_node("FollowCamera") as Camera2D).zoom
+	_check(follow_zoom.is_equal_approx(Vector2(1.2, 1.2)), "camera zoom is twenty percent closer")
 
 	chassis_feedback = map.get_node("ChassisFeedback") as CanvasLayer
 	effects = map.get_node("WorldEffectsLayer/ImpactEffects") as Node2D
@@ -504,6 +535,10 @@ func _test_isometric_map() -> void:
 	_check(int(map.call("_get_chassis")) == 0, "zero chassis persists")
 	_check(bool(map.get("_shutdown")), "shutdown state restores on reload")
 	_check(bool(chassis_feedback.call("is_shutdown_visible")), "restored shutdown remains visible")
+	_check(
+		bool(map.call("has_destructible_rock", far_cell + Vector2i.RIGHT)),
+		"far streamed terrain mutation persists",
+	)
 	_check(
 		not bool(map.call("update_drive", Vector2i.RIGHT, 0.05, false)),
 		"restored shutdown remains immobile",

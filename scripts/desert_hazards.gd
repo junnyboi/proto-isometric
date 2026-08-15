@@ -13,10 +13,11 @@ const DUST: Color = Color("c78038")
 const PALE_DUST: Color = Color("efc477")
 const DARK_DUST: Color = Color("744124")
 
-var _grid_size: Vector2i = Vector2i(18, 18)
+var _spawn_half_extents: Vector2i = Vector2i(14, 11)
 var _tile_size: Vector2 = Vector2(90.0, 45.0)
 var _map_origin: Vector2 = Vector2(760.0, 70.0)
 var _player_position: Vector2 = Vector2.ZERO
+var _world_center: Vector2i = Vector2i.ZERO
 var _hazards: Array[Dictionary] = []
 var _next_id: int = 1
 var _time: float = 0.0
@@ -30,10 +31,10 @@ func _ready() -> void:
 	_rng.seed = 0xCA7D1A1
 
 
-func configure(grid_size: Vector2i, tile_size: Vector2, map_origin: Vector2) -> void:
-	_grid_size = grid_size
+func configure(tile_size: Vector2, map_origin: Vector2, spawn_half_extents: Vector2i) -> void:
 	_tile_size = tile_size
 	_map_origin = map_origin
+	_spawn_half_extents = spawn_half_extents
 
 
 func set_auto_spawn(enabled: bool) -> void:
@@ -42,10 +43,14 @@ func set_auto_spawn(enabled: bool) -> void:
 
 func set_player_cell(cell: Vector2i) -> void:
 	_player_position = Vector2(cell)
+	if cell != Vector2i(-9999, -9999):
+		_world_center = cell
 
 
 func set_player_position(position: Vector2) -> void:
 	_player_position = position
+	if position != Vector2(-9999.0, -9999.0):
+		_world_center = Vector2i(position.round())
 
 
 func advance(delta: float) -> void:
@@ -173,7 +178,22 @@ func _advance_spawners(delta: float) -> void:
 	_tornado_timer -= delta
 	while _tornado_timer <= 0.0:
 		spawn_tornado(
-			Vector2i(_rng.randi_range(0, _grid_size.x - 1), _rng.randi_range(0, _grid_size.y - 1))
+			Vector2i(
+				(
+					_rng
+					. randi_range(
+						_world_center.x - _spawn_half_extents.x,
+						_world_center.x + _spawn_half_extents.x,
+					)
+				),
+				(
+					_rng
+					. randi_range(
+						_world_center.y - _spawn_half_extents.y,
+						_world_center.y + _spawn_half_extents.y,
+					)
+				),
+			)
 		)
 		_tornado_timer += _rng.randf_range(5.0, 8.5)
 	_sandstorm_timer -= delta
@@ -185,16 +205,60 @@ func _advance_spawners(delta: float) -> void:
 func _spawn_edge_sandstorm() -> void:
 	match _rng.randi_range(0, 3):
 		0:
-			spawn_sandstorm(Vector2i(-3, _rng.randi_range(0, _grid_size.y - 2)), Vector2i.RIGHT)
+			spawn_sandstorm(
+				Vector2i(
+					_world_center.x - _spawn_half_extents.x - 3,
+					(
+						_rng
+						. randi_range(
+							_world_center.y - _spawn_half_extents.y,
+							_world_center.y + _spawn_half_extents.y - 1,
+						)
+					),
+				),
+				Vector2i.RIGHT,
+			)
 		1:
 			spawn_sandstorm(
-				Vector2i(_grid_size.x, _rng.randi_range(0, _grid_size.y - 2)), Vector2i.LEFT
+				Vector2i(
+					_world_center.x + _spawn_half_extents.x + 1,
+					(
+						_rng
+						. randi_range(
+							_world_center.y - _spawn_half_extents.y,
+							_world_center.y + _spawn_half_extents.y - 1,
+						)
+					),
+				),
+				Vector2i.LEFT,
 			)
 		2:
-			spawn_sandstorm(Vector2i(_rng.randi_range(0, _grid_size.x - 2), -3), Vector2i.DOWN)
+			spawn_sandstorm(
+				Vector2i(
+					(
+						_rng
+						. randi_range(
+							_world_center.x - _spawn_half_extents.x,
+							_world_center.x + _spawn_half_extents.x - 1,
+						)
+					),
+					_world_center.y - _spawn_half_extents.y - 3,
+				),
+				Vector2i.DOWN,
+			)
 		_:
 			spawn_sandstorm(
-				Vector2i(_rng.randi_range(0, _grid_size.x - 2), _grid_size.y), Vector2i.UP
+				Vector2i(
+					(
+						_rng
+						. randi_range(
+							_world_center.x - _spawn_half_extents.x,
+							_world_center.x + _spawn_half_extents.x - 1,
+						)
+					),
+					_world_center.y + _spawn_half_extents.y + 1,
+				),
+				Vector2i.UP,
 			)
 
 
@@ -211,16 +275,6 @@ func _advance_tornado(hazard: Dictionary, delta: float) -> void:
 		hazard["turn_timer"] = _rng.randf_range(0.18, 0.42)
 	var position: Vector2 = hazard["position"] as Vector2
 	position += (hazard["direction"] as Vector2) * float(hazard["speed"]) * delta
-	if position.x < 0.0 or position.x > float(_grid_size.x - 1):
-		hazard["direction"] = Vector2(
-			-(hazard["direction"] as Vector2).x, (hazard["direction"] as Vector2).y
-		)
-	if position.y < 0.0 or position.y > float(_grid_size.y - 1):
-		hazard["direction"] = Vector2(
-			(hazard["direction"] as Vector2).x, -(hazard["direction"] as Vector2).y
-		)
-	position.x = clampf(position.x, 0.0, float(_grid_size.x - 1))
-	position.y = clampf(position.y, 0.0, float(_grid_size.y - 1))
 	hazard["position"] = position
 
 
@@ -295,10 +349,10 @@ func _sandstorm_is_outside(hazard: Dictionary) -> bool:
 	var position: Vector2 = hazard["position"] as Vector2
 	var direction: Vector2 = hazard["direction"] as Vector2
 	return (
-		(direction.x > 0.0 and position.x > float(_grid_size.x + 3))
-		or (direction.x < 0.0 and position.x < -4.0)
-		or (direction.y > 0.0 and position.y > float(_grid_size.y + 3))
-		or (direction.y < 0.0 and position.y < -4.0)
+		(direction.x > 0.0 and position.x > float(_world_center.x + _spawn_half_extents.x + 4))
+		or (direction.x < 0.0 and position.x < float(_world_center.x - _spawn_half_extents.x - 4))
+		or (direction.y > 0.0 and position.y > float(_world_center.y + _spawn_half_extents.y + 4))
+		or (direction.y < 0.0 and position.y < float(_world_center.y - _spawn_half_extents.y - 4))
 	)
 
 

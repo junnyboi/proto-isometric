@@ -5,21 +5,19 @@ const TEAL: Color = Color("4eb6aa")
 const AMBER: Color = Color("f5a62d")
 const INK: Color = Color("11151a")
 
-var _grid_size: Vector2i = Vector2i.ZERO
 var _destructible_rocks: Dictionary = {}
 var _scrap: Dictionary = {}
 var _outposts: Dictionary = {}
+var _visible_cells: Array[Vector2i] = []
 var _grid_to_screen: Callable
 
 
 func configure(
-	grid_size: Vector2i,
 	destructible_rocks: Dictionary,
 	scrap: Dictionary,
 	outposts: Dictionary,
 	grid_to_screen: Callable,
 ) -> void:
-	_grid_size = grid_size
 	_destructible_rocks = destructible_rocks
 	_scrap = scrap
 	_outposts = outposts
@@ -27,15 +25,20 @@ func configure(
 	queue_redraw()
 
 
+func set_visible_cells(cells: Array[Vector2i]) -> void:
+	_visible_cells = cells
+	queue_redraw()
+
+
+func get_visible_cell_count() -> int:
+	return _visible_cells.size()
+
+
 func _draw() -> void:
 	if not _grid_to_screen.is_valid():
 		return
-	for diagonal: int in range(_grid_size.x + _grid_size.y - 1):
-		for y: int in range(_grid_size.y):
-			var x: int = diagonal - y
-			if x < 0 or x >= _grid_size.x:
-				continue
-			_draw_cell_objects(Vector2i(x, y))
+	for cell: Vector2i in _visible_cells:
+		_draw_cell_objects(cell)
 
 
 func _draw_cell_objects(cell: Vector2i) -> void:
