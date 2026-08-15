@@ -118,7 +118,8 @@ func _detect_mobile_device() -> bool:
 		. eval(
 			(
 				"new URLSearchParams(location.search).get('mobile')==='1' || "
-				+ "navigator.maxTouchPoints>0 || matchMedia('(pointer: coarse)').matches || "
+				+ "(navigator.userAgentData && navigator.userAgentData.mobile) || "
+				+ "(navigator.maxTouchPoints>0 && matchMedia('(pointer: coarse)').matches) || "
 				+ "/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)"
 			),
 			true,
