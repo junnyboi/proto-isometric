@@ -3,7 +3,8 @@ extends Node2D
 const GRID_SIZE: Vector2i = Vector2i(9, 9)
 const TILE_SIZE: Vector2 = Vector2(90.0, 45.0)
 const MAP_ORIGIN: Vector2 = Vector2(760.0, 116.0)
-const ROBOT_SPEED: float = 180.0
+const WALK_SPEED: float = 190.0
+const RUN_MULTIPLIER: float = 1.5
 
 const SAND: Color = Color("d79a45")
 const SAND_LIGHT: Color = Color("e8b861")
@@ -18,21 +19,17 @@ const GRID_LINE: Color = Color(0.18, 0.12, 0.08, 0.32)
 var _terrain: Dictionary = {}
 var _elevation: Dictionary = {}
 var _blocked: Dictionary = {}
-var _astar: AStarGrid2D
-var _hovered: Vector2i = Vector2i(-1, -1)
-var _selected: Vector2i = Vector2i(-1, -1)
 var _robot_grid: Vector2i = Vector2i(3, 6)
 var _robot_visual_position: Vector2
-var _route: Array[Vector2i] = []
-var _wander_timer: float = 1.2
-var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+var _last_screen_direction: Vector2i = Vector2i(1, 1)
+var _facing: StringName = &"SE"
+var _is_moving: bool = false
+var _is_running: bool = false
 var _status_label: Label
 
 
 func _ready() -> void:
-	_rng.seed = 7331
 	_generate_desert()
-	_build_pathfinder()
 	_robot_visual_position = grid_to_screen(_robot_grid)
 	_build_interface()
 	queue_redraw()
@@ -40,51 +37,20 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if not _route.is_empty():
-		var target: Vector2 = grid_to_screen(_route[0])
-		_robot_visual_position = _robot_visual_position.move_toward(target, ROBOT_SPEED * delta)
-		if _robot_visual_position.distance_to(target) < 0.5:
-			_robot_grid = _route.pop_front()
-			_wander_timer = 1.4
-			_update_status("WALKER MOVING // %d,%d" % [_robot_grid.x, _robot_grid.y])
-		queue_redraw()
+	var screen_direction: Vector2i = _read_screen_direction()
+	if screen_direction == Vector2i.ZERO:
+		if _is_moving:
+			_is_moving = false
+			_is_running = false
+			_update_drive_status()
+			queue_redraw()
 		return
-
-	_wander_timer -= delta
-	if _wander_timer <= 0.0:
-		_choose_wander_target()
+	move_screen_direction(screen_direction, delta, _is_run_pressed())
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventMouseMotion:
-		var motion: InputEventMouseMotion = event as InputEventMouseMotion
-		var next_hover: Vector2i = screen_to_grid(motion.position)
-		if next_hover != _hovered:
-			_hovered = next_hover if is_in_bounds(next_hover) else Vector2i(-1, -1)
-			queue_redraw()
-		return
-
-	if event is InputEventMouseButton:
-		var click: InputEventMouseButton = event as InputEventMouseButton
-		if click.pressed and click.button_index == MOUSE_BUTTON_LEFT:
-			request_route(screen_to_grid(click.position))
-		return
-
 	if event.is_action_pressed("ui_cancel"):
 		get_tree().change_scene_to_file("res://scenes/title_screen.tscn")
-		return
-
-	var step: Vector2i = Vector2i.ZERO
-	if event.is_action_pressed("ui_left"):
-		step = Vector2i(-1, 0)
-	elif event.is_action_pressed("ui_right"):
-		step = Vector2i(1, 0)
-	elif event.is_action_pressed("ui_up"):
-		step = Vector2i(0, -1)
-	elif event.is_action_pressed("ui_down"):
-		step = Vector2i(0, 1)
-	if step != Vector2i.ZERO:
-		request_route(_robot_grid + step)
 
 
 func _draw() -> void:
@@ -96,15 +62,18 @@ func _draw() -> void:
 			if x < 0 or x >= GRID_SIZE.x:
 				continue
 			_draw_tile(Vector2i(x, y))
-	_draw_route()
+	_draw_drive_vector()
 	_draw_robot(_robot_visual_position)
 
 
 func grid_to_screen(cell: Vector2i) -> Vector2:
 	var elevation_pixels: float = float(_elevation.get(cell, 0)) * 10.0
-	return MAP_ORIGIN + Vector2(
-		float(cell.x - cell.y) * TILE_SIZE.x * 0.5,
-		float(cell.x + cell.y) * TILE_SIZE.y * 0.5 - elevation_pixels,
+	return (
+		MAP_ORIGIN
+		+ Vector2(
+			float(cell.x - cell.y) * TILE_SIZE.x * 0.5,
+			float(cell.x + cell.y) * TILE_SIZE.y * 0.5 - elevation_pixels,
+		)
 	)
 
 
@@ -123,27 +92,103 @@ func is_walkable(cell: Vector2i) -> bool:
 	return is_in_bounds(cell) and not bool(_blocked.get(cell, false))
 
 
-func request_route(target: Vector2i) -> bool:
-	if not is_walkable(target):
-		_update_status("ROUTE BLOCKED")
+func move_screen_direction(screen_direction: Vector2i, delta: float, running: bool = false) -> bool:
+	var normalized_direction: Vector2i = Vector2i(
+		clampi(screen_direction.x, -1, 1), clampi(screen_direction.y, -1, 1)
+	)
+	if normalized_direction == Vector2i.ZERO:
 		return false
-	var path: Array[Vector2i] = _astar.get_id_path(_robot_grid, target)
-	if path.size() <= 1:
+	if not can_move_screen_direction(normalized_direction):
+		_is_moving = false
+		_is_running = false
+		_update_status("VECTOR %s // BLOCKED" % direction_name(normalized_direction))
 		return false
-	path.pop_front()
-	_route = path
-	_selected = target
-	_update_status("ROUTE SET // %d TILES" % _route.size())
+
+	_last_screen_direction = normalized_direction
+	_facing = direction_name(normalized_direction)
+	_is_moving = true
+	_is_running = running
+	var speed: float = WALK_SPEED * (RUN_MULTIPLIER if running else 1.0)
+	var travel: Vector2 = Vector2(normalized_direction).normalized() * speed * delta
+	_robot_visual_position += travel
+	_robot_grid = screen_to_grid(_robot_visual_position)
+	_update_drive_status()
 	queue_redraw()
 	return true
+
+
+func can_move_screen_direction(screen_direction: Vector2i) -> bool:
+	var delta: Vector2i = screen_direction_to_grid_delta(screen_direction)
+	if delta == Vector2i.ZERO:
+		return false
+	var target: Vector2i = _robot_grid + delta
+	if not is_walkable(target):
+		return false
+	if delta.x != 0 and delta.y != 0:
+		return (
+			is_walkable(_robot_grid + Vector2i(delta.x, 0))
+			and is_walkable(_robot_grid + Vector2i(0, delta.y))
+		)
+	return true
+
+
+func screen_direction_to_grid_delta(screen_direction: Vector2i) -> Vector2i:
+	var direction: Vector2i = Vector2i(
+		clampi(screen_direction.x, -1, 1), clampi(screen_direction.y, -1, 1)
+	)
+	var directions: Dictionary = {
+		Vector2i(0, -1): Vector2i(-1, -1),
+		Vector2i(1, -1): Vector2i(0, -1),
+		Vector2i(1, 0): Vector2i(1, -1),
+		Vector2i(1, 1): Vector2i(1, 0),
+		Vector2i(0, 1): Vector2i(1, 1),
+		Vector2i(-1, 1): Vector2i(0, 1),
+		Vector2i(-1, 0): Vector2i(-1, 1),
+		Vector2i(-1, -1): Vector2i(-1, 0),
+	}
+	return directions.get(direction, Vector2i.ZERO) as Vector2i
+
+
+func direction_name(screen_direction: Vector2i) -> StringName:
+	var names: Dictionary = {
+		Vector2i(0, -1): &"N",
+		Vector2i(1, -1): &"NE",
+		Vector2i(1, 0): &"E",
+		Vector2i(1, 1): &"SE",
+		Vector2i(0, 1): &"S",
+		Vector2i(-1, 1): &"SW",
+		Vector2i(-1, 0): &"W",
+		Vector2i(-1, -1): &"NW",
+	}
+	return names.get(screen_direction, &"IDLE") as StringName
 
 
 func get_robot_grid() -> Vector2i:
 	return _robot_grid
 
 
-func get_route() -> Array[Vector2i]:
-	return _route.duplicate()
+func place_robot(cell: Vector2i) -> bool:
+	if not is_walkable(cell):
+		return false
+	_robot_grid = cell
+	_robot_visual_position = grid_to_screen(cell)
+	_is_moving = false
+	_is_running = false
+	_update_drive_status()
+	queue_redraw()
+	return true
+
+
+func get_robot_position() -> Vector2:
+	return _robot_visual_position
+
+
+func get_facing() -> StringName:
+	return _facing
+
+
+func is_robot_moving() -> bool:
+	return _is_moving
 
 
 func get_grid_size() -> Vector2i:
@@ -178,25 +223,22 @@ func _generate_desert() -> void:
 			_elevation[cell] = 2 if terrain_id == &"rock" else (1 if terrain_id == &"ruin" else 0)
 
 
-func _build_pathfinder() -> void:
-	_astar = AStarGrid2D.new()
-	_astar.region = Rect2i(Vector2i.ZERO, GRID_SIZE)
-	_astar.cell_size = Vector2.ONE
-	_astar.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_NEVER
-	_astar.update()
-	for cell: Variant in _blocked:
-		_astar.set_point_solid(cell as Vector2i, true)
+func _read_screen_direction() -> Vector2i:
+	var horizontal: int = 0
+	var vertical: int = 0
+	if Input.is_physical_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
+		horizontal -= 1
+	if Input.is_physical_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
+		horizontal += 1
+	if Input.is_physical_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
+		vertical -= 1
+	if Input.is_physical_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
+		vertical += 1
+	return Vector2i(horizontal, vertical)
 
 
-func _choose_wander_target() -> void:
-	for _attempt: int in range(24):
-		var target: Vector2i = Vector2i(
-			_rng.randi_range(0, GRID_SIZE.x - 1),
-			_rng.randi_range(0, GRID_SIZE.y - 1),
-		)
-		if target != _robot_grid and request_route(target):
-			return
-	_wander_timer = 1.0
+func _is_run_pressed() -> bool:
+	return Input.is_key_pressed(KEY_SHIFT)
 
 
 func _draw_horizon() -> void:
@@ -245,13 +287,23 @@ func _draw_tile(cell: Vector2i) -> void:
 	if height > 0.0:
 		draw_colored_polygon(
 			PackedVector2Array(
-				[points[1], points[1] + Vector2(0.0, height), points[2] + Vector2(0.0, height), points[2]]
+				[
+					points[1],
+					points[1] + Vector2(0.0, height),
+					points[2] + Vector2(0.0, height),
+					points[2]
+				]
 			),
 			color.darkened(0.38),
 		)
 		draw_colored_polygon(
 			PackedVector2Array(
-				[points[2], points[2] + Vector2(0.0, height), points[3] + Vector2(0.0, height), points[3]]
+				[
+					points[2],
+					points[2] + Vector2(0.0, height),
+					points[3] + Vector2(0.0, height),
+					points[3]
+				]
 			),
 			color.darkened(0.52),
 		)
@@ -263,25 +315,18 @@ func _draw_tile(cell: Vector2i) -> void:
 	if terrain_id == &"ruin":
 		draw_circle(center, 6.0, TEAL.darkened(0.15))
 		draw_arc(center, 13.0, 0.0, TAU, 20, TEAL, 2.0)
-	if cell == _hovered and is_walkable(cell):
-		draw_polyline(PackedVector2Array(Array(points) + [points[0]]), Color.WHITE, 3.0)
-	if cell == _selected:
-		draw_polyline(PackedVector2Array(Array(points) + [points[0]]), AMBER, 4.0)
 
 
-func _draw_route() -> void:
-	if _route.is_empty():
-		return
-	var last: Vector2 = _robot_visual_position
-	for cell: Vector2i in _route:
-		var next: Vector2 = grid_to_screen(cell)
-		draw_line(last, next, TEAL, 4.0)
-		draw_circle(next, 4.0, Color.WHITE)
-		last = next
+func _draw_drive_vector() -> void:
+	var vector: Vector2 = Vector2(_last_screen_direction).normalized()
+	var start: Vector2 = _robot_visual_position + Vector2(0.0, 12.0)
+	var finish: Vector2 = start + vector * 42.0
+	draw_line(start, finish, TEAL, 4.0)
+	draw_circle(finish, 5.0, AMBER if _is_running else TEAL)
 
 
 func _draw_robot(position: Vector2) -> void:
-	var bob: float = sin(Time.get_ticks_msec() * 0.004) * 2.0 if not _route.is_empty() else 0.0
+	var bob: float = sin(Time.get_ticks_msec() * 0.008) * 2.0 if _is_moving else 0.0
 	var body: Vector2 = position + Vector2(0.0, -78.0 + bob)
 	draw_set_transform(Vector2.ZERO)
 	_draw_flat_ellipse(
@@ -345,7 +390,7 @@ func _build_interface() -> void:
 	_status_label = Label.new()
 	_status_label.position = Vector2(25.0, 138.0)
 	_status_label.size = Vector2(330.0, 32.0)
-	_status_label.text = "AUTONOMOUS WANDER ENABLED"
+	_status_label.text = "VECTOR SE // DRIVE 0.0 // 3,6"
 	_status_label.add_theme_font_size_override("font_size", 16)
 	_status_label.add_theme_color_override("font_color", TEAL)
 	panel.add_child(_status_label)
@@ -353,10 +398,17 @@ func _build_interface() -> void:
 	var help: Label = Label.new()
 	help.position = Vector2(25.0, 178.0)
 	help.size = Vector2(330.0, 28.0)
-	help.text = "CLICK: ROUTE   ARROWS: STEP   ESC: RETURN"
+	help.text = "WASD/ARROWS: 8D MOVE   SHIFT: RUN   ESC: RETURN"
 	help.add_theme_font_size_override("font_size", 13)
 	help.add_theme_color_override("font_color", Color("9f9787"))
 	panel.add_child(help)
+
+
+func _update_drive_status() -> void:
+	var drive: float = RUN_MULTIPLIER if _is_running else (1.0 if _is_moving else 0.0)
+	_update_status(
+		"VECTOR %s // DRIVE %.1f // %d,%d" % [_facing, drive, _robot_grid.x, _robot_grid.y]
+	)
 
 
 func _update_status(text: String) -> void:

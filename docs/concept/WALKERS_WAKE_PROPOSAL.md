@@ -7,7 +7,7 @@ Author: Manus AI
 
 ## Proposal
 
-**WALKER’S WAKE** is a desert exploration and route-planning game about **Cardinal**, a hulking salvage robot that leads a fragile caravan through a machine graveyard. Cardinal is not a city-sized walking platform. It is a 6–8 meter industrial colossus: large enough to change the terrain with its fists and feet, but personal enough to become a character the player recognizes in every animation.
+**WALKER’S WAKE** is a direct-control desert exploration game about **Cardinal**, a hulking salvage robot that leads a fragile caravan through a machine graveyard. Cardinal is not a city-sized walking platform. It is a 6–8 meter industrial colossus: large enough to change the terrain with its fists and feet, but personal enough to become a character the player recognizes in every animation.
 
 The recommended design combines three compatible fantasies: **crossing a hostile landscape**, **maintaining one ancient machine**, and **excavating a buried civilization**. The caravan treats Cardinal as pathfinder, shelter, heavy equipment, and perhaps protector. Combat can exist, especially given the attack animation family, but it should create route pressure rather than reduce Cardinal to a conventional weapons platform. The desert has enough generic military mechs buried in it already.
 
@@ -30,24 +30,24 @@ The attack frames suggest that Cardinal’s fists are tools as much as weapons. 
 
 ## Player Fantasy
 
-The player acts as Cardinal’s route keeper and field operator. From a fixed 2:1 isometric view, they survey terrain, plot a path, and guide Cardinal tile by tile while the caravan follows at a safer distance. Every stride consumes power, every heavy hand placement changes the ground, and every stop creates a temporary camp in Cardinal’s lee.
+The player directly drives Cardinal with eight-direction WASD movement from a fixed 2:1 isometric view. There is no click-to-move route solver between intention and motion. The player reads terrain while moving, steers around hazards, and controls the distance between Cardinal and the caravan. Every stride consumes power, every heavy hand placement changes the ground, and every stop creates a temporary camp in Cardinal’s lee.
 
-Decisions happen at three readable scales: choose a route across the map, configure a handful of Cardinal’s systems, and respond to discoveries or crises through compact events. The player should care about Cardinal as a singular machine with history and temperament, not as a cursor wearing several thousand tons of armor.
+Decisions happen at three readable scales: control Cardinal moment to moment, configure a handful of machine systems, and respond to discoveries or crises through compact events. The player should care about Cardinal as a singular physical character with momentum and temperament, not as a cursor waiting for an A* committee meeting.
 
 ## Recommended Core Loop
 
 | Phase | Player decision | Resulting tension |
 |---|---|---|
-| Survey | Read dunes, salt, rock, ruins, storms, and resource signals | The shortest route is rarely the safest or richest |
-| Plot | Choose a destination and preview energy, heat, stability, and caravan risk | Committing Cardinal makes future terrain matter |
-| Walk | Advance while Cardinal consumes resources and the caravan follows | Speed protects against storms but can strand slower followers |
+| Survey | Read dunes, salt, rock, ruins, storms, and resource signals while moving | Looking ahead matters because Cardinal cannot cross every surface |
+| Drive | Use eight-direction movement to steer, dodge, reposition, and control pace | Immediate control makes terrain and enemy spacing physical |
+| Traverse | Advance while Cardinal consumes resources and the caravan follows | Speed protects against storms but can strand slower followers |
 | Leave a wake | Knuckle and foot impacts expose machinery, create paths, or damage fragile sites | Progress changes the desert permanently |
 | Brace and camp | Stop Cardinal as a windbreak while crews repair, trade, condense water, and excavate | Remaining stationary improves recovery but lets threats converge |
 | Decide | Integrate discoveries, help settlements, or abandon opportunities | Cardinal’s identity and the region’s future diverge over time |
 
 ## Why This Could Be Fun
 
-Cardinal gives the map a persistent moving center. The core question is not where to build a permanent home, but **where this powerful machine should lead vulnerable people next**. Route selection becomes meaningful because terrain affects Cardinal and the caravan differently, while the wake system turns traversal into world modification rather than empty travel time.
+Cardinal gives the map a persistent moving center. The core question is not where to build a permanent home, but **how this powerful machine should move through danger while leading vulnerable people**. Direct control makes the weight, facing, acceleration, and spacing of every encounter tangible, while the wake system turns traversal into world modification rather than empty travel time.
 
 The new shape language improves feedback. Cardinal’s low stance and massive forearms naturally communicate weight. A planted fist can crack a tile, a braced pose can signal defense against a dust wall, and the raised attack pose can become a readable preparation state before impact. Its silhouette should remain identifiable even when the final runtime sprite occupies only a small portion of the screen.
 
@@ -55,18 +55,18 @@ The new shape language improves feedback. Cardinal’s low stance and massive fo
 
 | Direction | Strength | Risk | Recommendation |
 |---|---|---|---|
-| Route-planning survival | Clear decisions, strong map use, easy to prototype | Could become spreadsheet-heavy | Use as the mechanical spine |
+| Direct traversal action | Immediate embodiment, strong terrain use, and natural sprite payoff | Could become frictionless wandering | Use hazards, weight, and wake interactions as the mechanical spine |
 | Caravan logistics | Makes Cardinal’s scale and protection meaningful | Can become escort frustration | Model the caravan as one resilient system, not dozens of units |
 | Archaeological mystery | Gives every route discovery value | Requires sustained narrative production | Use modular ruins and event chains |
 | Mech combat tactics | Gives the attack sheet immediate purpose | Could make the project generic and animation-expensive | Keep encounters rare, positional, and avoidable |
 
-The recommended hybrid is **route strategy + compact caravan systems + archaeological discovery**, with occasional heavy-impact encounters. A run should be remembered by where Cardinal went, what its fists uncovered, and which communities survived in its wake.
+The recommended hybrid is **direct isometric exploration + compact caravan systems + archaeological discovery**, with occasional heavy-impact encounters. A run should be remembered by how Cardinal moved, what its fists uncovered, and which communities survived in its wake.
 
 ## Visual Direction
 
 ![2:1 isometric gameplay target featuring Cardinal](walkers-wake-gameplay-target.jpg)
 
-The visual language uses ochre sand, rust-red shelves, pale salt, charcoal ruins, oxidized teal signals, and amber destination states. Terrain must remain readable before it becomes beautiful. The fixed orthographic 2:1 projection keeps tile diamonds exact, while atmospheric dust stays near the horizon and map edges so it never obscures route decisions.
+The visual language uses ochre sand, rust-red shelves, pale salt, charcoal ruins, oxidized teal signals, and amber hazard or impact states. The concept image’s cyan line should be read as Cardinal’s recent wake and drive vector, not a computed route. Terrain must remain readable before it becomes beautiful. The fixed orthographic 2:1 projection keeps tile diamonds exact, while atmospheric dust stays near the horizon and map edges so it never obscures movement decisions.
 
 Cardinal carries the sprite sheet’s bone-tan shell, dark mechanics, huge forearms, and short legs into the broader world. At gameplay scale, the broad torso, low stance, pale armor mass, black joints, and near-ground fists should remain the dominant recognition cues. Concept art should not add scaffolding cities, cranes, weapon racks, or other structures that distort the sprite identity.
 
@@ -79,19 +79,19 @@ The current Godot increment establishes the map as a procedural system rather th
 | Projection | Exact 2:1 diamond transform using 90×45 logical tiles |
 | Grid | Deterministic 9×9 desert test map |
 | Terrain | Sand, salt, rock blockers, and machine ruins |
-| Interaction | Mouse hover, click destination, arrow-key step, Escape return |
-| Navigation | Four-direction AStarGrid2D routing around blocked terrain |
-| Actor | Procedural placeholder that autonomously wanders and follows selected routes |
-| Feedback | Teal route line, amber destination, hover outline, and status panel |
+| Interaction | WASD and arrow-key eight-direction drive, Shift run, Escape return |
+| Navigation | Direct screen-space movement converted into eight isometric grid vectors with terrain blocking |
+| Actor | Procedural placeholder controlled continuously by the player |
+| Feedback | Live facing vector, drive speed, grid coordinate, and status panel |
 | Rendering | Procedural CanvasItem drawing with no final-art dependency |
 
-The current robot drawing remains deliberately disposable. When the sprite family is accepted, Cardinal can replace it without changing the grid coordinates, picking, route planning, or navigation APIs. The logical footprint should then expand from one navigation anchor to an approximately 2×2 presentation footprint, validated against the final sprite scale.
+The current robot drawing remains deliberately disposable. When the sprite family is accepted, Cardinal can replace it without changing the grid coordinates, screen-to-grid transform, direct movement, or collision APIs. The logical footprint should then expand from one navigation anchor to an approximately 2×2 presentation footprint, validated against the final sprite scale.
 
 ## Smallest Playable Roadmap
 
-### Increment 1 — Route and Wake
+### Increment 1 — Direct Drive and Wake
 
-The player selects a destination, previews a route, and spends a simple energy budget per tile. Every completed step marks a footprint or knuckle-print tile. Some impacts expose salvage. This is the fastest test of whether directing Cardinal is satisfying.
+The player drives Cardinal in all eight directions and spends a simple energy budget while moving. Every completed stride marks a footprint or knuckle-print tile. Some impacts expose salvage. This is the fastest test of whether controlling Cardinal is satisfying.
 
 ### Increment 2 — Heat Versus Water
 
@@ -107,8 +107,8 @@ Ruins form a small linked mystery. Excavated fragments alter Cardinal: improved 
 
 ## Success Test for the Concept
 
-The concept is promising if a short session creates three emotions without requiring constant combat: satisfaction from plotting a good route, attachment to Cardinal as a singular character, and curiosity about something uncovered by its passage. If route choice feels trivial, add terrain pressure before adding more systems. If Cardinal feels like a cursor, make each impact change the world. If resource management dominates, delete numbers before inventing new ones.
+The concept is promising if a short session creates three emotions without requiring constant combat: satisfaction from moving a heavy machine well, attachment to Cardinal as a singular character, and curiosity about something uncovered by its passage. If traversal feels trivial, add terrain pressure before adding more systems. If Cardinal feels weightless, tune acceleration, animation timing, and impacts before inventing new mechanics. If resource management dominates, delete numbers before inventing new ones.
 
 ## Immediate Recommendation
 
-Complete the Cardinal sprite family, then build **Increment 1 — Route and Wake** around its accepted scale and footprint. Add energy, persistent impact tiles, and deterministic salvage discovery. That slice will test the defining mechanic while giving the new walk and attack animations real gameplay jobs instead of confining them to an exceptionally handsome animation viewer.
+Complete the Cardinal sprite family, then build **Increment 1 — Direct Drive and Wake** around its accepted scale and footprint. Bind all eight movement vectors to the available directional animation family, add energy, persistent impact tiles, and deterministic salvage discovery. That slice will test the defining mechanic while giving the new walk and attack animations real gameplay jobs instead of confining them to an exceptionally handsome animation viewer.

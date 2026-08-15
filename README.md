@@ -24,11 +24,11 @@ The release command writes the HTML, JavaScript, WASM, and PCK bundle to `/home/
 
 ## Controls
 
-Press **Enter** or select **BEGIN** to enter the desert. Click a walkable tile to route the Walker, use the arrow keys for one-tile movement, and press **Escape** to return to the title.
+Press **Enter** or select **BEGIN** to enter the desert. Use **WASD** or the **arrow keys** for direct eight-direction movement, hold **Shift** to run at 1.5× speed, and press **Escape** to return to the title.
 
 ## Concept
 
-Read [`docs/concept/WALKERS_WAKE_PROPOSAL.md`](docs/concept/WALKERS_WAKE_PROPOSAL.md) for the proposed route-strategy, moving-settlement, and archaeological-discovery design.
+Read [`docs/concept/WALKERS_WAKE_PROPOSAL.md`](docs/concept/WALKERS_WAKE_PROPOSAL.md) for the proposed direct-control exploration, caravan, and archaeological-discovery design.
 
 ## Links
 
