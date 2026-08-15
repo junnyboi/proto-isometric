@@ -451,10 +451,10 @@ func _load_world_state() -> bool:
 	if snapshot.is_empty():
 		var load_error: String = str(_state_store.call("get_last_error"))
 		if not load_error.is_empty():
-			push_warning("Ignoring world save: %s" % load_error)
+			_state_store.call("clear")
 		return false
 	if not _is_valid_snapshot(snapshot):
-		push_warning("Ignoring incompatible or malformed world save.")
+		_state_store.call("clear")
 		return false
 	_apply_snapshot(snapshot)
 	return true

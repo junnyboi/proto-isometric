@@ -49,8 +49,10 @@ func _test_isometric_map() -> void:
 		return
 	var save_path: String = "/tmp/proto-isometric-smoke-world.json"
 	var malformed_path: String = "/tmp/proto-isometric-smoke-malformed.json"
+	var incompatible_path: String = "/tmp/proto-isometric-smoke-incompatible.json"
 	_clear_test_save(save_path)
 	_clear_test_save(malformed_path)
+	_clear_test_save(incompatible_path)
 	var map: Node = packed_map.instantiate()
 	map.set("save_path", save_path)
 	get_root().add_child(map)
@@ -558,10 +560,40 @@ func _test_isometric_map() -> void:
 		bool(map.call("has_destructible_rock", Vector2i(4, 4))), "malformed save falls back safely"
 	)
 	_check(int(map.call("get_scrap_count")) == 0, "malformed save cannot corrupt inventory")
+	_check(not FileAccess.file_exists(malformed_path), "malformed save self-heals silently")
+	map.free()
+	await process_frame
+	var incompatible: FileAccess = FileAccess.open(incompatible_path, FileAccess.WRITE)
+	(
+		incompatible
+		. store_string(
+			(
+				JSON
+				. stringify(
+					{
+						"schema": 999,
+						"scrap_total": 0,
+						"chassis": 100,
+						"robot_cell": [8, 10],
+						"facing": "SE",
+					}
+				)
+			)
+		)
+	)
+	incompatible.close()
+	map = packed_map.instantiate()
+	map.set("save_path", incompatible_path)
+	get_root().add_child(map)
+	await process_frame
+	await process_frame
+	_check(int(map.call("get_scrap_count")) == 0, "incompatible save falls back safely")
+	_check(not FileAccess.file_exists(incompatible_path), "incompatible save self-heals silently")
 	map.free()
 	await process_frame
 	_clear_test_save(save_path)
 	_clear_test_save(malformed_path)
+	_clear_test_save(incompatible_path)
 
 
 func _clear_test_save(path: String) -> void:

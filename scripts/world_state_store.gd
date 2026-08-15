@@ -75,12 +75,15 @@ func load_snapshot() -> Dictionary:
 
 func clear() -> bool:
 	_last_error = ""
-	if _path.is_empty() or not FileAccess.file_exists(_path):
+	if _path.is_empty():
 		return true
-	var result: Error = DirAccess.remove_absolute(_absolute_path(_path))
-	if result != OK:
-		_last_error = "Could not clear save file: %s" % error_string(result)
-		return false
+	for candidate: String in [_path, _path + ".tmp", _path + ".bak"]:
+		if not FileAccess.file_exists(candidate):
+			continue
+		var result: Error = DirAccess.remove_absolute(_absolute_path(candidate))
+		if result != OK:
+			_last_error = "Could not clear save file: %s" % error_string(result)
+			return false
 	return true
 
 
