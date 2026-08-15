@@ -77,21 +77,25 @@ The current Godot increment establishes the map as a procedural system rather th
 | Capability | Current implementation |
 |---|---|
 | Projection | Exact 2:1 diamond transform using 90×45 logical tiles |
-| Grid | Deterministic 9×9 desert test map |
-| Terrain | Sand, salt, rock blockers, and machine ruins |
-| Interaction | WASD and arrow-key eight-direction drive, Shift run, Escape return |
-| Navigation | Direct screen-space movement converted into eight isometric grid vectors with terrain blocking |
-| Actor | Procedural placeholder controlled continuously by the player |
-| Feedback | Live facing vector, drive speed, grid coordinate, and status panel |
+| Grid | Deterministic 18×18 desert field |
+| Terrain | Sand, salt, machine ruins, destructible rocks, and collectible scrap |
+| Controls | WASD and arrow-key eight-direction drive, Shift run, Space/J/K impact, Escape return |
+| Navigation | Accelerated screen-space movement converted into eight isometric grid vectors with terrain blocking and deceleration |
+| Actor | Eight-facing Cardinal animation adapter with approved-atlas auto-binding and a procedural proxy fallback |
+| Interaction | Impact-strike rock destruction and automatic scrap collection |
+| Camera | Eased follow with velocity look-ahead, fixed orientation, and screen-locked telemetry |
+| Feedback | Live facing vector, normalized drive speed, grid coordinate, scrap total, impact state, and status panel |
 | Rendering | Procedural CanvasItem drawing with no final-art dependency |
 
-The current robot drawing remains deliberately disposable. When the sprite family is accepted, Cardinal can replace it without changing the grid coordinates, screen-to-grid transform, direct movement, or collision APIs. The logical footprint should then expand from one navigation anchor to an approximately 2×2 presentation footprint, validated against the final sprite scale.
+The procedural proxy remains deliberately disposable, but its animation state machine is not. Approved horizontal square-cell atlases named `cardinal_walk_<direction>.png` and `cardinal_attack_<direction>.png` replace the proxy automatically without changing movement, facing, impact, grid, or camera APIs. The adapter derives a shared cell size and normalizes it to the current runtime presentation height. The final visual footprint should be validated against the accepted sprite scale before collision expands beyond one navigation anchor.
+
+Camera follow uses a fixed orthographic orientation, exponential easing, and a short velocity-based look-ahead capped to prevent Cardinal from drifting toward the screen edge. Telemetry remains in a `CanvasLayer`, so it does not slide with the world. Impact shake is intentionally deferred until the accepted attack timing defines the correct contact frame.
 
 ## Smallest Playable Roadmap
 
-### Increment 1 — Direct Drive and Wake
+### Increment 1 — Direct Drive, Impact, and Wake
 
-The player drives Cardinal in all eight directions and spends a simple energy budget while moving. Every completed stride marks a footprint or knuckle-print tile. Some impacts expose salvage. This is the fastest test of whether controlling Cardinal is satisfying.
+The player drives Cardinal in all eight directions with acceleration and deceleration, uses impact strikes to clear rock, and walks over exposed scrap to collect it. The eased camera follows with directional lead. Every completed stride can later mark a footprint or knuckle-print tile. This is the fastest test of whether controlling Cardinal and interacting with the desert are satisfying.
 
 ### Increment 2 — Heat Versus Water
 
@@ -111,4 +115,4 @@ The concept is promising if a short session creates three emotions without requi
 
 ## Immediate Recommendation
 
-Complete the Cardinal sprite family, then build **Increment 1 — Direct Drive and Wake** around its accepted scale and footprint. Bind all eight movement vectors to the available directional animation family, add energy, persistent impact tiles, and deterministic salvage discovery. That slice will test the defining mechanic while giving the new walk and attack animations real gameplay jobs instead of confining them to an exceptionally handsome animation viewer.
+Complete and approve the Cardinal sprite family, then drop its eight walk and attack atlases into the existing runtime contract. The next mechanical slice is persistent wake tiles plus energy and heat costs. That will build on the now-playable weighted drive, impact-strike, rock destruction, scrap collection, and camera foundation while giving the accepted animation contact frames real gameplay jobs.

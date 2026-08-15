@@ -52,12 +52,17 @@ func _test_isometric_map() -> void:
 	await process_frame
 	await process_frame
 
-	_check(map.call("get_grid_size") == Vector2i(9, 9), "grid size")
+	_check(map.call("get_grid_size") == Vector2i(18, 18), "expanded grid size")
 	var sample: Vector2i = Vector2i(5, 3)
 	var projected: Vector2 = map.call("grid_to_screen", sample) as Vector2
 	_check(map.call("screen_to_grid", projected) == sample, "2:1 projection round trip")
-	_check(not bool(map.call("is_walkable", Vector2i(1, 2))), "rock tile blocks movement")
+	_check(not bool(map.call("is_walkable", Vector2i(4, 4))), "rock tile blocks movement")
 	_check(bool(map.call("is_walkable", Vector2i(5, 7))), "sand tile is walkable")
+
+	var avatar: Node2D = map.call("get_avatar") as Node2D
+	_check(avatar != null, "Cardinal avatar exists")
+	_check(avatar.has_method("set_motion"), "Cardinal animation adapter is connected")
+	_check(bool(avatar.call("is_using_proxy")), "unapproved sheets use animated proxy")
 
 	var directions: Dictionary = {
 		Vector2i(0, -1): &"N",
@@ -71,42 +76,90 @@ func _test_isometric_map() -> void:
 	}
 	for direction: Variant in directions:
 		var screen_direction: Vector2i = direction as Vector2i
-		_check(
-			bool(map.call("place_robot", Vector2i(4, 4))),
-			"place robot for %s" % directions[direction]
-		)
+		var label: StringName = directions[direction] as StringName
+		_check(bool(map.call("place_robot", Vector2i(8, 8))), "place Cardinal for %s" % label)
 		var start_position: Vector2 = map.call("get_robot_position") as Vector2
 		_check(
-			bool(map.call("move_screen_direction", screen_direction, 0.08, false)),
-			"%s movement succeeds" % directions[direction],
+			bool(map.call("update_drive", screen_direction, 0.05, false)),
+			"%s weighted movement succeeds" % label,
 		)
 		var motion: Vector2 = (map.call("get_robot_position") as Vector2) - start_position
 		_check(
 			motion.normalized().dot(Vector2(screen_direction).normalized()) > 0.999,
-			"%s movement follows screen vector" % directions[direction],
+			"%s movement follows screen vector" % label,
 		)
-		_check(map.call("get_facing") == directions[direction], "%s facing" % directions[direction])
+		_check(map.call("get_facing") == label, "%s facing" % label)
+		_check(avatar.call("get_facing") == label, "%s animation facing" % label)
 
-	_check(bool(map.call("place_robot", Vector2i(3, 7))), "place robot beside rock")
+	_check(bool(map.call("place_robot", Vector2i(8, 8))), "place Cardinal for inertia test")
+	map.call("update_drive", Vector2i(1, 0), 0.05, false)
+	var first_speed: float = (map.call("get_velocity") as Vector2).length()
+	var before_second_step: Vector2 = map.call("get_robot_position") as Vector2
+	map.call("update_drive", Vector2i(1, 0), 0.05, false)
+	var second_speed: float = (map.call("get_velocity") as Vector2).length()
+	_check(second_speed > first_speed, "Cardinal accelerates")
+	_check(second_speed < 150.0, "acceleration is not instant")
+	map.call("update_drive", Vector2i.ZERO, 0.05, false)
+	var release_speed: float = (map.call("get_velocity") as Vector2).length()
+	_check(release_speed < second_speed and release_speed > 0.0, "Cardinal decelerates over time")
+	_check(
+		(map.call("get_robot_position") as Vector2).distance_to(before_second_step) > 0.0,
+		"Cardinal coasts during release",
+	)
+
+	_check(bool(map.call("place_robot", Vector2i(1, 1))), "place Cardinal for walk speed")
+	for _step: int in range(20):
+		map.call("update_drive", Vector2i(1, 1), 0.05, false)
+	_check(is_equal_approx(float(map.call("get_speed_ratio")), 1.0), "walk reaches rated speed")
+	map.call("place_robot", Vector2i(1, 1))
+	for _step: int in range(20):
+		map.call("update_drive", Vector2i(1, 1), 0.05, true)
+	_check(is_equal_approx(float(map.call("get_speed_ratio")), 1.5), "Shift run reaches 1.5x speed")
+
+	map.call("place_robot", Vector2i(8, 8))
+	map.call("_snap_camera_to_robot")
+	var camera_start: Vector2 = map.call("get_camera_position") as Vector2
+	for _step: int in range(6):
+		map.call("update_drive", Vector2i(1, 0), 0.05, false)
+	var camera_target: Vector2 = map.call("get_camera_target") as Vector2
+	map.call("_update_camera_follow", 0.1)
+	var camera_after: Vector2 = map.call("get_camera_position") as Vector2
+	_check(camera_after != camera_start, "camera follows Cardinal")
+	_check(
+		camera_after.distance_to(camera_target) < camera_start.distance_to(camera_target),
+		"camera eases toward target",
+	)
+	_check(
+		camera_target.x > (map.call("get_robot_position") as Vector2).x,
+		"camera leads movement direction",
+	)
+
+	_check(bool(map.call("place_robot", Vector2i(3, 4))), "place Cardinal beside rock")
+	_check(bool(map.call("has_destructible_rock", Vector2i(4, 4))), "destructible rock exists")
 	var blocked_position: Vector2 = map.call("get_robot_position") as Vector2
 	_check(
-		not bool(map.call("move_screen_direction", Vector2i(1, 1), 0.08)),
-		"rock blocks direct drive"
+		not bool(map.call("update_drive", Vector2i(1, 1), 0.05, false)),
+		"rock blocks direct drive",
 	)
 	_check(map.call("get_robot_position") == blocked_position, "blocked drive does not move")
-	_check(bool(map.call("place_robot", Vector2i(0, 0))), "place robot at map edge")
+	_check(bool(map.call("attack")), "impact attack breaks facing rock")
+	_check("ROCK SALVAGED" in str(map.call("get_status_text")), "impact feedback remains readable")
+	_check(not bool(map.call("has_destructible_rock", Vector2i(4, 4))), "rock is destroyed")
+	_check(bool(map.call("is_walkable", Vector2i(4, 4))), "destroyed rock becomes walkable")
+	_check(bool(map.call("has_scrap", Vector2i(4, 4))), "destroyed rock drops scrap")
+	_check(bool(map.call("place_robot", Vector2i(4, 4))), "Cardinal enters cleared tile")
+	_check(int(map.call("get_scrap_count")) == 2, "Cardinal collects dropped scrap")
 	_check(
-		not bool(map.call("move_screen_direction", Vector2i(-1, -1), 0.08)), "map edge blocks drive"
+		"SCRAP COLLECTED" in str(map.call("get_status_text")),
+		"collection feedback remains readable"
 	)
+	_check(not bool(map.call("has_scrap", Vector2i(4, 4))), "collected scrap leaves world")
 
-	_check(bool(map.call("place_robot", Vector2i(4, 4))), "place robot for speed test")
-	var speed_origin: Vector2 = map.call("get_robot_position") as Vector2
-	map.call("move_screen_direction", Vector2i(1, 0), 0.05, false)
-	var walk_distance: float = (map.call("get_robot_position") as Vector2).distance_to(speed_origin)
-	map.call("place_robot", Vector2i(4, 4))
-	map.call("move_screen_direction", Vector2i(1, 0), 0.05, true)
-	var run_distance: float = (map.call("get_robot_position") as Vector2).distance_to(speed_origin)
-	_check(is_equal_approx(run_distance / walk_distance, 1.5), "Shift run is 1.5x walk speed")
+	map.call("place_robot", Vector2i(0, 0))
+	_check(
+		not bool(map.call("update_drive", Vector2i(-1, -1), 0.05, false)),
+		"map edge blocks drive",
+	)
 
 	map.free()
 	await process_frame

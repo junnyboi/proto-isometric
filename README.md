@@ -24,7 +24,9 @@ The release command writes the HTML, JavaScript, WASM, and PCK bundle to `/home/
 
 ## Controls
 
-Press **Enter** or select **BEGIN** to enter the desert. Use **WASD** or the **arrow keys** for direct eight-direction movement, hold **Shift** to run at 1.5× speed, and press **Escape** to return to the title.
+Press **Enter** or select **BEGIN** to enter the desert. Use **WASD** or the **arrow keys** for weighted eight-direction movement, hold **Shift** to run at 1.5× speed, use **Space**, **J**, or **K** for an impact strike, and press **Escape** to return to the title. Break rocks with the strike, then move over the dropped teal scrap to collect it.
+
+The camera follows Cardinal with eased motion and velocity look-ahead. Approved square-cell directional sheets dropped into `assets/cardinal/` are auto-bound through the contract in [`assets/cardinal/SOURCES.md`](assets/cardinal/SOURCES.md); missing sheets use the animated procedural proxy.
 
 ## Concept
 
