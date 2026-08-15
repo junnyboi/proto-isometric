@@ -85,6 +85,7 @@ var _hazards: Node2D
 var _hud: CanvasLayer
 var _object_layer: CanvasLayer
 var _state_store: RefCounted
+var _terrain_haze: Node2D
 var _world_objects: Node2D
 
 
@@ -281,6 +282,7 @@ func place_destructible_rock(cell: Vector2i) -> bool:
 	_destructible_rocks[cell] = true
 	_terrain[cell] = &"rock"
 	_elevation[cell] = 2
+	_refresh_haze_mask()
 	_save_world_state()
 	queue_redraw()
 	return true
@@ -294,6 +296,7 @@ func _break_rock(cell: Vector2i) -> bool:
 	_terrain[cell] = &"sand"
 	_elevation[cell] = 0
 	_scrap[cell] = int(_scrap.get(cell, 0)) + 2
+	_refresh_haze_mask()
 	queue_redraw()
 	return true
 
@@ -825,10 +828,15 @@ func _on_hazard_damage(amount: int, source: StringName) -> void:
 
 
 func _build_heat_haze() -> void:
-	var layer: CanvasLayer = TerrainHazeScript.new() as CanvasLayer
-	layer.name = "HeatHazeLayer"
-	layer.call("configure", GRID_SIZE, TILE_SIZE, MAP_ORIGIN)
-	add_child(layer)
+	_terrain_haze = TerrainHazeScript.new() as Node2D
+	_terrain_haze.name = "TerrainHaze"
+	_terrain_haze.call("configure", _terrain, GRID_SIZE, TILE_SIZE, MAP_ORIGIN)
+	add_child(_terrain_haze)
+
+
+func _refresh_haze_mask() -> void:
+	if _terrain_haze != null:
+		_terrain_haze.call("refresh_mask")
 
 
 func _sync_avatar() -> void:

@@ -100,16 +100,18 @@ func _test_isometric_map() -> void:
 	var wind_before: float = float(atmosphere.call("get_wind_intensity"))
 	atmosphere.call("advance", 1.0)
 	_check(float(atmosphere.call("get_wind_intensity")) != wind_before, "desert wind breathes")
-	var heat_haze: Polygon2D = map.get_node("HeatHazeLayer/HeatHaze") as Polygon2D
+	var heat_haze: Node2D = map.get_node("TerrainHaze") as Node2D
 	_check(heat_haze != null, "heat haze overlay exists")
 	_check(heat_haze.material is ShaderMaterial, "heat haze shader is active")
-	var heat_haze_layer: CanvasLayer = map.get_node("HeatHazeLayer") as CanvasLayer
 	var world_object_layer: CanvasLayer = map.get_node("WorldObjectLayer") as CanvasLayer
 	var world_effects_layer: CanvasLayer = map.get_node("WorldEffectsLayer") as CanvasLayer
 	var world_objects: Node2D = world_object_layer.get_node("WorldObjects") as Node2D
-	_check(heat_haze_layer.layer == 1, "sand ripple occupies terrain-only layer")
-	_check(heat_haze_layer.follow_viewport_enabled, "sand ripple is anchored to the world camera")
-	_check(heat_haze.polygon.size() == 4, "sand ripple is clipped to the map footprint")
+	_check(heat_haze.z_index == 1, "sand ripple occupies terrain-only depth")
+	_check(bool(heat_haze.call("has_haze_at", Vector2i(1, 0))), "sand tile receives haze")
+	_check(not bool(heat_haze.call("has_haze_at", Vector2i(0, 0))), "salt tile rejects haze")
+	_check(not bool(heat_haze.call("has_haze_at", Vector2i(2, 3))), "rock tile rejects haze")
+	_check(not bool(heat_haze.call("has_haze_at", Vector2i(8, 4))), "ruin tile rejects haze")
+	_check(int(heat_haze.call("get_haze_tile_count")) < 18 * 18, "haze mask excludes non-sand")
 	var haze_shader: Shader = (heat_haze.material as ShaderMaterial).shader
 	_check("MODEL_MATRIX" in haze_shader.code, "sand ripple phase uses world coordinates")
 	_check(world_object_layer.layer == 2, "rocks and interactables render above ripple")
@@ -335,6 +337,7 @@ func _test_isometric_map() -> void:
 
 	_check(bool(map.call("place_robot", Vector2i(3, 4))), "place Cardinal beside rock")
 	_check(bool(map.call("has_destructible_rock", Vector2i(4, 4))), "destructible rock exists")
+	_check(not bool(heat_haze.call("has_haze_at", Vector2i(4, 4))), "intact rock masks haze")
 	var blocked_position: Vector2 = map.call("get_robot_position") as Vector2
 	_check(
 		not bool(map.call("update_drive", Vector2i(1, 1), 0.05, false)),
@@ -355,6 +358,7 @@ func _test_isometric_map() -> void:
 	_check("ROCK SALVAGED" in str(map.call("get_status_text")), "impact feedback remains readable")
 	_check(not bool(map.call("has_destructible_rock", Vector2i(4, 4))), "rock is destroyed")
 	_check(bool(map.call("is_walkable", Vector2i(4, 4))), "destroyed rock becomes walkable")
+	_check(bool(heat_haze.call("has_haze_at", Vector2i(4, 4))), "salvaged sand enables haze")
 	_check(bool(map.call("has_scrap", Vector2i(4, 4))), "destroyed rock drops scrap")
 	_check(int(effects.call("get_emission_count")) == 1, "contact frame emits one debris burst")
 	_check(int(effects.call("get_particle_count")) >= 20, "rock impact emits debris particles")
