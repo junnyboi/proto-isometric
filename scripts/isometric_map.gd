@@ -8,6 +8,7 @@ const FieldHudScript: GDScript = preload("res://scripts/field_hud.gd")
 const ImpactEffectsScript: GDScript = preload("res://scripts/impact_effects.gd")
 const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const IsometricControlsScript: GDScript = preload("res://scripts/isometric_controls.gd")
+const SandwormsScript: GDScript = preload("res://scripts/sandworms.gd")
 const TerrainHazeScript: GDScript = preload("res://scripts/terrain_haze.gd")
 const WorldStateStoreScript: GDScript = preload("res://scripts/world_state_store.gd")
 const WorldObjectsScript: GDScript = preload("res://scripts/world_objects.gd")
@@ -73,6 +74,7 @@ var _status_hold_time: float = 0.0
 var _attack_was_pressed: bool = false
 var _pending_impact_cell: Vector2i = INVALID_CELL
 var _pending_impact_breaks_rock: bool = false
+var _pending_impact_worm_id: int = -1
 var _shutdown: bool = false
 
 var _avatar: Node2D
@@ -84,6 +86,7 @@ var _effects_layer: CanvasLayer
 var _hazards: Node2D
 var _hud: CanvasLayer
 var _object_layer: CanvasLayer
+var _sandworms: Node2D
 var _state_store: RefCounted
 var _terrain_haze: Node2D
 var _visible_cells: Array[Vector2i] = []
@@ -105,6 +108,7 @@ func _ready() -> void:
 	_build_impact_effects()
 	_build_atmosphere()
 	_build_hazards()
+	_build_sandworms()
 	_build_interface()
 	_build_chassis_feedback()
 	_build_heat_haze()
@@ -147,6 +151,16 @@ func _process(delta: float) -> void:
 			Vector2(INVALID_CELL) if _shutdown else Vector2(_robot_grid) + fractional
 		)
 		_hazards.call("advance", delta)
+		if _sandworms != null:
+			(
+				_sandworms
+				. call(
+					"set_player_position",
+					Vector2(INVALID_CELL) if _shutdown else Vector2(_robot_grid) + fractional,
+				)
+			)
+			_sandworms.call("set_outpost_linked", not _shutdown and _is_at_outpost())
+			_sandworms.call("advance", delta)
 	if _world_objects != null:
 		_world_objects.queue_redraw()
 	_refresh_outpost_interface()
@@ -250,10 +264,13 @@ func attack() -> bool:
 	)
 	_pending_impact_cell = target
 	_pending_impact_breaks_rock = bool(_destructible_rocks.get(target, false))
+	_pending_impact_worm_id = (
+		int(_sandworms.call("find_target", target)) if _sandworms != null else -1
+	)
 	_status_hold_time = 0.7
 	_update_status("IMPACT // WINDUP // SCRAP %03d" % _scrap_count)
 	_avatar.call("play_attack")
-	return _pending_impact_breaks_rock
+	return _pending_impact_breaks_rock or _pending_impact_worm_id >= 0
 
 
 func _on_avatar_impact_frame() -> void:
@@ -261,10 +278,21 @@ func _on_avatar_impact_frame() -> void:
 		return
 	var target: Vector2i = _pending_impact_cell
 	var breaks_rock: bool = _pending_impact_breaks_rock
+	var worm_id: int = _pending_impact_worm_id
 	_pending_impact_cell = INVALID_CELL
 	_pending_impact_breaks_rock = false
+	_pending_impact_worm_id = -1
 	_impact_flash = 0.36
 	_status_hold_time = 0.7
+	if worm_id >= 0 and _sandworms != null and bool(_sandworms.call("hit_worm", worm_id, 1)):
+		var remaining: int = int(_sandworms.call("get_health", worm_id))
+		_update_status(
+			(
+				"IMPACT // SANDWORM %s // HP %d/4"
+				% ["DESTROYED" if remaining <= 0 else "HIT", remaining]
+			)
+		)
+		return
 	if breaks_rock and _break_rock(target):
 		if _effects != null:
 			_effects.call("emit_rock_impact", grid_to_screen(target), target)
@@ -347,6 +375,7 @@ func _enter_shutdown(source: StringName) -> void:
 	_is_running = false
 	_pending_impact_cell = INVALID_CELL
 	_pending_impact_breaks_rock = false
+	_pending_impact_worm_id = -1
 	_status_hold_time = INF
 	if _hazards != null:
 		_hazards.call("set_player_cell", INVALID_CELL)
@@ -389,6 +418,9 @@ func place_robot(cell: Vector2i) -> bool:
 	_collect_scrap_at(cell)
 	if _hazards != null:
 		_hazards.call("set_player_cell", cell)
+	if _sandworms != null:
+		_sandworms.call("set_player_position", Vector2(cell))
+		_sandworms.call("set_outpost_linked", _is_at_outpost())
 	_refresh_outpost_interface()
 	_update_drive_status()
 	_sync_avatar()
@@ -694,6 +726,17 @@ func _build_hazards() -> void:
 
 func _on_hazard_damage(amount: int, source: StringName) -> void:
 	_apply_chassis_damage(amount, source)
+
+
+func _build_sandworms() -> void:
+	_sandworms = SandwormsScript.new() as Node2D
+	_sandworms.name = "Sandworms"
+	_sandworms.z_index = 18
+	_sandworms.call("configure", TILE_SIZE, MAP_ORIGIN)
+	_sandworms.call("set_player_position", Vector2(_robot_grid))
+	_sandworms.call("set_outpost_linked", _is_at_outpost())
+	_sandworms.connect("damage_tick", Callable(self, "_on_hazard_damage"))
+	_object_layer.add_child(_sandworms)
 
 
 func _build_heat_haze() -> void:

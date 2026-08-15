@@ -281,6 +281,58 @@ func _test_isometric_map() -> void:
 	_check(avatar.get_parent() == world_object_layer, "Cardinal renders above sand ripple")
 	_check(avatar.has_method("set_motion"), "Cardinal animation adapter is connected")
 	_check(bool(avatar.call("is_using_proxy")), "unapproved sheets use animated proxy")
+	var sandworms: Node2D = map.get_node("WorldObjectLayer/Sandworms") as Node2D
+	_check(sandworms != null, "sandworm controller exists")
+	_check(sandworms.get_parent() == world_object_layer, "sandworms render above terrain haze")
+	sandworms.call("set_auto_spawn", false)
+	sandworms.call("clear_worms")
+	_check(bool(map.call("place_robot", Vector2i(6, 6))), "place Cardinal for sandworm pursuit")
+	var chase_worm: int = int(sandworms.call("spawn_worm", Vector2(9.0, 6.0), 0.0))
+	var chase_start: Vector2 = sandworms.call("get_worm_position", chase_worm) as Vector2
+	sandworms.call("advance", 0.5)
+	_check(sandworms.call("get_state", chase_worm) == &"pursuing", "sandworm detects Cardinal")
+	_check(
+		(
+			(sandworms.call("get_worm_position", chase_worm) as Vector2).distance_to(
+				Vector2(6.0, 6.0)
+			)
+			< chase_start.distance_to(Vector2(6.0, 6.0))
+		),
+		"sandworm pursues Cardinal",
+	)
+	sandworms.call("clear_worms")
+	var worm_damage_start: int = int(map.call("_get_chassis"))
+	var attacking_worm: int = int(sandworms.call("spawn_worm", Vector2(6.0, 6.0), 0.0))
+	sandworms.call("advance", 0.01)
+	_check(
+		int(map.call("_get_chassis")) == worm_damage_start - 10, "sandworm attack deals ten damage"
+	)
+	_check(int(sandworms.call("get_last_attack_count")) == 1, "sandworm attack triggers once")
+	sandworms.call("advance", 0.9)
+	_check(
+		int(map.call("_get_chassis")) == worm_damage_start - 10,
+		"sandworm attack respects cooldown",
+	)
+	sandworms.call("clear_worms")
+	_check(bool(map.call("place_robot", Vector2i(6, 6))), "place Cardinal for worm melee")
+	map.set("_facing", &"E")
+	var melee_worm: int = int(sandworms.call("spawn_worm", Vector2(7.0, 5.0), 0.0))
+	for hit: int in range(1, 5):
+		_check(bool(map.call("attack")), "melee strike %d targets sandworm" % hit)
+		avatar.call("_process", 0.23)
+		_check(
+			int(sandworms.call("get_health", melee_worm)) == 4 - hit,
+			"sandworm health drops on strike %d" % hit,
+		)
+		avatar.call("_process", 0.23)
+	_check(int(sandworms.call("get_worm_count")) == 0, "four melee hits defeat sandworm")
+	_check("SANDWORM DESTROYED" in str(map.call("get_status_text")), "worm defeat is readable")
+	var safe_worm: int = int(sandworms.call("spawn_worm", Vector2(3.0, 10.0), 0.0))
+	_check(bool(map.call("place_robot", Vector2i(1, 10))), "place Cardinal at linked outpost")
+	_check(sandworms.call("get_state", safe_worm) == &"dispersing", "outpost link disperses worms")
+	sandworms.call("advance", 1.3)
+	_check(int(sandworms.call("get_worm_count")) == 0, "dispersed worm leaves Cardinal alone")
+	hazard_chassis_after = int(map.call("_get_chassis"))
 
 	var directions: Dictionary = {
 		Vector2i(0, -1): &"N",
@@ -437,8 +489,10 @@ func _test_isometric_map() -> void:
 	_check(
 		bool(outpost_interface.call("is_repair_enabled")), "repair unlocks with scrap and damage"
 	)
+	var chassis_before_repair: int = int(map.call("_get_chassis"))
+	var repaired_chassis: int = mini(chassis_before_repair + 35, 100)
 	_check(bool(map.call("_repair_chassis")), "outpost repairs Cardinal")
-	_check(int(map.call("_get_chassis")) == 100, "repair restores chassis")
+	_check(int(map.call("_get_chassis")) == repaired_chassis, "repair restores thirty-five chassis")
 	_check(int(map.call("get_scrap_count")) == 2, "repair consumes five scrap")
 	_check(
 		bool(outpost_interface.call("are_locked_actions_disabled")),
@@ -451,7 +505,7 @@ func _test_isometric_map() -> void:
 	get_root().add_child(map)
 	await process_frame
 	await process_frame
-	_check(int(map.call("_get_chassis")) == 100, "repaired chassis persists")
+	_check(int(map.call("_get_chassis")) == repaired_chassis, "repaired chassis persists")
 	_check(int(map.call("get_scrap_count")) == 2, "post-repair scrap persists")
 	_check(bool(map.call("_is_at_outpost")), "outpost position persists")
 
@@ -481,8 +535,12 @@ func _test_isometric_map() -> void:
 	avatar = map.call("get_avatar") as Node2D
 	var damage_audio_before: int = int(chassis_feedback.call("get_audio_trigger_count"))
 	var damage_emissions_before: int = int(effects.call("get_damage_emission_count"))
+	var damage_start_chassis: int = int(map.call("_get_chassis"))
 	_check(int(map.call("_apply_chassis_damage", 4, &"test_impact")) == 4, "damage applies")
-	_check(int(map.call("_get_chassis")) == 96, "nonlethal damage reduces chassis")
+	_check(
+		int(map.call("_get_chassis")) == damage_start_chassis - 4,
+		"nonlethal damage reduces chassis",
+	)
 	_check(float(chassis_feedback.call("get_flash_alpha")) > 0.0, "damage flashes the screen")
 	_check(avatar.modulate != Color.WHITE, "damage flashes Cardinal")
 	_check(
@@ -503,7 +561,11 @@ func _test_isometric_map() -> void:
 	_check(is_zero_approx(float(chassis_feedback.call("get_flash_alpha"))), "damage flash expires")
 	_check(avatar.modulate.is_equal_approx(Color.WHITE), "Cardinal flash resets")
 
-	_check(int(map.call("_apply_chassis_damage", 96, &"sandstorm")) == 96, "lethal damage applies")
+	var lethal_damage: int = int(map.call("_get_chassis"))
+	_check(
+		int(map.call("_apply_chassis_damage", lethal_damage, &"sandstorm")) == lethal_damage,
+		"lethal damage applies",
+	)
 	_check(int(map.call("_get_chassis")) == 0, "lethal damage reaches zero")
 	_check(bool(map.get("_shutdown")), "zero chassis enters shutdown")
 	_check(bool(chassis_feedback.call("is_shutdown_visible")), "shutdown overlay is visible")
