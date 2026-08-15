@@ -7,9 +7,9 @@ const DesertHazardsScript: GDScript = preload("res://scripts/desert_hazards.gd")
 const FieldHudScript: GDScript = preload("res://scripts/field_hud.gd")
 const ImpactEffectsScript: GDScript = preload("res://scripts/impact_effects.gd")
 const IsometricControlsScript: GDScript = preload("res://scripts/isometric_controls.gd")
+const TerrainHazeScript: GDScript = preload("res://scripts/terrain_haze.gd")
 const WorldStateStoreScript: GDScript = preload("res://scripts/world_state_store.gd")
 const WorldObjectsScript: GDScript = preload("res://scripts/world_objects.gd")
-const HEAT_HAZE_SHADER: Shader = preload("res://shaders/heat_haze.gdshader")
 const SAND_TEXTURE: Texture2D = preload("res://assets/textures/terrain/desert_sand.png")
 const SALT_TEXTURE: Texture2D = preload("res://assets/textures/terrain/salt_crust.png")
 const ROCK_TEXTURE: Texture2D = preload("res://assets/textures/terrain/iron_rock.png")
@@ -825,19 +825,10 @@ func _on_hazard_damage(amount: int, source: StringName) -> void:
 
 
 func _build_heat_haze() -> void:
-	var layer: CanvasLayer = CanvasLayer.new()
+	var layer: CanvasLayer = TerrainHazeScript.new() as CanvasLayer
 	layer.name = "HeatHazeLayer"
-	layer.layer = 1
+	layer.call("configure", GRID_SIZE, TILE_SIZE, MAP_ORIGIN)
 	add_child(layer)
-	var haze: ColorRect = ColorRect.new()
-	haze.name = "HeatHaze"
-	haze.position = Vector2.ZERO
-	haze.size = Vector2(1280.0, 720.0)
-	haze.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var material: ShaderMaterial = ShaderMaterial.new()
-	material.shader = HEAT_HAZE_SHADER
-	haze.material = material
-	layer.add_child(haze)
 
 
 func _sync_avatar() -> void:

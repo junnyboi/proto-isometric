@@ -4,8 +4,8 @@ signal damage_tick(amount: int, source: StringName)
 
 const TORNADO_FORMATION_SECONDS: float = 3.0
 const TORNADO_LIFETIME_SECONDS: float = 20.0
-const TORNADO_DAMAGE_PER_SECOND: float = 2.0
-const SANDSTORM_DAMAGE_PER_SECOND: float = 1.0
+const TORNADO_DAMAGE_PER_SECOND: float = 6.0
+const SANDSTORM_DAMAGE_PER_SECOND: float = 3.0
 const TORNADO_SPEED: float = 3.2
 const SANDSTORM_SPEED: float = 0.62
 const TORNADO_FADE_SECONDS: float = 2.0

@@ -100,7 +100,7 @@ func _test_isometric_map() -> void:
 	var wind_before: float = float(atmosphere.call("get_wind_intensity"))
 	atmosphere.call("advance", 1.0)
 	_check(float(atmosphere.call("get_wind_intensity")) != wind_before, "desert wind breathes")
-	var heat_haze: ColorRect = map.get_node("HeatHazeLayer/HeatHaze") as ColorRect
+	var heat_haze: Polygon2D = map.get_node("HeatHazeLayer/HeatHaze") as Polygon2D
 	_check(heat_haze != null, "heat haze overlay exists")
 	_check(heat_haze.material is ShaderMaterial, "heat haze shader is active")
 	var heat_haze_layer: CanvasLayer = map.get_node("HeatHazeLayer") as CanvasLayer
@@ -108,6 +108,10 @@ func _test_isometric_map() -> void:
 	var world_effects_layer: CanvasLayer = map.get_node("WorldEffectsLayer") as CanvasLayer
 	var world_objects: Node2D = world_object_layer.get_node("WorldObjects") as Node2D
 	_check(heat_haze_layer.layer == 1, "sand ripple occupies terrain-only layer")
+	_check(heat_haze_layer.follow_viewport_enabled, "sand ripple is anchored to the world camera")
+	_check(heat_haze.polygon.size() == 4, "sand ripple is clipped to the map footprint")
+	var haze_shader: Shader = (heat_haze.material as ShaderMaterial).shader
+	_check("MODEL_MATRIX" in haze_shader.code, "sand ripple phase uses world coordinates")
 	_check(world_object_layer.layer == 2, "rocks and interactables render above ripple")
 	_check(world_effects_layer.layer == 3, "environmental enemies render above objects")
 	_check(world_object_layer.follow_viewport_enabled, "object layer follows the world camera")
@@ -141,7 +145,7 @@ func _test_isometric_map() -> void:
 		"active tornado moves rapidly",
 	)
 	_check(
-		int(map.call("_get_chassis")) == moving_damage_before - 2,
+		int(map.call("_get_chassis")) == moving_damage_before - 6,
 		"moving tornado damages immediately on contact",
 	)
 	hazards.call("clear_hazards")
@@ -164,18 +168,18 @@ func _test_isometric_map() -> void:
 		"tornado activates after telegraph"
 	)
 	_check(
-		int(map.call("_get_chassis")) == telegraph_chassis - 2,
+		int(map.call("_get_chassis")) == telegraph_chassis - 6,
 		"active tornado damages immediately",
 	)
 	hazards.call("advance", 0.99)
 	_check(
-		int(map.call("_get_chassis")) == telegraph_chassis - 2,
+		int(map.call("_get_chassis")) == telegraph_chassis - 6,
 		"tornado does not over-tick before one second",
 	)
 	hazards.call("advance", 0.02)
 	_check(
-		int(map.call("_get_chassis")) == telegraph_chassis - 4,
-		"tornado continuously deals two damage per second",
+		int(map.call("_get_chassis")) == telegraph_chassis - 12,
+		"tornado continuously deals six damage per second",
 	)
 	_check(bool(map.call("is_walkable", Vector2i(5, 7))), "tornado does not block traversal")
 	hazards.call("set_player_cell", Vector2i(-9999, -9999))
@@ -183,7 +187,7 @@ func _test_isometric_map() -> void:
 	hazards.call("set_player_cell", Vector2i(5, 7))
 	hazards.call("advance", 0.01)
 	_check(
-		int(map.call("_get_chassis")) == telegraph_chassis - 6,
+		int(map.call("_get_chassis")) == telegraph_chassis - 18,
 		"tornado contact damages immediately after re-entry",
 	)
 	hazards.call("set_player_cell", Vector2i(-9999, -9999))
@@ -218,18 +222,18 @@ func _test_isometric_map() -> void:
 	_check(east_front_tiles == 3, "eastbound sandstorm leads with three tiles")
 	hazards.call("advance", 0.01)
 	_check(
-		int(map.call("_get_chassis")) == storm_chassis - 1,
+		int(map.call("_get_chassis")) == storm_chassis - 3,
 		"sandstorm damages immediately on contact",
 	)
 	hazards.call("advance", 0.99)
 	_check(
-		int(map.call("_get_chassis")) == storm_chassis - 1,
+		int(map.call("_get_chassis")) == storm_chassis - 3,
 		"sandstorm does not over-tick before one second",
 	)
 	hazards.call("advance", 0.02)
 	_check(
-		int(map.call("_get_chassis")) == storm_chassis - 2,
-		"sandstorm continuously deals one damage per second",
+		int(map.call("_get_chassis")) == storm_chassis - 6,
+		"sandstorm continuously deals three damage per second",
 	)
 	var hazard_chassis_after: int = int(map.call("_get_chassis"))
 	_check(bool(map.call("is_walkable", Vector2i(5, 7))), "sandstorm does not block traversal")
