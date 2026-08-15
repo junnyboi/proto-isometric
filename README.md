@@ -24,7 +24,7 @@ The release command writes the HTML, JavaScript, WASM, and PCK bundle to `/home/
 
 ## Controls
 
-Press **Enter** or select **BEGIN** to enter the desert. Use **WASD** or the **arrow keys** for weighted eight-direction movement, hold **Shift** to run at 1.5× speed, use **Space**, **J**, or **K** for an impact strike, and press **Escape** to return to the title. Break rocks with the strike, then move over the dropped teal scrap to collect it. Harvested outposts repair 35 chassis for five scrap; crafting and upgrades are visible but locked.
+Press **Enter** or select **BEGIN** to enter the desert. Use **WASD** or the **arrow keys** for weighted eight-direction movement, hold **Shift** to run at 1.5× speed, use **Space**, **J**, or **K** for an impact strike, and press **Escape** to return to the title. On detected mobile devices, press and hold anywhere outside the attack control to summon a floating analog joystick, drag for proportional eight-direction drive, and release to coast naturally; the circular **SMASH** button at bottom right routes into the same contact-frame strike. Break rocks with the strike, then move over the dropped teal scrap to collect it. Harvested outposts repair 35 chassis for five scrap; crafting and upgrades are visible but locked.
 
 Rock destruction resolves on Cardinal's attack contact frame with bounded camera shake, rock fragments, and dust. Terrain mutations are stored as compact deltas over the deterministic world seed; broken or placed rocks, dropped and collected scrap, chassis integrity, Cardinal's cell, and facing are saved atomically to `user://walkers-wake-world.json`. Existing schema-one saves migrate on load, while invalid saves are ignored without partially mutating the world.
 

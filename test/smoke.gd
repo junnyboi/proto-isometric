@@ -114,6 +114,59 @@ func _test_isometric_map() -> void:
 	var world_object_layer: CanvasLayer = map.get_node("WorldObjectLayer") as CanvasLayer
 	var world_effects_layer: CanvasLayer = map.get_node("WorldEffectsLayer") as CanvasLayer
 	var world_objects: Node2D = world_object_layer.get_node("WorldObjects") as Node2D
+	var mobile_controls: CanvasLayer = map.get_node("MobileControls") as CanvasLayer
+	_check(mobile_controls != null, "mobile controls runtime exists")
+	_check(not bool(mobile_controls.call("is_mobile_device")), "desktop hides mobile controls")
+	mobile_controls.call("force_mobile", true)
+	var smash_button: Button = mobile_controls.call("get_smash_button") as Button
+	_check(smash_button.visible, "mobile detection shows smash button")
+	_check(
+		smash_button.position.x > 1000.0 and smash_button.position.y > 500.0,
+		"smash button occupies bottom right",
+	)
+	_check(
+		not bool(
+			mobile_controls.call("begin_touch", 9, smash_button.get_global_rect().get_center())
+		),
+		"smash touch cannot capture joystick",
+	)
+	_check(
+		bool(mobile_controls.call("begin_touch", 1, Vector2(250.0, 520.0))),
+		"tap and hold summons floating joystick",
+	)
+	_check(bool(mobile_controls.call("is_joystick_visible")), "floating joystick becomes visible")
+	var touch_drive: Vector2 = (
+		mobile_controls.call("drag_touch", 1, Vector2(320.0, 455.0)) as Vector2
+	)
+	_check(touch_drive.x > 0.5 and touch_drive.y < -0.5, "joystick supplies fluid analog diagonal")
+	_check(touch_drive.length() <= 1.0, "joystick output is bounded")
+	_check(bool(map.call("place_robot", Vector2i(8, 8))), "place Cardinal for touch drive")
+	var touch_start: Vector2 = map.call("get_robot_position") as Vector2
+	_check(
+		bool(map.call("_update_drive_vector", touch_drive, 0.05, false)),
+		"touch drive moves Cardinal"
+	)
+	_check(
+		(map.call("get_robot_position") as Vector2).distance_to(touch_start) > 0.0,
+		"touch drive reaches movement runtime",
+	)
+	var touch_speed: float = (map.call("get_velocity") as Vector2).length()
+	_check(bool(mobile_controls.call("end_touch", 1)), "touch release ends joystick capture")
+	_check(not bool(mobile_controls.call("is_joystick_visible")), "joystick hides on release")
+	map.call("_update_drive_vector", Vector2.ZERO, 0.05, false)
+	_check(
+		(map.call("get_velocity") as Vector2).length() < touch_speed, "touch release decelerates"
+	)
+	map.set("_facing", &"SE")
+	mobile_controls.call("trigger_smash")
+	_check(
+		map.get("_pending_impact_cell") != Vector2i(-9999, -9999),
+		"mobile smash enters contact-frame attack",
+	)
+	var touch_avatar: Node2D = map.call("get_avatar") as Node2D
+	touch_avatar.call("_process", 0.23)
+	mobile_controls.call("force_mobile", false)
+	_check(not smash_button.visible, "desktop mode removes touch affordances")
 	_check(heat_haze.z_index == 1, "sand ripple occupies terrain-only depth")
 	_check(bool(heat_haze.call("has_haze_at", Vector2i(1, 0))), "sand tile receives haze")
 	_check(not bool(heat_haze.call("has_haze_at", Vector2i(0, 0))), "salt tile rejects haze")

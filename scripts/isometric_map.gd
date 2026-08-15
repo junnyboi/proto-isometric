@@ -8,6 +8,7 @@ const FieldHudScript: GDScript = preload("res://scripts/field_hud.gd")
 const ImpactEffectsScript: GDScript = preload("res://scripts/impact_effects.gd")
 const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const IsometricControlsScript: GDScript = preload("res://scripts/isometric_controls.gd")
+const MobileControlsScript: GDScript = preload("res://scripts/mobile_controls.gd")
 const SandwormsScript: GDScript = preload("res://scripts/sandworms.gd")
 const TerrainHazeScript: GDScript = preload("res://scripts/terrain_haze.gd")
 const WorldStateStoreScript: GDScript = preload("res://scripts/world_state_store.gd")
@@ -85,6 +86,7 @@ var _effects: Node2D
 var _effects_layer: CanvasLayer
 var _hazards: Node2D
 var _hud: CanvasLayer
+var _mobile_controls: CanvasLayer
 var _object_layer: CanvasLayer
 var _sandworms: Node2D
 var _state_store: RefCounted
@@ -110,6 +112,7 @@ func _ready() -> void:
 	_build_hazards()
 	_build_sandworms()
 	_build_interface()
+	_build_mobile_controls()
 	_build_chassis_feedback()
 	_build_heat_haze()
 	if _chassis <= 0:
@@ -130,7 +133,10 @@ func _process(delta: float) -> void:
 	var drive_direction: Vector2i = (
 		Vector2i.ZERO if _pending_impact_cell != INVALID_CELL else screen_direction
 	)
-	update_drive(drive_direction, delta, _is_run_pressed())
+	if _mobile_controls != null and bool(_mobile_controls.call("is_joystick_visible")):
+		_update_drive_vector(_mobile_controls.call("get_drive_vector") as Vector2, delta, false)
+	else:
+		update_drive(drive_direction, delta, _is_run_pressed())
 	_update_camera_follow(delta)
 	_impact_flash = maxf(_impact_flash - delta, 0.0)
 	_status_hold_time = maxf(_status_hold_time - delta, 0.0)
@@ -209,31 +215,40 @@ func is_walkable(cell: Vector2i) -> bool:
 
 
 func update_drive(screen_direction: Vector2i, delta: float, running: bool = false) -> bool:
+	return _update_drive_vector(Vector2(screen_direction), delta, running)
+
+
+func _update_drive_vector(screen_direction: Vector2, delta: float, running: bool = false) -> bool:
 	if _shutdown:
 		_velocity = Vector2.ZERO
 		_is_moving = false
 		_is_running = false
 		return false
 	var step_delta: float = minf(maxf(delta, 0.0), 0.05)
-	var normalized_direction: Vector2i = Vector2i(
-		clampi(screen_direction.x, -1, 1), clampi(screen_direction.y, -1, 1)
+	var analog_direction: Vector2 = screen_direction.limit_length(1.0)
+	var quantized_direction: Vector2i = Vector2i(
+		0 if absf(analog_direction.x) < 0.28 else (1 if analog_direction.x > 0.0 else -1),
+		0 if absf(analog_direction.y) < 0.28 else (1 if analog_direction.y > 0.0 else -1),
 	)
 	if _pending_impact_cell != INVALID_CELL:
-		normalized_direction = Vector2i.ZERO
-	var has_input: bool = normalized_direction != Vector2i.ZERO
+		analog_direction = Vector2.ZERO
+		quantized_direction = Vector2i.ZERO
+	var has_input: bool = analog_direction.length() >= 0.05 and quantized_direction != Vector2i.ZERO
 	_is_running = running and has_input
 
 	if has_input:
-		_last_screen_direction = normalized_direction
-		_facing = IsometricControlsScript.direction_name(normalized_direction)
-		if not _can_move_screen_direction(normalized_direction):
+		_last_screen_direction = quantized_direction
+		_facing = IsometricControlsScript.direction_name(quantized_direction)
+		if not _can_move_screen_direction(quantized_direction):
 			_velocity = Vector2.ZERO
 			_is_moving = false
 			_update_status("VECTOR %s // BLOCKED // SCRAP %03d" % [_facing, _scrap_count])
 			_sync_avatar()
 			return false
-		var maximum_speed: float = WALK_SPEED * (RUN_MULTIPLIER if running else 1.0)
-		var desired_velocity: Vector2 = Vector2(normalized_direction).normalized() * maximum_speed
+		var maximum_speed: float = (
+			WALK_SPEED * analog_direction.length() * (RUN_MULTIPLIER if running else 1.0)
+		)
+		var desired_velocity: Vector2 = analog_direction.normalized() * maximum_speed
 		_velocity = _velocity.move_toward(desired_velocity, ACCELERATION * step_delta)
 	else:
 		_velocity = _velocity.move_toward(Vector2.ZERO, DECELERATION * step_delta)
@@ -376,6 +391,8 @@ func _enter_shutdown(source: StringName) -> void:
 	_pending_impact_cell = INVALID_CELL
 	_pending_impact_breaks_rock = false
 	_pending_impact_worm_id = -1
+	if _mobile_controls != null:
+		_mobile_controls.call("set_controls_enabled", false)
 	_status_hold_time = INF
 	if _hazards != null:
 		_hazards.call("set_player_cell", INVALID_CELL)
@@ -874,6 +891,13 @@ func _build_interface() -> void:
 	_hud.name = "FieldHUD"
 	_hud.connect("repair_requested", Callable(self, "_repair_chassis"))
 	add_child(_hud)
+
+
+func _build_mobile_controls() -> void:
+	_mobile_controls = MobileControlsScript.new() as CanvasLayer
+	_mobile_controls.name = "MobileControls"
+	_mobile_controls.connect("smash_pressed", Callable(self, "attack"))
+	add_child(_mobile_controls)
 
 
 func _refresh_outpost_interface() -> void:
