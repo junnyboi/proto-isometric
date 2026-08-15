@@ -12,7 +12,7 @@ var _outpost_interface: Control
 
 
 func _ready() -> void:
-	layer = 2
+	layer = 5
 	_build_drive_panel()
 	_outpost_interface = OutpostInterfaceScript.new() as Control
 	_outpost_interface.name = "OutpostInterface"

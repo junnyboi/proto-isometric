@@ -8,6 +8,7 @@ const FieldHudScript: GDScript = preload("res://scripts/field_hud.gd")
 const ImpactEffectsScript: GDScript = preload("res://scripts/impact_effects.gd")
 const IsometricControlsScript: GDScript = preload("res://scripts/isometric_controls.gd")
 const WorldStateStoreScript: GDScript = preload("res://scripts/world_state_store.gd")
+const WorldObjectsScript: GDScript = preload("res://scripts/world_objects.gd")
 const HEAT_HAZE_SHADER: Shader = preload("res://shaders/heat_haze.gdshader")
 const SAND_TEXTURE: Texture2D = preload("res://assets/textures/terrain/desert_sand.png")
 const SALT_TEXTURE: Texture2D = preload("res://assets/textures/terrain/salt_crust.png")
@@ -41,7 +42,6 @@ const ROCK: Color = Color("934d35")
 const RUIN: Color = Color("39454a")
 const TEAL: Color = Color("4eb6aa")
 const AMBER: Color = Color("f5a62d")
-const INK: Color = Color("11151a")
 const GRID_LINE: Color = Color(0.18, 0.12, 0.08, 0.32)
 
 @export var save_path: String = DEFAULT_SAVE_PATH
@@ -80,9 +80,12 @@ var _atmosphere: Node2D
 var _camera: Camera2D
 var _chassis_feedback: CanvasLayer
 var _effects: Node2D
+var _effects_layer: CanvasLayer
 var _hazards: Node2D
 var _hud: CanvasLayer
+var _object_layer: CanvasLayer
 var _state_store: RefCounted
+var _world_objects: Node2D
 
 
 func _ready() -> void:
@@ -92,8 +95,9 @@ func _ready() -> void:
 	_build_state_store(save_path)
 	_load_world_state()
 	_robot_visual_position = grid_to_screen(_robot_grid)
-	_build_avatar()
 	_build_camera()
+	_build_world_layers()
+	_build_avatar()
 	_build_impact_effects()
 	_build_atmosphere()
 	_build_hazards()
@@ -129,8 +133,18 @@ func _process(delta: float) -> void:
 	if _atmosphere != null:
 		_atmosphere.call("advance", delta)
 	if _hazards != null:
-		_hazards.call("set_player_cell", INVALID_CELL if _shutdown else _robot_grid)
+		var offset: Vector2 = _robot_visual_position - grid_to_screen(_robot_grid)
+		var fractional: Vector2 = Vector2(
+			offset.x / TILE_SIZE.x + offset.y / TILE_SIZE.y,
+			offset.y / TILE_SIZE.y - offset.x / TILE_SIZE.x,
+		)
+		_hazards.call(
+			"set_player_position",
+			Vector2(INVALID_CELL) if _shutdown else Vector2(_robot_grid) + fractional
+		)
 		_hazards.call("advance", delta)
+	if _world_objects != null:
+		_world_objects.queue_redraw()
 	_refresh_outpost_interface()
 	_sync_avatar()
 	queue_redraw()
@@ -349,10 +363,6 @@ func _enter_shutdown(source: StringName) -> void:
 	_update_status("CARDINAL SHUTDOWN // CHASSIS 000 // ESC: RETURN")
 	_refresh_outpost_interface()
 	_save_world_state()
-
-
-func _is_shutdown() -> bool:
-	return _shutdown
 
 
 func _is_at_outpost() -> bool:
@@ -603,11 +613,6 @@ func _decode_cell(value: Variant) -> Vector2i:
 	return cell if _is_in_bounds(cell) else INVALID_CELL
 
 
-func _snap_camera_to_robot() -> void:
-	if _camera != null:
-		_camera.position = _robot_visual_position
-
-
 func _update_camera_follow(delta: float) -> void:
 	if _camera == null:
 		return
@@ -734,13 +739,40 @@ func _is_attack_pressed() -> bool:
 	)
 
 
+func _build_world_layers() -> void:
+	_object_layer = CanvasLayer.new()
+	_object_layer.name = "WorldObjectLayer"
+	_object_layer.layer = 2
+	_object_layer.follow_viewport_enabled = true
+	add_child(_object_layer)
+	_effects_layer = CanvasLayer.new()
+	_effects_layer.name = "WorldEffectsLayer"
+	_effects_layer.layer = 3
+	_effects_layer.follow_viewport_enabled = true
+	add_child(_effects_layer)
+	_world_objects = WorldObjectsScript.new() as Node2D
+	_world_objects.name = "WorldObjects"
+	_object_layer.add_child(_world_objects)
+	(
+		_world_objects
+		. call(
+			"configure",
+			GRID_SIZE,
+			_destructible_rocks,
+			_scrap,
+			_outposts,
+			Callable(self, "grid_to_screen"),
+		)
+	)
+
+
 func _build_avatar() -> void:
 	_avatar = CardinalAvatarScript.new() as Node2D
 	_avatar.name = "CardinalAvatar"
 	_avatar.position = _robot_visual_position
 	_avatar.z_index = 20
 	_avatar.connect("impact_frame", Callable(self, "_on_avatar_impact_frame"))
-	add_child(_avatar)
+	_object_layer.add_child(_avatar)
 
 
 func _build_camera() -> void:
@@ -761,7 +793,7 @@ func _build_impact_effects() -> void:
 	_effects.name = "ImpactEffects"
 	_effects.z_index = 30
 	_effects.call("bind_camera", _camera)
-	add_child(_effects)
+	_effects_layer.add_child(_effects)
 
 
 func _build_chassis_feedback() -> void:
@@ -785,7 +817,7 @@ func _build_hazards() -> void:
 	_hazards.call("configure", GRID_SIZE, TILE_SIZE, MAP_ORIGIN)
 	_hazards.call("set_player_cell", _robot_grid)
 	_hazards.connect("damage_tick", Callable(self, "_on_hazard_damage"))
-	add_child(_hazards)
+	_effects_layer.add_child(_hazards)
 
 
 func _on_hazard_damage(amount: int, source: StringName) -> void:
@@ -882,12 +914,6 @@ func _draw_tile(cell: Vector2i) -> void:
 	if terrain_id == &"ruin":
 		draw_circle(center, 6.0, TEAL.darkened(0.15))
 		draw_arc(center, 13.0, 0.0, TAU, 20, TEAL, 2.0)
-	if bool(_outposts.get(cell, false)):
-		_draw_outpost(center)
-	if bool(_destructible_rocks.get(cell, false)):
-		_draw_rock(center)
-	if int(_scrap.get(cell, 0)) > 0:
-		_draw_scrap(center, int(_scrap[cell]))
 
 
 func _terrain_uvs(cell: Vector2i) -> PackedVector2Array:
@@ -923,29 +949,6 @@ func _terrain_grid_vertices(cell: Vector2i) -> Array[Vector2]:
 		center + Vector2(0.5, 0.5),
 		center + Vector2(-0.5, 0.5),
 	]
-
-
-func _draw_rock(center: Vector2) -> void:
-	draw_circle(center + Vector2(-12.0, -5.0), 15.0, ROCK.darkened(0.08))
-	draw_circle(center + Vector2(7.0, -9.0), 19.0, ROCK.lightened(0.06))
-	draw_circle(center + Vector2(18.0, 2.0), 12.0, ROCK.darkened(0.18))
-	draw_line(center + Vector2(0.0, -24.0), center + Vector2(-5.0, 4.0), INK, 3.0)
-	draw_line(center + Vector2(-5.0, 4.0), center + Vector2(9.0, 12.0), INK, 3.0)
-
-
-func _draw_outpost(center: Vector2) -> void:
-	draw_arc(center, 20.0, 0.0, TAU, 24, AMBER, 3.0)
-	draw_arc(center, 28.0, 0.0, TAU, 32, TEAL, 2.0)
-	for direction: Vector2 in [Vector2.UP, Vector2.RIGHT, Vector2.DOWN, Vector2.LEFT]:
-		draw_line(center + direction * 21.0, center + direction * 29.0, AMBER, 4.0)
-
-
-func _draw_scrap(center: Vector2, amount: int) -> void:
-	for index: int in range(mini(amount + 1, 4)):
-		var offset: Vector2 = Vector2(float(index - 1) * 9.0, float(index % 2) * 7.0 - 5.0)
-		draw_circle(center + offset, 7.0, TEAL.darkened(0.35))
-		draw_arc(center + offset, 8.0, 0.0, TAU, 12, TEAL, 2.0)
-		draw_circle(center + offset, 2.0, AMBER)
 
 
 func _draw_drive_vector() -> void:

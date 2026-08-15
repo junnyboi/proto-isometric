@@ -16,7 +16,7 @@ const DARK_DUST: Color = Color("744124")
 var _grid_size: Vector2i = Vector2i(18, 18)
 var _tile_size: Vector2 = Vector2(90.0, 45.0)
 var _map_origin: Vector2 = Vector2(760.0, 70.0)
-var _player_cell: Vector2i = Vector2i.ZERO
+var _player_position: Vector2 = Vector2.ZERO
 var _hazards: Array[Dictionary] = []
 var _next_id: int = 1
 var _time: float = 0.0
@@ -41,7 +41,11 @@ func set_auto_spawn(enabled: bool) -> void:
 
 
 func set_player_cell(cell: Vector2i) -> void:
-	_player_cell = cell
+	_player_position = Vector2(cell)
+
+
+func set_player_position(position: Vector2) -> void:
+	_player_position = position
 
 
 func advance(delta: float) -> void:
@@ -85,7 +89,8 @@ func spawn_tornado(
 				"lifetime": maxf(lifetime_seconds, 0.1),
 				"speed": maxf(speed, 0.0),
 				"turn_timer": 0.28,
-				"damage_accumulator": 0.0,
+				"contact_time": 0.0,
+				"contacting": false,
 				"expired": false,
 			}
 		)
@@ -113,7 +118,8 @@ func spawn_sandstorm(
 				"direction": Vector2(normalized),
 				"age": 0.0,
 				"speed": maxf(speed, 0.0),
-				"damage_accumulator": 0.0,
+				"contact_time": 0.0,
+				"contacting": false,
 				"expired": false,
 			}
 		)
@@ -149,6 +155,11 @@ func get_tornado_cell(hazard_id: int) -> Vector2i:
 	if hazard.is_empty():
 		return Vector2i(-9999, -9999)
 	return Vector2i((hazard["position"] as Vector2).round())
+
+
+func get_tornado_position(hazard_id: int) -> Vector2:
+	var hazard: Dictionary = _find_hazard(hazard_id)
+	return hazard["position"] as Vector2 if not hazard.is_empty() else Vector2(-9999.0, -9999.0)
 
 
 func get_sandstorm_footprint(hazard_id: int) -> Array[Vector2i]:
@@ -223,26 +234,46 @@ func _advance_sandstorm(hazard: Dictionary, delta: float) -> void:
 
 
 func _apply_contact_damage(hazard: Dictionary, delta: float) -> void:
-	var overlapping: bool = false
-	var damage_rate: float = 0.0
 	var source: StringName = hazard["kind"] as StringName
-	if source == &"tornado":
-		overlapping = (
-			get_tornado_state(int(hazard["id"])) == &"active"
-			and get_tornado_cell(int(hazard["id"])) == _player_cell
-		)
-		damage_rate = TORNADO_DAMAGE_PER_SECOND
-	else:
-		overlapping = _player_cell in _sandstorm_cells(hazard)
-		damage_rate = SANDSTORM_DAMAGE_PER_SECOND
+	var overlapping: bool = (
+		_tornado_overlaps_player(hazard)
+		if source == &"tornado"
+		else _sandstorm_overlaps_player(hazard)
+	)
 	if not overlapping:
-		hazard["damage_accumulator"] = 0.0
+		hazard["contact_time"] = 0.0
+		hazard["contacting"] = false
 		return
-	var accumulated: float = float(hazard["damage_accumulator"]) + damage_rate * delta
-	var damage: int = floori(accumulated)
-	hazard["damage_accumulator"] = accumulated - float(damage)
-	if damage > 0:
+	var damage: int = int(
+		TORNADO_DAMAGE_PER_SECOND if source == &"tornado" else SANDSTORM_DAMAGE_PER_SECOND
+	)
+	if not bool(hazard["contacting"]):
+		hazard["contacting"] = true
+		hazard["contact_time"] = 0.0
 		damage_tick.emit(damage, source)
+		return
+	hazard["contact_time"] = float(hazard["contact_time"]) + delta
+	while float(hazard["contact_time"]) >= 1.0:
+		hazard["contact_time"] = float(hazard["contact_time"]) - 1.0
+		damage_tick.emit(damage, source)
+
+
+func _tornado_overlaps_player(hazard: Dictionary) -> bool:
+	if get_tornado_state(int(hazard["id"])) != &"active":
+		return false
+	var offset: Vector2 = _player_position - (hazard["position"] as Vector2)
+	return absf(offset.x) <= 0.58 and absf(offset.y) <= 0.58
+
+
+func _sandstorm_overlaps_player(hazard: Dictionary) -> bool:
+	var position: Vector2 = hazard["position"] as Vector2
+	var size: Vector2 = Vector2(_sandstorm_size(hazard))
+	return (
+		_player_position.x >= position.x - 0.5
+		and _player_position.y >= position.y - 0.5
+		and _player_position.x < position.x + size.x - 0.5
+		and _player_position.y < position.y + size.y - 0.5
+	)
 
 
 func _sandstorm_cells(hazard: Dictionary) -> Array[Vector2i]:

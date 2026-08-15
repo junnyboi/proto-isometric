@@ -103,7 +103,17 @@ func _test_isometric_map() -> void:
 	var heat_haze: ColorRect = map.get_node("HeatHazeLayer/HeatHaze") as ColorRect
 	_check(heat_haze != null, "heat haze overlay exists")
 	_check(heat_haze.material is ShaderMaterial, "heat haze shader is active")
+	var heat_haze_layer: CanvasLayer = map.get_node("HeatHazeLayer") as CanvasLayer
+	var world_object_layer: CanvasLayer = map.get_node("WorldObjectLayer") as CanvasLayer
+	var world_effects_layer: CanvasLayer = map.get_node("WorldEffectsLayer") as CanvasLayer
+	var world_objects: Node2D = world_object_layer.get_node("WorldObjects") as Node2D
+	_check(heat_haze_layer.layer == 1, "sand ripple occupies terrain-only layer")
+	_check(world_object_layer.layer == 2, "rocks and interactables render above ripple")
+	_check(world_effects_layer.layer == 3, "environmental enemies render above objects")
+	_check(world_object_layer.follow_viewport_enabled, "object layer follows the world camera")
+	_check(world_objects.has_method("_draw_rock"), "rocks use the high-layer renderer")
 	var field_hud: CanvasLayer = map.get_node("FieldHUD") as CanvasLayer
+	_check(field_hud.layer > world_effects_layer.layer, "HUD renders above world effects")
 	var outpost_interface: Control = field_hud.call("get_outpost_interface") as Control
 	_check(outpost_interface != null, "outpost interface exists")
 	_check(
@@ -116,16 +126,23 @@ func _test_isometric_map() -> void:
 	_check(bool(chassis_feedback.call("is_audio_ready")), "chassis damage audio is loaded")
 	_check(not bool(chassis_feedback.call("is_shutdown_visible")), "shutdown overlay starts hidden")
 
-	var hazards: Node2D = map.get_node("DesertHazards") as Node2D
+	var hazards: Node2D = map.get_node("WorldEffectsLayer/DesertHazards") as Node2D
 	_check(hazards != null, "environmental hazard controller exists")
+	_check(hazards.get_parent() == world_effects_layer, "hazard particles use the effects layer")
 	hazards.call("set_auto_spawn", false)
 	hazards.call("clear_hazards")
+	_check(bool(map.call("place_robot", Vector2i(5, 5))), "place Cardinal for moving tornado")
+	var moving_damage_before: int = int(map.call("_get_chassis"))
 	var moving_tornado: int = int(hazards.call("spawn_tornado", Vector2i(5, 5), 0.0, 20.0, 3.2))
-	var tornado_start: Vector2i = hazards.call("get_tornado_cell", moving_tornado) as Vector2i
-	hazards.call("advance", 0.6)
+	var tornado_start: Vector2 = hazards.call("get_tornado_position", moving_tornado) as Vector2
+	hazards.call("advance", 0.01)
 	_check(
-		hazards.call("get_tornado_cell", moving_tornado) != tornado_start,
+		(hazards.call("get_tornado_position", moving_tornado) as Vector2) != tornado_start,
 		"active tornado moves rapidly",
+	)
+	_check(
+		int(map.call("_get_chassis")) == moving_damage_before - 2,
+		"moving tornado damages immediately on contact",
 	)
 	hazards.call("clear_hazards")
 	hazards.call("spawn_tornado", Vector2i(2, 2))
@@ -133,23 +150,44 @@ func _test_isometric_map() -> void:
 	_check(int(hazards.call("get_hazard_count", &"tornado")) == 2, "multiple tornadoes coexist")
 	hazards.call("clear_hazards")
 	_check(bool(map.call("place_robot", Vector2i(5, 7))), "place Cardinal for hazard damage")
+	var telegraph_chassis: int = int(map.call("_get_chassis"))
 	var tornado_id: int = int(hazards.call("spawn_tornado", Vector2i(5, 7), 3.0, 20.0, 0.0))
 	hazards.call("advance", 2.9)
 	_check(
 		hazards.call("get_tornado_state", tornado_id) == &"forming",
 		"tornado telegraphs for three seconds"
 	)
-	_check(int(map.call("_get_chassis")) == 100, "forming tornado causes no damage")
+	_check(int(map.call("_get_chassis")) == telegraph_chassis, "forming tornado causes no damage")
 	hazards.call("advance", 0.1)
 	_check(
 		hazards.call("get_tornado_state", tornado_id) == &"active",
 		"tornado activates after telegraph"
 	)
-	hazards.call("advance", 0.9)
-	_check(int(map.call("_get_chassis")) == 98, "tornado deals two chassis damage per second")
+	_check(
+		int(map.call("_get_chassis")) == telegraph_chassis - 2,
+		"active tornado damages immediately",
+	)
+	hazards.call("advance", 0.99)
+	_check(
+		int(map.call("_get_chassis")) == telegraph_chassis - 2,
+		"tornado does not over-tick before one second",
+	)
+	hazards.call("advance", 0.02)
+	_check(
+		int(map.call("_get_chassis")) == telegraph_chassis - 4,
+		"tornado continuously deals two damage per second",
+	)
 	_check(bool(map.call("is_walkable", Vector2i(5, 7))), "tornado does not block traversal")
 	hazards.call("set_player_cell", Vector2i(-9999, -9999))
-	hazards.call("advance", 19.0)
+	hazards.call("advance", 0.1)
+	hazards.call("set_player_cell", Vector2i(5, 7))
+	hazards.call("advance", 0.01)
+	_check(
+		int(map.call("_get_chassis")) == telegraph_chassis - 6,
+		"tornado contact damages immediately after re-entry",
+	)
+	hazards.call("set_player_cell", Vector2i(-9999, -9999))
+	hazards.call("advance", 18.77)
 	_check(
 		hazards.call("get_tornado_state", tornado_id) == &"active",
 		"tornado survives until 20 seconds",
@@ -160,6 +198,7 @@ func _test_isometric_map() -> void:
 		"tornado fades and disappears after 20 seconds",
 	)
 	hazards.call("set_player_cell", Vector2i(5, 7))
+	var storm_chassis: int = int(map.call("_get_chassis"))
 	var storm_id: int = int(hazards.call("spawn_sandstorm", Vector2i(5, 7), Vector2i.RIGHT, 0.0))
 	var footprint: Array = hazards.call("get_sandstorm_footprint", storm_id) as Array
 	_check(footprint.size() == 6, "sandstorm occupies six tiles")
@@ -177,8 +216,22 @@ func _test_isometric_map() -> void:
 		if cell.x == 6:
 			east_front_tiles += 1
 	_check(east_front_tiles == 3, "eastbound sandstorm leads with three tiles")
-	hazards.call("advance", 1.0)
-	_check(int(map.call("_get_chassis")) == 97, "sandstorm deals one chassis damage per second")
+	hazards.call("advance", 0.01)
+	_check(
+		int(map.call("_get_chassis")) == storm_chassis - 1,
+		"sandstorm damages immediately on contact",
+	)
+	hazards.call("advance", 0.99)
+	_check(
+		int(map.call("_get_chassis")) == storm_chassis - 1,
+		"sandstorm does not over-tick before one second",
+	)
+	hazards.call("advance", 0.02)
+	_check(
+		int(map.call("_get_chassis")) == storm_chassis - 2,
+		"sandstorm continuously deals one damage per second",
+	)
+	var hazard_chassis_after: int = int(map.call("_get_chassis"))
 	_check(bool(map.call("is_walkable", Vector2i(5, 7))), "sandstorm does not block traversal")
 	var north_storm: int = int(hazards.call("spawn_sandstorm", Vector2i(10, 10), Vector2i.UP, 0.0))
 	var north_footprint: Array = hazards.call("get_sandstorm_footprint", north_storm) as Array
@@ -201,6 +254,7 @@ func _test_isometric_map() -> void:
 
 	var avatar: Node2D = map.call("get_avatar") as Node2D
 	_check(avatar != null, "Cardinal avatar exists")
+	_check(avatar.get_parent() == world_object_layer, "Cardinal renders above sand ripple")
 	_check(avatar.has_method("set_motion"), "Cardinal animation adapter is connected")
 	_check(bool(avatar.call("is_using_proxy")), "unapproved sheets use animated proxy")
 
@@ -257,7 +311,8 @@ func _test_isometric_map() -> void:
 	_check(is_equal_approx(float(map.call("get_speed_ratio")), 1.5), "Shift run reaches 1.5x speed")
 
 	map.call("place_robot", Vector2i(8, 8))
-	map.call("_snap_camera_to_robot")
+	var follow_camera: Camera2D = map.get_node("FollowCamera") as Camera2D
+	follow_camera.position = map.call("get_robot_position") as Vector2
 	var camera_start: Vector2 = map.call("get_camera_position") as Vector2
 	for _step: int in range(6):
 		map.call("update_drive", Vector2i(1, 0), 0.05, false)
@@ -282,7 +337,7 @@ func _test_isometric_map() -> void:
 		"rock blocks direct drive",
 	)
 	_check(map.call("get_robot_position") == blocked_position, "blocked drive does not move")
-	var effects: Node2D = map.get_node("ImpactEffects") as Node2D
+	var effects: Node2D = map.get_node("WorldEffectsLayer/ImpactEffects") as Node2D
 	_check(effects != null, "impact effects controller exists")
 	_check(bool(map.call("attack")), "impact attack targets facing rock")
 	_check(bool(map.call("has_destructible_rock", Vector2i(4, 4))), "rock survives windup frames")
@@ -343,7 +398,10 @@ func _test_isometric_map() -> void:
 	_check(not bool(map.call("has_scrap", Vector2i(4, 4))), "collected scrap stays absent")
 	_check(int(map.call("get_scrap_count")) == 2, "scrap inventory persists on reload")
 	_check(map.call("get_robot_grid") == Vector2i(4, 4), "post-collection position persists")
-	_check(int(map.call("_get_chassis")) == 97, "hazard chassis damage persists")
+	_check(
+		int(map.call("_get_chassis")) == hazard_chassis_after,
+		"hazard chassis damage persists",
+	)
 	var outpost_cell: Vector2i = Vector2i(1, 10)
 	_check(bool(map.call("_place_scrap", outpost_cell, 5)), "stage repair scrap at outpost")
 	_check(bool(map.call("place_robot", outpost_cell)), "Cardinal enters harvested outpost")
@@ -378,7 +436,7 @@ func _test_isometric_map() -> void:
 	)
 
 	chassis_feedback = map.get_node("ChassisFeedback") as CanvasLayer
-	effects = map.get_node("ImpactEffects") as Node2D
+	effects = map.get_node("WorldEffectsLayer/ImpactEffects") as Node2D
 	avatar = map.call("get_avatar") as Node2D
 	var damage_audio_before: int = int(chassis_feedback.call("get_audio_trigger_count"))
 	var damage_emissions_before: int = int(effects.call("get_damage_emission_count"))
@@ -406,7 +464,7 @@ func _test_isometric_map() -> void:
 
 	_check(int(map.call("_apply_chassis_damage", 96, &"sandstorm")) == 96, "lethal damage applies")
 	_check(int(map.call("_get_chassis")) == 0, "lethal damage reaches zero")
-	_check(bool(map.call("_is_shutdown")), "zero chassis enters shutdown")
+	_check(bool(map.get("_shutdown")), "zero chassis enters shutdown")
 	_check(bool(chassis_feedback.call("is_shutdown_visible")), "shutdown overlay is visible")
 	_check(
 		int(chassis_feedback.call("get_audio_trigger_count")) == damage_audio_before + 2,
@@ -436,7 +494,7 @@ func _test_isometric_map() -> void:
 	await process_frame
 	chassis_feedback = map.get_node("ChassisFeedback") as CanvasLayer
 	_check(int(map.call("_get_chassis")) == 0, "zero chassis persists")
-	_check(bool(map.call("_is_shutdown")), "shutdown state restores on reload")
+	_check(bool(map.get("_shutdown")), "shutdown state restores on reload")
 	_check(bool(chassis_feedback.call("is_shutdown_visible")), "restored shutdown remains visible")
 	_check(
 		not bool(map.call("update_drive", Vector2i.RIGHT, 0.05, false)),
