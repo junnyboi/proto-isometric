@@ -30,6 +30,8 @@ Rock destruction resolves on Cardinal's attack contact frame with bounded camera
 
 Dust devils telegraph for three seconds, activate as fast single-tile hazards for 20 seconds, and deal two chassis damage per second. Six-tile sandstorms cross the map from any edge and deal one chassis damage per second. Both are indestructible and nonblocking, so survival depends on movement rather than punching the weather. Multiple instances of both hazards can coexist.
 
+Chassis hits flash Cardinal and the screen, throw bounded sparks and camera kick, identify the damage source in the HUD, and play a short generated armor-impact cue. At zero chassis Cardinal enters a persistent shutdown state: drive, impact, collection, and field repair remain offline until the player returns to the title. The shutdown overlay and low-pitched final cue make the failure state unambiguous.
+
 The camera follows Cardinal with eased motion and velocity look-ahead. Approved square-cell directional sheets dropped into `assets/cardinal/` are auto-bound through the contract in [`assets/cardinal/SOURCES.md`](assets/cardinal/SOURCES.md); missing sheets use the animated procedural proxy.
 
 Terrain shape, elevation, collision, and persistence remain procedural. Four accepted 512×512 material textures in `assets/textures/terrain/` use continuous low-frequency UV warping and shared-vertex tint variation to break repetition without creating tile seams. Wind-blown sand particles and a Web-compatible heat-haze screen shader supply the ambient desert layer.

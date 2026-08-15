@@ -4,6 +4,7 @@ const ROCK: Color = Color("934d35")
 const ROCK_LIGHT: Color = Color("bd7152")
 const DUST: Color = Color("e8b861")
 const SCRAP: Color = Color("4eb6aa")
+const CHASSIS_SPARK: Color = Color("ffb12d")
 
 var _camera: Camera2D
 var _shake_time: float = 0.0
@@ -12,6 +13,7 @@ var _shake_strength: float = 0.0
 var _shake_seed: int = 0
 var _particles: Array[Dictionary] = []
 var _emission_count: int = 0
+var _damage_emission_count: int = 0
 
 
 func bind_camera(camera: Camera2D) -> void:
@@ -80,6 +82,29 @@ func emit_scrap_pickup(position: Vector2, amount: int) -> void:
 	queue_redraw()
 
 
+func emit_chassis_damage(position: Vector2, amount: int) -> void:
+	_damage_emission_count += 1
+	_start_shake(0.15, 6.0, amount * 4099 + _damage_emission_count * 131)
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = amount * 65537 + _damage_emission_count * 8191
+	for index: int in range(clampi(7 + amount, 8, 14)):
+		var angle: float = rng.randf_range(-PI * 0.96, -PI * 0.04)
+		(
+			_particles
+			. append(
+				{
+					"position": position + Vector2(rng.randf_range(-18.0, 18.0), -22.0),
+					"velocity": Vector2(cos(angle), sin(angle)) * rng.randf_range(80.0, 175.0),
+					"life": rng.randf_range(0.22, 0.46),
+					"maximum_life": 0.46,
+					"radius": rng.randf_range(1.8, 4.2),
+					"color": CHASSIS_SPARK if index % 3 != 0 else SCRAP,
+				}
+			)
+		)
+	queue_redraw()
+
+
 func advance(delta: float) -> void:
 	var step: float = maxf(delta, 0.0)
 	if _shake_time > 0.0:
@@ -108,6 +133,10 @@ func get_particle_count() -> int:
 
 func get_emission_count() -> int:
 	return _emission_count
+
+
+func get_damage_emission_count() -> int:
+	return _damage_emission_count
 
 
 func get_shake_remaining() -> float:

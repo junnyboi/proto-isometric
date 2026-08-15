@@ -94,7 +94,7 @@ func _test_isometric_map() -> void:
 	)
 	_check(tint_origin[1].is_equal_approx(tint_east[0]), "east tile tint is continuous")
 	_check(not tint_origin[0].is_equal_approx(tint_far[0]), "terrain tint varies at low frequency")
-	var atmosphere: Node2D = map.call("_get_atmosphere") as Node2D
+	var atmosphere: Node2D = map.get_node("DesertAtmosphere") as Node2D
 	_check(atmosphere != null, "wind-blown sand atmosphere exists")
 	_check(int(atmosphere.call("get_particle_count")) >= 90, "ambient sand has dense particles")
 	var wind_before: float = float(atmosphere.call("get_wind_intensity"))
@@ -103,15 +103,20 @@ func _test_isometric_map() -> void:
 	var heat_haze: ColorRect = map.get_node("HeatHazeLayer/HeatHaze") as ColorRect
 	_check(heat_haze != null, "heat haze overlay exists")
 	_check(heat_haze.material is ShaderMaterial, "heat haze shader is active")
-	var outpost_interface: Control = map.call("_get_outpost_interface") as Control
+	var field_hud: CanvasLayer = map.get_node("FieldHUD") as CanvasLayer
+	var outpost_interface: Control = field_hud.call("get_outpost_interface") as Control
 	_check(outpost_interface != null, "outpost interface exists")
 	_check(
 		bool(outpost_interface.call("are_locked_actions_disabled")),
 		"crafting and upgrades stay locked"
 	)
 	_check(not bool(outpost_interface.call("is_repair_enabled")), "repair starts unavailable")
+	var chassis_feedback: CanvasLayer = map.get_node("ChassisFeedback") as CanvasLayer
+	_check(chassis_feedback != null, "chassis feedback controller exists")
+	_check(bool(chassis_feedback.call("is_audio_ready")), "chassis damage audio is loaded")
+	_check(not bool(chassis_feedback.call("is_shutdown_visible")), "shutdown overlay starts hidden")
 
-	var hazards: Node2D = map.call("_get_hazards") as Node2D
+	var hazards: Node2D = map.get_node("DesertHazards") as Node2D
 	_check(hazards != null, "environmental hazard controller exists")
 	hazards.call("set_auto_spawn", false)
 	hazards.call("clear_hazards")
@@ -332,7 +337,8 @@ func _test_isometric_map() -> void:
 	_check(bool(map.call("_place_scrap", outpost_cell, 5)), "stage repair scrap at outpost")
 	_check(bool(map.call("place_robot", outpost_cell)), "Cardinal enters harvested outpost")
 	_check(bool(map.call("_is_at_outpost")), "outpost service link activates")
-	outpost_interface = map.call("_get_outpost_interface") as Control
+	field_hud = map.get_node("FieldHUD") as CanvasLayer
+	outpost_interface = field_hud.call("get_outpost_interface") as Control
 	_check(
 		bool(outpost_interface.call("is_repair_enabled")), "repair unlocks with scrap and damage"
 	)
@@ -358,6 +364,72 @@ func _test_isometric_map() -> void:
 	_check(
 		not bool(map.call("update_drive", Vector2i(-1, -1), 0.05, false)),
 		"map edge blocks drive",
+	)
+
+	chassis_feedback = map.get_node("ChassisFeedback") as CanvasLayer
+	effects = map.get_node("ImpactEffects") as Node2D
+	avatar = map.call("get_avatar") as Node2D
+	var damage_audio_before: int = int(chassis_feedback.call("get_audio_trigger_count"))
+	var damage_emissions_before: int = int(effects.call("get_damage_emission_count"))
+	_check(int(map.call("_apply_chassis_damage", 4, &"test_impact")) == 4, "damage applies")
+	_check(int(map.call("_get_chassis")) == 96, "nonlethal damage reduces chassis")
+	_check(float(chassis_feedback.call("get_flash_alpha")) > 0.0, "damage flashes the screen")
+	_check(avatar.modulate != Color.WHITE, "damage flashes Cardinal")
+	_check(
+		int(chassis_feedback.call("get_audio_trigger_count")) == damage_audio_before + 1,
+		"damage triggers one audio cue",
+	)
+	_check(
+		int(effects.call("get_damage_emission_count")) == damage_emissions_before + 1,
+		"damage emits chassis sparks",
+	)
+	_check(float(effects.call("get_shake_remaining")) > 0.0, "damage starts camera kick")
+	_check(
+		(effects.call("get_camera_offset") as Vector2).length() <= 6.01,
+		"damage camera kick is bounded",
+	)
+	_check("TEST_IMPACT CONTACT" in str(map.call("get_status_text")), "damage source is readable")
+	chassis_feedback.call("advance", 0.5)
+	_check(is_zero_approx(float(chassis_feedback.call("get_flash_alpha"))), "damage flash expires")
+	_check(avatar.modulate.is_equal_approx(Color.WHITE), "Cardinal flash resets")
+
+	_check(int(map.call("_apply_chassis_damage", 96, &"sandstorm")) == 96, "lethal damage applies")
+	_check(int(map.call("_get_chassis")) == 0, "lethal damage reaches zero")
+	_check(bool(map.call("_is_shutdown")), "zero chassis enters shutdown")
+	_check(bool(chassis_feedback.call("is_shutdown_visible")), "shutdown overlay is visible")
+	_check(
+		int(chassis_feedback.call("get_audio_trigger_count")) == damage_audio_before + 2,
+		"shutdown triggers one low damage cue",
+	)
+	_check(not bool(map.call("update_drive", Vector2i.RIGHT, 0.05, false)), "shutdown blocks drive")
+	_check(not bool(map.call("attack")), "shutdown blocks impact strike")
+	_check(not bool(map.call("place_robot", Vector2i(2, 2))), "shutdown blocks placement")
+	_check("CARDINAL SHUTDOWN" in str(map.call("get_status_text")), "shutdown status is readable")
+	field_hud = map.get_node("FieldHUD") as CanvasLayer
+	outpost_interface = field_hud.call("get_outpost_interface") as Control
+	_check(not bool(outpost_interface.call("is_repair_enabled")), "shutdown disables field repair")
+	_check(
+		int(map.call("_apply_chassis_damage", 1, &"repeat")) == 0, "shutdown ignores extra damage"
+	)
+	_check(
+		int(chassis_feedback.call("get_audio_trigger_count")) == damage_audio_before + 2,
+		"shutdown cue cannot retrigger from extra damage",
+	)
+
+	map.free()
+	await process_frame
+	map = packed_map.instantiate()
+	map.set("save_path", save_path)
+	get_root().add_child(map)
+	await process_frame
+	await process_frame
+	chassis_feedback = map.get_node("ChassisFeedback") as CanvasLayer
+	_check(int(map.call("_get_chassis")) == 0, "zero chassis persists")
+	_check(bool(map.call("_is_shutdown")), "shutdown state restores on reload")
+	_check(bool(chassis_feedback.call("is_shutdown_visible")), "restored shutdown remains visible")
+	_check(
+		not bool(map.call("update_drive", Vector2i.RIGHT, 0.05, false)),
+		"restored shutdown remains immobile",
 	)
 
 	map.free()

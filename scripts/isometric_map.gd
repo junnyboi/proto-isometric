@@ -1,10 +1,12 @@
 extends Node2D
 
 const CardinalAvatarScript: GDScript = preload("res://scripts/cardinal_avatar.gd")
+const ChassisFeedbackScript: GDScript = preload("res://scripts/chassis_feedback.gd")
 const DesertAtmosphereScript: GDScript = preload("res://scripts/desert_atmosphere.gd")
 const DesertHazardsScript: GDScript = preload("res://scripts/desert_hazards.gd")
 const FieldHudScript: GDScript = preload("res://scripts/field_hud.gd")
 const ImpactEffectsScript: GDScript = preload("res://scripts/impact_effects.gd")
+const IsometricControlsScript: GDScript = preload("res://scripts/isometric_controls.gd")
 const WorldStateStoreScript: GDScript = preload("res://scripts/world_state_store.gd")
 const HEAT_HAZE_SHADER: Shader = preload("res://shaders/heat_haze.gdshader")
 const SAND_TEXTURE: Texture2D = preload("res://assets/textures/terrain/desert_sand.png")
@@ -71,10 +73,12 @@ var _status_hold_time: float = 0.0
 var _attack_was_pressed: bool = false
 var _pending_impact_cell: Vector2i = INVALID_CELL
 var _pending_impact_breaks_rock: bool = false
+var _shutdown: bool = false
 
 var _avatar: Node2D
 var _atmosphere: Node2D
 var _camera: Camera2D
+var _chassis_feedback: CanvasLayer
 var _effects: Node2D
 var _hazards: Node2D
 var _hud: CanvasLayer
@@ -94,7 +98,10 @@ func _ready() -> void:
 	_build_atmosphere()
 	_build_hazards()
 	_build_interface()
+	_build_chassis_feedback()
 	_build_heat_haze()
+	if _chassis <= 0:
+		_enter_shutdown(&"persistent_damage")
 	_collect_scrap_at(_robot_grid)
 	_refresh_outpost_interface()
 	_sync_avatar()
@@ -117,10 +124,12 @@ func _process(delta: float) -> void:
 	_status_hold_time = maxf(_status_hold_time - delta, 0.0)
 	if _effects != null:
 		_effects.call("advance", delta)
+	if _chassis_feedback != null:
+		_chassis_feedback.call("advance", delta)
 	if _atmosphere != null:
 		_atmosphere.call("advance", delta)
 	if _hazards != null:
-		_hazards.call("set_player_cell", _robot_grid)
+		_hazards.call("set_player_cell", INVALID_CELL if _shutdown else _robot_grid)
 		_hazards.call("advance", delta)
 	_refresh_outpost_interface()
 	_sync_avatar()
@@ -172,6 +181,11 @@ func is_walkable(cell: Vector2i) -> bool:
 
 
 func update_drive(screen_direction: Vector2i, delta: float, running: bool = false) -> bool:
+	if _shutdown:
+		_velocity = Vector2.ZERO
+		_is_moving = false
+		_is_running = false
+		return false
 	var step_delta: float = minf(maxf(delta, 0.0), 0.05)
 	var normalized_direction: Vector2i = Vector2i(
 		clampi(screen_direction.x, -1, 1), clampi(screen_direction.y, -1, 1)
@@ -183,7 +197,7 @@ func update_drive(screen_direction: Vector2i, delta: float, running: bool = fals
 
 	if has_input:
 		_last_screen_direction = normalized_direction
-		_facing = _direction_name(normalized_direction)
+		_facing = IsometricControlsScript.direction_name(normalized_direction)
 		if not _can_move_screen_direction(normalized_direction):
 			_velocity = Vector2.ZERO
 			_is_moving = false
@@ -206,63 +220,20 @@ func update_drive(screen_direction: Vector2i, delta: float, running: bool = fals
 
 
 func _can_move_screen_direction(screen_direction: Vector2i) -> bool:
-	var delta: Vector2i = _screen_direction_to_grid_delta(screen_direction)
+	var delta: Vector2i = IsometricControlsScript.screen_to_grid_delta(screen_direction)
 	if delta == Vector2i.ZERO:
 		return false
 	return _can_transition(_robot_grid, _robot_grid + delta)
 
 
-func _screen_direction_to_grid_delta(screen_direction: Vector2i) -> Vector2i:
-	var direction: Vector2i = Vector2i(
-		clampi(screen_direction.x, -1, 1), clampi(screen_direction.y, -1, 1)
-	)
-	var directions: Dictionary = {
-		Vector2i(0, -1): Vector2i(-1, -1),
-		Vector2i(1, -1): Vector2i(0, -1),
-		Vector2i(1, 0): Vector2i(1, -1),
-		Vector2i(1, 1): Vector2i(1, 0),
-		Vector2i(0, 1): Vector2i(1, 1),
-		Vector2i(-1, 1): Vector2i(0, 1),
-		Vector2i(-1, 0): Vector2i(-1, 1),
-		Vector2i(-1, -1): Vector2i(-1, 0),
-	}
-	return directions.get(direction, Vector2i.ZERO) as Vector2i
-
-
-func _direction_name(screen_direction: Vector2i) -> StringName:
-	var names: Dictionary = {
-		Vector2i(0, -1): &"N",
-		Vector2i(1, -1): &"NE",
-		Vector2i(1, 0): &"E",
-		Vector2i(1, 1): &"SE",
-		Vector2i(0, 1): &"S",
-		Vector2i(-1, 1): &"SW",
-		Vector2i(-1, 0): &"W",
-		Vector2i(-1, -1): &"NW",
-	}
-	return names.get(screen_direction, &"IDLE") as StringName
-
-
-func _facing_to_screen_direction(facing: StringName) -> Vector2i:
-	var directions: Dictionary = {
-		&"N": Vector2i(0, -1),
-		&"NE": Vector2i(1, -1),
-		&"E": Vector2i(1, 0),
-		&"SE": Vector2i(1, 1),
-		&"S": Vector2i(0, 1),
-		&"SW": Vector2i(-1, 1),
-		&"W": Vector2i(-1, 0),
-		&"NW": Vector2i(-1, -1),
-	}
-	return directions.get(facing, Vector2i.ZERO) as Vector2i
-
-
 func attack() -> bool:
-	if _avatar == null or _pending_impact_cell != INVALID_CELL:
+	if _shutdown or _avatar == null or _pending_impact_cell != INVALID_CELL:
 		return false
 	_velocity = Vector2.ZERO
-	var screen_direction: Vector2i = _facing_to_screen_direction(_facing)
-	var target: Vector2i = _robot_grid + _screen_direction_to_grid_delta(screen_direction)
+	var screen_direction: Vector2i = IsometricControlsScript.facing_to_screen_direction(_facing)
+	var target: Vector2i = (
+		_robot_grid + IsometricControlsScript.screen_to_grid_delta(screen_direction)
+	)
 	_pending_impact_cell = target
 	_pending_impact_breaks_rock = bool(_destructible_rocks.get(target, false))
 	_status_hold_time = 0.7
@@ -342,6 +313,11 @@ func _apply_chassis_damage(amount: int, source: StringName = &"hazard") -> int:
 	if damage <= 0:
 		return 0
 	_chassis -= damage
+	var lethal: bool = _chassis <= 0
+	if _effects != null:
+		_effects.call("emit_chassis_damage", _robot_visual_position, damage)
+	if _chassis_feedback != null:
+		_chassis_feedback.call("show_damage", damage, source, lethal)
 	_status_hold_time = 0.7
 	_update_status(
 		(
@@ -350,8 +326,33 @@ func _apply_chassis_damage(amount: int, source: StringName = &"hazard") -> int:
 		)
 	)
 	_refresh_outpost_interface()
+	if lethal:
+		_enter_shutdown(source)
 	_save_world_state()
 	return damage
+
+
+func _enter_shutdown(source: StringName) -> void:
+	if _shutdown:
+		return
+	_shutdown = true
+	_velocity = Vector2.ZERO
+	_is_moving = false
+	_is_running = false
+	_pending_impact_cell = INVALID_CELL
+	_pending_impact_breaks_rock = false
+	_status_hold_time = INF
+	if _hazards != null:
+		_hazards.call("set_player_cell", INVALID_CELL)
+	if _chassis_feedback != null:
+		_chassis_feedback.call("enter_shutdown", source)
+	_update_status("CARDINAL SHUTDOWN // CHASSIS 000 // ESC: RETURN")
+	_refresh_outpost_interface()
+	_save_world_state()
+
+
+func _is_shutdown() -> bool:
+	return _shutdown
 
 
 func _is_at_outpost() -> bool:
@@ -359,7 +360,7 @@ func _is_at_outpost() -> bool:
 
 
 func _repair_chassis() -> bool:
-	if not _is_at_outpost() or _scrap_count < REPAIR_COST or _chassis >= MAX_CHASSIS:
+	if _shutdown or not _is_at_outpost() or _scrap_count < REPAIR_COST or _chassis >= MAX_CHASSIS:
 		return false
 	_scrap_count -= REPAIR_COST
 	_chassis = mini(_chassis + REPAIR_AMOUNT, MAX_CHASSIS)
@@ -375,7 +376,7 @@ func get_robot_grid() -> Vector2i:
 
 
 func place_robot(cell: Vector2i) -> bool:
-	if not is_walkable(cell):
+	if _shutdown or not is_walkable(cell):
 		return false
 	_robot_grid = cell
 	_robot_visual_position = grid_to_screen(cell)
@@ -416,18 +417,6 @@ func get_avatar() -> Node2D:
 	return _avatar
 
 
-func _get_atmosphere() -> Node2D:
-	return _atmosphere
-
-
-func _get_hazards() -> Node2D:
-	return _hazards
-
-
-func _get_outpost_interface() -> Control:
-	return _hud.call("get_outpost_interface") as Control if _hud != null else null
-
-
 func get_camera_position() -> Vector2:
 	return _camera.position if _camera != null else Vector2.ZERO
 
@@ -442,6 +431,8 @@ func get_status_text() -> String:
 
 
 func _exit_tree() -> void:
+	if _chassis_feedback != null:
+		_chassis_feedback.call("prepare_for_shutdown")
 	_save_world_state()
 
 
@@ -653,6 +644,8 @@ func _can_transition(from: Vector2i, target: Vector2i) -> bool:
 
 
 func _collect_scrap_at(cell: Vector2i) -> int:
+	if _shutdown:
+		return 0
 	var amount: int = int(_scrap.get(cell, 0))
 	if amount <= 0:
 		return 0
@@ -769,6 +762,13 @@ func _build_impact_effects() -> void:
 	_effects.z_index = 30
 	_effects.call("bind_camera", _camera)
 	add_child(_effects)
+
+
+func _build_chassis_feedback() -> void:
+	_chassis_feedback = ChassisFeedbackScript.new() as CanvasLayer
+	_chassis_feedback.name = "ChassisFeedback"
+	add_child(_chassis_feedback)
+	_chassis_feedback.call("bind_avatar", _avatar)
 
 
 func _build_atmosphere() -> void:
@@ -965,7 +965,16 @@ func _build_interface() -> void:
 
 func _refresh_outpost_interface() -> void:
 	if _hud != null:
-		_hud.call("set_outpost_state", _is_at_outpost(), _scrap_count, _chassis, MAX_CHASSIS)
+		(
+			_hud
+			. call(
+				"set_outpost_state",
+				not _shutdown and _is_at_outpost(),
+				_scrap_count,
+				_chassis,
+				MAX_CHASSIS,
+			)
+		)
 
 
 func _update_drive_status() -> void:
