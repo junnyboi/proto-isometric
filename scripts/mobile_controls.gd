@@ -213,17 +213,4 @@ func _draw_joystick() -> void:
 	var knob_offset: Vector2 = _drive_vector * (JOYSTICK_RADIUS - KNOB_RADIUS - 7.0)
 	_joystick.draw_circle(center, JOYSTICK_RADIUS, Color(INK, 0.55))
 	_joystick.draw_arc(center, JOYSTICK_RADIUS - 3.0, 0.0, TAU, 48, Color(TEAL, 0.82), 5.0)
-	_joystick.draw_circle(center + knob_offset, KNOB_RADIUS, Color(TEAL, 0.9))
-	_joystick.draw_circle(center + knob_offset, KNOB_RADIUS * 0.52, Color(INK, 0.78))
-	(
-		_joystick
-		. draw_arc(
-			center + knob_offset,
-			KNOB_RADIUS - 2.0,
-			0.0,
-			TAU,
-			32,
-			Color("d9fff9"),
-			3.0,
-		)
-	)
+	_joystick.draw_circle(center + knob_offset, KNOB_RADIUS, Color("d4d7d9"))
