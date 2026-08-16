@@ -14,6 +14,7 @@ var _shake_seed: int = 0
 var _particles: Array[Dictionary] = []
 var _emission_count: int = 0
 var _damage_emission_count: int = 0
+var _aftershock_emission_count: int = 0
 
 
 func bind_camera(camera: Camera2D) -> void:
@@ -105,6 +106,32 @@ func emit_chassis_damage(position: Vector2, amount: int) -> void:
 	queue_redraw()
 
 
+func emit_aftershock(position: Vector2, cell: Vector2i, band: int) -> void:
+	_aftershock_emission_count += 1
+	var strength: float = 13.0 if band >= 2 else 8.5
+	_start_shake(0.28, strength, cell.x * 4099 + cell.y * 8191 + band * 131)
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = cell.x * 73856093 ^ cell.y * 19349663 ^ _aftershock_emission_count * 83492791
+	var particle_count: int = 28 if band >= 2 else 16
+	for index: int in range(particle_count):
+		var angle: float = TAU * float(index) / float(particle_count) + rng.randf_range(-0.16, 0.16)
+		(
+			_particles
+			. append(
+				{
+					"position":
+					position + Vector2(rng.randf_range(-12.0, 12.0), rng.randf_range(-6.0, 6.0)),
+					"velocity": Vector2(cos(angle), sin(angle)) * rng.randf_range(80.0, 190.0),
+					"life": rng.randf_range(0.32, 0.62),
+					"maximum_life": 0.62,
+					"radius": rng.randf_range(2.0, 5.5),
+					"color": CHASSIS_SPARK if index % 3 != 0 else SCRAP,
+				}
+			)
+		)
+	queue_redraw()
+
+
 func advance(delta: float) -> void:
 	var step: float = maxf(delta, 0.0)
 	if _shake_time > 0.0:
@@ -137,6 +164,10 @@ func get_emission_count() -> int:
 
 func get_damage_emission_count() -> int:
 	return _damage_emission_count
+
+
+func get_aftershock_emission_count() -> int:
+	return _aftershock_emission_count
 
 
 func get_shake_remaining() -> float:

@@ -5,6 +5,7 @@ const STREAM_RADIUS: int = 2
 const CULL_RADIUS: Vector2i = Vector2i(14, 14)
 const COORDINATE_LIMIT: int = 1_000_000
 const STARTER_SIZE: Vector2i = Vector2i(18, 18)
+const STARTER_RELAY: Vector2i = Vector2i(12, 6)
 
 const STARTER_ROCKS: Array[Vector2i] = [
 	Vector2i(2, 3),
@@ -184,6 +185,10 @@ func get_cull_radius() -> Vector2i:
 	return CULL_RADIUS
 
 
+func _get_starter_relay_cell() -> Vector2i:
+	return STARTER_RELAY
+
+
 func is_cell_loaded(cell: Vector2i) -> bool:
 	return _loaded_chunks.has(chunk_for_cell(cell))
 
@@ -311,6 +316,8 @@ func _set_rock(cell: Vector2i) -> void:
 
 
 func _base_terrain(cell: Vector2i) -> StringName:
+	if cell == STARTER_RELAY:
+		return &"ruin"
 	if cell in STARTER_ROCKS:
 		return &"rock"
 	var value: int = posmod(cell.x * 19 + cell.y * 31 + cell.x * cell.y * 7, 100)

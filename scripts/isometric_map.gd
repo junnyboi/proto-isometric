@@ -5,12 +5,15 @@ const ChassisFeedbackScript: GDScript = preload("res://scripts/chassis_feedback.
 const DesertAtmosphereScript: GDScript = preload("res://scripts/desert_atmosphere.gd")
 const DesertHazardsScript: GDScript = preload("res://scripts/desert_hazards.gd")
 const FieldHudScript: GDScript = preload("res://scripts/field_hud.gd")
+const ImpactChargeScript: GDScript = preload("res://scripts/impact_charge.gd")
 const ImpactEffectsScript: GDScript = preload("res://scripts/impact_effects.gd")
 const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const IsometricControlsScript: GDScript = preload("res://scripts/isometric_controls.gd")
 const MobileControlsScript: GDScript = preload("res://scripts/mobile_controls.gd")
+const RelayContestScript: GDScript = preload("res://scripts/relay_contest.gd")
 const SandwormsScript: GDScript = preload("res://scripts/sandworms.gd")
 const TerrainHazeScript: GDScript = preload("res://scripts/terrain_haze.gd")
+const TerrainRendererScript: GDScript = preload("res://scripts/terrain_renderer.gd")
 const WorldStateStoreScript: GDScript = preload("res://scripts/world_state_store.gd")
 const WorldObjectsScript: GDScript = preload("res://scripts/world_objects.gd")
 const SAND_TEXTURE: Texture2D = preload("res://assets/textures/terrain/desert_sand.png")
@@ -31,20 +34,12 @@ const DECELERATION: float = 390.0
 const CAMERA_RESPONSE: float = 4.8
 const CAMERA_LOOK_AHEAD_SECONDS: float = 0.32
 const CAMERA_MAX_LEAD: float = 82.0
-const TERRAIN_TEXTURE_PERIOD_CELLS: float = 4.0
-const TERRAIN_UV_VARIATION: float = 0.035
 const MAX_CHASSIS: int = 100
 const REPAIR_COST: int = 5
 const REPAIR_AMOUNT: int = 35
 
-const SAND: Color = Color("d79a45")
-const SAND_LIGHT: Color = Color("e8b861")
-const SALT: Color = Color("d8d0b5")
-const ROCK: Color = Color("934d35")
-const RUIN: Color = Color("39454a")
 const TEAL: Color = Color("4eb6aa")
 const AMBER: Color = Color("f5a62d")
-const GRID_LINE: Color = Color(0.18, 0.12, 0.08, 0.32)
 
 @export var save_path: String = DEFAULT_SAVE_PATH
 
@@ -76,6 +71,8 @@ var _attack_was_pressed: bool = false
 var _pending_impact_cell: Vector2i = INVALID_CELL
 var _pending_impact_breaks_rock: bool = false
 var _pending_impact_worm_id: int = -1
+var _pending_impact_band: int = 0
+var _relay_completed: bool = false
 var _shutdown: bool = false
 
 var _avatar: Node2D
@@ -86,11 +83,14 @@ var _effects: Node2D
 var _effects_layer: CanvasLayer
 var _hazards: Node2D
 var _hud: CanvasLayer
+var _impact_charge: Node2D
 var _mobile_controls: CanvasLayer
 var _object_layer: CanvasLayer
+var _relay_contest: Node2D
 var _sandworms: Node2D
 var _state_store: RefCounted
 var _terrain_haze: Node2D
+var _terrain_renderer: RefCounted
 var _visible_cells: Array[Vector2i] = []
 var _world: RefCounted
 var _world_objects: Node2D
@@ -108,9 +108,11 @@ func _ready() -> void:
 	_build_world_layers()
 	_build_avatar()
 	_build_impact_effects()
+	_build_impact_charge()
 	_build_atmosphere()
 	_build_hazards()
 	_build_sandworms()
+	_build_relay_contest()
 	_build_interface()
 	_build_mobile_controls()
 	_build_chassis_feedback()
@@ -142,31 +144,36 @@ func _process(delta: float) -> void:
 	_status_hold_time = maxf(_status_hold_time - delta, 0.0)
 	if _effects != null:
 		_effects.call("advance", delta)
+	if _impact_charge != null:
+		_impact_charge.call("advance", delta)
 	if _chassis_feedback != null:
 		_chassis_feedback.call("advance", delta)
 	if _atmosphere != null:
 		_atmosphere.call("advance", delta)
+	var offset: Vector2 = _robot_visual_position - grid_to_screen(_robot_grid)
+	var fractional: Vector2 = Vector2(
+		offset.x / TILE_SIZE.x + offset.y / TILE_SIZE.y,
+		offset.y / TILE_SIZE.y - offset.x / TILE_SIZE.x,
+	)
+	var player_grid_position: Vector2 = (
+		Vector2(INVALID_CELL) if _shutdown else Vector2(_robot_grid) + fractional
+	)
 	if _hazards != null:
-		var offset: Vector2 = _robot_visual_position - grid_to_screen(_robot_grid)
-		var fractional: Vector2 = Vector2(
-			offset.x / TILE_SIZE.x + offset.y / TILE_SIZE.y,
-			offset.y / TILE_SIZE.y - offset.x / TILE_SIZE.x,
-		)
-		_hazards.call(
-			"set_player_position",
-			Vector2(INVALID_CELL) if _shutdown else Vector2(_robot_grid) + fractional
+		(
+			_hazards
+			. call(
+				"set_player_position",
+				player_grid_position,
+			)
 		)
 		_hazards.call("advance", delta)
 		if _sandworms != null:
-			(
-				_sandworms
-				. call(
-					"set_player_position",
-					Vector2(INVALID_CELL) if _shutdown else Vector2(_robot_grid) + fractional,
-				)
-			)
+			_sandworms.call("set_player_position", player_grid_position)
 			_sandworms.call("set_outpost_linked", not _shutdown and _is_at_outpost())
 			_sandworms.call("advance", delta)
+	if _relay_contest != null:
+		_relay_contest.call("set_player_position", player_grid_position)
+		_relay_contest.call("advance", delta)
 	if _world_objects != null:
 		_world_objects.queue_redraw()
 	_refresh_outpost_interface()
@@ -189,14 +196,7 @@ func _draw() -> void:
 
 
 func grid_to_screen(cell: Vector2i) -> Vector2:
-	var elevation_pixels: float = float(_elevation.get(cell, 0)) * 10.0
-	return (
-		MAP_ORIGIN
-		+ Vector2(
-			float(cell.x - cell.y) * TILE_SIZE.x * 0.5,
-			float(cell.x + cell.y) * TILE_SIZE.y * 0.5 - elevation_pixels,
-		)
-	)
+	return _terrain_renderer.call("grid_to_screen", cell) as Vector2
 
 
 func screen_to_grid(point: Vector2) -> Vector2i:
@@ -257,6 +257,8 @@ func _update_drive_vector(screen_direction: Vector2, delta: float, running: bool
 		_velocity = Vector2.ZERO
 	_is_moving = not _velocity.is_zero_approx()
 	var moved: bool = _move_velocity(step_delta)
+	if _impact_charge != null:
+		_impact_charge.call("advance_drive", get_speed_ratio(), _is_running, step_delta)
 	_update_drive_status()
 	_sync_avatar()
 	return moved
@@ -274,16 +276,30 @@ func attack() -> bool:
 		return false
 	_velocity = Vector2.ZERO
 	var screen_direction: Vector2i = IsometricControlsScript.facing_to_screen_direction(_facing)
-	var target: Vector2i = (
-		_robot_grid + IsometricControlsScript.screen_to_grid_delta(screen_direction)
+	_pending_impact_band = int(_impact_charge.call("get_band")) if _impact_charge != null else 0
+	var footprint: Array[Vector2i] = (
+		_impact_charge.call("footprint", _robot_grid, screen_direction, _pending_impact_band)
+		if _impact_charge != null
+		else [_robot_grid + IsometricControlsScript.screen_to_grid_delta(screen_direction)]
 	)
+	var target: Vector2i = footprint[0]
+	for cell: Vector2i in footprint:
+		var worm_id: int = int(_sandworms.call("find_target", cell)) if _sandworms != null else -1
+		if worm_id >= 0 or bool(_destructible_rocks.get(cell, false)):
+			target = cell
+			break
 	_pending_impact_cell = target
 	_pending_impact_breaks_rock = bool(_destructible_rocks.get(target, false))
 	_pending_impact_worm_id = (
 		int(_sandworms.call("find_target", target)) if _sandworms != null else -1
 	)
 	_status_hold_time = 0.7
-	_update_status("IMPACT // WINDUP // SCRAP %03d" % _scrap_count)
+	var band_name: StringName = (
+		_impact_charge.call("get_band_name", _pending_impact_band)
+		if _impact_charge != null
+		else &"CONTACT"
+	)
+	_update_status("IMPACT // %s WINDUP // SCRAP %03d" % [band_name, _scrap_count])
 	_avatar.call("play_attack")
 	return _pending_impact_breaks_rock or _pending_impact_worm_id >= 0
 
@@ -294,17 +310,40 @@ func _on_avatar_impact_frame() -> void:
 	var target: Vector2i = _pending_impact_cell
 	var breaks_rock: bool = _pending_impact_breaks_rock
 	var worm_id: int = _pending_impact_worm_id
+	var impact_band: int = _pending_impact_band
 	_pending_impact_cell = INVALID_CELL
 	_pending_impact_breaks_rock = false
 	_pending_impact_worm_id = -1
+	_pending_impact_band = 0
 	_impact_flash = 0.36
 	_status_hold_time = 0.7
+	var screen_direction: Vector2i = IsometricControlsScript.facing_to_screen_direction(_facing)
+	var footprint: Array[Vector2i] = (
+		_impact_charge.call("footprint", _robot_grid, screen_direction, impact_band)
+		if _impact_charge != null
+		else [target]
+	)
+	if _impact_charge != null:
+		_impact_charge.call("consume_attack")
+		if impact_band > 0:
+			var positions: Array[Vector2] = []
+			for cell: Vector2i in footprint:
+				positions.append(grid_to_screen(cell))
+			_impact_charge.call("show_aftershock", positions, impact_band)
+	if impact_band > 0 and _effects != null:
+		_effects.call("emit_aftershock", grid_to_screen(target), target, impact_band)
 	if worm_id >= 0 and _sandworms != null and bool(_sandworms.call("hit_worm", worm_id, 1)):
 		var remaining: int = int(_sandworms.call("get_health", worm_id))
+		if remaining > 0 and impact_band >= 2:
+			_sandworms.call("stagger_worm", worm_id)
 		_update_status(
 			(
-				"IMPACT // SANDWORM %s // HP %d/4"
-				% ["DESTROYED" if remaining <= 0 else "HIT", remaining]
+				"%s // SANDWORM %s // HP %d/4"
+				% [
+					_impact_charge.call("get_band_name", impact_band),
+					"DESTROYED" if remaining <= 0 else "HIT",
+					remaining,
+				]
 			)
 		)
 		return
@@ -391,6 +430,7 @@ func _enter_shutdown(source: StringName) -> void:
 	_pending_impact_cell = INVALID_CELL
 	_pending_impact_breaks_rock = false
 	_pending_impact_worm_id = -1
+	_pending_impact_band = 0
 	if _mobile_controls != null:
 		_mobile_controls.call("set_controls_enabled", false)
 	_status_hold_time = INF
@@ -438,6 +478,8 @@ func place_robot(cell: Vector2i) -> bool:
 	if _sandworms != null:
 		_sandworms.call("set_player_position", Vector2(cell))
 		_sandworms.call("set_outpost_linked", _is_at_outpost())
+	if _relay_contest != null:
+		_relay_contest.call("set_player_position", Vector2(cell))
 	_refresh_outpost_interface()
 	_update_drive_status()
 	_sync_avatar()
@@ -455,6 +497,32 @@ func get_velocity() -> Vector2:
 
 func get_speed_ratio() -> float:
 	return _velocity.length() / WALK_SPEED
+
+
+func _get_impact_charge() -> float:
+	return float(_impact_charge.call("get_charge")) if _impact_charge != null else 0.0
+
+
+func _set_impact_charge(value: float) -> void:
+	if _impact_charge != null:
+		_impact_charge.call("set_charge", value)
+	_refresh_outpost_interface()
+
+
+func _get_charge_band() -> int:
+	return int(_impact_charge.call("get_band")) if _impact_charge != null else 0
+
+
+func _get_completed_relays() -> int:
+	return 1 if _relay_completed else 0
+
+
+func _get_relay_cell() -> Vector2i:
+	return (
+		_relay_contest.call("get_relay_cell") as Vector2i
+		if _relay_contest != null
+		else INVALID_CELL
+	)
 
 
 func get_facing() -> StringName:
@@ -525,6 +593,7 @@ func _make_snapshot() -> Dictionary:
 	snapshot["chassis"] = _chassis
 	snapshot["robot_cell"] = [_robot_grid.x, _robot_grid.y]
 	snapshot["facing"] = String(_facing)
+	snapshot["relay_completed"] = _relay_completed
 	return snapshot
 
 
@@ -536,6 +605,7 @@ func _is_valid_snapshot(snapshot: Dictionary) -> bool:
 		and int(snapshot.get("scrap_total", -1)) >= 0
 		and int(snapshot.get("chassis", MAX_CHASSIS)) >= 0
 		and int(snapshot.get("chassis", MAX_CHASSIS)) <= MAX_CHASSIS
+		and snapshot.get("relay_completed", false) is bool
 		and robot_cell != INVALID_CELL
 		and facing_value in [&"N", &"NE", &"E", &"SE", &"S", &"SW", &"W", &"NW"]
 		and bool(_world.call("is_valid_snapshot", snapshot, robot_cell))
@@ -548,6 +618,7 @@ func _apply_snapshot(snapshot: Dictionary) -> void:
 	_chassis = int(snapshot.get("chassis", MAX_CHASSIS))
 	_robot_grid = _decode_cell(snapshot["robot_cell"])
 	_facing = StringName(str(snapshot["facing"]))
+	_relay_completed = bool(snapshot.get("relay_completed", false))
 
 
 func _decode_cell(value: Variant) -> Vector2i:
@@ -610,6 +681,10 @@ func _collect_scrap_at(cell: Vector2i) -> int:
 
 func _build_world_stream() -> void:
 	_world = InfiniteWorldScript.new() as RefCounted
+	_terrain_renderer = TerrainRendererScript.new() as RefCounted
+	_terrain_renderer.call(
+		"configure", _terrain, _elevation, _terrain_textures, TILE_SIZE, MAP_ORIGIN
+	)
 	(
 		_world
 		. call(
@@ -717,6 +792,14 @@ func _build_impact_effects() -> void:
 	_effects_layer.add_child(_effects)
 
 
+func _build_impact_charge() -> void:
+	_impact_charge = ImpactChargeScript.new() as Node2D
+	_impact_charge.name = "ImpactCharge"
+	_impact_charge.z_index = 19
+	_impact_charge.call("set_visual_position", _robot_visual_position)
+	_object_layer.add_child(_impact_charge)
+
+
 func _build_chassis_feedback() -> void:
 	_chassis_feedback = ChassisFeedbackScript.new() as CanvasLayer
 	_chassis_feedback.name = "ChassisFeedback"
@@ -756,6 +839,42 @@ func _build_sandworms() -> void:
 	_object_layer.add_child(_sandworms)
 
 
+func _build_relay_contest() -> void:
+	_relay_contest = RelayContestScript.new() as Node2D
+	_relay_contest.name = "RelayContest"
+	_relay_contest.z_index = 17
+	(
+		_relay_contest
+		. call(
+			"configure",
+			_world.call("_get_starter_relay_cell"),
+			TILE_SIZE,
+			MAP_ORIGIN,
+			_relay_completed,
+		)
+	)
+	_relay_contest.call("set_player_position", Vector2(_robot_grid))
+	_relay_contest.connect("link_started", Callable(self, "_on_relay_link_started"))
+	_relay_contest.connect("completed", Callable(self, "_on_relay_completed"))
+	_object_layer.add_child(_relay_contest)
+
+
+func _on_relay_link_started(relay_cell: Vector2i) -> void:
+	if _sandworms != null:
+		_sandworms.call("spawn_worm", Vector2(relay_cell) + Vector2(2.8, 0.0), 0.65)
+	_status_hold_time = 1.0
+	_update_status("RELAY CONTEST // WORM SIGNATURE INBOUND")
+
+
+func _on_relay_completed(_relay_cell: Vector2i) -> void:
+	_relay_completed = true
+	if _sandworms != null:
+		_sandworms.call("disperse_all")
+	_status_hold_time = 1.4
+	_update_status("RELAY LINKED // ALERT I // RETURN TO OUTPOST")
+	_save_world_state()
+
+
 func _build_heat_haze() -> void:
 	_terrain_haze = TerrainHazeScript.new() as Node2D
 	_terrain_haze.name = "TerrainHaze"
@@ -774,6 +893,8 @@ func _sync_avatar() -> void:
 		return
 	_avatar.position = _robot_visual_position
 	_avatar.call("set_motion", _facing, _is_moving, get_speed_ratio())
+	if _impact_charge != null:
+		_impact_charge.call("set_visual_position", _robot_visual_position)
 
 
 func _draw_world_backdrop() -> void:
@@ -782,100 +903,15 @@ func _draw_world_backdrop() -> void:
 
 
 func _draw_tile(cell: Vector2i) -> void:
-	var center: Vector2 = grid_to_screen(cell)
-	var half: Vector2 = TILE_SIZE * 0.5
-	var height: float = float(_elevation.get(cell, 0)) * 10.0
-	var points: PackedVector2Array = PackedVector2Array(
-		[
-			center + Vector2(0.0, -half.y),
-			center + Vector2(half.x, 0.0),
-			center + Vector2(0.0, half.y),
-			center + Vector2(-half.x, 0.0),
-		]
-	)
-	var terrain_id: StringName = _terrain.get(cell, &"sand") as StringName
-	var color: Color = SAND if (cell.x + cell.y) % 2 == 0 else SAND_LIGHT
-	if terrain_id == &"salt":
-		color = SALT
-	elif terrain_id == &"rock":
-		color = ROCK
-	elif terrain_id == &"ruin":
-		color = RUIN
-
-	if height > 0.0:
-		draw_colored_polygon(
-			PackedVector2Array(
-				[
-					points[1],
-					points[1] + Vector2(0.0, height),
-					points[2] + Vector2(0.0, height),
-					points[2],
-				]
-			),
-			color.darkened(0.38),
-		)
-		draw_colored_polygon(
-			PackedVector2Array(
-				[
-					points[2],
-					points[2] + Vector2(0.0, height),
-					points[3] + Vector2(0.0, height),
-					points[3],
-				]
-			),
-			color.darkened(0.52),
-		)
-
-	draw_colored_polygon(points, color)
-	var terrain_texture: Texture2D = _terrain_textures.get(terrain_id) as Texture2D
-	if terrain_texture != null:
-		draw_polygon(
-			points,
-			_terrain_tints(cell),
-			_terrain_uvs(cell),
-			terrain_texture,
-		)
-	for edge: int in range(4):
-		draw_line(points[edge], points[(edge + 1) % 4], GRID_LINE, 1.2)
-
-	if terrain_id == &"ruin":
-		draw_circle(center, 6.0, TEAL.darkened(0.15))
-		draw_arc(center, 13.0, 0.0, TAU, 20, TEAL, 2.0)
+	_terrain_renderer.call("draw_tile", self, cell)
 
 
 func _terrain_uvs(cell: Vector2i) -> PackedVector2Array:
-	var result: PackedVector2Array = PackedVector2Array()
-	for point: Vector2 in _terrain_grid_vertices(cell):
-		var warp: Vector2 = (
-			Vector2(
-				sin(point.x * 0.31 + point.y * 0.17),
-				cos(point.y * 0.27 - point.x * 0.13),
-			)
-			* TERRAIN_UV_VARIATION
-		)
-		result.append(point / TERRAIN_TEXTURE_PERIOD_CELLS + warp)
-	return result
+	return _terrain_renderer.call("terrain_uvs", cell) as PackedVector2Array
 
 
 func _terrain_tints(cell: Vector2i) -> PackedColorArray:
-	var result: PackedColorArray = PackedColorArray()
-	for point: Vector2 in _terrain_grid_vertices(cell):
-		var wave: float = (
-			(sin(point.x * 0.39) + cos(point.y * 0.33) + sin((point.x + point.y) * 0.16)) / 3.0
-		)
-		var brightness: float = 0.96 + wave * 0.055
-		result.append(Color(brightness * 1.025, brightness, brightness * 0.96, 1.0))
-	return result
-
-
-func _terrain_grid_vertices(cell: Vector2i) -> Array[Vector2]:
-	var center: Vector2 = Vector2(cell)
-	return [
-		center + Vector2(-0.5, -0.5),
-		center + Vector2(0.5, -0.5),
-		center + Vector2(0.5, 0.5),
-		center + Vector2(-0.5, 0.5),
-	]
+	return _terrain_renderer.call("terrain_tints", cell) as PackedColorArray
 
 
 func _draw_drive_vector() -> void:
@@ -912,6 +948,30 @@ func _refresh_outpost_interface() -> void:
 				MAX_CHASSIS,
 			)
 		)
+		var mobile: bool = (
+			_mobile_controls != null and bool(_mobile_controls.call("is_mobile_device"))
+		)
+		(
+			_hud
+			. call(
+				"set_impact_state",
+				_get_impact_charge(),
+				_impact_charge.call("get_band_name") if _impact_charge != null else &"CONTACT",
+				mobile,
+			)
+		)
+		if _relay_contest != null:
+			(
+				_hud
+				. call(
+					"set_relay_state",
+					_get_completed_relays(),
+					1,
+					_relay_contest.call("get_progress"),
+					_relay_contest.call("get_state"),
+					_relay_contest.call("get_signal_hint"),
+				)
+			)
 
 
 func _update_drive_status() -> void:

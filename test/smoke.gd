@@ -191,6 +191,19 @@ func _test_isometric_map() -> void:
 	)
 	var field_hud: CanvasLayer = map.get_node("FieldHUD") as CanvasLayer
 	_check(field_hud.layer > world_effects_layer.layer, "HUD renders above world effects")
+	var impact_charge: Node2D = map.get_node("WorldObjectLayer/ImpactCharge") as Node2D
+	_check(impact_charge != null, "Impact Charge controller exists")
+	_check(int(map.call("_get_charge_band")) == 0, "Impact Charge starts in contact band")
+	var medium_footprint: Array = (
+		impact_charge.call("footprint", Vector2i(6, 6), Vector2i.RIGHT, 1) as Array
+	)
+	var high_footprint: Array = (
+		impact_charge.call("footprint", Vector2i(6, 6), Vector2i.RIGHT, 2) as Array
+	)
+	_check(medium_footprint.size() == 2, "mid charge creates a two-cell shock line")
+	_check(high_footprint.size() == 3, "high charge creates a three-tile fan")
+	_check("IMPACT 000%" in str(field_hud.call("get_impact_text")), "charge meter starts empty")
+	_check("RELAY 0/1" in str(field_hud.call("get_relay_text")), "relay objective starts visible")
 	var outpost_interface: Control = field_hud.call("get_outpost_interface") as Control
 	_check(outpost_interface != null, "outpost interface exists")
 	_check(
@@ -380,6 +393,69 @@ func _test_isometric_map() -> void:
 		avatar.call("_process", 0.23)
 	_check(int(sandworms.call("get_worm_count")) == 0, "four melee hits defeat sandworm")
 	_check("SANDWORM DESTROYED" in str(map.call("get_status_text")), "worm defeat is readable")
+	sandworms.call("clear_worms")
+	_check(bool(map.call("place_robot", Vector2i(6, 6))), "place Cardinal for shock line")
+	map.set("_facing", &"E")
+	map.call("_set_impact_charge", 0.5)
+	var line_worm: int = int(sandworms.call("spawn_worm", Vector2(8.0, 4.0), 0.0))
+	_check(bool(map.call("attack")), "mid charge reaches a worm two cells ahead")
+	avatar.call("_process", 0.23)
+	_check(
+		int(sandworms.call("get_health", line_worm)) == 3, "shock line damages its distant target"
+	)
+	avatar.call("_process", 0.23)
+	sandworms.call("clear_worms")
+	map.call("_set_impact_charge", 0.9)
+	var fan_worm: int = int(sandworms.call("spawn_worm", Vector2(7.0, 6.0), 0.0))
+	var charge_effects: Node2D = map.get_node("WorldEffectsLayer/ImpactEffects") as Node2D
+	var charged_emissions: int = int(charge_effects.call("get_aftershock_emission_count"))
+	_check(bool(map.call("attack")), "high charge catches a worm on the fan flank")
+	avatar.call("_process", 0.23)
+	_check(int(sandworms.call("get_health", fan_worm)) == 3, "aftershock fan damages its target")
+	_check(
+		sandworms.call("get_state", fan_worm) == &"staggered",
+		"aftershock staggers a surviving worm",
+	)
+	_check(is_zero_approx(float(map.call("_get_impact_charge"))), "smash consumes Impact Charge")
+	_check(
+		int(charge_effects.call("get_aftershock_emission_count")) == charged_emissions + 1,
+		"charged smash emits distinct debris",
+	)
+	avatar.call("_process", 0.23)
+	charge_effects.call("advance", 1.0)
+	sandworms.call("clear_worms")
+	var relay: Node2D = map.get_node("WorldObjectLayer/RelayContest") as Node2D
+	var relay_cell: Vector2i = map.call("_get_relay_cell") as Vector2i
+	_check(relay != null, "contested relay controller exists")
+	_check(relay_cell == Vector2i(12, 6), "starter relay placement is deterministic")
+	_check(world.call("terrain_at", relay_cell) == &"ruin", "relay occupies reserved ruin terrain")
+	_check(bool(map.call("place_robot", relay_cell)), "Cardinal enters the relay zone")
+	relay.call("advance", 0.5)
+	_check(relay.call("get_state") == &"linking", "entering relay zone starts linking")
+	_check(int(sandworms.call("get_worm_count")) == 1, "relay contest spawns one encounter worm")
+	var relay_worm_id: int = int(sandworms.get("_next_id")) - 1
+	relay.call("advance", 1.75)
+	_check(float(relay.call("get_progress")) >= 0.49, "relay link builds while Cardinal holds zone")
+	_check(bool(map.call("place_robot", Vector2i(8, 10))), "Cardinal can leave the relay zone")
+	relay.call("advance", 0.01)
+	_check(
+		is_zero_approx(float(relay.call("get_progress"))), "relay link resets when Cardinal leaves"
+	)
+	_check(bool(map.call("place_robot", relay_cell)), "Cardinal re-enters the relay zone")
+	relay.call("advance", 0.01)
+	_check(
+		int(sandworms.call("get_worm_count")) == 1, "relay re-entry does not duplicate encounter"
+	)
+	relay.call("advance", 3.5)
+	_check(bool(relay.call("is_completed")), "relay completes after the uninterrupted link timer")
+	_check(int(map.call("_get_completed_relays")) == 1, "relay completion raises Alert I")
+	_check(
+		sandworms.call("get_state", relay_worm_id) == &"dispersing",
+		"completed relay disperses contest worm",
+	)
+	map.call("_refresh_outpost_interface")
+	_check("ALERT 1" in str(field_hud.call("get_relay_text")), "HUD reports completed relay alert")
+	sandworms.call("clear_worms")
 	var safe_worm: int = int(sandworms.call("spawn_worm", Vector2(3.0, 10.0), 0.0))
 	_check(bool(map.call("place_robot", Vector2i(1, 10))), "place Cardinal at linked outpost")
 	_check(sandworms.call("get_state", safe_worm) == &"dispersing", "outpost link disperses worms")
@@ -438,6 +514,20 @@ func _test_isometric_map() -> void:
 	for _step: int in range(20):
 		map.call("update_drive", Vector2i(1, 1), 0.05, true)
 	_check(is_equal_approx(float(map.call("get_speed_ratio")), 1.5), "Shift run reaches 1.5x speed")
+	map.call("_set_impact_charge", 0.0)
+	map.call("place_robot", Vector2i(1, 1))
+	for _step: int in range(80):
+		map.call("update_drive", Vector2i(1, 1), 0.05, true)
+	var run_charge: float = float(map.call("_get_impact_charge"))
+	_check(run_charge >= 0.8, "sustained running builds high Impact Charge")
+	_check(int(map.call("_get_charge_band")) == 2, "high charge enters Aftershock band")
+	for _step: int in range(60):
+		map.call("update_drive", Vector2i.ZERO, 0.05, false)
+	_check(float(map.call("_get_impact_charge")) < run_charge, "Impact Charge decays while idle")
+	map.call("_refresh_outpost_interface")
+	_check(
+		"AFTERSHOCK" in str(field_hud.call("get_impact_text")), "HUD names the active charge band"
+	)
 
 	map.call("place_robot", Vector2i(8, 8))
 	var follow_camera: Camera2D = map.get_node("FollowCamera") as Camera2D
@@ -502,6 +592,7 @@ func _test_isometric_map() -> void:
 	get_root().add_child(map)
 	await process_frame
 	await process_frame
+	_check(int(map.call("_get_completed_relays")) == 1, "relay completion persists on reload")
 	_check(
 		not bool(map.call("has_destructible_rock", Vector2i(4, 4))),
 		"broken rock persists on reload"

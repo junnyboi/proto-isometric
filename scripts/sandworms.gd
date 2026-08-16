@@ -50,10 +50,15 @@ func set_player_position(position: Vector2) -> void:
 
 func set_outpost_linked(linked: bool) -> void:
 	if linked and not _outpost_linked:
-		for worm: Dictionary in _worms:
-			worm["state"] = &"dispersing"
-			worm["disperse_time"] = 0.0
+		disperse_all()
 	_outpost_linked = linked
+
+
+func disperse_all() -> void:
+	for worm: Dictionary in _worms:
+		worm["state"] = &"dispersing"
+		worm["disperse_time"] = 0.0
+	queue_redraw()
 
 
 func advance(delta: float) -> void:
@@ -68,6 +73,7 @@ func advance(delta: float) -> void:
 		worm["age"] = float(worm["age"]) + step
 		worm["hit_flash"] = maxf(float(worm["hit_flash"]) - step, 0.0)
 		worm["attack_time"] = maxf(float(worm["attack_time"]) - step, 0.0)
+		worm["stagger_time"] = maxf(float(worm["stagger_time"]) - step, 0.0)
 		if worm["state"] == &"dispersing":
 			_advance_disperse(worm, step)
 			if float(worm["disperse_time"]) >= DISPERSE_SECONDS:
@@ -92,6 +98,7 @@ func spawn_worm(position: Vector2, emerge_seconds: float = EMERGE_SECONDS) -> in
 				"emerge": maxf(emerge_seconds, 0.0),
 				"attack_time": 0.0,
 				"hit_flash": 0.0,
+				"stagger_time": 0.0,
 				"state": &"burrowing",
 				"disperse_time": 0.0,
 			}
@@ -157,6 +164,18 @@ func hit_worm(worm_id: int, damage: int = 1) -> bool:
 	return false
 
 
+func stagger_worm(worm_id: int, seconds: float = 0.85) -> bool:
+	var worm: Dictionary = _find_worm(worm_id)
+	if worm.is_empty() or worm["state"] == &"dispersing":
+		return false
+	worm["stagger_time"] = maxf(float(worm["stagger_time"]), maxf(seconds, 0.0))
+	worm["attack_time"] = maxf(float(worm["attack_time"]), maxf(seconds, 0.0))
+	worm["state"] = &"staggered"
+	worm["hit_flash"] = 0.28
+	queue_redraw()
+	return true
+
+
 func _advance_spawner(delta: float) -> void:
 	_spawn_timer -= delta
 	if _spawn_timer > 0.0 or _worms.size() >= MAX_WORMS:
@@ -170,6 +189,9 @@ func _advance_spawner(delta: float) -> void:
 func _advance_worm(worm: Dictionary, delta: float) -> void:
 	if float(worm["age"]) < float(worm["emerge"]):
 		worm["state"] = &"burrowing"
+		return
+	if float(worm["stagger_time"]) > 0.0:
+		worm["state"] = &"staggered"
 		return
 	var position: Vector2 = worm["position"] as Vector2
 	var offset: Vector2 = _player_position - position

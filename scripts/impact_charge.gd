@@ -1,0 +1,127 @@
+extends Node2D
+
+const IsometricControlsScript: GDScript = preload("res://scripts/isometric_controls.gd")
+
+const LOW_BAND_MAX: float = 0.4
+const MID_BAND_MAX: float = 0.8
+const CHARGE_SPEED_THRESHOLD: float = 0.55
+const WALK_GAIN_PER_SECOND: float = 0.16
+const RUN_GAIN_PER_SECOND: float = 0.25
+const IDLE_DECAY_PER_SECOND: float = 0.045
+const AMBER: Color = Color("f5a62d")
+const TEAL: Color = Color("4eb6aa")
+const SCREEN_DIRECTIONS: Array[Vector2i] = [
+	Vector2i(0, -1),
+	Vector2i(1, -1),
+	Vector2i(1, 0),
+	Vector2i(1, 1),
+	Vector2i(0, 1),
+	Vector2i(-1, 1),
+	Vector2i(-1, 0),
+	Vector2i(-1, -1),
+]
+
+var _charge: float = 0.0
+var _band: int = 0
+var _visual_position: Vector2 = Vector2.ZERO
+var _aftershock_cells: Array[Vector2] = []
+var _aftershock_time: float = 0.0
+var _aftershock_band: int = 0
+
+
+func advance_drive(speed_ratio: float, running: bool, delta: float) -> void:
+	var step: float = maxf(delta, 0.0)
+	if speed_ratio >= CHARGE_SPEED_THRESHOLD:
+		var gain: float = RUN_GAIN_PER_SECOND if running else WALK_GAIN_PER_SECOND
+		set_charge(_charge + gain * step)
+	elif speed_ratio <= 0.08:
+		set_charge(_charge - IDLE_DECAY_PER_SECOND * step)
+
+
+func advance(delta: float) -> void:
+	_aftershock_time = maxf(_aftershock_time - maxf(delta, 0.0), 0.0)
+	if _aftershock_time <= 0.0:
+		_aftershock_cells.clear()
+	queue_redraw()
+
+
+func set_charge(value: float) -> void:
+	_charge = clampf(value, 0.0, 1.0)
+	_band = charge_band(_charge)
+	queue_redraw()
+
+
+func get_charge() -> float:
+	return _charge
+
+
+func get_band() -> int:
+	return _band
+
+
+func consume_attack() -> int:
+	var consumed_band: int = _band
+	set_charge(0.0)
+	return consumed_band
+
+
+func set_visual_position(value: Vector2) -> void:
+	_visual_position = value
+
+
+func show_aftershock(cell_positions: Array[Vector2], band: int) -> void:
+	_aftershock_cells = cell_positions.duplicate()
+	_aftershock_band = clampi(band, 0, 2)
+	_aftershock_time = 0.34 if _aftershock_band >= 2 else 0.24
+	queue_redraw()
+
+
+func footprint(origin: Vector2i, screen_direction: Vector2i, band: int) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	var center_delta: Vector2i = IsometricControlsScript.screen_to_grid_delta(screen_direction)
+	if center_delta == Vector2i.ZERO:
+		return result
+	result.append(origin + center_delta)
+	if band == 1:
+		result.append(origin + center_delta * 2)
+	elif band >= 2:
+		var direction_index: int = SCREEN_DIRECTIONS.find(screen_direction)
+		if direction_index >= 0:
+			for offset: int in [-1, 1]:
+				var flank_screen: Vector2i = SCREEN_DIRECTIONS[posmod(direction_index + offset, 8)]
+				result.append(origin + IsometricControlsScript.screen_to_grid_delta(flank_screen))
+	return result
+
+
+func get_band_name(band: int = _band) -> StringName:
+	if band >= 2:
+		return &"AFTERSHOCK"
+	if band == 1:
+		return &"SHOCK LINE"
+	return &"CONTACT"
+
+
+static func charge_band(value: float) -> int:
+	if value >= MID_BAND_MAX:
+		return 2
+	if value >= LOW_BAND_MAX:
+		return 1
+	return 0
+
+
+func _draw() -> void:
+	if _charge >= LOW_BAND_MAX:
+		var intensity: float = inverse_lerp(LOW_BAND_MAX, 1.0, _charge)
+		var glow: Color = AMBER
+		glow.a = 0.28 + intensity * 0.42
+		draw_arc(_visual_position, 49.0 + intensity * 7.0, -PI * 0.85, PI * 0.1, 20, glow, 3.0)
+		draw_arc(_visual_position, 49.0 + intensity * 7.0, PI * 0.15, PI * 1.1, 20, glow, 3.0)
+	if _aftershock_time <= 0.0:
+		return
+	var ratio: float = clampf(
+		_aftershock_time / (0.34 if _aftershock_band >= 2 else 0.24), 0.0, 1.0
+	)
+	for cell_position: Vector2 in _aftershock_cells:
+		var color: Color = AMBER if _aftershock_band >= 2 else TEAL
+		color.a = ratio * 0.78
+		draw_arc(cell_position, 25.0 + (1.0 - ratio) * 38.0, 0.0, TAU, 24, color, 5.0 * ratio)
