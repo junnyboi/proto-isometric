@@ -1,5 +1,7 @@
 extends SceneTree
 
+const BalanceTestsScript: GDScript = preload("res://test/test_balance.gd")
+
 var _checks: int = 0
 var _failures: int = 0
 
@@ -58,6 +60,9 @@ func _test_isometric_map() -> void:
 	get_root().add_child(map)
 	await process_frame
 	await process_frame
+	var run_coordinator: RefCounted = map.get("_run_coordinator") as RefCounted
+	for test_case: Dictionary in BalanceTestsScript.evaluate(run_coordinator):
+		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
 
 	_check(map.call("get_grid_size") == Vector2i(-1, -1), "world reports unbounded grid")
 	var world: RefCounted = map.get("_world") as RefCounted

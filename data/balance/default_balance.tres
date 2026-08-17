@@ -1,0 +1,49 @@
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/balance_profile.gd" id="1_balance"]
+
+[resource]
+script = ExtResource("1_balance")
+walk_speed = 150.0
+run_multiplier = 1.5
+acceleration = 310.0
+deceleration = 390.0
+camera_response = 4.8
+camera_look_ahead_seconds = 0.32
+camera_max_lead = 82.0
+max_chassis = 100
+repair_cost = 5
+repair_amount = 35
+impact_low_band = 0.4
+impact_high_band = 0.8
+impact_speed_threshold = 0.55
+impact_walk_gain_per_second = 0.16
+impact_run_gain_per_second = 0.25
+impact_idle_decay_per_second = 0.045
+impact_high_band_stagger_seconds = 0.85
+relay_link_radius_cells = 2.5
+relay_link_seconds = 3.5
+relay_dormant_seconds = 0.45
+worm_max_health = 4
+worm_attack_damage = 10
+worm_detection_range = 8.0
+worm_attack_range = 0.72
+worm_move_speed = 1.28
+worm_attack_cooldown = 1.15
+worm_emerge_seconds = 0.8
+worm_disperse_seconds = 1.25
+worm_max_count = 4
+tornado_formation_seconds = 3.0
+tornado_lifetime_seconds = 20.0
+tornado_damage_per_second = 6.0
+tornado_speed = 3.2
+tornado_fade_seconds = 2.0
+sandstorm_damage_per_second = 3.0
+sandstorm_speed = 0.62
+chunk_size = 8
+stream_radius = 2
+loaded_chunk_limit = 25
+active_cell_limit = 1600
+visible_cell_limit = 841
+coordinate_limit = 1000000
+save_schema = 2

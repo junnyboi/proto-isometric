@@ -11,11 +11,13 @@ const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const IsometricControlsScript: GDScript = preload("res://scripts/isometric_controls.gd")
 const MobileControlsScript: GDScript = preload("res://scripts/mobile_controls.gd")
 const RelayContestScript: GDScript = preload("res://scripts/relay_contest.gd")
+const RunCoordinatorScript: GDScript = preload("res://scripts/run_coordinator.gd")
 const SandwormsScript: GDScript = preload("res://scripts/sandworms.gd")
 const TerrainHazeScript: GDScript = preload("res://scripts/terrain_haze.gd")
 const TerrainRendererScript: GDScript = preload("res://scripts/terrain_renderer.gd")
 const WorldStateStoreScript: GDScript = preload("res://scripts/world_state_store.gd")
 const WorldObjectsScript: GDScript = preload("res://scripts/world_objects.gd")
+const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const SAND_TEXTURE: Texture2D = preload("res://assets/textures/terrain/desert_sand.png")
 const SALT_TEXTURE: Texture2D = preload("res://assets/textures/terrain/salt_crust.png")
 const ROCK_TEXTURE: Texture2D = preload("res://assets/textures/terrain/iron_rock.png")
@@ -87,6 +89,7 @@ var _impact_charge: Node2D
 var _mobile_controls: CanvasLayer
 var _object_layer: CanvasLayer
 var _relay_contest: Node2D
+var _run_coordinator: RefCounted
 var _sandworms: Node2D
 var _state_store: RefCounted
 var _terrain_haze: Node2D
@@ -99,6 +102,9 @@ var _world_objects: Node2D
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+	_run_coordinator = RunCoordinatorScript.new() as RefCounted
+	if not bool(_run_coordinator.call("configure_default")):
+		push_error("WW-01 runtime contracts failed validation.")
 	_build_world_stream()
 	_build_state_store(save_path)
 	_load_world_state()
@@ -123,6 +129,7 @@ func _ready() -> void:
 	_refresh_outpost_interface()
 	_sync_avatar()
 	queue_redraw()
+	_run_coordinator.call("record_event", RuntimeIdsScript.EVENT_FIELD_READY)
 	print("[ISOMETRIC_MAP_READY]")
 
 
