@@ -1,6 +1,6 @@
 extends RefCounted
 
-const REGISTRY_VERSION: int = 2
+const REGISTRY_VERSION: int = 3
 
 const DOMAIN_FIELD_COMPOSITION: StringName = &"domain.field_composition"
 const DOMAIN_MOVEMENT: StringName = &"domain.movement"
@@ -53,6 +53,7 @@ const EVENT_RUN_FAILED: StringName = &"event.run.failed"
 const EVENT_MODIFIER_SELECTED: StringName = &"event.modifier.selected"
 
 const OBJECTIVE_STARTER_RELAY: StringName = &"objective.relay.starter.v1"
+const MODULE_WORN_PLATES: StringName = &"module.worn_plates"
 const MODULE_RAM_PLATING: StringName = &"module.ram_plating"
 const MODULE_AFTERSHOCK: StringName = &"module.aftershock"
 const MODULE_STORM_SEAL: StringName = &"module.storm_seal"
@@ -123,7 +124,7 @@ static func catalog() -> Dictionary:
 			EVENT_MODIFIER_SELECTED,
 		],
 		&"objectives": [OBJECTIVE_STARTER_RELAY],
-		&"modules": [MODULE_RAM_PLATING, MODULE_AFTERSHOCK, MODULE_STORM_SEAL],
+		&"modules": [MODULE_WORN_PLATES, MODULE_RAM_PLATING, MODULE_AFTERSHOCK, MODULE_STORM_SEAL],
 		&"modifiers":
 		[
 			MODIFIER_NEUTRAL,

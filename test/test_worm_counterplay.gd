@@ -8,6 +8,7 @@ static func evaluate() -> Array[Dictionary]:
 	var cases: Array[Dictionary] = []
 	_test_profile(cases)
 	_test_legal_cycle(cases)
+	_test_damage_window(cases)
 	_test_committed_lead(cases)
 	_test_zero_and_large_delta(cases)
 	_test_stagger_resume(cases)
@@ -51,6 +52,36 @@ static func _test_legal_cycle(cases: Array[Dictionary]) -> void:
 	_add_case(cases, "Expose enters Dive", worms.call("get_state", worm_id) == &"dive")
 	_advance_current_state(worms, worm_id)
 	_add_case(cases, "Dive returns to Burrow", worms.call("get_state", worm_id) == &"burrow")
+	worms.free()
+
+
+static func _test_damage_window(cases: Array[Dictionary]) -> void:
+	var worms: Node2D = _make_worms()
+	worms.call("set_player_position", Vector2.ZERO)
+	var worm_id: int = int(worms.call("spawn_worm", Vector2.ZERO, 0.0))
+	_add_case(cases, "Burrow rejects Smash damage", not bool(worms.call("hit_worm", worm_id, 1)))
+	worms.call("advance", 0.001)
+	_add_case(cases, "Intercept rejects Smash damage", not bool(worms.call("hit_worm", worm_id, 1)))
+	_advance_current_state(worms, worm_id)
+	_add_case(cases, "Expose accepts Smash damage", bool(worms.call("hit_worm", worm_id, 1)))
+	_add_case(
+		cases,
+		"Expose damage subtracts exactly one health",
+		int(worms.call("get_health", worm_id)) == 3
+	)
+	_add_case(cases, "high charge enters Stagger", bool(worms.call("stagger_worm", worm_id, 5.0)))
+	var stagger: Dictionary = worms.call("get_combat_snapshot", worm_id) as Dictionary
+	_add_case(
+		cases,
+		"high-charge Stagger is capped by combat data",
+		is_equal_approx(
+			float(stagger[&"state_remaining"]),
+			float(DEFAULT_PROFILE.get("maximum_stagger_seconds"))
+		),
+	)
+	_add_case(
+		cases, "Stagger rejects follow-up damage", not bool(worms.call("hit_worm", worm_id, 1))
+	)
 	worms.free()
 
 

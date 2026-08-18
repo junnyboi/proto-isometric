@@ -17,7 +17,12 @@ static func evaluate(coordinator: RefCounted) -> Array[Dictionary]:
 	_add_case(
 		cases,
 		"stable ID registry version is pinned",
-		RuntimeIdsScript.REGISTRY_VERSION == 2,
+		RuntimeIdsScript.REGISTRY_VERSION == 3,
+	)
+	_add_case(
+		cases,
+		"Worn Plates starter module ID is stable",
+		RuntimeIdsScript.MODULE_WORN_PLATES == &"module.worn_plates",
 	)
 	var unique_ids: Dictionary = {}
 	for identifier: StringName in RuntimeIdsScript.all_ids():
@@ -124,6 +129,7 @@ static func evaluate(coordinator: RefCounted) -> Array[Dictionary]:
 	_test_balance_snapshot(cases, coordinator.call("get_balance_snapshot") as Dictionary)
 	_test_contract_snapshot(cases, coordinator)
 	_test_telemetry(cases, coordinator)
+	_test_worn_plates(cases)
 	return cases
 
 
@@ -203,6 +209,52 @@ static func _test_contract_snapshot(cases: Array[Dictionary], coordinator: RefCo
 		"ownership snapshots are detached",
 		fresh_contracts[0][&"target_owner_id"] != &"owner.mutated_test_copy",
 	)
+
+
+static func _test_worn_plates(cases: Array[Dictionary]) -> void:
+	var starter: Node2D = ImpactChargeScript.new() as Node2D
+	starter.call("advance_drive", 1.0, false, 1.0)
+	_add_case(
+		cases,
+		"Worn Plates raises only Impact Charge gain by fifteen percent",
+		is_equal_approx(
+			float(starter.call("get_charge")),
+			(
+				ImpactChargeScript.WALK_GAIN_PER_SECOND
+				* ImpactChargeScript.WORN_PLATES_GAIN_MULTIPLIER
+			),
+		),
+	)
+	var baseline: Node2D = ImpactChargeScript.new() as Node2D
+	baseline.call("set_gain_multiplier", 1.0)
+	baseline.call("advance_drive", 1.0, false, 1.0)
+	_add_case(
+		cases,
+		"Worn Plates does not alter Impact footprint geometry",
+		(
+			starter.call("footprint", Vector2i.ZERO, Vector2i.RIGHT, 2)
+			== baseline.call("footprint", Vector2i.ZERO, Vector2i.RIGHT, 2)
+		),
+	)
+	starter.call("set_charge", 0.5)
+	starter.call("advance_drive", 0.0, false, 1.0)
+	_add_case(
+		cases,
+		"Worn Plates does not alter idle charge decay",
+		is_equal_approx(
+			float(starter.call("get_charge")), 0.5 - ImpactChargeScript.IDLE_DECAY_PER_SECOND
+		),
+	)
+	_add_case(
+		cases,
+		"Impact gain multipliers reject unsafe values",
+		(
+			not bool(starter.call("set_gain_multiplier", 0.99))
+			and not bool(starter.call("set_gain_multiplier", INF))
+		),
+	)
+	starter.free()
+	baseline.free()
 
 
 static func _test_telemetry(cases: Array[Dictionary], coordinator: RefCounted) -> void:

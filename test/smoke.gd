@@ -253,6 +253,10 @@ func _test_isometric_map() -> void:
 	map.call("_refresh_outpost_interface")
 	var impact_charge: Node2D = map.get_node("WorldObjectLayer/ImpactCharge") as Node2D
 	_check(impact_charge != null, "Impact Charge controller exists")
+	_check(
+		is_equal_approx(float(impact_charge.call("get_gain_multiplier")), 1.15),
+		"live Worn Plates multiplier is fifteen percent",
+	)
 	_check(int(map.call("_get_charge_band")) == 0, "Impact Charge starts in contact band")
 	var medium_footprint: Array = (
 		impact_charge.call("footprint", Vector2i(6, 6), Vector2i.RIGHT, 1) as Array
@@ -263,6 +267,7 @@ func _test_isometric_map() -> void:
 	_check(medium_footprint.size() == 2, "mid charge creates a two-cell shock line")
 	_check(high_footprint.size() == 3, "high charge creates a three-tile fan")
 	_check("IMPACT 000%" in str(field_hud.call("get_impact_text")), "charge meter starts empty")
+	_check("WORN +15%" in str(field_hud.call("get_impact_text")), "HUD names Worn Plates bonus")
 	_check("RELAY 0/1" in str(field_hud.call("get_relay_text")), "relay objective starts visible")
 	var outpost_interface: Control = field_hud.call("get_outpost_interface") as Control
 	_check(outpost_interface != null, "outpost interface exists")
@@ -447,6 +452,7 @@ func _test_isometric_map() -> void:
 	_check(bool(map.call("place_robot", Vector2i(6, 6))), "place Cardinal for worm melee")
 	map.set("_facing", &"E")
 	var melee_worm: int = int(sandworms.call("spawn_worm", Vector2(7.0, 5.0), 0.0))
+	_advance_worm_to_expose(sandworms, melee_worm)
 	for hit: int in range(1, 5):
 		_check(bool(map.call("attack")), "melee strike %d targets sandworm" % hit)
 		avatar.call("_process", 0.23)
@@ -466,6 +472,7 @@ func _test_isometric_map() -> void:
 	map.set("_facing", &"E")
 	map.call("_set_impact_charge", 0.5)
 	var line_worm: int = int(sandworms.call("spawn_worm", Vector2(8.0, 4.0), 0.0))
+	_advance_worm_to_expose(sandworms, line_worm)
 	_check(bool(map.call("attack")), "mid charge reaches a worm two cells ahead")
 	avatar.call("_process", 0.23)
 	_check(
@@ -475,6 +482,7 @@ func _test_isometric_map() -> void:
 	sandworms.call("clear_worms")
 	map.call("_set_impact_charge", 0.9)
 	var fan_worm: int = int(sandworms.call("spawn_worm", Vector2(7.0, 6.0), 0.0))
+	_advance_worm_to_expose(sandworms, fan_worm)
 	var charge_effects: Node2D = map.get_node("WorldEffectsLayer/ImpactEffects") as Node2D
 	var charged_emissions: int = int(charge_effects.call("get_aftershock_emission_count"))
 	_check(bool(map.call("attack")), "high charge catches a worm on the fan flank")
@@ -667,6 +675,10 @@ func _test_isometric_map() -> void:
 		),
 		"live field writes a complete schema-3 envelope",
 	)
+	_check(
+		"module.worn_plates" in (live_envelope["active_run"] as Dictionary)["active_module_ids"],
+		"live schema-three save persists Worn Plates",
+	)
 
 	map.free()
 	await process_frame
@@ -690,6 +702,10 @@ func _test_isometric_map() -> void:
 			)
 		),
 		"schema-three reload round-trips through typed RunState",
+	)
+	_check(
+		bool(run_coordinator.call("_has_run_module", &"module.worn_plates")),
+		"schema-three reload preserves Worn Plates",
 	)
 	_check(
 		not bool(map.call("has_destructible_rock", Vector2i(4, 4))),
@@ -929,6 +945,12 @@ func _test_isometric_map() -> void:
 	_clear_test_save(save_path)
 	_clear_test_save(malformed_path)
 	_clear_test_save(incompatible_path)
+
+
+func _advance_worm_to_expose(worms: Node2D, worm_id: int) -> void:
+	worms.call("advance", 0.001)
+	var snapshot: Dictionary = worms.call("get_combat_snapshot", worm_id) as Dictionary
+	worms.call("advance", float(snapshot[&"state_remaining"]))
 
 
 func _clear_test_save(path: String) -> void:

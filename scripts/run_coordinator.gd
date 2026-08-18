@@ -107,6 +107,14 @@ func apply_run_event(event_id: StringName) -> bool:
 	return bool(_run_state.call("apply_event", event_id)) if _run_state != null else false
 
 
+func _add_run_module(module_id: StringName) -> bool:
+	return bool(_run_state.call("add_module", module_id)) if _run_state != null else false
+
+
+func _has_run_module(module_id: StringName) -> bool:
+	return bool(_run_state.call("has_module", module_id)) if _run_state != null else false
+
+
 func get_run_snapshot() -> Dictionary:
 	return _run_state.call("to_dictionary") as Dictionary if _run_state != null else {}
 

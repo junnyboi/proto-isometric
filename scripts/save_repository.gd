@@ -4,6 +4,7 @@ const WorldStateStoreScript: GDScript = preload("res://scripts/world_state_store
 const SaveMigratorScript: GDScript = preload("res://scripts/save_migrator.gd")
 const RunStateScript: GDScript = preload("res://scripts/run_state.gd")
 const ProfileStateScript: GDScript = preload("res://scripts/profile_state.gd")
+const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 
 const FORMAT_VERSION: int = 3
 const WORLD_GENERATION_VERSION: int = 1
@@ -455,29 +456,35 @@ func _normalize_run(value: Variant) -> Variant:
 
 func _normalize_run_dictionary(run: Dictionary) -> Variant:
 	var events: Variant = run.get(&"applied_event_ids")
+	var run_keys: Array[StringName] = [
+		&"state_version",
+		&"run_id",
+		&"seed",
+		&"phase",
+		&"player_cell",
+		&"facing",
+		&"chassis",
+		&"max_chassis",
+		&"unbanked_scrap",
+		&"starter_relay_completed",
+		&"shutdown",
+		&"applied_event_ids",
+	]
+	if run.has(&"active_module_ids"):
+		run_keys.append(&"active_module_ids")
+	var modules: Variant = run.get(
+		&"active_module_ids", [String(RuntimeIdsScript.MODULE_WORN_PLATES)]
+	)
 	if (
-		not _exact_keys(
-			run,
-			[
-				&"state_version",
-				&"run_id",
-				&"seed",
-				&"phase",
-				&"player_cell",
-				&"facing",
-				&"chassis",
-				&"max_chassis",
-				&"unbanked_scrap",
-				&"starter_relay_completed",
-				&"shutdown",
-				&"applied_event_ids",
-			],
-		)
+		not _exact_keys(run, run_keys)
 		or not events is Array
 		or (events as Array).size() > MAX_APPLIED_EVENTS
+		or not modules is Array
+		or (modules as Array).size() > RunStateScript.MAX_ACTIVE_MODULES
 	):
 		return false
 	var normalized: Dictionary = run.duplicate(true)
+	normalized[&"active_module_ids"] = (modules as Array).duplicate()
 	for key: StringName in [
 		&"state_version", &"seed", &"chassis", &"max_chassis", &"unbanked_scrap"
 	]:
@@ -497,9 +504,8 @@ func _normalize_run_dictionary(run: Dictionary) -> Variant:
 	):
 		return false
 	normalized[&"player_cell"] = player_cell
-	for event_id: Variant in events as Array:
-		if not event_id is String or (event_id as String).length() > 64:
-			return false
+	if not _run_string_arrays_are_valid(events as Array, modules as Array):
+		return false
 	var state: RefCounted = RunStateScript.new() as RefCounted
 	if (
 		not bool(state.call("restore_dictionary", normalized))
@@ -507,6 +513,16 @@ func _normalize_run_dictionary(run: Dictionary) -> Variant:
 	):
 		return false
 	return state.call("to_dictionary") as Dictionary
+
+
+func _run_string_arrays_are_valid(events: Array, modules: Array) -> bool:
+	for event_id: Variant in events:
+		if not event_id is String or (event_id as String).length() > 64:
+			return false
+	for module_id: Variant in modules:
+		if not module_id is String or (module_id as String).length() > 64:
+			return false
+	return true
 
 
 func _normalize_profile(value: Variant) -> Dictionary:

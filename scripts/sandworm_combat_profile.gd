@@ -12,6 +12,7 @@ extends Resource
 @export var intercept_speed: float = 2.4
 @export var maximum_lead_seconds: float = 0.45
 @export var maximum_lead_distance: float = 1.75
+@export var expose_offset: float = 0.68
 
 @export_category("State Timings")
 @export var spawn_burrow_seconds: float = 0.8
@@ -39,6 +40,8 @@ func validate() -> bool:
 		and intercept_speed >= burrow_speed
 		and maximum_lead_seconds >= 0.0
 		and maximum_lead_distance >= 0.0
+		and expose_offset > 0.0
+		and expose_offset <= attack_range
 		and spawn_burrow_seconds >= 0.0
 		and burrow_seconds > 0.0
 		and intercept_seconds > 0.0

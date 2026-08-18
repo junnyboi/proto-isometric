@@ -22,6 +22,7 @@ static func evaluate(
 		),
 	)
 	_test_commit_and_rotation(cases, repository, world, run_snapshot, profile_snapshot)
+	_test_schema_three_module_default(cases, world, run_snapshot, profile_snapshot)
 	_test_legacy_load_and_commit(cases, world)
 	_test_primary_recovery(cases, world, run_snapshot, profile_snapshot)
 	_test_backup_selection(cases, world, run_snapshot, profile_snapshot)
@@ -83,6 +84,35 @@ static func _test_commit_and_rotation(
 			loaded[&"world"] == world_snapshot
 			and loaded[&"active_run"] == run_snapshot
 			and loaded[&"profile"] == profile_snapshot
+		),
+	)
+
+
+static func _test_schema_three_module_default(
+	cases: Array[Dictionary],
+	world: RefCounted,
+	run_snapshot: Dictionary,
+	profile_snapshot: Dictionary,
+) -> void:
+	_clear_artifacts(TEST_ROOT)
+	var repository: RefCounted = _repository(TEST_ROOT, world)
+	repository.call("save_state", world.call("make_snapshot"), run_snapshot, profile_snapshot)
+	var legacy_envelope: Dictionary = _read_json(TEST_ROOT)
+	var legacy_run: Dictionary = legacy_envelope[&"active_run"] as Dictionary
+	legacy_run.erase(&"active_module_ids")
+	legacy_envelope[&"active_run"] = legacy_run
+	_write_text(TEST_ROOT, JSON.stringify(legacy_envelope))
+	var reopened: RefCounted = _repository(TEST_ROOT, world)
+	var loaded: Dictionary = reopened.call("load_state") as Dictionary
+	_add_case(
+		cases,
+		"pre-module schema-three run defaults to Worn Plates",
+		(
+			not loaded.is_empty()
+			and (
+				"module.worn_plates"
+				in ((loaded[&"active_run"] as Dictionary)[&"active_module_ids"] as Array)
+			)
 		),
 	)
 

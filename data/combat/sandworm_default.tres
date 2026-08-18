@@ -13,6 +13,7 @@ burrow_speed = 1.28
 intercept_speed = 2.4
 maximum_lead_seconds = 0.45
 maximum_lead_distance = 1.75
+expose_offset = 0.68
 spawn_burrow_seconds = 0.8
 burrow_seconds = 0.55
 intercept_seconds = 0.65

@@ -8,6 +8,7 @@ const CHARGE_SPEED_THRESHOLD: float = 0.55
 const WALK_GAIN_PER_SECOND: float = 0.16
 const RUN_GAIN_PER_SECOND: float = 0.25
 const IDLE_DECAY_PER_SECOND: float = 0.045
+const WORN_PLATES_GAIN_MULTIPLIER: float = 1.15
 const AMBER: Color = Color("f5a62d")
 const TEAL: Color = Color("4eb6aa")
 const SCREEN_DIRECTIONS: Array[Vector2i] = [
@@ -27,12 +28,15 @@ var _visual_position: Vector2 = Vector2.ZERO
 var _aftershock_cells: Array[Vector2] = []
 var _aftershock_time: float = 0.0
 var _aftershock_band: int = 0
+var _gain_multiplier: float = WORN_PLATES_GAIN_MULTIPLIER
 
 
 func advance_drive(speed_ratio: float, running: bool, delta: float) -> void:
 	var step: float = maxf(delta, 0.0)
 	if speed_ratio >= CHARGE_SPEED_THRESHOLD:
-		var gain: float = RUN_GAIN_PER_SECOND if running else WALK_GAIN_PER_SECOND
+		var gain: float = (
+			(RUN_GAIN_PER_SECOND if running else WALK_GAIN_PER_SECOND) * _gain_multiplier
+		)
 		set_charge(_charge + gain * step)
 	elif speed_ratio <= 0.08:
 		set_charge(_charge - IDLE_DECAY_PER_SECOND * step)
@@ -53,6 +57,17 @@ func set_charge(value: float) -> void:
 
 func get_charge() -> float:
 	return _charge
+
+
+func set_gain_multiplier(value: float) -> bool:
+	if not is_finite(value) or value < 1.0 or value > 2.0:
+		return false
+	_gain_multiplier = value
+	return true
+
+
+func get_gain_multiplier() -> float:
+	return _gain_multiplier
 
 
 func get_band() -> int:

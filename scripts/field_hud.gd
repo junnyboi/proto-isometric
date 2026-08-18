@@ -135,7 +135,7 @@ func _apply_impact() -> void:
 	_charge_fill.size.x = 300.0 * value
 	_charge_fill.color = color
 	_charge_label.text = (
-		"IMPACT %03d%% // %s"
+		"IMPACT %03d%% // %s // WORN +15%%"
 		% [
 			roundi(value * 100.0),
 			String(_state.call("get_value", &"impact_band")),

@@ -204,9 +204,9 @@ func find_target(target_cell: Vector2i) -> int:
 
 func hit_worm(worm_id: int, damage: int = 1) -> bool:
 	var worm: Dictionary = _find_worm(worm_id)
-	if worm.is_empty() or worm[&"state"] in [STATE_DISPERSING, STATE_DEFEATED]:
+	if worm.is_empty() or worm[&"state"] != STATE_EXPOSE or damage <= 0:
 		return false
-	worm[&"health"] = maxi(int(worm[&"health"]) - maxi(damage, 0), 0)
+	worm[&"health"] = maxi(int(worm[&"health"]) - damage, 0)
 	worm[&"hit_flash"] = 0.18
 	if int(worm[&"health"]) <= 0:
 		_set_state(worm, STATE_DEFEATED, _p_float(&"defeated_seconds"))
@@ -293,7 +293,10 @@ func _transition_state(worm: Dictionary, may_attack: bool) -> bool:
 		_commit_intercept(worm)
 		return false
 	if state == STATE_INTERCEPT:
-		worm[&"position"] = worm[&"committed_target"]
+		worm[&"position"] = (
+			(worm[&"committed_target"] as Vector2)
+			- (worm[&"direction"] as Vector2) * _p_float(&"expose_offset")
+		)
 		_set_state(worm, STATE_EXPOSE, _p_float(&"expose_seconds"))
 		return _resolve_attack(worm) if may_attack else false
 	if state == STATE_EXPOSE:

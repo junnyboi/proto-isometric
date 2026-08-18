@@ -4,6 +4,7 @@ const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 
 const STATE_VERSION: int = 1
 const COORDINATE_LIMIT: int = 1_000_000
+const MAX_ACTIVE_MODULES: int = 3
 const VALID_FACINGS: Array[StringName] = [&"N", &"NE", &"E", &"SE", &"S", &"SW", &"W", &"NW"]
 
 var _run_id: StringName
@@ -16,6 +17,7 @@ var _max_chassis: int
 var _unbanked_scrap: int = 0
 var _starter_relay_completed: bool = false
 var _shutdown: bool = false
+var _active_module_ids: Array[StringName] = [RuntimeIdsScript.MODULE_WORN_PLATES]
 var _applied_event_ids: Dictionary = {}
 
 
@@ -71,6 +73,21 @@ func apply_event(event_id: StringName) -> bool:
 	return true
 
 
+func add_module(module_id: StringName) -> bool:
+	if (
+		module_id not in RuntimeIdsScript.catalog()[&"modules"]
+		or module_id in _active_module_ids
+		or _active_module_ids.size() >= MAX_ACTIVE_MODULES
+	):
+		return false
+	_active_module_ids.append(module_id)
+	return true
+
+
+func has_module(module_id: StringName) -> bool:
+	return module_id in _active_module_ids
+
+
 func set_value(key: StringName, value: Variant) -> bool:
 	var changed: bool = false
 	match key:
@@ -102,6 +119,7 @@ func get_value(key: StringName) -> Variant:
 			&"scrap": _unbanked_scrap,
 			&"starter_relay_completed": _starter_relay_completed,
 			&"shutdown": _shutdown,
+			&"active_module_ids": _active_module_ids.duplicate(),
 		}
 		. get(key)
 	)
@@ -120,6 +138,7 @@ func to_dictionary() -> Dictionary:
 		&"unbanked_scrap": _unbanked_scrap,
 		&"starter_relay_completed": _starter_relay_completed,
 		&"shutdown": _shutdown,
+		&"active_module_ids": _string_names(_active_module_ids),
 		&"applied_event_ids": _sorted_string_keys(_applied_event_ids),
 	}
 
@@ -138,6 +157,7 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 	_unbanked_scrap = int(validated[&"unbanked_scrap"])
 	_starter_relay_completed = bool(validated[&"starter_relay_completed"])
 	_shutdown = bool(validated[&"shutdown"])
+	_active_module_ids = validated[&"active_module_ids"] as Array[StringName]
 	_applied_event_ids = validated[&"applied_event_ids"] as Dictionary
 	return true
 
@@ -230,6 +250,9 @@ func _validate_dictionary(snapshot: Dictionary) -> Dictionary:
 	var scrap: int = int(snapshot.get("unbanked_scrap", -1))
 	var relay_completed: Variant = snapshot.get("starter_relay_completed", null)
 	var shutdown: Variant = snapshot.get("shutdown", null)
+	var active_modules: Variant = snapshot.get(
+		"active_module_ids", [String(RuntimeIdsScript.MODULE_WORN_PLATES)]
+	)
 	var applied_events: Variant = snapshot.get("applied_event_ids", null)
 	if (
 		not _is_valid_run_id(run_id)
@@ -242,9 +265,14 @@ func _validate_dictionary(snapshot: Dictionary) -> Dictionary:
 		or scrap < 0
 		or not relay_completed is bool
 		or not shutdown is bool
+		or not active_modules is Array
+		or (active_modules as Array).size() > MAX_ACTIVE_MODULES
 		or not applied_events is Array
 		or (bool(shutdown) and (chassis != 0 or phase != RuntimeIdsScript.RUN_PHASE_FAILED))
 	):
+		return {}
+	var module_ids: Array[StringName] = _validate_module_ids(active_modules as Array)
+	if module_ids.is_empty():
 		return {}
 	var event_set: Dictionary = {}
 	for raw_event: Variant in applied_events as Array:
@@ -265,8 +293,21 @@ func _validate_dictionary(snapshot: Dictionary) -> Dictionary:
 		&"unbanked_scrap": scrap,
 		&"starter_relay_completed": bool(relay_completed),
 		&"shutdown": bool(shutdown),
+		&"active_module_ids": module_ids,
 		&"applied_event_ids": event_set,
 	}
+
+
+func _validate_module_ids(values: Array) -> Array[StringName]:
+	var module_ids: Array[StringName] = []
+	for raw_module: Variant in values:
+		if not raw_module is String and not raw_module is StringName:
+			return []
+		var module_id: StringName = StringName(str(raw_module))
+		if module_id not in RuntimeIdsScript.catalog()[&"modules"] or module_id in module_ids:
+			return []
+		module_ids.append(module_id)
+	return module_ids if RuntimeIdsScript.MODULE_WORN_PLATES in module_ids else []
 
 
 func _decode_cell(value: Variant) -> Vector2i:
@@ -311,6 +352,13 @@ func _has_typed_fields(snapshot: Dictionary) -> bool:
 		and snapshot.get("shutdown") is bool
 		and snapshot.get("applied_event_ids") is Array
 	)
+
+
+func _string_names(values: Array[StringName]) -> Array[String]:
+	var result: Array[String] = []
+	for value: StringName in values:
+		result.append(String(value))
+	return result
 
 
 func _sorted_string_keys(values: Dictionary) -> Array[String]:

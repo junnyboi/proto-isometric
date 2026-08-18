@@ -33,6 +33,7 @@ static func _test_run_round_trip(cases: Array[Dictionary]) -> void:
 	source.call("set_value", &"chassis", 0)
 	source.call("set_value", &"shutdown", true)
 	source.call("apply_event", RuntimeIdsScript.EVENT_RELAY_COMPLETED)
+	source.call("add_module", RuntimeIdsScript.MODULE_AFTERSHOCK)
 	var snapshot: Dictionary = source.call("to_dictionary") as Dictionary
 	var restored: RefCounted = RunStateScript.new() as RefCounted
 	_add_case(
@@ -64,14 +65,33 @@ static func _test_run_round_trip(cases: Array[Dictionary]) -> void:
 			and bool(restored.call("get_value", &"starter_relay_completed"))
 		),
 	)
+	_add_case(
+		cases,
+		"RunState round-trip preserves active modules",
+		(
+			bool(restored.call("has_module", RuntimeIdsScript.MODULE_WORN_PLATES))
+			and bool(restored.call("has_module", RuntimeIdsScript.MODULE_AFTERSHOCK))
+		),
+	)
+	var legacy_schema_three: Dictionary = snapshot.duplicate(true)
+	legacy_schema_three.erase(&"active_module_ids")
+	var legacy_restored: RefCounted = RunStateScript.new() as RefCounted
+	_add_case(
+		cases,
+		"legacy schema-three runs default to Worn Plates",
+		(
+			bool(legacy_restored.call("restore_dictionary", legacy_schema_three))
+			and bool(legacy_restored.call("has_module", RuntimeIdsScript.MODULE_WORN_PLATES))
+		),
+	)
 	var malformed: Dictionary = snapshot.duplicate(true)
-	malformed[&"unbanked_scrap"] = "23"
+	malformed[&"active_module_ids"] = ["module.unknown"]
 	_add_case(
 		cases,
 		"RunState rejects malformed restore without mutation",
 		(
 			not bool(restored.call("restore_dictionary", malformed))
-			and int(restored.call("get_value", &"scrap")) == 23
+			and bool(restored.call("has_module", RuntimeIdsScript.MODULE_AFTERSHOCK))
 		),
 	)
 
@@ -170,6 +190,14 @@ static func _test_live_coordinator_round_trip(
 	_add_case(cases, "typed live coordinator exists", coordinator != null)
 	if coordinator == null:
 		return
+	_add_case(
+		cases,
+		"live run starts with Worn Plates exactly once",
+		(
+			bool(coordinator.call("_has_run_module", RuntimeIdsScript.MODULE_WORN_PLATES))
+			and not bool(coordinator.call("_add_run_module", RuntimeIdsScript.MODULE_WORN_PLATES))
+		),
+	)
 	var run_snapshot: Dictionary = coordinator.call("get_run_snapshot") as Dictionary
 	var profile_snapshot: Dictionary = coordinator.call("get_profile_snapshot") as Dictionary
 	_add_case(
