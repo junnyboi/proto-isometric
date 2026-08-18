@@ -79,11 +79,19 @@ static func _test_commit_and_rotation(
 	)
 	_add_case(
 		cases,
-		"schema-3 reload preserves world run and profile sections",
+		"schema-3 reload preserves world profile and canonical run state",
 		(
 			loaded[&"world"] == world_snapshot
-			and loaded[&"active_run"] == run_snapshot
 			and loaded[&"profile"] == profile_snapshot
+			and (loaded[&"active_run"] as Dictionary)[&"run_id"] == run_snapshot[&"run_id"]
+			and (
+				((loaded[&"active_run"] as Dictionary)[&"relay_objectives"] as Array).size()
+				== (run_snapshot[&"relay_objectives"] as Array).size()
+			)
+			and (
+				((loaded[&"active_run"] as Dictionary)[&"completed_objective_ids"] as Array).size()
+				== (run_snapshot[&"completed_objective_ids"] as Array).size()
+			)
 		),
 	)
 

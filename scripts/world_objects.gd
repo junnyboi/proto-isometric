@@ -1,5 +1,6 @@
 extends Node2D
 
+const EncounterDirectorScript: GDScript = preload("res://scripts/encounter_director.gd")
 const RunPickupsScript: GDScript = preload("res://scripts/run_pickups.gd")
 
 const ROCK: Color = Color("934d35")
@@ -53,6 +54,23 @@ func build_run_pickups(world: RefCounted, coordinator: RefCounted, worms: Node2D
 		return null
 	add_child(pickups)
 	return pickups
+
+
+func build_encounter_director(
+	world: RefCounted,
+	coordinator: RefCounted,
+	worms: Node2D,
+	hazards: Node2D,
+) -> Node:
+	if has_node("EncounterDirector"):
+		return get_node("EncounterDirector")
+	var director: Node = EncounterDirectorScript.new() as Node
+	director.name = "EncounterDirector"
+	if not bool(director.call("configure", coordinator, world, worms, hazards)):
+		director.free()
+		return null
+	add_child(director)
+	return director
 
 
 func _draw() -> void:

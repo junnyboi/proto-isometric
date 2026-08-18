@@ -21,9 +21,7 @@ static func build(
 ) -> RefCounted:
 	var state: RefCounted = FieldUIStateScript.new() as RefCounted
 	var mobile: bool = mobile_controls != null and bool(mobile_controls.call("is_mobile_device"))
-	var completed: int = (
-		1 if bool(coordinator.call("get_run_value", &"starter_relay_completed")) else 0
-	)
+	var completed: int = int(coordinator.call("get_run_value", &"completed_relays"))
 	state.call(
 		"configure_vitals",
 		chassis,
@@ -37,7 +35,7 @@ static func build(
 		. call(
 			"configure_objective",
 			completed,
-			1,
+			relay.call("get_total_count"),
 			relay.call("get_progress"),
 			relay.call("get_state"),
 			completed,

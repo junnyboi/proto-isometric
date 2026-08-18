@@ -243,7 +243,7 @@ func _test_isometric_map() -> void:
 	_check(high_footprint.size() == 3, "high charge creates a three-tile fan")
 	_check("IMPACT 000%" in str(field_hud.call("get_impact_text")), "charge meter starts empty")
 	_check("WORN +15%" in str(field_hud.call("get_impact_text")), "HUD names Worn Plates bonus")
-	_check("RELAY 0/1" in str(field_hud.call("get_relay_text")), "relay objective starts visible")
+	_check("RELAY 0/3" in str(field_hud.call("get_relay_text")), "relay expedition starts visible")
 	var outpost_interface: Control = field_hud.call("get_outpost_interface") as Control
 	_check(outpost_interface != null, "outpost interface exists")
 	_check(
@@ -494,8 +494,7 @@ func _test_isometric_map() -> void:
 	_check(bool(map.call("place_robot", relay_cell)), "Cardinal enters the relay zone")
 	relay.call("advance", 0.5)
 	_check(relay.call("get_state") == &"linking", "entering relay zone starts linking")
-	_check(int(sandworms.call("get_worm_count")) == 1, "relay contest spawns one encounter worm")
-	var relay_worm_id: int = int(sandworms.get("_next_id")) - 1
+	_check(int(sandworms.call("get_worm_count")) == 0, "linking does not spawn before Alert credit")
 	relay.call("advance", 1.75)
 	_check(float(relay.call("get_progress")) >= 0.49, "relay link builds while Cardinal holds zone")
 	_check(bool(map.call("place_robot", Vector2i(8, 10))), "Cardinal can leave the relay zone")
@@ -506,7 +505,8 @@ func _test_isometric_map() -> void:
 	_check(bool(map.call("place_robot", relay_cell)), "Cardinal re-enters the relay zone")
 	relay.call("advance", 0.01)
 	_check(
-		int(sandworms.call("get_worm_count")) == 1, "relay re-entry does not duplicate encounter"
+		int(sandworms.call("get_worm_count")) == 0,
+		"relay re-entry does not create ambient encounters"
 	)
 	relay.call("advance", 3.5)
 	_check(bool(relay.call("is_completed")), "relay completes after the uninterrupted link timer")
@@ -515,10 +515,9 @@ func _test_isometric_map() -> void:
 		bool(run_coordinator.call("get_run_value", &"starter_relay_completed")),
 		"live RunState owns starter relay completion",
 	)
-	_check(
-		sandworms.call("get_state", relay_worm_id) == &"dispersing",
-		"completed relay disperses contest worm",
-	)
+	var encounter_director: Node = map.get_node("WorldObjectLayer/WorldObjects/EncounterDirector")
+	encounter_director.call("_process", 4.1)
+	_check(int(sandworms.call("get_worm_count")) == 1, "Alert I rearm deploys one hunter")
 	map.call("_refresh_outpost_interface")
 	_check("ALERT 1" in str(field_hud.call("get_relay_text")), "HUD reports completed relay alert")
 	sandworms.call("clear_worms")

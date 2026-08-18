@@ -1,6 +1,6 @@
 # Walker's Wake Implementation Plan
 
-**Plan status:** Approved; packages `WW-01` through `WW-17` are implemented.
+**Plan status:** Approved; packages `WW-01` through `WW-23` are implemented.
 
 **Pinned baseline:** `a30db57ca5d8b43771b9bc1363368e4d397057f6` (`a30db57`)
 

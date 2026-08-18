@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/alert_profile.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+alert_level = 1
+worm_count = 1
+tornado_count = 0
+broad_storm_count = 0
+rearm_seconds = 4.0

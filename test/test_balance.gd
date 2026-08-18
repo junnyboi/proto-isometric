@@ -17,7 +17,7 @@ static func evaluate(coordinator: RefCounted) -> Array[Dictionary]:
 	_add_case(
 		cases,
 		"stable ID registry version is pinned",
-		RuntimeIdsScript.REGISTRY_VERSION == 3,
+		RuntimeIdsScript.REGISTRY_VERSION == 4,
 	)
 	_add_case(
 		cases,

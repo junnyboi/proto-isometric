@@ -189,6 +189,26 @@ func _get_starter_relay_cell() -> Vector2i:
 	return STARTER_RELAY
 
 
+func _relay_candidate_is_valid(cell: Vector2i) -> bool:
+	return (
+		is_valid_cell(cell)
+		and not _is_outpost(cell)
+		and _base_terrain(cell) in [&"sand", &"salt", &"ruin"]
+		and not _placed_rocks.has(cell)
+	)
+
+
+func _is_in_sanctuary(position: Vector2, radius: float = 2.5) -> bool:
+	var center: Vector2i = Vector2i(position.round())
+	var extent: int = ceili(maxf(radius, 0.0))
+	for y: int in range(center.y - extent, center.y + extent + 1):
+		for x: int in range(center.x - extent, center.x + extent + 1):
+			var cell: Vector2i = Vector2i(x, y)
+			if _is_outpost(cell) and Vector2(cell).distance_to(position) <= radius:
+				return true
+	return false
+
+
 func is_cell_loaded(cell: Vector2i) -> bool:
 	return _loaded_chunks.has(chunk_for_cell(cell))
 

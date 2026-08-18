@@ -12,7 +12,7 @@ const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const IsometricControlsScript: GDScript = preload("res://scripts/isometric_controls.gd")
 const MobileControlsScript: GDScript = preload("res://scripts/mobile_controls.gd")
 const ModuleEffectsScript: GDScript = preload("res://scripts/module_effects.gd")
-const RelayContestScript: GDScript = preload("res://scripts/relay_contest.gd")
+const RelayContestScript: GDScript = preload("res://scripts/relay_registry.gd")
 const RunCoordinatorScript: GDScript = preload("res://scripts/run_coordinator.gd")
 const SandwormsScript: GDScript = preload("res://scripts/sandworms.gd")
 const SaveRepositoryScript: GDScript = preload("res://scripts/save_repository.gd")
@@ -571,7 +571,7 @@ func _set_impact_charge(value: float) -> void:
 
 
 func _get_completed_relays() -> int:
-	return 1 if _relay_completed else 0
+	return int(_run_value(&"completed_relays", 1 if _relay_completed else 0))
 
 
 func _get_relay_cell() -> Vector2i:
@@ -858,6 +858,7 @@ func _build_sandworms() -> void:
 	_sandworms.connect("damage_tick", Callable(self, "_on_hazard_damage"))
 	_object_layer.add_child(_sandworms)
 	_world_objects.call("build_run_pickups", _world, _run_coordinator, _sandworms)
+	_world_objects.call("build_encounter_director", _world, _run_coordinator, _sandworms, _hazards)
 	_worm_telegraph = WormTelegraphScript.new() as Node2D
 	_worm_telegraph.name = "WormTelegraph"
 	_worm_telegraph.z_index = 16
@@ -869,16 +870,7 @@ func _build_relay_contest() -> void:
 	_relay_contest = RelayContestScript.new() as Node2D
 	_relay_contest.name = "RelayContest"
 	_relay_contest.z_index = 17
-	(
-		_relay_contest
-		. call(
-			"configure",
-			_world.call("_get_starter_relay_cell"),
-			TILE_SIZE,
-			MAP_ORIGIN,
-			_relay_completed,
-		)
-	)
+	_relay_contest.call("configure", _run_coordinator, _world, TILE_SIZE, MAP_ORIGIN)
 	_relay_contest.call("set_player_position", Vector2(_robot_grid))
 	_relay_contest.connect("link_started", Callable(self, "_on_relay_link_started"))
 	_relay_contest.connect("completed", Callable(self, "_on_relay_completed"))
@@ -886,19 +878,16 @@ func _build_relay_contest() -> void:
 
 
 func _on_relay_link_started(relay_cell: Vector2i) -> void:
-	if _sandworms != null:
-		_sandworms.call("spawn_worm", Vector2(relay_cell) + Vector2(2.8, 0.0), 0.65)
 	_status_hold_time = 1.0
-	_update_status("RELAY CONTEST // WORM SIGNATURE INBOUND")
+	_update_status("RELAY CONTEST // SIGNAL LOCK %d,%d" % [relay_cell.x, relay_cell.y])
 
 
 func _on_relay_completed(_relay_cell: Vector2i) -> void:
-	_relay_completed = true
 	_run_coordinator.call("apply_run_event", RuntimeIdsScript.EVENT_RELAY_COMPLETED)
 	if _sandworms != null:
 		_sandworms.call("disperse_all")
 	_status_hold_time = 1.4
-	_update_status("RELAY LINKED // ALERT I // RETURN TO OUTPOST")
+	_update_status("RELAY LINKED // ALERT %d // NEXT SIGNAL" % _get_completed_relays())
 	_save_world_state()
 
 

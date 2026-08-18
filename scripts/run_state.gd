@@ -22,6 +22,8 @@ var _worm_cores: int = 0
 var _run_drops: Array[Dictionary] = []
 var _next_drop_sequence: int = 1
 var _starter_relay_completed: bool = false
+var _relay_objectives: Array[Dictionary] = []
+var _completed_objective_ids: Array[StringName] = []
 var _shutdown: bool = false
 var _active_module_ids: Array[StringName] = [RuntimeIdsScript.MODULE_WORN_PLATES]
 var _refit_purchase_used: bool = false
@@ -93,6 +95,33 @@ func add_module(module_id: StringName) -> bool:
 
 func has_module(module_id: StringName) -> bool:
 	return module_id in _active_module_ids
+
+
+func _configure_relay_objectives(objectives: Array[Dictionary]) -> bool:
+	if not _relay_objectives.is_empty() or not _relay_layout_is_valid(objectives):
+		return false
+	_relay_objectives = objectives.duplicate(true)
+	if _starter_relay_completed and _completed_objective_ids.is_empty():
+		_completed_objective_ids.append(RuntimeIdsScript.OBJECTIVE_STARTER_RELAY)
+	return true
+
+
+func _complete_next_relay(objective_id: StringName) -> bool:
+	var index: int = _completed_objective_ids.size()
+	if (
+		index >= _relay_objectives.size()
+		or _relay_objectives[index][&"objective_id"] != objective_id
+	):
+		return false
+	_completed_objective_ids.append(objective_id)
+	_starter_relay_completed = true
+	if _completed_objective_ids.size() == 3 and _phase == RuntimeIdsScript.RUN_PHASE_HUNT:
+		transition_to(RuntimeIdsScript.RUN_PHASE_EXTRACTION_READY)
+	return true
+
+
+func _get_relay_objectives() -> Array[Dictionary]:
+	return _relay_objectives.duplicate(true)
 
 
 func _place_drop(cell: Vector2i, cores: int, scrap: int, source_worm_id: int) -> Dictionary:
@@ -173,6 +202,9 @@ func get_value(key: StringName) -> Variant:
 			&"scrap": _unbanked_scrap,
 			&"worm_cores": _worm_cores,
 			&"starter_relay_completed": _starter_relay_completed,
+			&"completed_relays": _completed_objective_ids.size(),
+			&"relay_objectives": _relay_objectives.duplicate(true),
+			&"completed_objective_ids": _completed_objective_ids.duplicate(),
 			&"shutdown": _shutdown,
 			&"active_module_ids": _active_module_ids.duplicate(),
 			&"refit_purchase_used": _refit_purchase_used,
@@ -196,6 +228,8 @@ func to_dictionary() -> Dictionary:
 		&"run_drops": _run_drops.duplicate(true),
 		&"next_drop_sequence": _next_drop_sequence,
 		&"starter_relay_completed": _starter_relay_completed,
+		&"relay_objectives": _relay_objectives.duplicate(true),
+		&"completed_objective_ids": _string_names(_completed_objective_ids),
 		&"shutdown": _shutdown,
 		&"active_module_ids": _string_names(_active_module_ids),
 		&"refit_purchase_used": _refit_purchase_used,
@@ -219,6 +253,12 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 	_run_drops = validated[&"run_drops"] as Array[Dictionary]
 	_next_drop_sequence = int(validated[&"next_drop_sequence"])
 	_starter_relay_completed = bool(validated[&"starter_relay_completed"])
+	_relay_objectives.clear()
+	for objective: Dictionary in validated[&"relay_objectives"] as Array:
+		_relay_objectives.append(objective.duplicate(true))
+	_completed_objective_ids.clear()
+	for objective_id: StringName in validated[&"completed_objective_ids"] as Array:
+		_completed_objective_ids.append(objective_id)
 	_shutdown = bool(validated[&"shutdown"])
 	_active_module_ids = validated[&"active_module_ids"] as Array[StringName]
 	_refit_purchase_used = bool(validated[&"refit_purchase_used"])
@@ -300,6 +340,8 @@ func _set_starter_relay_completed(value: Variant) -> bool:
 	if not value is bool or not bool(value) or _starter_relay_completed:
 		return false
 	_starter_relay_completed = true
+	if _completed_objective_ids.is_empty():
+		_completed_objective_ids.append(RuntimeIdsScript.OBJECTIVE_STARTER_RELAY)
 	return true
 
 
@@ -330,6 +372,14 @@ func _validate_dictionary(snapshot: Dictionary) -> Dictionary:
 	var run_drops: Variant = snapshot.get("run_drops", [])
 	var next_drop_sequence: Variant = snapshot.get("next_drop_sequence", 1)
 	var relay_completed: Variant = snapshot.get("starter_relay_completed", null)
+	var relay_objectives: Variant = snapshot.get("relay_objectives", [])
+	var completed_objectives: Variant = (
+		snapshot
+		. get(
+			"completed_objective_ids",
+			[String(RuntimeIdsScript.OBJECTIVE_STARTER_RELAY)] if bool(relay_completed) else [],
+		)
+	)
 	var shutdown: Variant = snapshot.get("shutdown", null)
 	var active_modules: Variant = snapshot.get(
 		"active_module_ids", [String(RuntimeIdsScript.MODULE_WORN_PLATES)]
@@ -354,6 +404,8 @@ func _validate_dictionary(snapshot: Dictionary) -> Dictionary:
 		or not next_drop_sequence is int
 		or int(next_drop_sequence) <= 0
 		or not relay_completed is bool
+		or not relay_objectives is Array
+		or not completed_objectives is Array
 		or not shutdown is bool
 		or not active_modules is Array
 		or (active_modules as Array).size() > MAX_ACTIVE_MODULES
@@ -363,15 +415,19 @@ func _validate_dictionary(snapshot: Dictionary) -> Dictionary:
 	):
 		return {}
 	var module_ids: Array[StringName] = _validate_module_ids(active_modules as Array)
-	if module_ids.is_empty():
-		return {}
+	var relay_validation: Dictionary = _validate_relay_state(
+		relay_objectives as Array, completed_objectives as Array, bool(relay_completed)
+	)
 	var drop_validation: Dictionary = _validate_run_drops(
 		run_drops as Array, int(next_drop_sequence), player_cell
 	)
-	if not bool(drop_validation.get(&"valid", false)):
-		return {}
 	var event_validation: Dictionary = _validate_event_ids(applied_events as Array)
-	if not bool(event_validation.get(&"valid", false)):
+	if (
+		module_ids.is_empty()
+		or not bool(relay_validation.get(&"valid", false))
+		or not bool(drop_validation.get(&"valid", false))
+		or not bool(event_validation.get(&"valid", false))
+	):
 		return {}
 	return {
 		&"run_id": run_id,
@@ -386,6 +442,8 @@ func _validate_dictionary(snapshot: Dictionary) -> Dictionary:
 		&"run_drops": drop_validation[&"drops"],
 		&"next_drop_sequence": int(next_drop_sequence),
 		&"starter_relay_completed": bool(relay_completed),
+		&"relay_objectives": relay_validation[&"objectives"],
+		&"completed_objective_ids": relay_validation[&"completed"],
 		&"shutdown": bool(shutdown),
 		&"active_module_ids": module_ids,
 		&"refit_purchase_used": bool(refit_purchase_used),
@@ -403,6 +461,53 @@ func _validate_module_ids(values: Array) -> Array[StringName]:
 			return []
 		module_ids.append(module_id)
 	return module_ids if RuntimeIdsScript.MODULE_WORN_PLATES in module_ids else []
+
+
+func _validate_relay_state(objectives: Array, completed: Array, starter_done: bool) -> Dictionary:
+	if objectives.is_empty():
+		var legacy_completed: Array[StringName] = []
+		if starter_done:
+			legacy_completed.append(RuntimeIdsScript.OBJECTIVE_STARTER_RELAY)
+		return {
+			&"valid": completed.is_empty() or completed == _string_names(legacy_completed),
+			&"objectives": [],
+			&"completed": legacy_completed,
+		}
+	if not _relay_layout_is_valid(objectives) or completed.size() > objectives.size():
+		return {}
+	var completed_ids: Array[StringName] = []
+	for index: int in range(completed.size()):
+		var objective_id: StringName = StringName(str(completed[index]))
+		if objectives[index][&"objective_id"] != objective_id:
+			return {}
+		completed_ids.append(objective_id)
+	if starter_done != (not completed_ids.is_empty()):
+		return {}
+	return {&"valid": true, &"objectives": objectives.duplicate(true), &"completed": completed_ids}
+
+
+func _relay_layout_is_valid(objectives: Array) -> bool:
+	if objectives.size() != 3:
+		return false
+	var expected: Array[StringName] = [
+		RuntimeIdsScript.OBJECTIVE_STARTER_RELAY,
+		RuntimeIdsScript.OBJECTIVE_RELAY_TWO,
+		RuntimeIdsScript.OBJECTIVE_RELAY_THREE,
+	]
+	var cells: Dictionary = {}
+	for index: int in range(3):
+		var objective: Dictionary = objectives[index]
+		if objective.size() != 2 or objective.get(&"objective_id") != expected[index]:
+			return false
+		var raw_cell: Variant = objective.get(&"cell", [])
+		var cell: Vector2i = (
+			raw_cell as Vector2i if raw_cell is Vector2i else _decode_cell(raw_cell)
+		)
+		if cell == Vector2i(COORDINATE_LIMIT + 1, COORDINATE_LIMIT + 1) or cells.has(cell):
+			return false
+		objective[&"cell"] = [cell.x, cell.y]
+		cells[cell] = true
+	return true
 
 
 func _validate_event_ids(values: Array) -> Dictionary:

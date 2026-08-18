@@ -129,6 +129,26 @@ func _get_run_drops() -> Array[Dictionary]:
 	return _run_state.call("_get_run_drops") as Array[Dictionary] if _run_state != null else []
 
 
+func _configure_relay_objectives(objectives: Array[Dictionary]) -> bool:
+	return (
+		bool(_run_state.call("_configure_relay_objectives", objectives))
+		if _run_state != null
+		else false
+	)
+
+
+func _complete_next_relay(objective_id: StringName) -> bool:
+	return (
+		bool(_run_state.call("_complete_next_relay", objective_id)) if _run_state != null else false
+	)
+
+
+func _get_relay_objectives() -> Array[Dictionary]:
+	return (
+		_run_state.call("_get_relay_objectives") as Array[Dictionary] if _run_state != null else []
+	)
+
+
 func get_run_snapshot() -> Dictionary:
 	return _run_state.call("to_dictionary") as Dictionary if _run_state != null else {}
 

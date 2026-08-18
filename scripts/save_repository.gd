@@ -456,7 +456,68 @@ func _normalize_run(value: Variant) -> Variant:
 
 func _normalize_run_dictionary(run: Dictionary) -> Variant:
 	var events: Variant = run.get(&"applied_event_ids")
-	var run_keys: Array[StringName] = [
+	var run_keys: Variant = _run_keys(run)
+	if run_keys == null:
+		return false
+	var modules: Variant = run.get(
+		&"active_module_ids", [String(RuntimeIdsScript.MODULE_WORN_PLATES)]
+	)
+	var run_drops: Variant = run.get(&"run_drops", [])
+	var relay_objectives: Variant = run.get(&"relay_objectives", [])
+	var completed_objectives: Variant = (
+		run
+		. get(
+			&"completed_objective_ids",
+			(
+				[String(RuntimeIdsScript.OBJECTIVE_STARTER_RELAY)]
+				if bool(run.get(&"starter_relay_completed", false))
+				else []
+			),
+		)
+	)
+	if (
+		not _exact_keys(run, run_keys as Array[StringName])
+		or not events is Array
+		or (events as Array).size() > MAX_APPLIED_EVENTS
+		or not modules is Array
+		or (modules as Array).size() > RunStateScript.MAX_ACTIVE_MODULES
+		or not run_drops is Array
+		or (run_drops as Array).size() > RunStateScript.MAX_RUN_DROPS
+		or not relay_objectives is Array
+		or not completed_objectives is Array
+	):
+		return false
+	var normalized_drops: Variant = _normalize_reward_drops(run_drops as Array)
+	var normalized_relays: Variant = _normalize_relay_objectives(relay_objectives as Array)
+	if normalized_drops == null or normalized_relays == null:
+		return false
+	var normalized: Dictionary = run.duplicate(true)
+	normalized[&"active_module_ids"] = (modules as Array).duplicate()
+	normalized[&"relay_objectives"] = normalized_relays
+	normalized[&"completed_objective_ids"] = (completed_objectives as Array).duplicate()
+	normalized[&"refit_purchase_used"] = run.get(&"refit_purchase_used", false)
+	normalized[&"worm_cores"] = run.get(&"worm_cores", 0)
+	normalized[&"run_drops"] = normalized_drops
+	normalized[&"next_drop_sequence"] = run.get(&"next_drop_sequence", 1)
+	if not _normalize_run_numbers(normalized):
+		return false
+	var player_cell: Variant = _normalize_cell(normalized.get(&"player_cell"))
+	if (
+		player_cell == null
+		or not normalized.get(&"run_id") is String
+		or not normalized.get(&"phase") is String
+		or not normalized.get(&"facing") is String
+		or not normalized.get(&"starter_relay_completed") is bool
+		or not normalized.get(&"shutdown") is bool
+		or not normalized.get(&"refit_purchase_used") is bool
+	):
+		return false
+	normalized[&"player_cell"] = player_cell
+	return _restore_normalized_run(normalized)
+
+
+func _run_keys(run: Dictionary) -> Variant:
+	var keys: Array[StringName] = [
 		&"state_version",
 		&"run_id",
 		&"seed",
@@ -470,42 +531,25 @@ func _normalize_run_dictionary(run: Dictionary) -> Variant:
 		&"shutdown",
 		&"applied_event_ids",
 	]
-	if run.has(&"active_module_ids"):
-		run_keys.append(&"active_module_ids")
-	if run.has(&"refit_purchase_used"):
-		run_keys.append(&"refit_purchase_used")
-	var reward_keys: Array[StringName] = [&"worm_cores", &"run_drops", &"next_drop_sequence"]
-	var reward_key_count: int = 0
-	for key: StringName in reward_keys:
-		if run.has(key):
-			reward_key_count += 1
-	if reward_key_count not in [0, reward_keys.size()]:
-		return false
-	if reward_key_count == reward_keys.size():
-		run_keys.append_array(reward_keys)
-	var modules: Variant = run.get(
-		&"active_module_ids", [String(RuntimeIdsScript.MODULE_WORN_PLATES)]
-	)
-	var run_drops: Variant = run.get(&"run_drops", [])
-	if (
-		not _exact_keys(run, run_keys)
-		or not events is Array
-		or (events as Array).size() > MAX_APPLIED_EVENTS
-		or not modules is Array
-		or (modules as Array).size() > RunStateScript.MAX_ACTIVE_MODULES
-		or not run_drops is Array
-		or (run_drops as Array).size() > RunStateScript.MAX_RUN_DROPS
-	):
-		return false
-	var normalized_drops: Variant = _normalize_reward_drops(run_drops as Array)
-	if normalized_drops == null:
-		return false
-	var normalized: Dictionary = run.duplicate(true)
-	normalized[&"active_module_ids"] = (modules as Array).duplicate()
-	normalized[&"refit_purchase_used"] = run.get(&"refit_purchase_used", false)
-	normalized[&"worm_cores"] = run.get(&"worm_cores", 0)
-	normalized[&"run_drops"] = normalized_drops
-	normalized[&"next_drop_sequence"] = run.get(&"next_drop_sequence", 1)
+	for optional: StringName in [&"active_module_ids", &"refit_purchase_used"]:
+		if run.has(optional):
+			keys.append(optional)
+	var groups: Array[Array] = [
+		[&"relay_objectives", &"completed_objective_ids"],
+		[&"worm_cores", &"run_drops", &"next_drop_sequence"],
+	]
+	for group: Array in groups:
+		var count: int = 0
+		for key: StringName in group:
+			count += int(run.has(key))
+		if count not in [0, group.size()]:
+			return null
+		if count == group.size():
+			keys.append_array(group)
+	return keys
+
+
+func _normalize_run_numbers(run: Dictionary) -> bool:
 	for key: StringName in [
 		&"state_version",
 		&"seed",
@@ -520,23 +564,11 @@ func _normalize_run_dictionary(run: Dictionary) -> Variant:
 			maximum = MAX_WALLET
 		elif key == &"worm_cores":
 			maximum = RunStateScript.MAX_WORM_CORES
-		var number: Variant = _json_integer(normalized.get(key), 0, maximum)
+		var number: Variant = _json_integer(run.get(key), 0, maximum)
 		if number == null:
 			return false
-		normalized[key] = int(number)
-	var player_cell: Variant = _normalize_cell(normalized.get(&"player_cell"))
-	if (
-		player_cell == null
-		or not normalized.get(&"run_id") is String
-		or not normalized.get(&"phase") is String
-		or not normalized.get(&"facing") is String
-		or not normalized.get(&"starter_relay_completed") is bool
-		or not normalized.get(&"shutdown") is bool
-		or not normalized.get(&"refit_purchase_used") is bool
-	):
-		return false
-	normalized[&"player_cell"] = player_cell
-	return _restore_normalized_run(normalized)
+		run[key] = int(number)
+	return true
 
 
 func _restore_normalized_run(normalized: Dictionary) -> Variant:
@@ -594,6 +626,25 @@ func _normalize_reward_drops(values: Array) -> Variant:
 			)
 		)
 	return drops
+
+
+func _normalize_relay_objectives(values: Array) -> Variant:
+	var objectives: Array[Dictionary] = []
+	for value: Variant in values:
+		var objective: Dictionary = value as Dictionary if value is Dictionary else {}
+		if not _exact_keys(objective, [&"objective_id", &"cell"]):
+			return null
+		var cell: Variant = _normalize_cell(objective[&"cell"])
+		if (
+			cell == null
+			or (
+				not objective[&"objective_id"] is String
+				and not objective[&"objective_id"] is StringName
+			)
+		):
+			return null
+		objectives.append({&"objective_id": str(objective[&"objective_id"]), &"cell": cell})
+	return objectives
 
 
 func _normalize_profile(value: Variant) -> Dictionary:
