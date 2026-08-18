@@ -13,6 +13,7 @@ static func evaluate() -> Array[Dictionary]:
 	_test_zero_and_large_delta(cases)
 	_test_stagger_resume(cases)
 	_test_all_state_dispersal(cases)
+	_test_reference_fight(cases)
 	return cases
 
 
@@ -204,6 +205,42 @@ static func _test_all_state_dispersal(cases: Array[Dictionary]) -> void:
 			cases, "%s dispersal expires cleanly" % state, int(worms.call("get_worm_count")) == 0
 		)
 		worms.free()
+
+
+static func _test_reference_fight(cases: Array[Dictionary]) -> void:
+	var worms: Node2D = _make_worms()
+	var damage_ticks: Array[int] = [0]
+	worms.connect(
+		"damage_tick", func(_amount: int, _source: StringName) -> void: damage_ticks[0] += 1
+	)
+	worms.call("set_player_position", Vector2.ZERO)
+	var worm_id: int = int(worms.call("spawn_worm", Vector2(2.0, 0.0), 0.0))
+	var elapsed: float = 0.0
+	for hit: int in range(4):
+		worms.call("set_player_position", Vector2.ZERO)
+		var burrow: Dictionary = worms.call("get_combat_snapshot", worm_id) as Dictionary
+		var burrow_wait: float = maxf(float(burrow[&"state_remaining"]), 0.001)
+		worms.call("advance", burrow_wait)
+		elapsed += burrow_wait
+		var intercept: Dictionary = worms.call("get_combat_snapshot", worm_id) as Dictionary
+		worms.call("set_player_position", Vector2(8.0, 8.0))
+		worms.call("advance", float(intercept[&"state_remaining"]))
+		elapsed += float(intercept[&"state_remaining"])
+		if not bool(worms.call("hit_worm", worm_id, 1)):
+			break
+		if hit < 3:
+			for _phase: int in range(2):
+				var phase: Dictionary = worms.call("get_combat_snapshot", worm_id) as Dictionary
+				worms.call("advance", float(phase[&"state_remaining"]))
+				elapsed += float(phase[&"state_remaining"])
+	_add_case(
+		cases,
+		"reference worm fight lands four readable Expose hits",
+		worms.call("get_state", worm_id) == &"defeated",
+	)
+	_add_case(cases, "reference worm fight completes under twenty-five seconds", elapsed < 25.0)
+	_add_case(cases, "respected intercepts deal zero reference damage", damage_ticks[0] == 0)
+	worms.free()
 
 
 static func _prepare_state(worms: Node2D, worm_id: int, state: StringName) -> void:
