@@ -6,6 +6,7 @@ const SaveMigrationTestsScript: GDScript = preload("res://test/test_save_migrati
 const SaveRepositoryTestsScript: GDScript = preload("res://test/test_save_repository.gd")
 const StateTestsScript: GDScript = preload("res://test/test_state.gd")
 const WormCounterplayTestsScript: GDScript = preload("res://test/test_worm_counterplay.gd")
+const WormTelegraphTestsScript: GDScript = preload("res://test/test_worm_telegraph.gd")
 
 var _checks: int = 0
 var _failures: int = 0
@@ -73,6 +74,8 @@ func _test_isometric_map() -> void:
 	for test_case: Dictionary in FieldUITestsScript.evaluate():
 		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
 	for test_case: Dictionary in WormCounterplayTestsScript.evaluate():
+		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
+	for test_case: Dictionary in WormTelegraphTestsScript.evaluate():
 		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
 	_check(
 		run_coordinator.call("get_run_value", &"player_cell") == map.call("get_robot_grid"),
@@ -406,7 +409,10 @@ func _test_isometric_map() -> void:
 	_check(bool(avatar.call("is_using_proxy")), "unapproved sheets use animated proxy")
 	var sandworms: Node2D = map.get_node("WorldObjectLayer/Sandworms") as Node2D
 	_check(sandworms != null, "sandworm controller exists")
+	var worm_telegraph: Node2D = map.get_node("WorldObjectLayer/WormTelegraph") as Node2D
+	_check(worm_telegraph != null, "worm telegraph renderer exists")
 	_check(sandworms.get_parent() == world_object_layer, "sandworms render above terrain haze")
+	_check(worm_telegraph.z_index < sandworms.z_index, "worm telegraphs render beneath worm bodies")
 	sandworms.call("set_auto_spawn", false)
 	sandworms.call("clear_worms")
 	_check(bool(map.call("place_robot", Vector2i(6, 6))), "place Cardinal for sandworm pursuit")

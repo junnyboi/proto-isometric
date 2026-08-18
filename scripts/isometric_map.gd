@@ -17,6 +17,7 @@ const SandwormsScript: GDScript = preload("res://scripts/sandworms.gd")
 const SaveRepositoryScript: GDScript = preload("res://scripts/save_repository.gd")
 const TerrainHazeScript: GDScript = preload("res://scripts/terrain_haze.gd")
 const TerrainRendererScript: GDScript = preload("res://scripts/terrain_renderer.gd")
+const WormTelegraphScript: GDScript = preload("res://scripts/worm_telegraph.gd")
 const WorldObjectsScript: GDScript = preload("res://scripts/world_objects.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const SAND_TEXTURE: Texture2D = preload("res://assets/textures/terrain/desert_sand.png")
@@ -121,6 +122,7 @@ var _state_store: RefCounted
 var _terrain_haze: Node2D
 var _terrain_renderer: RefCounted
 var _visible_cells: Array[Vector2i] = []
+var _worm_telegraph: Node2D
 var _world: RefCounted
 var _world_objects: Node2D
 
@@ -208,6 +210,8 @@ func _process(delta: float) -> void:
 			_sandworms.call("set_player_position", player_grid_position, player_grid_velocity)
 			_sandworms.call("set_outpost_linked", not _shutdown and _is_at_outpost())
 			_sandworms.call("advance", delta)
+			_worm_telegraph.call("sync_combat_snapshots", _sandworms.call("get_combat_snapshots"))
+			_worm_telegraph.call("advance", delta)
 	if _relay_contest != null:
 		_relay_contest.call("set_player_position", player_grid_position)
 		_relay_contest.call("advance", delta)
@@ -840,6 +844,11 @@ func _build_sandworms() -> void:
 	_sandworms.call("set_outpost_linked", _is_at_outpost())
 	_sandworms.connect("damage_tick", Callable(self, "_on_hazard_damage"))
 	_object_layer.add_child(_sandworms)
+	_worm_telegraph = WormTelegraphScript.new() as Node2D
+	_worm_telegraph.name = "WormTelegraph"
+	_worm_telegraph.z_index = 16
+	_worm_telegraph.call("configure", TILE_SIZE, MAP_ORIGIN)
+	_object_layer.add_child(_worm_telegraph)
 
 
 func _build_relay_contest() -> void:

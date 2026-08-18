@@ -174,10 +174,18 @@ func get_combat_snapshot(worm_id: int) -> Dictionary:
 		&"health": int(worm[&"health"]),
 		&"state_elapsed": float(worm[&"state_elapsed"]),
 		&"state_remaining": float(worm[&"state_remaining"]),
+		&"state_duration": float(worm[&"state_duration"]),
 		&"committed_target": worm[&"committed_target"],
 		&"attack_serial": int(worm[&"attack_serial"]),
 		&"resolved_attack_serial": int(worm[&"resolved_attack_serial"]),
 	}
+
+
+func get_combat_snapshots() -> Array[Dictionary]:
+	var snapshots: Array[Dictionary] = []
+	for worm: Dictionary in _worms:
+		snapshots.append(get_combat_snapshot(int(worm[&"id"])))
+	return snapshots
 
 
 func find_target(target_cell: Vector2i) -> int:
