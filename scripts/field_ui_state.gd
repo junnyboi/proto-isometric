@@ -33,6 +33,8 @@ var _objective_guidance: String = "SEARCHING"
 var _context_event: String = "HEAVY FRAME ONLINE"
 var _outpost_linked: bool = false
 var _mobile_controls: bool = false
+var _active_module_ids: Array[StringName] = []
+var _refit_purchase_used: bool = false
 var _debug_visible: bool = false
 var _debug_facing: StringName = &"SE"
 var _debug_speed_ratio: float = 0.0
@@ -88,19 +90,25 @@ func configure_context(
 	active_modifier_id: StringName,
 	outpost_linked: bool,
 	mobile_controls: bool,
+	active_module_ids: Array = [RuntimeIdsScript.MODULE_WORN_PLATES],
+	refit_purchase_used: bool = false,
 ) -> bool:
 	var modifier_ids: Array = RuntimeIdsScript.catalog()[&"modifiers"] as Array
+	var module_ids: Array[StringName] = _validated_modules(active_module_ids)
 	if (
 		not _can_configure()
 		or context_event.is_empty()
 		or context_event.length() > MAX_TEXT_LENGTH
 		or active_modifier_id not in modifier_ids
+		or module_ids.is_empty()
 	):
 		return false
 	_context_event = context_event
 	_active_modifier_id = active_modifier_id
 	_outpost_linked = outpost_linked
 	_mobile_controls = mobile_controls
+	_active_module_ids = module_ids
+	_refit_purchase_used = refit_purchase_used
 	_sections |= SECTION_CONTEXT
 	return true
 
@@ -177,6 +185,10 @@ func get_value(key: StringName) -> Variant:
 			value = _outpost_linked
 		&"mobile_controls":
 			value = _mobile_controls
+		&"active_module_ids":
+			value = _active_module_ids.duplicate()
+		&"refit_purchase_used":
+			value = _refit_purchase_used
 		&"debug_visible":
 			value = _debug_visible
 		&"debug_facing":
@@ -212,6 +224,8 @@ func _snapshot() -> Dictionary:
 		&"context_event": _context_event,
 		&"outpost_linked": _outpost_linked,
 		&"mobile_controls": _mobile_controls,
+		&"active_module_ids": _active_module_ids.duplicate(),
+		&"refit_purchase_used": _refit_purchase_used,
 		&"debug_visible": _debug_visible,
 		&"debug_facing": _debug_facing,
 		&"debug_speed_ratio": _debug_speed_ratio,
@@ -221,6 +235,16 @@ func _snapshot() -> Dictionary:
 
 func _can_configure() -> bool:
 	return not _sealed
+
+
+func _validated_modules(values: Array) -> Array[StringName]:
+	var result: Array[StringName] = []
+	for value: Variant in values:
+		var module_id: StringName = StringName(str(value))
+		if module_id not in RuntimeIdsScript.catalog()[&"modules"] or module_id in result:
+			return []
+		result.append(module_id)
+	return result
 
 
 func _objective_values_are_valid(

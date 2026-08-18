@@ -45,9 +45,14 @@ func advance(delta: float) -> void:
 		_shutdown_title.modulate = Color(1.0, pulse, pulse * 0.55, 1.0)
 
 
-func show_damage(amount: int, source: StringName, lethal: bool = false) -> void:
+func show_damage(
+	amount: int,
+	source: StringName,
+	lethal: bool = false,
+	duration_scale: float = 1.0,
+) -> void:
 	_damage_event_count += 1
-	_flash_remaining = DAMAGE_FLASH_SECONDS
+	_flash_remaining = DAMAGE_FLASH_SECONDS * clampf(duration_scale, 0.25, 1.0)
 	_overlay.color.a = 0.16
 	_border.border_color.a = 0.82
 	_damage_label.modulate.a = 1.0

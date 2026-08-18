@@ -5,12 +5,13 @@ const ChassisFeedbackScript: GDScript = preload("res://scripts/chassis_feedback.
 const DesertAtmosphereScript: GDScript = preload("res://scripts/desert_atmosphere.gd")
 const DesertHazardsScript: GDScript = preload("res://scripts/desert_hazards.gd")
 const FieldHudScript: GDScript = preload("res://scripts/field_hud.gd")
-const FieldUIStateScript: GDScript = preload("res://scripts/field_ui_state.gd")
+const FieldUIBuilderScript: GDScript = preload("res://scripts/field_ui_builder.gd")
 const ImpactChargeScript: GDScript = preload("res://scripts/impact_charge.gd")
 const ImpactEffectsScript: GDScript = preload("res://scripts/impact_effects.gd")
 const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const IsometricControlsScript: GDScript = preload("res://scripts/isometric_controls.gd")
 const MobileControlsScript: GDScript = preload("res://scripts/mobile_controls.gd")
+const ModuleEffectsScript: GDScript = preload("res://scripts/module_effects.gd")
 const RelayContestScript: GDScript = preload("res://scripts/relay_contest.gd")
 const RunCoordinatorScript: GDScript = preload("res://scripts/run_coordinator.gd")
 const SandwormsScript: GDScript = preload("res://scripts/sandworms.gd")
@@ -281,11 +282,12 @@ func _update_drive_vector(screen_direction: Vector2, delta: float, running: bool
 		_last_screen_direction = quantized_direction
 		_facing = IsometricControlsScript.direction_name(quantized_direction)
 		if not _can_move_screen_direction(quantized_direction):
-			_velocity = Vector2.ZERO
-			_is_moving = false
-			_update_status("VECTOR %s // BLOCKED // SCRAP %03d" % [_facing, _scrap_count])
-			_sync_avatar()
-			return false
+			if not ModuleEffectsScript.try_ram(self, quantized_direction):
+				_velocity = Vector2.ZERO
+				_is_moving = false
+				_update_status("VECTOR %s // BLOCKED // SCRAP %03d" % [_facing, _scrap_count])
+				_sync_avatar()
+				return false
 		var maximum_speed: float = (
 			WALK_SPEED * analog_direction.length() * (RUN_MULTIPLIER if running else 1.0)
 		)
@@ -376,7 +378,11 @@ func _on_avatar_impact_frame() -> void:
 	if worm_id >= 0 and _sandworms != null and bool(_sandworms.call("hit_worm", worm_id, 1)):
 		var remaining: int = int(_sandworms.call("get_health", worm_id))
 		if remaining > 0 and impact_band >= 2:
-			_sandworms.call("stagger_worm", worm_id)
+			var bonus: float = ModuleEffectsScript.aftershock_stagger(_run_coordinator)
+			if bonus > 0.0:
+				_sandworms.call("stagger_worm", worm_id, bonus)
+			else:
+				_sandworms.call("stagger_worm", worm_id)
 		_update_status(
 			(
 				"%s // SANDWORM %s // HP %d/4"
@@ -438,7 +444,10 @@ func _get_chassis() -> int:
 
 
 func _apply_chassis_damage(amount: int, source: StringName = &"hazard") -> int:
-	var damage: int = mini(maxi(amount, 0), _chassis)
+	var adjusted: int = ModuleEffectsScript.mitigate_damage(
+		_run_coordinator, amount, source, _is_running
+	)
+	var damage: int = mini(adjusted, _chassis)
 	if damage <= 0:
 		return 0
 	_chassis -= damage
@@ -446,7 +455,9 @@ func _apply_chassis_damage(amount: int, source: StringName = &"hazard") -> int:
 	if _effects != null:
 		_effects.call("emit_chassis_damage", _robot_visual_position, damage)
 	if _chassis_feedback != null:
-		_chassis_feedback.call("show_damage", damage, source, lethal)
+		_chassis_feedback.call(
+			"show_damage", damage, source, lethal, 0.6 if adjusted < amount else 1.0
+		)
 	_status_hold_time = 0.7
 	_update_status(
 		(
@@ -495,12 +506,17 @@ func _is_at_outpost() -> bool:
 func _repair_chassis() -> bool:
 	if _shutdown or not _is_at_outpost() or _scrap_count < REPAIR_COST or _chassis >= MAX_CHASSIS:
 		return false
+	var scrap_before: int = _scrap_count
+	var chassis_before: int = _chassis
 	_scrap_count -= REPAIR_COST
 	_chassis = mini(_chassis + REPAIR_AMOUNT, MAX_CHASSIS)
+	if not _save_world_state():
+		_scrap_count = scrap_before
+		_chassis = chassis_before
+		return false
 	_status_hold_time = 1.0
 	_update_status("OUTPOST REPAIR // CHASSIS %03d // SCRAP %03d" % [_chassis, _scrap_count])
 	_refresh_outpost_interface()
-	_save_world_state()
 	return true
 
 
@@ -937,6 +953,7 @@ func _build_interface() -> void:
 	_hud = FieldHudScript.new() as CanvasLayer
 	_hud.name = "FieldHUD"
 	_hud.connect("repair_requested", Callable(self, "_repair_chassis"))
+	_hud.call("configure_refit", _run_coordinator, Callable(self, "_save_world_state"))
 	add_child(_hud)
 
 
@@ -950,40 +967,25 @@ func _build_mobile_controls() -> void:
 func _refresh_outpost_interface() -> void:
 	if _hud == null or _relay_contest == null:
 		return
-	var state: RefCounted = FieldUIStateScript.new() as RefCounted
-	var mobile: bool = _mobile_controls != null and bool(_mobile_controls.call("is_mobile_device"))
-	state.call(
-		"configure_vitals", _chassis, MAX_CHASSIS, _scrap_count, int(_run_value(&"worm_cores", 0))
-	)
-	(
-		state
-		. call(
-			"configure_impact",
-			_get_impact_charge(),
-			_impact_charge.call("get_band_name") if _impact_charge != null else &"CONTACT",
+	var state: RefCounted = (
+		FieldUIBuilderScript
+		. build(
+			_run_coordinator,
+			_relay_contest,
+			_impact_charge,
+			_mobile_controls,
+			_chassis,
+			MAX_CHASSIS,
+			_scrap_count,
+			_context_event,
+			_shutdown,
+			_is_at_outpost(),
+			_facing,
+			get_speed_ratio(),
+			_robot_grid,
 		)
 	)
-	(
-		state
-		. call(
-			"configure_objective",
-			_get_completed_relays(),
-			1,
-			_relay_contest.call("get_progress"),
-			_relay_contest.call("get_state"),
-			_get_completed_relays(),
-			_relay_contest.call("get_signal_hint"),
-		)
-	)
-	state.call(
-		"configure_context",
-		_context_event,
-		RuntimeIdsScript.MODIFIER_NEUTRAL,
-		not _shutdown and _is_at_outpost(),
-		mobile
-	)
-	state.call("configure_debug", false, _facing, get_speed_ratio(), _robot_grid)
-	if bool(state.call("seal")):
+	if state != null:
 		_hud.call("apply_state", state)
 
 

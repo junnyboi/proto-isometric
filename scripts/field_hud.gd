@@ -3,6 +3,7 @@ extends CanvasLayer
 signal repair_requested
 
 const OutpostInterfaceScript: GDScript = preload("res://scripts/outpost_interface.gd")
+const RefitServiceScript: GDScript = preload("res://scripts/refit_service.gd")
 const FIELD_THEME: Resource = preload("res://data/field_hud_theme.tres")
 const AMBER: Color = Color("f5a62d")
 const TEAL: Color = Color("4eb6aa")
@@ -18,6 +19,7 @@ var _relay_label: Label
 var _mobile_charge_panel: ColorRect
 var _mobile_charge_fill: ColorRect
 var _outpost_interface: Control
+var _refit_service: RefCounted
 
 
 func _ready() -> void:
@@ -27,9 +29,15 @@ func _ready() -> void:
 	_outpost_interface = OutpostInterfaceScript.new() as Control
 	_outpost_interface.name = "OutpostInterface"
 	_outpost_interface.connect("repair_requested", func() -> void: repair_requested.emit())
+	_outpost_interface.connect("refit_requested", _on_refit_requested)
 	add_child(_outpost_interface)
 	get_viewport().size_changed.connect(_on_viewport_resized)
 	apply_layout(get_viewport().get_visible_rect().size, false)
+
+
+func configure_refit(coordinator: RefCounted, save_callback: Callable) -> bool:
+	_refit_service = RefitServiceScript.new() as RefCounted
+	return bool(_refit_service.call("configure", coordinator, save_callback))
 
 
 func apply_state(state: RefCounted) -> bool:
@@ -177,6 +185,22 @@ func _apply_outpost() -> void:
 			int(_state.call("get_value", &"worm_cores")),
 			int(_state.call("get_value", &"chassis")),
 			int(_state.call("get_value", &"max_chassis")),
+			_state.call("get_value", &"active_module_ids"),
+			bool(_state.call("get_value", &"refit_purchase_used")),
+		)
+	)
+
+
+func _on_refit_requested(module_id: StringName) -> void:
+	if _state == null or _refit_service == null:
+		return
+	(
+		_refit_service
+		. call(
+			"purchase",
+			module_id,
+			bool(_state.call("get_value", &"outpost_linked")),
+			int(_state.call("get_value", &"chassis")) <= 0,
 		)
 	)
 

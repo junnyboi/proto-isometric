@@ -472,6 +472,8 @@ func _normalize_run_dictionary(run: Dictionary) -> Variant:
 	]
 	if run.has(&"active_module_ids"):
 		run_keys.append(&"active_module_ids")
+	if run.has(&"refit_purchase_used"):
+		run_keys.append(&"refit_purchase_used")
 	var reward_keys: Array[StringName] = [&"worm_cores", &"run_drops", &"next_drop_sequence"]
 	var reward_key_count: int = 0
 	for key: StringName in reward_keys:
@@ -500,6 +502,7 @@ func _normalize_run_dictionary(run: Dictionary) -> Variant:
 		return false
 	var normalized: Dictionary = run.duplicate(true)
 	normalized[&"active_module_ids"] = (modules as Array).duplicate()
+	normalized[&"refit_purchase_used"] = run.get(&"refit_purchase_used", false)
 	normalized[&"worm_cores"] = run.get(&"worm_cores", 0)
 	normalized[&"run_drops"] = normalized_drops
 	normalized[&"next_drop_sequence"] = run.get(&"next_drop_sequence", 1)
@@ -529,6 +532,7 @@ func _normalize_run_dictionary(run: Dictionary) -> Variant:
 		or not normalized.get(&"facing") is String
 		or not normalized.get(&"starter_relay_completed") is bool
 		or not normalized.get(&"shutdown") is bool
+		or not normalized.get(&"refit_purchase_used") is bool
 	):
 		return false
 	normalized[&"player_cell"] = player_cell

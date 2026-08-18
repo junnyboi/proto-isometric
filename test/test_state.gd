@@ -34,6 +34,7 @@ static func _test_run_round_trip(cases: Array[Dictionary]) -> void:
 	source.call("set_value", &"shutdown", true)
 	source.call("apply_event", RuntimeIdsScript.EVENT_RELAY_COMPLETED)
 	source.call("add_module", RuntimeIdsScript.MODULE_AFTERSHOCK)
+	source.call("set_value", &"refit_purchase_used", true)
 	var reward: Dictionary = source.call("_place_drop", Vector2i(21, -4), 1, 2, 77) as Dictionary
 	_add_case(cases, "RunState places one typed worm reward", not reward.is_empty())
 	var snapshot: Dictionary = source.call("to_dictionary") as Dictionary
@@ -42,6 +43,11 @@ static func _test_run_round_trip(cases: Array[Dictionary]) -> void:
 		cases,
 		"RunState restores a valid snapshot",
 		bool(restored.call("restore_dictionary", snapshot))
+	)
+	_add_case(
+		cases,
+		"RunState preserves used Refit allowance",
+		restored.call("get_value", &"refit_purchase_used")
 	)
 	_add_case(
 		cases,
@@ -129,6 +135,7 @@ static func _test_run_round_trip(cases: Array[Dictionary]) -> void:
 	legacy_schema_three.erase(&"worm_cores")
 	legacy_schema_three.erase(&"run_drops")
 	legacy_schema_three.erase(&"next_drop_sequence")
+	legacy_schema_three.erase(&"refit_purchase_used")
 	var legacy_restored: RefCounted = RunStateScript.new() as RefCounted
 	_add_case(
 		cases,
@@ -137,6 +144,7 @@ static func _test_run_round_trip(cases: Array[Dictionary]) -> void:
 			bool(legacy_restored.call("restore_dictionary", legacy_schema_three))
 			and bool(legacy_restored.call("has_module", RuntimeIdsScript.MODULE_WORN_PLATES))
 			and int(legacy_restored.call("get_value", &"worm_cores")) == 0
+			and not bool(legacy_restored.call("get_value", &"refit_purchase_used"))
 			and (legacy_restored.call("_get_run_drops") as Array[Dictionary]).is_empty()
 		),
 	)

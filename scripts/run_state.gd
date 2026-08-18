@@ -24,6 +24,7 @@ var _next_drop_sequence: int = 1
 var _starter_relay_completed: bool = false
 var _shutdown: bool = false
 var _active_module_ids: Array[StringName] = [RuntimeIdsScript.MODULE_WORN_PLATES]
+var _refit_purchase_used: bool = false
 var _applied_event_ids: Dictionary = {}
 
 
@@ -148,6 +149,10 @@ func set_value(key: StringName, value: Variant) -> bool:
 			changed = _set_chassis(value)
 		&"scrap":
 			changed = _set_scrap(value)
+		&"worm_cores":
+			changed = _set_worm_cores(value)
+		&"refit_purchase_used":
+			changed = _set_refit_purchase_used(value)
 		&"starter_relay_completed":
 			changed = _set_starter_relay_completed(value)
 		&"shutdown":
@@ -170,6 +175,7 @@ func get_value(key: StringName) -> Variant:
 			&"starter_relay_completed": _starter_relay_completed,
 			&"shutdown": _shutdown,
 			&"active_module_ids": _active_module_ids.duplicate(),
+			&"refit_purchase_used": _refit_purchase_used,
 		}
 		. get(key)
 	)
@@ -192,6 +198,7 @@ func to_dictionary() -> Dictionary:
 		&"starter_relay_completed": _starter_relay_completed,
 		&"shutdown": _shutdown,
 		&"active_module_ids": _string_names(_active_module_ids),
+		&"refit_purchase_used": _refit_purchase_used,
 		&"applied_event_ids": _sorted_string_keys(_applied_event_ids),
 	}
 
@@ -214,6 +221,7 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 	_starter_relay_completed = bool(validated[&"starter_relay_completed"])
 	_shutdown = bool(validated[&"shutdown"])
 	_active_module_ids = validated[&"active_module_ids"] as Array[StringName]
+	_refit_purchase_used = bool(validated[&"refit_purchase_used"])
 	_applied_event_ids = validated[&"applied_event_ids"] as Dictionary
 	return true
 
@@ -274,6 +282,20 @@ func _set_scrap(value: Variant) -> bool:
 	return true
 
 
+func _set_worm_cores(value: Variant) -> bool:
+	if not value is int or int(value) < 0 or int(value) > MAX_WORM_CORES:
+		return false
+	_worm_cores = int(value)
+	return true
+
+
+func _set_refit_purchase_used(value: Variant) -> bool:
+	if not value is bool or not bool(value) or _refit_purchase_used:
+		return false
+	_refit_purchase_used = true
+	return true
+
+
 func _set_starter_relay_completed(value: Variant) -> bool:
 	if not value is bool or not bool(value) or _starter_relay_completed:
 		return false
@@ -312,6 +334,7 @@ func _validate_dictionary(snapshot: Dictionary) -> Dictionary:
 	var active_modules: Variant = snapshot.get(
 		"active_module_ids", [String(RuntimeIdsScript.MODULE_WORN_PLATES)]
 	)
+	var refit_purchase_used: Variant = snapshot.get("refit_purchase_used", false)
 	var applied_events: Variant = snapshot.get("applied_event_ids", null)
 	if (
 		not _is_valid_run_id(run_id)
@@ -334,6 +357,7 @@ func _validate_dictionary(snapshot: Dictionary) -> Dictionary:
 		or not shutdown is bool
 		or not active_modules is Array
 		or (active_modules as Array).size() > MAX_ACTIVE_MODULES
+		or not refit_purchase_used is bool
 		or not applied_events is Array
 		or (bool(shutdown) and (chassis != 0 or phase != RuntimeIdsScript.RUN_PHASE_FAILED))
 	):
@@ -364,6 +388,7 @@ func _validate_dictionary(snapshot: Dictionary) -> Dictionary:
 		&"starter_relay_completed": bool(relay_completed),
 		&"shutdown": bool(shutdown),
 		&"active_module_ids": module_ids,
+		&"refit_purchase_used": bool(refit_purchase_used),
 		&"applied_event_ids": event_validation[&"events"],
 	}
 

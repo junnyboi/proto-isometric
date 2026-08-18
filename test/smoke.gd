@@ -1,13 +1,6 @@
 extends SceneTree
 
-const BalanceTestsScript: GDScript = preload("res://test/test_balance.gd")
-const FieldUITestsScript: GDScript = preload("res://test/test_field_ui.gd")
-const SaveMigrationTestsScript: GDScript = preload("res://test/test_save_migrations.gd")
-const SaveRepositoryTestsScript: GDScript = preload("res://test/test_save_repository.gd")
-const StateTestsScript: GDScript = preload("res://test/test_state.gd")
-const RunPickupTestsScript: GDScript = preload("res://test/test_run_pickups.gd")
-const WormCounterplayTestsScript: GDScript = preload("res://test/test_worm_counterplay.gd")
-const WormTelegraphTestsScript: GDScript = preload("res://test/test_worm_telegraph.gd")
+const ContractTestsScript: GDScript = preload("res://test/test_contracts.gd")
 
 var _checks: int = 0
 var _failures: int = 0
@@ -68,18 +61,6 @@ func _test_isometric_map() -> void:
 	await process_frame
 	await process_frame
 	var run_coordinator: RefCounted = map.get("_run_coordinator") as RefCounted
-	for test_case: Dictionary in BalanceTestsScript.evaluate(run_coordinator):
-		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
-	for test_case: Dictionary in StateTestsScript.evaluate(run_coordinator):
-		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
-	for test_case: Dictionary in FieldUITestsScript.evaluate():
-		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
-	for test_case: Dictionary in WormCounterplayTestsScript.evaluate():
-		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
-	for test_case: Dictionary in RunPickupTestsScript.evaluate():
-		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
-	for test_case: Dictionary in WormTelegraphTestsScript.evaluate():
-		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
 	_check(
 		run_coordinator.call("get_run_value", &"player_cell") == map.call("get_robot_grid"),
 		"live RunState owns Cardinal position",
@@ -88,16 +69,7 @@ func _test_isometric_map() -> void:
 	_check(map.call("get_grid_size") == Vector2i(-1, -1), "world reports unbounded grid")
 	var world: RefCounted = map.get("_world") as RefCounted
 	_check(world != null, "lazy world stream exists")
-	for test_case: Dictionary in SaveMigrationTestsScript.evaluate(world):
-		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
-	for test_case: Dictionary in (
-		SaveRepositoryTestsScript
-		. evaluate(
-			world,
-			run_coordinator.call("get_run_snapshot") as Dictionary,
-			run_coordinator.call("get_profile_snapshot") as Dictionary,
-		)
-	):
+	for test_case: Dictionary in ContractTestsScript.evaluate(run_coordinator, world):
 		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
 	_check(
 		int(world.call("get_loaded_chunk_count")) == 25, "stream keeps five by five chunks active"
@@ -276,7 +248,15 @@ func _test_isometric_map() -> void:
 	_check(outpost_interface != null, "outpost interface exists")
 	_check(
 		bool(outpost_interface.call("are_locked_actions_disabled")),
-		"crafting and upgrades stay locked"
+		"Refit cards start safely unavailable"
+	)
+	_check(
+		(
+			outpost_interface.call("get_module_button", &"module.ram_plating") != null
+			and outpost_interface.call("get_module_button", &"module.aftershock") != null
+			and outpost_interface.call("get_module_button", &"module.storm_seal") != null
+		),
+		"outpost exposes three Refit cards",
 	)
 	_check(not bool(outpost_interface.call("is_repair_enabled")), "repair starts unavailable")
 	var chassis_feedback: CanvasLayer = map.get_node("ChassisFeedback") as CanvasLayer
@@ -762,9 +742,21 @@ func _test_isometric_map() -> void:
 	_check(bool(map.call("_repair_chassis")), "outpost repairs Cardinal")
 	_check(int(map.call("_get_chassis")) == repaired_chassis, "repair restores thirty-five chassis")
 	_check(int(map.call("get_scrap_count")) == 2, "repair consumes five scrap")
+	run_coordinator = map.get("_run_coordinator") as RefCounted
+	run_coordinator.call("set_run_value", &"worm_cores", 1)
+	map.call("_refresh_outpost_interface")
+	var aftershock_button: Button = (
+		outpost_interface.call("get_module_button", &"module.aftershock") as Button
+	)
+	aftershock_button.pressed.emit()
+	await process_frame
 	_check(
-		bool(outpost_interface.call("are_locked_actions_disabled")),
-		"locked actions remain disabled at outpost"
+		(
+			bool(run_coordinator.call("_has_run_module", &"module.aftershock"))
+			and int(map.call("get_scrap_count")) == 0
+			and int(run_coordinator.call("get_run_value", &"worm_cores")) == 0
+		),
+		"live Refit installs Aftershock and deducts exact wallets",
 	)
 	map.free()
 	await process_frame
@@ -774,7 +766,12 @@ func _test_isometric_map() -> void:
 	await process_frame
 	await process_frame
 	_check(int(map.call("_get_chassis")) == repaired_chassis, "repaired chassis persists")
-	_check(int(map.call("get_scrap_count")) == 2, "post-repair scrap persists")
+	run_coordinator = map.get("_run_coordinator") as RefCounted
+	_check(int(map.call("get_scrap_count")) == 0, "post-Refit scrap persists")
+	_check(
+		bool(run_coordinator.call("_has_run_module", &"module.aftershock")),
+		"installed Refit module persists",
+	)
 	_check(bool(map.call("_is_at_outpost")), "outpost position persists")
 
 	world = map.get("_world") as RefCounted
