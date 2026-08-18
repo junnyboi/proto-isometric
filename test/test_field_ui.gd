@@ -105,6 +105,7 @@ static func _test_layouts(cases: Array[Dictionary]) -> void:
 	var configurations: Array[Dictionary] = [
 		{&"name": "desktop 1280x720", &"size": Vector2(1280.0, 720.0), &"mobile": false},
 		{&"name": "mobile landscape 1024x576", &"size": Vector2(1024.0, 576.0), &"mobile": true},
+		{&"name": "short landscape 844x390", &"size": Vector2(844.0, 390.0), &"mobile": true},
 		{&"name": "mobile portrait 720x1280", &"size": Vector2(720.0, 1280.0), &"mobile": true},
 		{&"name": "narrow portrait 390x844", &"size": Vector2(390.0, 844.0), &"mobile": true},
 	]

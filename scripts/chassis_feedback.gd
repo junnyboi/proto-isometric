@@ -26,6 +26,8 @@ func _ready() -> void:
 	_build_damage_overlay()
 	_build_shutdown_panel()
 	_build_audio_player()
+	get_viewport().size_changed.connect(_apply_layout)
+	_apply_layout()
 	call_deferred("_bind_accessibility")
 
 
@@ -125,16 +127,18 @@ func prepare_for_shutdown() -> void:
 func _build_damage_overlay() -> void:
 	_overlay = ColorRect.new()
 	_overlay.name = "DamageFlash"
-	_overlay.position = Vector2.ZERO
-	_overlay.size = Vector2(1280.0, 720.0)
+	_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_overlay.color = Color(DAMAGE_COLOR, 0.0)
 	_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_overlay)
 
 	_border = ReferenceRect.new()
 	_border.name = "DamageBorder"
-	_border.position = Vector2(13.0, 13.0)
-	_border.size = Vector2(1254.0, 694.0)
+	_border.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_border.offset_left = 13.0
+	_border.offset_top = 13.0
+	_border.offset_right = -13.0
+	_border.offset_bottom = -13.0
 	_border.border_width = 8.0
 	_border.border_color = Color(DAMAGE_COLOR, 0.0)
 	_border.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -208,3 +212,13 @@ func _play_cue(pitch: float) -> void:
 	_audio_player.stop()
 	_audio_player.pitch_scale = pitch
 	_audio_player.play()
+
+
+func _apply_layout() -> void:
+	if _shutdown_panel == null:
+		return
+	var viewport: Vector2 = get_viewport().get_visible_rect().size
+	var panel_scale: float = minf(1.0, minf(viewport.x / 600.0, viewport.y / 280.0))
+	_shutdown_panel.scale = Vector2.ONE * panel_scale
+	_shutdown_panel.position = (viewport - _shutdown_panel.size * panel_scale) * 0.5
+	_damage_label.position = Vector2((viewport.x - _damage_label.size.x) * 0.5, viewport.y - 104.0)

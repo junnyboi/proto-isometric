@@ -26,7 +26,7 @@ const LAYOUT_KEYS: Array[StringName] = [
 
 
 func make_layout(viewport_size: Vector2, mobile: bool) -> Dictionary:
-	var viewport: Vector2 = Vector2(maxf(viewport_size.x, 320.0), maxf(viewport_size.y, 480.0))
+	var viewport: Vector2 = Vector2(maxf(viewport_size.x, 320.0), maxf(viewport_size.y, 320.0))
 	var safe: Rect2 = _safe_bounds(viewport)
 	var landscape: bool = safe.size.x >= safe.size.y or safe.size.x >= landscape_breakpoint
 	var panel_scales: Vector2 = _panel_scales(safe, landscape, mobile)

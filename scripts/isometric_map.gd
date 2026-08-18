@@ -13,6 +13,7 @@ const IsometricControlsScript: GDScript = preload("res://scripts/isometric_contr
 const MobileControlsScript: GDScript = preload("res://scripts/mobile_controls.gd")
 const ModuleEffectsScript: GDScript = preload("res://scripts/module_effects.gd")
 const RelayContestScript: GDScript = preload("res://scripts/relay_registry.gd")
+const ResponsiveCameraScript: GDScript = preload("res://scripts/responsive_camera.gd")
 const RunCoordinatorScript: GDScript = preload("res://scripts/run_coordinator.gd")
 const RunModifierEffectsScript: GDScript = preload("res://scripts/run_modifier_effects.gd")
 const RunTerminalFlowScript: GDScript = preload("res://scripts/run_terminal_flow.gd")
@@ -805,12 +806,11 @@ func _build_avatar() -> void:
 
 
 func _build_camera() -> void:
-	_camera = Camera2D.new()
+	_camera = ResponsiveCameraScript.new() as Camera2D
 	_camera.name = "FollowCamera"
 	_camera.position = _robot_visual_position
 	_camera.enabled = true
 	_camera.ignore_rotation = true
-	_camera.zoom = Vector2(1.2, 1.2)
 	add_child(_camera)
 
 

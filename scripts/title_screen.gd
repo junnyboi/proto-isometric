@@ -5,8 +5,8 @@ const AccessibilityPanelScript: GDScript = preload("res://scripts/accessibility_
 const SaveRepositoryScript: GDScript = preload("res://scripts/save_repository.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const PlayerPreferencesScript: GDScript = preload("res://scripts/player_preferences.gd")
+const ResponsiveViewportScript: GDScript = preload("res://scripts/responsive_viewport.gd")
 
-const VIEWPORT_SIZE: Vector2i = Vector2i(1280, 720)
 const BG_DEEP: Color = Color(0.027, 0.039, 0.071, 1.0)
 const BG_MID: Color = Color(0.047, 0.067, 0.118, 1.0)
 const GRID_LINE: Color = Color(0.20, 0.38, 0.46, 0.22)
@@ -25,13 +25,15 @@ var _begin_button: Button
 var _audio_player: AudioStreamPlayer
 var _field_visible: bool = false
 var _audio_trigger_count: int = 0
+var _layout: Dictionary = {}
 
 
 func _ready() -> void:
-	get_viewport().size = VIEWPORT_SIZE
 	_build_interface()
 	add_child(AccessibilityPanelScript.new())
 	_apply_save_metadata()
+	get_viewport().size_changed.connect(_apply_responsive_layout)
+	_apply_responsive_layout()
 	queue_redraw()
 	print("[PROTO_ISOMETRIC_READY]")
 
@@ -43,14 +45,14 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _draw() -> void:
-	var viewport_size: Vector2 = Vector2(VIEWPORT_SIZE)
+	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
 	draw_rect(Rect2(Vector2.ZERO, viewport_size), BG_DEEP)
-	for band_index: int in range(12):
+	for band_index: int in range(ceili(viewport_size.y / 60.0)):
 		var band_y: float = float(band_index) * 60.0
 		var blend: float = float(band_index) / 11.0
 		var band_color: Color = BG_MID.lerp(BG_DEEP, blend)
 		draw_rect(Rect2(0.0, band_y, viewport_size.x, 62.0), band_color)
-	for scan_y: int in range(0, VIEWPORT_SIZE.y, 6):
+	for scan_y: int in range(0, roundi(viewport_size.y), 6):
 		draw_line(
 			Vector2(0.0, float(scan_y)),
 			Vector2(viewport_size.x, float(scan_y)),
@@ -62,8 +64,8 @@ func _draw() -> void:
 
 
 func _draw_isometric_field() -> void:
-	var origin: Vector2 = Vector2(905.0, 170.0)
-	var half_tile: Vector2 = Vector2(38.0, 19.0)
+	var origin: Vector2 = _layout.get(&"field_origin", Vector2(905.0, 170.0)) as Vector2
+	var half_tile: Vector2 = _layout.get(&"half_tile", Vector2(38.0, 19.0)) as Vector2
 	for diagonal: int in range(17):
 		for row: int in range(9):
 			var column: int = diagonal - row
@@ -114,14 +116,39 @@ func _draw_iso_tile(
 
 
 func _draw_interface_accents() -> void:
-	draw_line(Vector2(88.0, 78.0), Vector2(388.0, 78.0), AMBER, 3.0)
-	draw_line(Vector2(88.0, 78.0), Vector2(88.0, 114.0), AMBER, 3.0)
-	draw_circle(Vector2(1115.0, 111.0), 4.0, AMBER)
-	draw_circle(Vector2(1140.0, 111.0), 2.0, MUTED)
-	draw_line(Vector2(1090.0, 111.0), Vector2(970.0, 111.0), AMBER_SOFT, 2.0)
+	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+	if bool(_layout.get(&"portrait", false)):
+		draw_line(Vector2(18.0, 54.0), Vector2(viewport_size.x - 18.0, 54.0), AMBER, 3.0)
+		draw_circle(Vector2(viewport_size.x - 28.0, 34.0), 4.0, AMBER)
+	else:
+		var offset: Vector2 = _layout.get(&"accent_offset", Vector2.ZERO) as Vector2
+		var scale_value: float = float(_layout.get(&"accent_scale", 1.0))
+		draw_line(
+			offset + Vector2(88.0, 78.0) * scale_value,
+			offset + Vector2(388.0, 78.0) * scale_value,
+			AMBER,
+			3.0
+		)
+		draw_line(
+			offset + Vector2(88.0, 78.0) * scale_value,
+			offset + Vector2(88.0, 114.0) * scale_value,
+			AMBER,
+			3.0
+		)
+		draw_circle(offset + Vector2(1115.0, 111.0) * scale_value, 4.0, AMBER)
 	if _field_visible:
-		draw_arc(Vector2(905.0, 440.0), 104.0, 0.0, TAU, 64, AMBER_SOFT, 3.0)
-		draw_arc(Vector2(905.0, 440.0), 72.0, 0.0, TAU, 64, Color(0.32, 0.72, 0.68, 0.25), 2.0)
+		var center: Vector2 = _layout.get(&"field_origin", Vector2(905.0, 170.0)) as Vector2
+		var radius: float = (_layout.get(&"half_tile", Vector2(38.0, 19.0)) as Vector2).x * 2.2
+		draw_arc(center + Vector2(0.0, radius), radius, 0.0, TAU, 64, AMBER_SOFT, 3.0)
+		draw_arc(
+			center + Vector2(0.0, radius),
+			radius * 0.7,
+			0.0,
+			TAU,
+			64,
+			Color(0.32, 0.72, 0.68, 0.25),
+			2.0
+		)
 
 
 func _build_interface() -> void:
@@ -143,7 +170,7 @@ func _build_interface() -> void:
 
 	var eyebrow: Label = Label.new()
 	eyebrow.name = "Eyebrow"
-	eyebrow.text = "WALKER'S WAKE // DESERT EXPEDITION"
+	eyebrow.text = "WALKER'S WAKE // EXPEDITION"
 	eyebrow.position = Vector2(0.0, 0.0)
 	eyebrow.size = Vector2(520.0, 48.0)
 	eyebrow.add_theme_color_override("font_color", AMBER)
@@ -242,6 +269,21 @@ func _make_button_style(color: Color, border_width: float) -> StyleBoxFlat:
 	style.content_margin_left = 24.0
 	style.content_margin_right = 24.0
 	return style
+
+
+func _apply_responsive_layout() -> void:
+	_layout = ResponsiveViewportScript.title_layout(get_viewport().get_visible_rect().size)
+	var position: Vector2 = _layout[&"panel_position"] as Vector2
+	var scale_value: float = float(_layout[&"panel_scale"])
+	_title_panel.position = position
+	_title_panel.scale = Vector2.ONE * scale_value
+	_staging_panel.position = position
+	_staging_panel.scale = Vector2.ONE * scale_value
+	var status: Rect2 = _layout[&"status_rect"] as Rect2
+	_status_bar.position = status.position
+	_status_bar.size = status.size
+	_status_bar.add_theme_font_size_override("font_size", int(_layout[&"status_font_size"]))
+	queue_redraw()
 
 
 func _on_begin_pressed() -> void:

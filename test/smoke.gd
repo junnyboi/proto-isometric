@@ -124,8 +124,12 @@ func _test_isometric_map() -> void:
 	mobile_controls.call("force_mobile", true)
 	var smash_button: Button = mobile_controls.call("get_smash_button") as Button
 	_check(smash_button.visible, "mobile detection shows smash button")
+	var native_size: Vector2 = map.get_viewport().get_visible_rect().size
 	_check(
-		smash_button.position.x > 1000.0 and smash_button.position.y > 500.0,
+		(
+			smash_button.position.x > native_size.x * 0.65
+			and smash_button.position.y > native_size.y * 0.65
+		),
 		"smash button occupies bottom right",
 	)
 	_check(
@@ -134,13 +138,14 @@ func _test_isometric_map() -> void:
 		),
 		"smash touch cannot capture joystick",
 	)
+	var joystick_origin: Vector2 = Vector2(123.0, maxf(native_size.y, 320.0) - 118.0)
 	_check(
-		bool(mobile_controls.call("begin_touch", 1, Vector2(250.0, 520.0))),
-		"tap and hold summons floating joystick",
+		bool(mobile_controls.call("begin_touch", 1, joystick_origin)),
+		"tap and hold summons floating joystick"
 	)
 	_check(bool(mobile_controls.call("is_joystick_visible")), "floating joystick becomes visible")
 	var touch_drive: Vector2 = (
-		mobile_controls.call("drag_touch", 1, Vector2(320.0, 455.0)) as Vector2
+		mobile_controls.call("drag_touch", 1, joystick_origin + Vector2(70.0, -70.0)) as Vector2
 	)
 	_check(touch_drive.x > 0.5 and touch_drive.y < -0.5, "joystick supplies fluid analog diagonal")
 	_check(touch_drive.length() <= 1.0, "joystick output is bounded")
@@ -791,7 +796,7 @@ func _test_isometric_map() -> void:
 	_check(bool(map.call("place_robot", far_cell)), "Cardinal revisits generated terrain")
 	_check(world.call("terrain_at", far_cell) == far_terrain, "procedural terrain is deterministic")
 	var follow_zoom: Vector2 = (map.get_node("FollowCamera") as Camera2D).zoom
-	_check(follow_zoom.is_equal_approx(Vector2(1.2, 1.2)), "camera zoom is twenty percent closer")
+	_check(follow_zoom.x <= 1.201 and follow_zoom.x >= 0.649, "camera zoom adapts within bounds")
 
 	chassis_feedback = map.get_node("ChassisFeedback") as CanvasLayer
 	effects = map.get_node("WorldEffectsLayer/ImpactEffects") as Node2D

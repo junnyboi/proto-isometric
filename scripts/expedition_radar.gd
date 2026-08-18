@@ -9,9 +9,10 @@ var _coordinator: RefCounted
 
 func _ready() -> void:
 	name = "ExpeditionRadar"
-	position = Vector2(1072.0, 76.0)
 	size = Vector2(188.0, 188.0)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	get_viewport().size_changed.connect(_apply_layout)
+	_apply_layout()
 
 
 func configure(coordinator: RefCounted) -> bool:
@@ -60,4 +61,15 @@ func _objectives() -> Array:
 		_coordinator.call("get_run_value", &"relay_objectives") as Array
 		if _coordinator != null
 		else []
+	)
+
+
+func _apply_layout() -> void:
+	var viewport: Vector2 = get_viewport().get_visible_rect().size
+	var portrait: bool = viewport.y > viewport.x
+	var scale_value: float = minf(1.0, viewport.x / (560.0 if portrait else 1280.0))
+	scale = Vector2.ONE * scale_value
+	position = Vector2(
+		viewport.x - size.x * scale_value - 18.0,
+		viewport.y * 0.38 if portrait else 76.0,
 	)
