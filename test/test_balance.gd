@@ -65,15 +65,15 @@ static func evaluate(coordinator: RefCounted) -> Array[Dictionary]:
 	)
 	_add_case(
 		cases,
-		"active-run authority remains in the field map for WW-01",
+		"active-run authority is the coordinator",
 		(
 			RuntimeOwnershipScript.current_owner_for(RuntimeIdsScript.DOMAIN_ACTIVE_RUN)
-			== RuntimeIdsScript.OWNER_FIELD_COMPOSITION
+			== RuntimeIdsScript.OWNER_RUN_COORDINATOR
 		),
 	)
 	_add_case(
 		cases,
-		"active-run handoff targets the coordinator",
+		"active-run ownership is stable",
 		(
 			RuntimeOwnershipScript.owner_for(RuntimeIdsScript.DOMAIN_ACTIVE_RUN)
 			== RuntimeIdsScript.OWNER_RUN_COORDINATOR
@@ -81,10 +81,10 @@ static func evaluate(coordinator: RefCounted) -> Array[Dictionary]:
 	)
 	_add_case(
 		cases,
-		"unimplemented profile authority is explicit",
+		"profile authority is ProfileState",
 		(
 			RuntimeOwnershipScript.current_owner_for(RuntimeIdsScript.DOMAIN_PROFILE)
-			== RuntimeIdsScript.OWNER_UNASSIGNED
+			== RuntimeIdsScript.OWNER_PROFILE_STATE
 		),
 	)
 	_add_case(cases, "neutral run coordinator exists", coordinator != null)
@@ -97,7 +97,7 @@ static func evaluate(coordinator: RefCounted) -> Array[Dictionary]:
 	)
 	_add_case(
 		cases,
-		"WW-01 coordinator cannot alter behavior",
+		"WW-02 typed ownership remains behavior-neutral",
 		bool(coordinator.call("is_behavior_neutral")),
 	)
 	_add_case(

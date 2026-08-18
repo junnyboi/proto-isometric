@@ -54,20 +54,18 @@ static func contracts() -> Array[Dictionary]:
 			POLICY_AUTHORITATIVE,
 			"res://scripts/infinite_world.gd",
 		),
-		_planned_contract(
+		_stable_contract(
 			RuntimeIdsScript.DOMAIN_ACTIVE_RUN,
-			RuntimeIdsScript.OWNER_FIELD_COMPOSITION,
 			RuntimeIdsScript.OWNER_RUN_COORDINATOR,
 			SCOPE_ACTIVE_RUN,
-			"res://scripts/isometric_map.gd",
+			POLICY_AUTHORITATIVE,
 			"res://scripts/run_coordinator.gd",
 		),
-		_planned_contract(
+		_stable_contract(
 			RuntimeIdsScript.DOMAIN_PROFILE,
-			RuntimeIdsScript.OWNER_UNASSIGNED,
 			RuntimeIdsScript.OWNER_PROFILE_STATE,
 			SCOPE_PROFILE,
-			"",
+			POLICY_AUTHORITATIVE,
 			"res://scripts/profile_state.gd",
 		),
 		_planned_contract(

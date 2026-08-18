@@ -1,6 +1,7 @@
 extends SceneTree
 
 const BalanceTestsScript: GDScript = preload("res://test/test_balance.gd")
+const StateTestsScript: GDScript = preload("res://test/test_state.gd")
 
 var _checks: int = 0
 var _failures: int = 0
@@ -63,6 +64,12 @@ func _test_isometric_map() -> void:
 	var run_coordinator: RefCounted = map.get("_run_coordinator") as RefCounted
 	for test_case: Dictionary in BalanceTestsScript.evaluate(run_coordinator):
 		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
+	for test_case: Dictionary in StateTestsScript.evaluate(run_coordinator):
+		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
+	_check(
+		run_coordinator.call("get_run_value", &"player_cell") == map.call("get_robot_grid"),
+		"live RunState owns Cardinal position",
+	)
 
 	_check(map.call("get_grid_size") == Vector2i(-1, -1), "world reports unbounded grid")
 	var world: RefCounted = map.get("_world") as RefCounted
@@ -455,6 +462,10 @@ func _test_isometric_map() -> void:
 	_check(bool(relay.call("is_completed")), "relay completes after the uninterrupted link timer")
 	_check(int(map.call("_get_completed_relays")) == 1, "relay completion raises Alert I")
 	_check(
+		bool(run_coordinator.call("get_run_value", &"starter_relay_completed")),
+		"live RunState owns starter relay completion",
+	)
+	_check(
 		sandworms.call("get_state", relay_worm_id) == &"dispersing",
 		"completed relay disperses contest worm",
 	)
@@ -597,7 +608,22 @@ func _test_isometric_map() -> void:
 	get_root().add_child(map)
 	await process_frame
 	await process_frame
+	run_coordinator = map.get("_run_coordinator") as RefCounted
 	_check(int(map.call("_get_completed_relays")) == 1, "relay completion persists on reload")
+	_check(
+		(
+			run_coordinator.call("get_run_value", &"player_cell") == map.call("get_robot_grid")
+			and (
+				int(run_coordinator.call("get_run_value", &"chassis"))
+				== int(map.call("_get_chassis"))
+			)
+			and (
+				int(run_coordinator.call("get_run_value", &"scrap"))
+				== int(map.call("get_scrap_count"))
+			)
+		),
+		"schema-two reload round-trips through typed RunState",
+	)
 	_check(
 		not bool(map.call("has_destructible_rock", Vector2i(4, 4))),
 		"broken rock persists on reload"
@@ -717,6 +743,15 @@ func _test_isometric_map() -> void:
 	)
 	_check(int(map.call("_get_chassis")) == 0, "lethal damage reaches zero")
 	_check(bool(map.get("_shutdown")), "zero chassis enters shutdown")
+	run_coordinator = map.get("_run_coordinator") as RefCounted
+	_check(
+		(
+			int(run_coordinator.call("get_run_value", &"chassis")) == 0
+			and bool(run_coordinator.call("get_run_value", &"shutdown"))
+			and run_coordinator.call("get_run_value", &"phase") == &"run_phase.failed"
+		),
+		"live RunState owns shutdown lifecycle",
+	)
 	_check(bool(chassis_feedback.call("is_shutdown_visible")), "shutdown overlay is visible")
 	_check(
 		int(chassis_feedback.call("get_audio_trigger_count")) == damage_audio_before + 2,

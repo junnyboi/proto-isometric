@@ -51,8 +51,16 @@ var _blocked: Dictionary = {}
 var _destructible_rocks: Dictionary = {}
 var _scrap: Dictionary = {}
 var _outposts: Dictionary = {}
-var _scrap_count: int = 0
-var _chassis: int = MAX_CHASSIS
+var _scrap_count: int:
+	get:
+		return int(_run_value(&"scrap", 0))
+	set(value):
+		_set_run_value(&"scrap", value)
+var _chassis: int:
+	get:
+		return int(_run_value(&"chassis", MAX_CHASSIS))
+	set(value):
+		_set_run_value(&"chassis", value)
 var _terrain_textures: Dictionary = {
 	&"sand": SAND_TEXTURE,
 	&"salt": SALT_TEXTURE,
@@ -60,11 +68,19 @@ var _terrain_textures: Dictionary = {
 	&"ruin": RUIN_TEXTURE,
 }
 
-var _robot_grid: Vector2i = START_CELL
+var _robot_grid: Vector2i:
+	get:
+		return _run_value(&"player_cell", START_CELL) as Vector2i
+	set(value):
+		_set_run_value(&"player_cell", value)
 var _robot_visual_position: Vector2
 var _velocity: Vector2 = Vector2.ZERO
 var _last_screen_direction: Vector2i = Vector2i(1, 1)
-var _facing: StringName = &"SE"
+var _facing: StringName:
+	get:
+		return _run_value(&"facing", &"SE") as StringName
+	set(value):
+		_set_run_value(&"facing", value)
 var _is_moving: bool = false
 var _is_running: bool = false
 var _impact_flash: float = 0.0
@@ -74,8 +90,16 @@ var _pending_impact_cell: Vector2i = INVALID_CELL
 var _pending_impact_breaks_rock: bool = false
 var _pending_impact_worm_id: int = -1
 var _pending_impact_band: int = 0
-var _relay_completed: bool = false
-var _shutdown: bool = false
+var _relay_completed: bool:
+	get:
+		return bool(_run_value(&"starter_relay_completed", false))
+	set(value):
+		_set_run_value(&"starter_relay_completed", value)
+var _shutdown: bool:
+	get:
+		return bool(_run_value(&"shutdown", false))
+	set(value):
+		_set_run_value(&"shutdown", value)
 
 var _avatar: Node2D
 var _atmosphere: Node2D
@@ -103,8 +127,8 @@ func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	_run_coordinator = RunCoordinatorScript.new() as RefCounted
-	if not bool(_run_coordinator.call("configure_default")):
-		push_error("WW-01 runtime contracts failed validation.")
+	if not bool(_run_coordinator.call("configure_default", START_CELL, &"SE")):
+		push_error("WW-02 typed state contracts failed validation.")
 	_build_world_stream()
 	_build_state_store(save_path)
 	_load_world_state()
@@ -134,8 +158,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	var screen_direction: Vector2i = _read_screen_direction()
-	var attack_pressed: bool = _is_attack_pressed()
+	var screen_direction: Vector2i = IsometricControlsScript.read_screen_direction()
+	var attack_pressed: bool = IsometricControlsScript.is_attack_pressed()
 	if attack_pressed and not _attack_was_pressed:
 		attack()
 	_attack_was_pressed = attack_pressed
@@ -145,7 +169,7 @@ func _process(delta: float) -> void:
 	if _mobile_controls != null and bool(_mobile_controls.call("is_joystick_visible")):
 		_update_drive_vector(_mobile_controls.call("get_drive_vector") as Vector2, delta, false)
 	else:
-		update_drive(drive_direction, delta, _is_run_pressed())
+		update_drive(drive_direction, delta, IsometricControlsScript.is_run_pressed())
 	_update_camera_follow(delta)
 	_impact_flash = maxf(_impact_flash - delta, 0.0)
 	_status_hold_time = maxf(_status_hold_time - delta, 0.0)
@@ -525,11 +549,8 @@ func _get_completed_relays() -> int:
 
 
 func _get_relay_cell() -> Vector2i:
-	return (
-		_relay_contest.call("get_relay_cell") as Vector2i
-		if _relay_contest != null
-		else INVALID_CELL
-	)
+	var relay: Node2D = _relay_contest
+	return relay.call("get_relay_cell") as Vector2i if relay != null else INVALID_CELL
 
 
 func get_facing() -> StringName:
@@ -596,11 +617,7 @@ func _save_world_state() -> bool:
 func _make_snapshot() -> Dictionary:
 	var snapshot: Dictionary = _world.call("make_snapshot") as Dictionary
 	snapshot["schema"] = SAVE_SCHEMA
-	snapshot["scrap_total"] = _scrap_count
-	snapshot["chassis"] = _chassis
-	snapshot["robot_cell"] = [_robot_grid.x, _robot_grid.y]
-	snapshot["facing"] = String(_facing)
-	snapshot["relay_completed"] = _relay_completed
+	snapshot.merge(_run_coordinator.call("get_legacy_run_snapshot") as Dictionary, true)
 	return snapshot
 
 
@@ -621,11 +638,9 @@ func _is_valid_snapshot(snapshot: Dictionary) -> bool:
 
 func _apply_snapshot(snapshot: Dictionary) -> void:
 	_world.call("apply_snapshot", snapshot)
-	_scrap_count = int(snapshot["scrap_total"])
-	_chassis = int(snapshot.get("chassis", MAX_CHASSIS))
-	_robot_grid = _decode_cell(snapshot["robot_cell"])
-	_facing = StringName(str(snapshot["facing"]))
-	_relay_completed = bool(snapshot.get("relay_completed", false))
+	_run_coordinator.call(
+		"restore_legacy_run_snapshot", snapshot, _decode_cell(snapshot["robot_cell"])
+	)
 
 
 func _decode_cell(value: Variant) -> Vector2i:
@@ -719,30 +734,16 @@ func _stream_world() -> void:
 	queue_redraw()
 
 
-func _read_screen_direction() -> Vector2i:
-	var horizontal: int = 0
-	var vertical: int = 0
-	if Input.is_physical_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
-		horizontal -= 1
-	if Input.is_physical_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
-		horizontal += 1
-	if Input.is_physical_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
-		vertical -= 1
-	if Input.is_physical_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
-		vertical += 1
-	return Vector2i(horizontal, vertical)
+func _run_value(key: StringName, fallback: Variant) -> Variant:
+	if _run_coordinator == null:
+		return fallback
+	var value: Variant = _run_coordinator.call("get_run_value", key)
+	return fallback if value == null else value
 
 
-func _is_run_pressed() -> bool:
-	return Input.is_key_pressed(KEY_SHIFT)
-
-
-func _is_attack_pressed() -> bool:
-	return (
-		Input.is_key_pressed(KEY_SPACE)
-		or Input.is_physical_key_pressed(KEY_J)
-		or Input.is_physical_key_pressed(KEY_K)
-	)
+func _set_run_value(key: StringName, value: Variant) -> void:
+	if _run_coordinator != null:
+		_run_coordinator.call("set_run_value", key, value)
 
 
 func _build_world_layers() -> void:

@@ -44,3 +44,29 @@ static func facing_to_screen_direction(facing: StringName) -> Vector2i:
 		&"NW": Vector2i(-1, -1),
 	}
 	return directions.get(facing, Vector2i.ZERO) as Vector2i
+
+
+static func read_screen_direction() -> Vector2i:
+	var horizontal: int = 0
+	var vertical: int = 0
+	if Input.is_physical_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
+		horizontal -= 1
+	if Input.is_physical_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
+		horizontal += 1
+	if Input.is_physical_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
+		vertical -= 1
+	if Input.is_physical_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
+		vertical += 1
+	return Vector2i(horizontal, vertical)
+
+
+static func is_run_pressed() -> bool:
+	return Input.is_key_pressed(KEY_SHIFT)
+
+
+static func is_attack_pressed() -> bool:
+	return (
+		Input.is_key_pressed(KEY_SPACE)
+		or Input.is_physical_key_pressed(KEY_J)
+		or Input.is_physical_key_pressed(KEY_K)
+	)
