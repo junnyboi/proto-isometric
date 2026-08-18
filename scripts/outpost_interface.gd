@@ -6,6 +6,7 @@ const AMBER: Color = Color("f5a62d")
 const TEAL: Color = Color("4eb6aa")
 const MUTED: Color = Color("9f9787")
 const REPAIR_COST: int = 5
+const DESIGN_SIZE: Vector2 = Vector2(386.0, 252.0)
 
 var _status: Label
 var _inventory: Label
@@ -15,10 +16,22 @@ var _upgrade_button: Button
 
 
 func _ready() -> void:
-	position = Vector2(866.0, 28.0)
-	size = Vector2(386.0, 252.0)
+	size = DESIGN_SIZE
 	_build_panel()
 	set_state(false, 0, 100, 100)
+
+
+func apply_layout(rect: Rect2, scale_value: float) -> bool:
+	if scale_value <= 0.0 or not is_finite(scale_value):
+		return false
+	position = rect.position
+	size = DESIGN_SIZE
+	scale = Vector2.ONE * scale_value
+	return true
+
+
+func get_layout_rect() -> Rect2:
+	return Rect2(position, DESIGN_SIZE * scale)
 
 
 func set_state(linked: bool, scrap: int, chassis: int, max_chassis: int) -> void:

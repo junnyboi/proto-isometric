@@ -1,6 +1,7 @@
 extends SceneTree
 
 const BalanceTestsScript: GDScript = preload("res://test/test_balance.gd")
+const FieldUITestsScript: GDScript = preload("res://test/test_field_ui.gd")
 const SaveMigrationTestsScript: GDScript = preload("res://test/test_save_migrations.gd")
 const SaveRepositoryTestsScript: GDScript = preload("res://test/test_save_repository.gd")
 const StateTestsScript: GDScript = preload("res://test/test_state.gd")
@@ -67,6 +68,8 @@ func _test_isometric_map() -> void:
 	for test_case: Dictionary in BalanceTestsScript.evaluate(run_coordinator):
 		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
 	for test_case: Dictionary in StateTestsScript.evaluate(run_coordinator):
+		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
+	for test_case: Dictionary in FieldUITestsScript.evaluate():
 		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
 	_check(
 		run_coordinator.call("get_run_value", &"player_cell") == map.call("get_robot_grid"),
@@ -216,6 +219,32 @@ func _test_isometric_map() -> void:
 	)
 	var field_hud: CanvasLayer = map.get_node("FieldHUD") as CanvasLayer
 	_check(field_hud.layer > world_effects_layer.layer, "HUD renders above world effects")
+	var field_snapshot: Dictionary = field_hud.call("get_field_state_snapshot") as Dictionary
+	_check(not field_snapshot.is_empty(), "HUD reads one sealed semantic field snapshot")
+	_check(int(field_snapshot[&"worm_cores"]) == 0, "live HUD exposes future-safe zero Cores")
+	_check(int(field_snapshot[&"alert_level"]) == 0, "live HUD exposes future-safe zero Alert")
+	_check(
+		not bool(field_snapshot[&"debug_visible"]), "live HUD hides coordinate telemetry by default"
+	)
+	_check(
+		"@" not in str(field_hud.call("get_status_text")), "default field status omits coordinates"
+	)
+	var field_layout: Dictionary = field_hud.call("get_layout_snapshot") as Dictionary
+	var drive_rect: Rect2 = field_layout[&"drive_panel"] as Rect2
+	var outpost_rect: Rect2 = field_layout[&"outpost_panel"] as Rect2
+	_check(not drive_rect.intersects(outpost_rect), "desktop HUD panels respect exclusions")
+	mobile_controls.call("force_mobile", true)
+	map.call("_refresh_outpost_interface")
+	var touch_exclusions: Array[Rect2] = (
+		mobile_controls.call("get_touch_exclusions") as Array[Rect2]
+	)
+	_check(touch_exclusions.size() == 4, "mobile controls expose HUD and control exclusions")
+	_check(
+		not bool(mobile_controls.call("begin_touch", 44, drive_rect.get_center())),
+		"mobile joystick cannot claim HUD touches",
+	)
+	mobile_controls.call("force_mobile", false)
+	map.call("_refresh_outpost_interface")
 	var impact_charge: Node2D = map.get_node("WorldObjectLayer/ImpactCharge") as Node2D
 	_check(impact_charge != null, "Impact Charge controller exists")
 	_check(int(map.call("_get_charge_band")) == 0, "Impact Charge starts in contact band")

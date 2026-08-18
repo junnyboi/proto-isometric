@@ -5,6 +5,7 @@ const ChassisFeedbackScript: GDScript = preload("res://scripts/chassis_feedback.
 const DesertAtmosphereScript: GDScript = preload("res://scripts/desert_atmosphere.gd")
 const DesertHazardsScript: GDScript = preload("res://scripts/desert_hazards.gd")
 const FieldHudScript: GDScript = preload("res://scripts/field_hud.gd")
+const FieldUIStateScript: GDScript = preload("res://scripts/field_ui_state.gd")
 const ImpactChargeScript: GDScript = preload("res://scripts/impact_charge.gd")
 const ImpactEffectsScript: GDScript = preload("res://scripts/impact_effects.gd")
 const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
@@ -85,6 +86,7 @@ var _is_moving: bool = false
 var _is_running: bool = false
 var _impact_flash: float = 0.0
 var _status_hold_time: float = 0.0
+var _context_event: String = "HEAVY FRAME ONLINE"
 var _attack_was_pressed: bool = false
 var _pending_impact_cell: Vector2i = INVALID_CELL
 var _pending_impact_breaks_rock: bool = false
@@ -935,54 +937,49 @@ func _build_mobile_controls() -> void:
 
 
 func _refresh_outpost_interface() -> void:
-	if _hud != null:
-		(
-			_hud
-			. call(
-				"set_outpost_state",
-				not _shutdown and _is_at_outpost(),
-				_scrap_count,
-				_chassis,
-				MAX_CHASSIS,
-			)
+	if _hud == null or _relay_contest == null:
+		return
+	var state: RefCounted = FieldUIStateScript.new() as RefCounted
+	var mobile: bool = _mobile_controls != null and bool(_mobile_controls.call("is_mobile_device"))
+	state.call("configure_vitals", _chassis, MAX_CHASSIS, _scrap_count, 0)
+	(
+		state
+		. call(
+			"configure_impact",
+			_get_impact_charge(),
+			_impact_charge.call("get_band_name") if _impact_charge != null else &"CONTACT",
 		)
-		var mobile: bool = (
-			_mobile_controls != null and bool(_mobile_controls.call("is_mobile_device"))
+	)
+	(
+		state
+		. call(
+			"configure_objective",
+			_get_completed_relays(),
+			1,
+			_relay_contest.call("get_progress"),
+			_relay_contest.call("get_state"),
+			_get_completed_relays(),
+			_relay_contest.call("get_signal_hint"),
 		)
-		(
-			_hud
-			. call(
-				"set_impact_state",
-				_get_impact_charge(),
-				_impact_charge.call("get_band_name") if _impact_charge != null else &"CONTACT",
-				mobile,
-			)
-		)
-		if _relay_contest != null:
-			(
-				_hud
-				. call(
-					"set_relay_state",
-					_get_completed_relays(),
-					1,
-					_relay_contest.call("get_progress"),
-					_relay_contest.call("get_state"),
-					_relay_contest.call("get_signal_hint"),
-				)
-			)
+	)
+	state.call(
+		"configure_context",
+		_context_event,
+		RuntimeIdsScript.MODIFIER_NEUTRAL,
+		not _shutdown and _is_at_outpost(),
+		mobile
+	)
+	state.call("configure_debug", false, _facing, get_speed_ratio(), _robot_grid)
+	if bool(state.call("seal")):
+		_hud.call("apply_state", state)
 
 
 func _update_drive_status() -> void:
 	if _status_hold_time > 0.0:
 		return
-	_update_status(
-		(
-			"VECTOR %s // DRIVE %.2f // %d,%d // CH %03d // SCRAP %03d"
-			% [_facing, get_speed_ratio(), _robot_grid.x, _robot_grid.y, _chassis, _scrap_count]
-		)
-	)
+	_update_status("DRIVE %s // SPEED %03d%%" % [_facing, roundi(get_speed_ratio() * 100.0)])
 
 
 func _update_status(text: String) -> void:
-	if _hud != null:
-		_hud.call("set_status", text)
+	_context_event = text.left(96)
+	_refresh_outpost_interface()

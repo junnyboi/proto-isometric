@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/field_hud_theme.gd" id="1_theme"]
+
+[resource]
+script = ExtResource("1_theme")
+safe_inset_left = 28.0
+safe_inset_top = 28.0
+safe_inset_right = 28.0
+safe_inset_bottom = 28.0
+panel_gap = 22.0
+mobile_gap = 16.0
+landscape_breakpoint = 900.0

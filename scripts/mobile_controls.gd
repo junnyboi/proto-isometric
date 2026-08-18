@@ -2,6 +2,7 @@ extends CanvasLayer
 
 signal smash_pressed
 
+const FIELD_THEME: Resource = preload("res://data/field_hud_theme.tres")
 const TEAL: Color = Color("4eb6aa")
 const AMBER: Color = Color("f5a62d")
 const INK: Color = Color("11171b")
@@ -9,7 +10,6 @@ const JOYSTICK_RADIUS: float = 76.0
 const KNOB_RADIUS: float = 31.0
 const DEAD_ZONE: float = 12.0
 const SMASH_SIZE: Vector2 = Vector2(154.0, 154.0)
-const VIEWPORT_SIZE: Vector2 = Vector2(1280.0, 720.0)
 
 var _mobile_device: bool = false
 var _controls_enabled: bool = true
@@ -17,6 +17,8 @@ var _touch_index: int = -1
 var _touch_origin: Vector2 = Vector2.ZERO
 var _touch_position: Vector2 = Vector2.ZERO
 var _drive_vector: Vector2 = Vector2.ZERO
+var _layout: Dictionary = {}
+var _touch_exclusions: Array[Rect2] = []
 var _joystick: Control
 var _smash_button: Button
 
@@ -26,6 +28,8 @@ func _ready() -> void:
 	_mobile_device = _detect_mobile_device()
 	_build_joystick()
 	_build_smash_button()
+	get_viewport().size_changed.connect(_on_viewport_resized)
+	apply_layout(get_viewport().get_visible_rect().size)
 	_apply_visibility()
 
 
@@ -59,6 +63,28 @@ func get_smash_button() -> Button:
 	return _smash_button
 
 
+func apply_layout(viewport_size: Vector2) -> bool:
+	var candidate: Dictionary = FIELD_THEME.call("make_layout", viewport_size, true) as Dictionary
+	if not bool(FIELD_THEME.call("validate_layout", candidate, true)):
+		return false
+	_layout = candidate.duplicate(true)
+	_touch_exclusions = FIELD_THEME.call("touch_exclusions", _layout, true) as Array[Rect2]
+	var smash: Rect2 = _layout[&"smash_button"] as Rect2
+	if _smash_button != null:
+		_smash_button.position = smash.position
+		_smash_button.size = smash.size
+	_cancel_joystick()
+	return true
+
+
+func get_layout_snapshot() -> Dictionary:
+	return _layout.duplicate(true)
+
+
+func get_touch_exclusions() -> Array[Rect2]:
+	return _touch_exclusions.duplicate()
+
+
 func set_controls_enabled(enabled: bool) -> void:
 	_controls_enabled = enabled
 	if not enabled:
@@ -75,7 +101,7 @@ func force_mobile(enabled: bool) -> void:
 func begin_touch(index: int, position: Vector2) -> bool:
 	if not _mobile_device or not _controls_enabled or _touch_index >= 0:
 		return false
-	if _smash_button != null and _smash_button.get_global_rect().has_point(position):
+	if _point_is_excluded(position):
 		return false
 	_touch_index = index
 	_touch_origin = _clamp_origin(position)
@@ -141,7 +167,6 @@ func _build_joystick() -> void:
 func _build_smash_button() -> void:
 	_smash_button = Button.new()
 	_smash_button.name = "SmashButton"
-	_smash_button.position = VIEWPORT_SIZE - SMASH_SIZE - Vector2(42.0, 42.0)
 	_smash_button.size = SMASH_SIZE
 	_smash_button.text = "SMASH"
 	_smash_button.focus_mode = Control.FOCUS_NONE
@@ -183,11 +208,18 @@ func _apply_visibility() -> void:
 
 
 func _clamp_origin(position: Vector2) -> Vector2:
-	var margin: float = JOYSTICK_RADIUS + 16.0
-	return Vector2(
-		clampf(position.x, margin, VIEWPORT_SIZE.x - margin),
-		clampf(position.y, margin, VIEWPORT_SIZE.y - margin),
-	)
+	return FIELD_THEME.call("clamp_touch_origin", position, _layout, JOYSTICK_RADIUS) as Vector2
+
+
+func _point_is_excluded(position: Vector2) -> bool:
+	for rect: Rect2 in _touch_exclusions:
+		if rect.has_point(position):
+			return true
+	return false
+
+
+func _on_viewport_resized() -> void:
+	apply_layout(get_viewport().get_visible_rect().size)
 
 
 func _update_drive_vector() -> void:
