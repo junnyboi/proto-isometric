@@ -5,6 +5,7 @@ const FieldUITestsScript: GDScript = preload("res://test/test_field_ui.gd")
 const SaveMigrationTestsScript: GDScript = preload("res://test/test_save_migrations.gd")
 const SaveRepositoryTestsScript: GDScript = preload("res://test/test_save_repository.gd")
 const StateTestsScript: GDScript = preload("res://test/test_state.gd")
+const WormCounterplayTestsScript: GDScript = preload("res://test/test_worm_counterplay.gd")
 
 var _checks: int = 0
 var _failures: int = 0
@@ -70,6 +71,8 @@ func _test_isometric_map() -> void:
 	for test_case: Dictionary in StateTestsScript.evaluate(run_coordinator):
 		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
 	for test_case: Dictionary in FieldUITestsScript.evaluate():
+		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
+	for test_case: Dictionary in WormCounterplayTestsScript.evaluate():
 		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
 	_check(
 		run_coordinator.call("get_run_value", &"player_cell") == map.call("get_robot_grid"),
@@ -410,7 +413,7 @@ func _test_isometric_map() -> void:
 	var chase_worm: int = int(sandworms.call("spawn_worm", Vector2(9.0, 6.0), 0.0))
 	var chase_start: Vector2 = sandworms.call("get_worm_position", chase_worm) as Vector2
 	sandworms.call("advance", 0.5)
-	_check(sandworms.call("get_state", chase_worm) == &"pursuing", "sandworm detects Cardinal")
+	_check(sandworms.call("get_state", chase_worm) == &"intercept", "sandworm commits an Intercept")
 	_check(
 		(
 			(sandworms.call("get_worm_position", chase_worm) as Vector2).distance_to(
@@ -418,20 +421,21 @@ func _test_isometric_map() -> void:
 			)
 			< chase_start.distance_to(Vector2(6.0, 6.0))
 		),
-		"sandworm pursues Cardinal",
+		"sandworm Intercept closes on its committed target",
 	)
 	sandworms.call("clear_worms")
 	var worm_damage_start: int = int(map.call("_get_chassis"))
 	var attacking_worm: int = int(sandworms.call("spawn_worm", Vector2(6.0, 6.0), 0.0))
-	sandworms.call("advance", 0.01)
+	sandworms.call("advance", 0.65)
 	_check(
-		int(map.call("_get_chassis")) == worm_damage_start - 10, "sandworm attack deals ten damage"
+		int(map.call("_get_chassis")) == worm_damage_start - 10,
+		"committed sandworm Intercept deals ten damage",
 	)
 	_check(int(sandworms.call("get_last_attack_count")) == 1, "sandworm attack triggers once")
 	sandworms.call("advance", 0.9)
 	_check(
 		int(map.call("_get_chassis")) == worm_damage_start - 10,
-		"sandworm attack respects cooldown",
+		"one committed Intercept cannot attack twice",
 	)
 	sandworms.call("clear_worms")
 	_check(bool(map.call("place_robot", Vector2i(6, 6))), "place Cardinal for worm melee")
@@ -445,8 +449,12 @@ func _test_isometric_map() -> void:
 			"sandworm health drops on strike %d" % hit,
 		)
 		avatar.call("_process", 0.23)
-	_check(int(sandworms.call("get_worm_count")) == 0, "four melee hits defeat sandworm")
+	_check(
+		sandworms.call("get_state", melee_worm) == &"defeated", "four melee hits defeat sandworm"
+	)
 	_check("SANDWORM DESTROYED" in str(map.call("get_status_text")), "worm defeat is readable")
+	sandworms.call("advance", 0.65)
+	_check(int(sandworms.call("get_worm_count")) == 0, "defeated worm presentation expires")
 	sandworms.call("clear_worms")
 	_check(bool(map.call("place_robot", Vector2i(6, 6))), "place Cardinal for shock line")
 	map.set("_facing", &"E")

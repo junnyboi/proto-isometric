@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/sandworm_combat_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+max_health = 4
+attack_damage = 10
+max_worms = 4
+detection_range = 8.0
+attack_range = 0.72
+burrow_speed = 1.28
+intercept_speed = 2.4
+maximum_lead_seconds = 0.45
+maximum_lead_distance = 1.75
+spawn_burrow_seconds = 0.8
+burrow_seconds = 0.55
+intercept_seconds = 0.65
+expose_seconds = 1.6
+dive_seconds = 0.45
+stagger_seconds = 0.85
+maximum_stagger_seconds = 1.6
+disperse_seconds = 1.25
+defeated_seconds = 0.65
+maximum_transitions_per_advance = 8

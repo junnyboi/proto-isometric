@@ -191,6 +191,10 @@ func _process(delta: float) -> void:
 	var player_grid_position: Vector2 = (
 		Vector2(INVALID_CELL) if _shutdown else Vector2(_robot_grid) + fractional
 	)
+	var player_grid_velocity: Vector2 = Vector2(
+		_velocity.x / TILE_SIZE.x + _velocity.y / TILE_SIZE.y,
+		_velocity.y / TILE_SIZE.y - _velocity.x / TILE_SIZE.x,
+	)
 	if _hazards != null:
 		(
 			_hazards
@@ -201,7 +205,7 @@ func _process(delta: float) -> void:
 		)
 		_hazards.call("advance", delta)
 		if _sandworms != null:
-			_sandworms.call("set_player_position", player_grid_position)
+			_sandworms.call("set_player_position", player_grid_position, player_grid_velocity)
 			_sandworms.call("set_outpost_linked", not _shutdown and _is_at_outpost())
 			_sandworms.call("advance", delta)
 	if _relay_contest != null:
