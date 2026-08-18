@@ -844,6 +844,7 @@ func _build_sandworms() -> void:
 	_sandworms.call("set_outpost_linked", _is_at_outpost())
 	_sandworms.connect("damage_tick", Callable(self, "_on_hazard_damage"))
 	_object_layer.add_child(_sandworms)
+	_world_objects.call("build_run_pickups", _world, _run_coordinator, _sandworms)
 	_worm_telegraph = WormTelegraphScript.new() as Node2D
 	_worm_telegraph.name = "WormTelegraph"
 	_worm_telegraph.z_index = 16

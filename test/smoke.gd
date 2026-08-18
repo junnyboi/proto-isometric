@@ -5,6 +5,7 @@ const FieldUITestsScript: GDScript = preload("res://test/test_field_ui.gd")
 const SaveMigrationTestsScript: GDScript = preload("res://test/test_save_migrations.gd")
 const SaveRepositoryTestsScript: GDScript = preload("res://test/test_save_repository.gd")
 const StateTestsScript: GDScript = preload("res://test/test_state.gd")
+const RunPickupTestsScript: GDScript = preload("res://test/test_run_pickups.gd")
 const WormCounterplayTestsScript: GDScript = preload("res://test/test_worm_counterplay.gd")
 const WormTelegraphTestsScript: GDScript = preload("res://test/test_worm_telegraph.gd")
 
@@ -74,6 +75,8 @@ func _test_isometric_map() -> void:
 	for test_case: Dictionary in FieldUITestsScript.evaluate():
 		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
 	for test_case: Dictionary in WormCounterplayTestsScript.evaluate():
+		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
+	for test_case: Dictionary in RunPickupTestsScript.evaluate():
 		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
 	for test_case: Dictionary in WormTelegraphTestsScript.evaluate():
 		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
@@ -414,6 +417,8 @@ func _test_isometric_map() -> void:
 	_check(bool(avatar.call("is_using_proxy")), "unapproved sheets use animated proxy")
 	var sandworms: Node2D = map.get_node("WorldObjectLayer/Sandworms") as Node2D
 	_check(sandworms != null, "sandworm controller exists")
+	var run_pickups: Node2D = map.get_node("WorldObjectLayer/WorldObjects/RunPickups") as Node2D
+	_check(run_pickups != null, "run-only pickup controller exists")
 	var worm_telegraph: Node2D = map.get_node("WorldObjectLayer/WormTelegraph") as Node2D
 	_check(worm_telegraph != null, "worm telegraph renderer exists")
 	_check(sandworms.get_parent() == world_object_layer, "sandworms render above terrain haze")
@@ -465,6 +470,7 @@ func _test_isometric_map() -> void:
 		sandworms.call("get_state", melee_worm) == &"defeated", "four melee hits defeat sandworm"
 	)
 	_check("SANDWORM DESTROYED" in str(map.call("get_status_text")), "worm defeat is readable")
+	_check(int(run_pickups.call("get_drop_count")) == 1, "live worm defeat creates one run reward")
 	sandworms.call("advance", 0.65)
 	_check(int(sandworms.call("get_worm_count")) == 0, "defeated worm presentation expires")
 	sandworms.call("clear_worms")

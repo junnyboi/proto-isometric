@@ -1,5 +1,7 @@
 extends Node2D
 
+const RunPickupsScript: GDScript = preload("res://scripts/run_pickups.gd")
+
 const ROCK: Color = Color("934d35")
 const TEAL: Color = Color("4eb6aa")
 const AMBER: Color = Color("f5a62d")
@@ -32,6 +34,22 @@ func set_visible_cells(cells: Array[Vector2i]) -> void:
 
 func get_visible_cell_count() -> int:
 	return _visible_cells.size()
+
+
+func build_run_pickups(world: RefCounted, coordinator: RefCounted, worms: Node2D) -> Node2D:
+	if has_node("RunPickups"):
+		return get_node("RunPickups") as Node2D
+	var pickups: Node2D = RunPickupsScript.new() as Node2D
+	pickups.name = "RunPickups"
+	pickups.z_index = 3
+	if not bool(pickups.call("configure", world, _grid_to_screen, coordinator)):
+		pickups.free()
+		return null
+	if not bool(pickups.call("bind_worms", worms)):
+		pickups.free()
+		return null
+	add_child(pickups)
+	return pickups
 
 
 func _draw() -> void:

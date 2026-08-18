@@ -1,6 +1,7 @@
 extends Node2D
 
 signal damage_tick(amount: int, source: StringName)
+signal defeated(worm_id: int, position: Vector2)
 
 const DEFAULT_PROFILE: Resource = preload("res://data/combat/sandworm_default.tres")
 
@@ -127,6 +128,7 @@ func spawn_worm(position: Vector2, emerge_seconds: float = -1.0) -> int:
 				&"resolved_attack_serial": 0,
 				&"resume_state": STATE_BURROW,
 				&"resume_remaining": 0.0,
+				&"reward_emitted": false,
 			}
 		)
 	)
@@ -209,6 +211,9 @@ func hit_worm(worm_id: int, damage: int = 1) -> bool:
 	worm[&"health"] = maxi(int(worm[&"health"]) - damage, 0)
 	worm[&"hit_flash"] = 0.18
 	if int(worm[&"health"]) <= 0:
+		if not bool(worm[&"reward_emitted"]):
+			worm[&"reward_emitted"] = true
+			defeated.emit(int(worm[&"id"]), worm[&"position"] as Vector2)
 		_set_state(worm, STATE_DEFEATED, _p_float(&"defeated_seconds"))
 	queue_redraw()
 	return true

@@ -1,0 +1,105 @@
+extends RefCounted
+
+const RunPickupsScript: GDScript = preload("res://scripts/run_pickups.gd")
+const SandwormsScript: GDScript = preload("res://scripts/sandworms.gd")
+const DEFAULT_PROFILE: Resource = preload("res://data/combat/sandworm_default.tres")
+
+
+class FakeWorld:
+	extends RefCounted
+	var blocked: Dictionary = {}
+
+	func is_walkable(cell: Vector2i) -> bool:
+		return not bool(blocked.get(cell, false))
+
+
+class ScreenProjection:
+	extends RefCounted
+
+	func grid_to_screen(cell: Vector2i) -> Vector2:
+		return Vector2(cell) * 10.0
+
+
+static func evaluate() -> Array[Dictionary]:
+	var cases: Array[Dictionary] = []
+	var world: FakeWorld = FakeWorld.new()
+	var projection: ScreenProjection = ScreenProjection.new()
+	var worms: Node2D = SandwormsScript.new() as Node2D
+	worms.call("configure", Vector2(90.0, 45.0), Vector2.ZERO, DEFAULT_PROFILE)
+	worms.call("set_auto_spawn", false)
+	worms.call("set_player_position", Vector2(3.0, 3.0))
+	var pickups: Node2D = RunPickupsScript.new() as Node2D
+	_add_case(
+		cases,
+		"run pickups configure against walkability and projection contracts",
+		bool(pickups.call("configure", world, Callable(projection, "grid_to_screen"))),
+	)
+	_add_case(
+		cases, "run pickups bind one worm defeat source", bool(pickups.call("bind_worms", worms))
+	)
+	var worm_id: int = int(worms.call("spawn_worm", Vector2(4.0, 3.0), 0.0))
+	_advance_to_expose(worms, worm_id)
+	_add_case(cases, "lethal Expose contact is accepted", bool(worms.call("hit_worm", worm_id, 4)))
+	_add_case(
+		cases, "one lethal contact creates one run drop", int(pickups.call("get_drop_count")) == 1
+	)
+	_add_case(
+		cases, "one worm drop contains exactly one Core", int(pickups.call("get_total_cores")) == 1
+	)
+	_add_case(
+		cases, "one worm drop contains configured scrap", int(pickups.call("get_total_scrap")) == 2
+	)
+	worms.emit_signal("defeated", worm_id, Vector2(4.0, 3.0))
+	_add_case(
+		cases,
+		"duplicate defeat signal cannot duplicate rewards",
+		int(pickups.call("get_drop_count")) == 1
+	)
+	var snapshot: Array[Dictionary] = pickups.call("get_snapshot") as Array[Dictionary]
+	snapshot[0][&"cores"] = 99
+	_add_case(
+		cases, "run pickup projections are detached", int(pickups.call("get_total_cores")) == 1
+	)
+	world.blocked[Vector2i(0, -1)] = true
+	worms.call("set_player_position", Vector2.ZERO)
+	var blocked_worm: int = int(worms.call("spawn_worm", Vector2.ZERO, 0.0))
+	_advance_to_expose(worms, blocked_worm)
+	worms.call("hit_worm", blocked_worm, 4)
+	var placed: Array[Dictionary] = pickups.call("get_snapshot") as Array[Dictionary]
+	_add_case(
+		cases,
+		"blocked defeat cell resolves to the first deterministic valid neighbor",
+		placed[1][&"cell"] == Vector2i(0, -2),
+	)
+	var before_dispersal: int = int(pickups.call("get_drop_count"))
+	var dispersed_worm: int = int(worms.call("spawn_worm", Vector2(8.0, 8.0), 0.0))
+	worms.call("disperse_all")
+	worms.call("advance", float(DEFAULT_PROFILE.get("disperse_seconds")))
+	_add_case(
+		cases,
+		"worm dispersal never creates a reward",
+		(
+			int(pickups.call("get_drop_count")) == before_dispersal
+			and worms.call("get_state", dispersed_worm) == &"missing"
+		),
+	)
+	for index: int in range(100):
+		worms.emit_signal("defeated", 1000 + index, Vector2(100 + index * 3, 100))
+	_add_case(
+		cases,
+		"active run drop dictionary stays hard bounded",
+		int(pickups.call("get_drop_count")) == RunPickupsScript.MAX_ACTIVE_DROPS,
+	)
+	pickups.free()
+	worms.free()
+	return cases
+
+
+static func _advance_to_expose(worms: Node2D, worm_id: int) -> void:
+	worms.call("advance", 0.001)
+	var snapshot: Dictionary = worms.call("get_combat_snapshot", worm_id) as Dictionary
+	worms.call("advance", float(snapshot[&"state_remaining"]))
+
+
+static func _add_case(cases: Array[Dictionary], label: String, passed: bool) -> void:
+	cases.append({&"label": label, &"passed": passed})
