@@ -8,6 +8,7 @@ const MAX_SUMMARY_FIELDS: int = 16
 
 var _banked_relay_data: int = 0
 var _banked_scrap: int = 0
+var _banked_cores: int = 0
 var _success_count: int = 0
 var _failure_count: int = 0
 var _pending_modifier_offer: Array[StringName] = []
@@ -15,11 +16,12 @@ var _selected_next_modifier: StringName = RuntimeIdsScript.MODIFIER_NEUTRAL
 var _last_run_summary: Dictionary = {}
 
 
-func bank(relay_data: int, scrap: int) -> bool:
-	if relay_data < 0 or scrap < 0:
+func bank(relay_data: int, scrap: int, cores: int = 0) -> bool:
+	if relay_data < 0 or scrap < 0 or cores < 0:
 		return false
 	_banked_relay_data += relay_data
 	_banked_scrap += scrap
+	_banked_cores += cores
 	return true
 
 
@@ -57,11 +59,19 @@ func select_next_modifier(modifier_id: StringName) -> bool:
 	return true
 
 
+func _consume_next_modifier() -> StringName:
+	var selected: StringName = _selected_next_modifier
+	_selected_next_modifier = RuntimeIdsScript.MODIFIER_NEUTRAL
+	_last_run_summary.clear()
+	return selected
+
+
 func get_value(key: StringName) -> Variant:
 	return (
 		{
 			&"banked_relay_data": _banked_relay_data,
 			&"banked_scrap": _banked_scrap,
+			&"banked_cores": _banked_cores,
 			&"success_count": _success_count,
 			&"failure_count": _failure_count,
 			&"pending_modifier_offer": _pending_modifier_offer.duplicate(),
@@ -80,6 +90,7 @@ func to_dictionary() -> Dictionary:
 		&"state_version": STATE_VERSION,
 		&"banked_relay_data": _banked_relay_data,
 		&"banked_scrap": _banked_scrap,
+		&"banked_cores": _banked_cores,
 		&"success_count": _success_count,
 		&"failure_count": _failure_count,
 		&"pending_modifier_offer": offer,
@@ -94,6 +105,7 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 		return false
 	_banked_relay_data = int(validated[&"banked_relay_data"])
 	_banked_scrap = int(validated[&"banked_scrap"])
+	_banked_cores = int(validated[&"banked_cores"])
 	_success_count = int(validated[&"success_count"])
 	_failure_count = int(validated[&"failure_count"])
 	_pending_modifier_offer = validated[&"pending_modifier_offer"] as Array[StringName]
@@ -107,6 +119,7 @@ func _validate_dictionary(snapshot: Dictionary) -> Dictionary:
 		return {}
 	var relay_data: int = int(snapshot.get("banked_relay_data", -1))
 	var scrap: int = int(snapshot.get("banked_scrap", -1))
+	var cores: Variant = snapshot.get("banked_cores", 0)
 	var successes: int = int(snapshot.get("success_count", -1))
 	var failures: int = int(snapshot.get("failure_count", -1))
 	var raw_offer: Variant = snapshot.get("pending_modifier_offer", null)
@@ -115,6 +128,8 @@ func _validate_dictionary(snapshot: Dictionary) -> Dictionary:
 	if (
 		relay_data < 0
 		or scrap < 0
+		or not cores is int
+		or int(cores) < 0
 		or successes < 0
 		or failures < 0
 		or not raw_offer is Array
@@ -136,6 +151,7 @@ func _validate_dictionary(snapshot: Dictionary) -> Dictionary:
 	return {
 		&"banked_relay_data": relay_data,
 		&"banked_scrap": scrap,
+		&"banked_cores": int(cores),
 		&"success_count": successes,
 		&"failure_count": failures,
 		&"pending_modifier_offer": offer,

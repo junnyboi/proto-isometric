@@ -17,6 +17,8 @@ var _shutdown_elapsed: float = 0.0
 var _audio_trigger_count: int = 0
 var _damage_event_count: int = 0
 var _shutdown: bool = false
+var _reduced_flash: bool = false
+var _sfx_enabled: bool = true
 
 
 func _ready() -> void:
@@ -24,6 +26,7 @@ func _ready() -> void:
 	_build_damage_overlay()
 	_build_shutdown_panel()
 	_build_audio_player()
+	call_deferred("_bind_accessibility")
 
 
 func bind_avatar(avatar: Node2D) -> void:
@@ -52,15 +55,29 @@ func show_damage(
 	duration_scale: float = 1.0,
 ) -> void:
 	_damage_event_count += 1
-	_flash_remaining = DAMAGE_FLASH_SECONDS * clampf(duration_scale, 0.25, 1.0)
-	_overlay.color.a = 0.16
-	_border.border_color.a = 0.82
+	var preference_scale: float = 0.45 if _reduced_flash else 1.0
+	_flash_remaining = DAMAGE_FLASH_SECONDS * clampf(duration_scale, 0.25, 1.0) * preference_scale
+	_overlay.color.a = 0.07 if _reduced_flash else 0.16
+	_border.border_color.a = 0.38 if _reduced_flash else 0.82
 	_damage_label.modulate.a = 1.0
 	_damage_label.text = "CHASSIS HIT  -%02d  //  %s" % [amount, String(source).to_upper()]
 	if _avatar != null:
 		_avatar.modulate = DAMAGE_COLOR
 	if not lethal:
 		_play_cue(0.98 + float(_damage_event_count % 3) * 0.025)
+
+
+func _bind_accessibility() -> void:
+	var panel: Node = get_tree().get_first_node_in_group("accessibility_panel")
+	if panel == null:
+		return
+	_apply_preferences(panel.call("get_preferences") as Dictionary)
+	panel.connect("preferences_changed", _apply_preferences)
+
+
+func _apply_preferences(snapshot: Dictionary) -> void:
+	_reduced_flash = bool(snapshot.get(&"reduced_flash", false))
+	_sfx_enabled = bool(snapshot.get(&"sfx_enabled", true))
 
 
 func enter_shutdown(source: StringName) -> void:
@@ -183,7 +200,7 @@ func _build_audio_player() -> void:
 
 
 func _play_cue(pitch: float) -> void:
-	if _audio_player == null or _audio_player.stream == null:
+	if not _sfx_enabled or _audio_player == null or _audio_player.stream == null:
 		return
 	_audio_trigger_count += 1
 	if DisplayServer.get_name() == "headless":

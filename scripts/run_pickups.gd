@@ -3,6 +3,7 @@ extends Node2D
 signal drop_placed(drop_id: StringName, cell: Vector2i)
 signal drop_collected(cores: int, scrap: int)
 
+const RunModifierEffectsScript: GDScript = preload("res://scripts/run_modifier_effects.gd")
 const CORE_TEXTURE: Texture2D = preload("res://assets/vfx/pickups/worm_core.png")
 const CORE_PER_WORM: int = 1
 const SCRAP_PER_WORM: int = 2
@@ -121,9 +122,12 @@ func _on_worm_defeated(worm_id: int, position: Vector2) -> void:
 
 func _place_drop(cell: Vector2i, worm_id: int) -> Dictionary:
 	if _coordinator != null:
+		var modifier: StringName = (
+			_coordinator.call("get_run_value", &"active_modifier_id") as StringName
+		)
+		var cores: int = RunModifierEffectsScript.core_reward(CORE_PER_WORM, worm_id, modifier)
 		return (
-			_coordinator.call("_place_run_drop", cell, CORE_PER_WORM, SCRAP_PER_WORM, worm_id)
-			as Dictionary
+			_coordinator.call("_place_run_drop", cell, cores, SCRAP_PER_WORM, worm_id) as Dictionary
 		)
 	var drop: Dictionary = {
 		&"drop_id": "drop.worm.%06d" % _next_drop_sequence,

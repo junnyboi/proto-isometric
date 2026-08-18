@@ -1,5 +1,7 @@
 extends Node
 
+const RunModifierEffectsScript: GDScript = preload("res://scripts/run_modifier_effects.gd")
+
 const PROFILES: Array[Resource] = [
 	preload("res://data/alerts/alert_i.tres"),
 	preload("res://data/alerts/alert_ii.tres"),
@@ -74,13 +76,27 @@ func _sync_alert() -> void:
 	if alert == _armed_alert:
 		return
 	_armed_alert = alert
-	_rearm_remaining = float(PROFILES[alert - 1].get("rearm_seconds")) if alert > 0 else 0.0
+	var modifier: StringName = (
+		_coordinator.call("get_run_value", &"active_modifier_id") as StringName
+	)
+	_rearm_remaining = (
+		RunModifierEffectsScript.storm_interval(
+			float(PROFILES[alert - 1].get("rearm_seconds")), modifier
+		)
+		if alert > 0
+		else 0.0
+	)
 
 
 func _spawn_composition(alert: int, player: Vector2) -> void:
 	var profile: Resource = PROFILES[alert - 1]
-	if int(profile.get("worm_count")) > 0:
-		_worms.call("spawn_worm", player + Vector2(5.0, -2.0), 0.8)
+	var modifier: StringName = (
+		_coordinator.call("get_run_value", &"active_modifier_id") as StringName
+	)
+	for index: int in range(
+		RunModifierEffectsScript.worm_count(int(profile.get("worm_count")), modifier)
+	):
+		_worms.call("spawn_worm", player + Vector2(5.0 + index * 2.0, -2.0), 0.8)
 	for index: int in range(int(profile.get("tornado_count"))):
 		var offset: Vector2i = Vector2i(-5 + index * 10, -4 if index == 0 else 5)
 		_hazards.call("spawn_tornado", Vector2i(player.round()) + offset)

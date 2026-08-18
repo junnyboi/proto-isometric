@@ -1,13 +1,16 @@
 extends RefCounted
 
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
+const RunModifierEffectsScript: GDScript = preload("res://scripts/run_modifier_effects.gd")
 const STARTER_RELAY: Vector2i = Vector2i(12, 6)
 const SEARCH_LIMIT: int = 256
 const MIN_SEPARATION: float = 18.0
 const TARGET_RADII: Array[int] = [30, 48]
 
 
-static func generate(seed: int, world: RefCounted) -> Array[Dictionary]:
+static func generate(
+	seed: int, world: RefCounted, modifier_id: StringName = RuntimeIdsScript.MODIFIER_NEUTRAL
+) -> Array[Dictionary]:
 	if world == null:
 		return []
 	var objectives: Array[Dictionary] = [
@@ -18,7 +21,13 @@ static func generate(seed: int, world: RefCounted) -> Array[Dictionary]:
 		RuntimeIdsScript.OBJECTIVE_RELAY_THREE,
 	]
 	for index: int in range(ids.size()):
-		var cell: Vector2i = _find_candidate(seed, index, world, objectives)
+		var cell: Vector2i = _find_candidate(
+			seed,
+			index,
+			world,
+			objectives,
+			MIN_SEPARATION + RunModifierEffectsScript.relay_spacing(modifier_id)
+		)
 		if cell == Vector2i(1_000_001, 1_000_001):
 			return []
 		objectives.append({&"objective_id": ids[index], &"cell": cell})
@@ -30,6 +39,7 @@ static func _find_candidate(
 	index: int,
 	world: RefCounted,
 	chosen: Array[Dictionary],
+	minimum_separation: float,
 ) -> Vector2i:
 	var base_angle: float = float(posmod(seed * 37 + index * 131, 360)) * PI / 180.0
 	for attempt: int in range(SEARCH_LIMIT):
@@ -42,7 +52,7 @@ static func _find_candidate(
 			continue
 		var separated: bool = true
 		for objective: Dictionary in chosen:
-			if Vector2(cell).distance_to(Vector2(objective[&"cell"])) < MIN_SEPARATION:
+			if Vector2(cell).distance_to(Vector2(objective[&"cell"])) < minimum_separation:
 				separated = false
 				break
 		if separated:

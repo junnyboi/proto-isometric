@@ -1,5 +1,11 @@
 extends Node2D
 
+const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
+const AccessibilityPanelScript: GDScript = preload("res://scripts/accessibility_panel.gd")
+const SaveRepositoryScript: GDScript = preload("res://scripts/save_repository.gd")
+const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
+const PlayerPreferencesScript: GDScript = preload("res://scripts/player_preferences.gd")
+
 const VIEWPORT_SIZE: Vector2i = Vector2i(1280, 720)
 const BG_DEEP: Color = Color(0.027, 0.039, 0.071, 1.0)
 const BG_MID: Color = Color(0.047, 0.067, 0.118, 1.0)
@@ -13,6 +19,8 @@ const MUTED: Color = Color(0.52, 0.66, 0.68, 1.0)
 var _title_panel: Control
 var _staging_panel: Control
 var _title_label: Label
+var _subtitle: Label
+var _status_bar: Label
 var _begin_button: Button
 var _audio_player: AudioStreamPlayer
 var _field_visible: bool = false
@@ -22,6 +30,8 @@ var _audio_trigger_count: int = 0
 func _ready() -> void:
 	get_viewport().size = VIEWPORT_SIZE
 	_build_interface()
+	add_child(AccessibilityPanelScript.new())
+	_apply_save_metadata()
 	queue_redraw()
 	print("[PROTO_ISOMETRIC_READY]")
 
@@ -133,7 +143,7 @@ func _build_interface() -> void:
 
 	var eyebrow: Label = Label.new()
 	eyebrow.name = "Eyebrow"
-	eyebrow.text = "MGS // INITIAL DEPLOYMENT"
+	eyebrow.text = "WALKER'S WAKE // DESERT EXPEDITION"
 	eyebrow.position = Vector2(0.0, 0.0)
 	eyebrow.size = Vector2(520.0, 48.0)
 	eyebrow.add_theme_color_override("font_color", AMBER)
@@ -141,7 +151,7 @@ func _build_interface() -> void:
 
 	_title_label = Label.new()
 	_title_label.name = "TitleLabel"
-	_title_label.text = "PROTO\nISOMETRIC"
+	_title_label.text = "WALKER'S\nWAKE"
 	_title_label.position = Vector2(-4.0, 54.0)
 	_title_label.size = Vector2(540.0, 190.0)
 	_title_label.add_theme_font_size_override("font_size", 72)
@@ -149,13 +159,13 @@ func _build_interface() -> void:
 	_title_label.add_theme_constant_override("line_spacing", -12)
 	_title_panel.add_child(_title_label)
 
-	var subtitle: Label = Label.new()
-	subtitle.name = "Subtitle"
-	subtitle.text = "A TACTICAL SYSTEM IS TAKING SHAPE."
-	subtitle.position = Vector2(0.0, 264.0)
-	subtitle.size = Vector2(540.0, 48.0)
-	subtitle.add_theme_color_override("font_color", MUTED)
-	_title_panel.add_child(subtitle)
+	_subtitle = Label.new()
+	_subtitle.name = "Subtitle"
+	_subtitle.text = "A TACTICAL SYSTEM IS TAKING SHAPE."
+	_subtitle.position = Vector2(0.0, 264.0)
+	_subtitle.size = Vector2(540.0, 48.0)
+	_subtitle.add_theme_color_override("font_color", MUTED)
+	_title_panel.add_child(_subtitle)
 
 	_begin_button = Button.new()
 	_begin_button.name = "BeginButton"
@@ -202,13 +212,13 @@ func _build_interface() -> void:
 	staging_status.add_theme_constant_override("line_spacing", 8)
 	_staging_panel.add_child(staging_status)
 
-	var status_bar: Label = Label.new()
-	status_bar.name = "StatusBar"
-	status_bar.text = "BUILD 0001   //   GODOT 4.7.1   //   WEB READY"
-	status_bar.position = Vector2(88.0, 652.0)
-	status_bar.size = Vector2(1100.0, 48.0)
-	status_bar.add_theme_color_override("font_color", MUTED)
-	ui_root.add_child(status_bar)
+	_status_bar = Label.new()
+	_status_bar.name = "StatusBar"
+	_status_bar.text = "BUILD 0001   //   GODOT 4.7.1   //   WEB READY"
+	_status_bar.position = Vector2(88.0, 652.0)
+	_status_bar.size = Vector2(1100.0, 48.0)
+	_status_bar.add_theme_color_override("font_color", MUTED)
+	ui_root.add_child(_status_bar)
 
 	_audio_player = AudioStreamPlayer.new()
 	_audio_player.name = "BeginAudio"
@@ -243,6 +253,34 @@ func _on_begin_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/isometric_map.tscn")
 
 
+func _apply_save_metadata() -> void:
+	var repository: RefCounted = SaveRepositoryScript.new() as RefCounted
+	var world: RefCounted = InfiniteWorldScript.new() as RefCounted
+	if not bool(repository.call("configure", "user://walkers-wake-world.json", world, "title")):
+		return
+	var envelope: Dictionary = repository.call("load_state") as Dictionary
+	if envelope.is_empty():
+		_begin_button.text = "BEGIN // NEW EXPEDITION  >"
+		_subtitle.text = "NO ACTIVE FIELD RECORD."
+		return
+	var run: Dictionary = envelope.get(&"active_run", {}) as Dictionary
+	var profile: Dictionary = envelope.get(&"profile", {}) as Dictionary
+	var phase: StringName = StringName(str(run.get(&"phase", RuntimeIdsScript.RUN_PHASE_HUNT)))
+	var terminal: bool = (
+		phase in [RuntimeIdsScript.RUN_PHASE_SUCCEEDED, RuntimeIdsScript.RUN_PHASE_FAILED]
+	)
+	_begin_button.text = "BEGIN // REVIEW SUMMARY  >" if terminal else "BEGIN // CONTINUE  >"
+	_subtitle.text = "TERMINAL RECORD READY." if terminal else "ACTIVE EXPEDITION READY."
+	_status_bar.text = (
+		"BANK // DATA %03d // SCRAP %03d // CORE %03d"
+		% [
+			int(profile.get(&"banked_relay_data", 0)),
+			int(profile.get(&"banked_scrap", 0)),
+			int(profile.get(&"banked_cores", 0)),
+		]
+	)
+
+
 func is_title_visible() -> bool:
 	return _title_panel.visible
 
@@ -275,5 +313,12 @@ func prepare_for_shutdown() -> void:
 
 func _trigger_begin_audio() -> void:
 	_audio_trigger_count += 1
-	if _audio_player.stream != null and DisplayServer.get_name() != "headless":
+	var preferences: Dictionary = (
+		(PlayerPreferencesScript.new() as RefCounted).call("load_preferences") as Dictionary
+	)
+	if (
+		bool(preferences.get(&"sfx_enabled", true))
+		and _audio_player.stream != null
+		and DisplayServer.get_name() != "headless"
+	):
 		_audio_player.play()

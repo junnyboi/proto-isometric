@@ -34,9 +34,9 @@ func _test_title() -> void:
 	await process_frame
 	var title_label: Label = scene.get_node("UILayer/UIRoot/TitlePanel/TitleLabel") as Label
 	var begin_button: Button = scene.get_node("UILayer/UIRoot/TitlePanel/BeginButton") as Button
-	_check(title_label.text == "PROTO\nISOMETRIC", "title text")
+	_check(title_label.text == "WALKER'S\nWAKE", "title text")
 	_check(title_label.visible, "title visible")
-	_check(begin_button.text == "BEGIN  >", "Begin label")
+	_check(begin_button.text.begins_with("BEGIN"), "Begin label")
 	_check(begin_button.focus_mode == Control.FOCUS_ALL, "Begin focusable")
 	_check(bool(scene.call("is_audio_ready")), "audio loaded")
 	scene.call("prepare_for_shutdown")
@@ -96,19 +96,14 @@ func _test_isometric_map() -> void:
 		int(map.get("texture_repeat")) == CanvasItem.TEXTURE_REPEAT_ENABLED,
 		"terrain textures repeat explicitly",
 	)
-	var uv_origin: PackedVector2Array = (
-		map.call("_terrain_uvs", Vector2i.ZERO) as PackedVector2Array
-	)
-	var uv_east: PackedVector2Array = map.call("_terrain_uvs", Vector2i(1, 0)) as PackedVector2Array
+	var renderer: RefCounted = map.get("_terrain_renderer") as RefCounted
+	var uv_origin: PackedVector2Array = renderer.call("terrain_uvs", Vector2i.ZERO)
+	var uv_east: PackedVector2Array = renderer.call("terrain_uvs", Vector2i(1, 0))
 	_check(uv_origin[1].is_equal_approx(uv_east[0]), "east tile top UV is continuous")
 	_check(uv_origin[2].is_equal_approx(uv_east[3]), "east tile bottom UV is continuous")
-	var tint_origin: PackedColorArray = (
-		map.call("_terrain_tints", Vector2i.ZERO) as PackedColorArray
-	)
-	var tint_east: PackedColorArray = map.call("_terrain_tints", Vector2i(1, 0)) as PackedColorArray
-	var tint_far: PackedColorArray = (
-		map.call("_terrain_tints", Vector2i(12, 12)) as PackedColorArray
-	)
+	var tint_origin: PackedColorArray = renderer.call("terrain_tints", Vector2i.ZERO)
+	var tint_east: PackedColorArray = renderer.call("terrain_tints", Vector2i(1, 0))
+	var tint_far: PackedColorArray = renderer.call("terrain_tints", Vector2i(12, 12))
 	_check(tint_origin[1].is_equal_approx(tint_east[0]), "east tile tint is continuous")
 	_check(not tint_origin[0].is_equal_approx(tint_far[0]), "terrain tint varies at low frequency")
 	var atmosphere: Node2D = map.get_node("DesertAtmosphere") as Node2D
@@ -149,6 +144,7 @@ func _test_isometric_map() -> void:
 	)
 	_check(touch_drive.x > 0.5 and touch_drive.y < -0.5, "joystick supplies fluid analog diagonal")
 	_check(touch_drive.length() <= 1.0, "joystick output is bounded")
+	_check(bool(mobile_controls.call("is_run_intended")), "joystick outer ring enters run intent")
 	_check(bool(map.call("place_robot", Vector2i(8, 8))), "place Cardinal for touch drive")
 	var touch_start: Vector2 = map.call("get_robot_position") as Vector2
 	_check(
@@ -161,6 +157,7 @@ func _test_isometric_map() -> void:
 	)
 	var touch_speed: float = (map.call("get_velocity") as Vector2).length()
 	_check(bool(mobile_controls.call("end_touch", 1)), "touch release ends joystick capture")
+	_check(not bool(mobile_controls.call("is_run_intended")), "touch release clears run intent")
 	_check(not bool(mobile_controls.call("is_joystick_visible")), "joystick hides on release")
 	map.call("_update_drive_vector", Vector2.ZERO, 0.05, false)
 	_check(
@@ -199,6 +196,8 @@ func _test_isometric_map() -> void:
 		"terrain and object graphics are viewport culled",
 	)
 	var field_hud: CanvasLayer = map.get_node("FieldHUD") as CanvasLayer
+	_check(field_hud.has_node("ExpeditionRadar"), "expedition radar exists")
+	_check(field_hud.has_node("OnboardingOverlay"), "signal-first onboarding exists")
 	_check(field_hud.layer > world_effects_layer.layer, "HUD renders above world effects")
 	var field_snapshot: Dictionary = field_hud.call("get_field_state_snapshot") as Dictionary
 	_check(not field_snapshot.is_empty(), "HUD reads one sealed semantic field snapshot")
@@ -703,7 +702,7 @@ func _test_isometric_map() -> void:
 	_check(bool(map.call("has_scrap", Vector2i(4, 4))), "dropped scrap persists on reload")
 	_check(map.call("get_robot_grid") == Vector2i(3, 4), "Cardinal position persists on reload")
 	_check(bool(map.call("place_robot", Vector2i(4, 4))), "Cardinal enters cleared tile")
-	_check(int(map.call("get_scrap_count")) == 2, "Cardinal collects dropped scrap")
+	_check(int(map.call("get_scrap_count")) == 4, "Cardinal collects dropped scrap")
 	_check(
 		"SCRAP COLLECTED" in str(map.call("get_status_text")),
 		"collection feedback remains readable"
@@ -721,7 +720,7 @@ func _test_isometric_map() -> void:
 		"terrain mutation stays persistent"
 	)
 	_check(not bool(map.call("has_scrap", Vector2i(4, 4))), "collected scrap stays absent")
-	_check(int(map.call("get_scrap_count")) == 2, "scrap inventory persists on reload")
+	_check(int(map.call("get_scrap_count")) == 4, "scrap inventory persists on reload")
 	_check(map.call("get_robot_grid") == Vector2i(4, 4), "post-collection position persists")
 	_check(
 		int(map.call("_get_chassis")) == hazard_chassis_after,
@@ -740,7 +739,7 @@ func _test_isometric_map() -> void:
 	var repaired_chassis: int = mini(chassis_before_repair + 35, 100)
 	_check(bool(map.call("_repair_chassis")), "outpost repairs Cardinal")
 	_check(int(map.call("_get_chassis")) == repaired_chassis, "repair restores thirty-five chassis")
-	_check(int(map.call("get_scrap_count")) == 2, "repair consumes five scrap")
+	_check(int(map.call("get_scrap_count")) == 4, "repair consumes five scrap")
 	run_coordinator = map.get("_run_coordinator") as RefCounted
 	run_coordinator.call("set_run_value", &"worm_cores", 1)
 	map.call("_refresh_outpost_interface")
@@ -752,7 +751,7 @@ func _test_isometric_map() -> void:
 	_check(
 		(
 			bool(run_coordinator.call("_has_run_module", &"module.aftershock"))
-			and int(map.call("get_scrap_count")) == 0
+			and int(map.call("get_scrap_count")) == 2
 			and int(run_coordinator.call("get_run_value", &"worm_cores")) == 0
 		),
 		"live Refit installs Aftershock and deducts exact wallets",
@@ -766,7 +765,7 @@ func _test_isometric_map() -> void:
 	await process_frame
 	_check(int(map.call("_get_chassis")) == repaired_chassis, "repaired chassis persists")
 	run_coordinator = map.get("_run_coordinator") as RefCounted
-	_check(int(map.call("get_scrap_count")) == 0, "post-Refit scrap persists")
+	_check(int(map.call("get_scrap_count")) == 2, "post-Refit scrap persists")
 	_check(
 		bool(run_coordinator.call("_has_run_module", &"module.aftershock")),
 		"installed Refit module persists",

@@ -4,6 +4,7 @@ signal repair_requested
 signal refit_requested(module_id: StringName)
 
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
+const RunModifierEffectsScript: GDScript = preload("res://scripts/run_modifier_effects.gd")
 const DEFINITIONS: Array[Resource] = [
 	preload("res://data/modules/ram_plating.tres"),
 	preload("res://data/modules/aftershock.tres"),
@@ -48,6 +49,7 @@ func set_state(
 	max_chassis: int,
 	active_modules: Array = [RuntimeIdsScript.MODULE_WORN_PLATES],
 	refit_used: bool = false,
+	active_modifier: StringName = RuntimeIdsScript.MODIFIER_NEUTRAL,
 ) -> void:
 	if _status == null:
 		return
@@ -56,7 +58,9 @@ func set_state(
 	_inventory.text = (
 		"SCRAP %03d   CORE %03d   CHASSIS %03d/%03d" % [scrap, cores, chassis, max_chassis]
 	)
-	_repair_button.disabled = not linked or scrap < REPAIR_COST or chassis >= max_chassis
+	var repair_cost: int = RunModifierEffectsScript.repair_cost(REPAIR_COST, active_modifier)
+	_repair_button.text = "REPAIR CHASSIS  [%d SCRAP]" % repair_cost
+	_repair_button.disabled = not linked or scrap < repair_cost or chassis >= max_chassis
 	for index: int in range(DEFINITIONS.size()):
 		var definition: Resource = DEFINITIONS[index]
 		var module_id: StringName = definition.get("module_id") as StringName

@@ -1,6 +1,6 @@
 # Walker's Wake Implementation Plan
 
-**Plan status:** Approved; packages `WW-01` through `WW-23` are implemented.
+**Plan status:** Complete; packages `WW-01` through `WW-39` are implemented in the Walker's Wake 1.0 release.
 
 **Pinned baseline:** `a30db57ca5d8b43771b9bc1363368e4d397057f6` (`a30db57`)
 
@@ -8,7 +8,7 @@
 
 ## 1. Purpose and decision summary
 
-This plan turns the approved Walker's Wake gameplay proposal into a dependency-aware implementation sequence grounded in the repository at commit `a30db57`. It schedules no immediate implementation. Its purpose is to define contracts, sequencing, acceptance criteria, likely files, focused research questions, and rollback points before runtime work starts.
+This plan turned the approved Walker's Wake gameplay proposal into a dependency-aware implementation sequence grounded in the repository at commit `a30db57`. The numbered packages are now implemented; the document remains the canonical record of contracts, sequencing, acceptance criteria, and rollback boundaries.
 
 The core product decision is an 8–12 minute expedition built around direct control of Cardinal: drive, build Impact Charge, Smash, activate three relays, survive Alert escalation, use harvested outposts as sanctuaries and Refit stations, then extract to bank the run or fail with a fair loss. The implementation must make existing systems collide more deliberately rather than add a large ability bar or unrelated enemy catalogue.
 

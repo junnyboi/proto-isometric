@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/run_modifier_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+modifier_id = &"modifier.hot_front"
+title = "HOT FRONT"
+description = "Storm pressure cycles sooner. Relay links yield double scrap."
+storm_interval_multiplier = 0.72
+relay_scrap_multiplier = 2

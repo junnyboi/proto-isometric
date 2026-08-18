@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/run_modifier_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+modifier_id = &"modifier.dead_grid"
+title = "DEAD GRID"
+description = "Later relays are farther apart. Outpost repairs cost two less scrap."
+relay_spacing_bonus = 8.0
+repair_cost_discount = 2

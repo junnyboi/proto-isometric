@@ -5,7 +5,11 @@ signal completed(relay_cell: Vector2i)
 
 const ExpeditionLayoutScript: GDScript = preload("res://scripts/expedition_layout.gd")
 const RelayContestScript: GDScript = preload("res://scripts/relay_contest.gd")
+const RunModifierEffectsScript: GDScript = preload("res://scripts/run_modifier_effects.gd")
+const PlayerPreferencesScript: GDScript = preload("res://scripts/player_preferences.gd")
 const TEAL: Color = Color("4eb6aa")
+const RELAY_SCRAP_REWARD: int = 2
+const RELAY_CUE: AudioStream = preload("res://assets/audio/ui_begin.wav")
 
 var _coordinator: RefCounted
 var _objectives: Array[Dictionary] = []
@@ -13,6 +17,13 @@ var _contest: Node2D
 var _tile_size: Vector2 = Vector2(90.0, 45.0)
 var _map_origin: Vector2 = Vector2(760.0, 70.0)
 var _player_position: Vector2 = Vector2.ZERO
+var _audio: AudioStreamPlayer
+
+
+func _ready() -> void:
+	_audio = AudioStreamPlayer.new()
+	_audio.stream = RELAY_CUE
+	add_child(_audio)
 
 
 func configure(
@@ -29,7 +40,10 @@ func configure(
 	_objectives = coordinator.call("_get_relay_objectives") as Array[Dictionary]
 	if _objectives.is_empty():
 		var seed: int = int(coordinator.call("get_run_value", &"seed"))
-		var generated: Array[Dictionary] = ExpeditionLayoutScript.generate(seed, world)
+		var modifier: StringName = (
+			coordinator.call("get_run_value", &"active_modifier_id") as StringName
+		)
+		var generated: Array[Dictionary] = ExpeditionLayoutScript.generate(seed, world, modifier)
 		if (
 			generated.size() != 3
 			or not bool(coordinator.call("_configure_relay_objectives", generated))
@@ -118,6 +132,19 @@ func _on_contest_completed(cell: Vector2i) -> void:
 	var objective_id: StringName = StringName(str(_objectives[index][&"objective_id"]))
 	if not bool(_coordinator.call("_complete_next_relay", objective_id)):
 		return
+	var modifier: StringName = (
+		_coordinator.call("get_run_value", &"active_modifier_id") as StringName
+	)
+	var reward: int = RunModifierEffectsScript.relay_scrap(RELAY_SCRAP_REWARD, modifier)
+	_coordinator.call(
+		"set_run_value", &"scrap", int(_coordinator.call("get_run_value", &"scrap")) + reward
+	)
+	var preferences: Dictionary = (
+		(PlayerPreferencesScript.new() as RefCounted).call("load_preferences") as Dictionary
+	)
+	if bool(preferences.get(&"sfx_enabled", true)) and DisplayServer.get_name() != "headless":
+		_audio.pitch_scale = 0.96 + float(index) * 0.09
+		_audio.play()
 	completed.emit(cell)
 	_rebuild_contest()
 	queue_redraw()

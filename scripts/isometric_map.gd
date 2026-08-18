@@ -14,6 +14,8 @@ const MobileControlsScript: GDScript = preload("res://scripts/mobile_controls.gd
 const ModuleEffectsScript: GDScript = preload("res://scripts/module_effects.gd")
 const RelayContestScript: GDScript = preload("res://scripts/relay_registry.gd")
 const RunCoordinatorScript: GDScript = preload("res://scripts/run_coordinator.gd")
+const RunModifierEffectsScript: GDScript = preload("res://scripts/run_modifier_effects.gd")
+const RunTerminalFlowScript: GDScript = preload("res://scripts/run_terminal_flow.gd")
 const SandwormsScript: GDScript = preload("res://scripts/sandworms.gd")
 const SaveRepositoryScript: GDScript = preload("res://scripts/save_repository.gd")
 const TerrainHazeScript: GDScript = preload("res://scripts/terrain_haze.gd")
@@ -94,11 +96,6 @@ var _pending_impact_cell: Vector2i = INVALID_CELL
 var _pending_impact_breaks_rock: bool = false
 var _pending_impact_worm_id: int = -1
 var _pending_impact_band: int = 0
-var _relay_completed: bool:
-	get:
-		return bool(_run_value(&"starter_relay_completed", false))
-	set(value):
-		_set_run_value(&"starter_relay_completed", value)
 var _shutdown: bool:
 	get:
 		return bool(_run_value(&"shutdown", false))
@@ -118,6 +115,7 @@ var _mobile_controls: CanvasLayer
 var _object_layer: CanvasLayer
 var _relay_contest: Node2D
 var _run_coordinator: RefCounted
+var _terminal_flow: CanvasLayer
 var _sandworms: Node2D
 var _state_store: RefCounted
 var _terrain_haze: Node2D
@@ -148,12 +146,13 @@ func _ready() -> void:
 	_build_hazards()
 	_build_sandworms()
 	_build_relay_contest()
-	_build_interface()
 	_build_mobile_controls()
+	_build_interface()
 	_build_chassis_feedback()
 	_build_heat_haze()
 	if _shutdown:
 		_apply_shutdown_presentation(&"persistent_damage")
+		_terminal_flow.call("settle_failure")
 	_collect_scrap_at(_robot_grid)
 	_refresh_outpost_interface()
 	_sync_avatar()
@@ -163,8 +162,11 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	var screen_direction: Vector2i = IsometricControlsScript.read_screen_direction()
-	var attack_pressed: bool = IsometricControlsScript.is_attack_pressed()
+	var terminal: bool = _terminal_flow != null and bool(_terminal_flow.call("is_summary_visible"))
+	var screen_direction: Vector2i = (
+		Vector2i.ZERO if terminal else IsometricControlsScript.read_screen_direction()
+	)
+	var attack_pressed: bool = not terminal and IsometricControlsScript.is_attack_pressed()
 	if attack_pressed and not _attack_was_pressed:
 		attack()
 	_attack_was_pressed = attack_pressed
@@ -172,7 +174,9 @@ func _process(delta: float) -> void:
 		Vector2i.ZERO if _pending_impact_cell != INVALID_CELL else screen_direction
 	)
 	if _mobile_controls != null and bool(_mobile_controls.call("is_joystick_visible")):
-		_update_drive_vector(_mobile_controls.call("get_drive_vector") as Vector2, delta, false)
+		var mobile_drive: Vector2 = _mobile_controls.call("get_drive_vector") as Vector2
+		var mobile_run: bool = bool(_mobile_controls.call("is_run_intended"))
+		_update_drive_vector(mobile_drive, delta, mobile_run)
 	else:
 		update_drive(drive_direction, delta, IsometricControlsScript.is_run_pressed())
 	_update_camera_follow(delta)
@@ -218,6 +222,8 @@ func _process(delta: float) -> void:
 		_relay_contest.call("advance", delta)
 	if _world_objects != null:
 		_world_objects.queue_redraw()
+	if _terminal_flow != null:
+		_terminal_flow.call("update_context", not _shutdown and _is_at_outpost())
 	_refresh_outpost_interface()
 	_sync_avatar()
 	queue_redraw()
@@ -478,6 +484,7 @@ func _enter_shutdown(source: StringName) -> void:
 	_shutdown = true
 	_apply_shutdown_presentation(source)
 	_save_world_state()
+	_terminal_flow.call("settle_failure")
 
 
 func _apply_shutdown_presentation(source: StringName) -> void:
@@ -504,11 +511,14 @@ func _is_at_outpost() -> bool:
 
 
 func _repair_chassis() -> bool:
-	if _shutdown or not _is_at_outpost() or _scrap_count < REPAIR_COST or _chassis >= MAX_CHASSIS:
+	var cost: int = RunModifierEffectsScript.repair_cost(
+		REPAIR_COST, _run_value(&"active_modifier_id", &"modifier.neutral")
+	)
+	if _shutdown or not _is_at_outpost() or _scrap_count < cost or _chassis >= MAX_CHASSIS:
 		return false
 	var scrap_before: int = _scrap_count
 	var chassis_before: int = _chassis
-	_scrap_count -= REPAIR_COST
+	_scrap_count -= cost
 	_chassis = mini(_chassis + REPAIR_AMOUNT, MAX_CHASSIS)
 	if not _save_world_state():
 		_scrap_count = scrap_before
@@ -571,7 +581,7 @@ func _set_impact_charge(value: float) -> void:
 
 
 func _get_completed_relays() -> int:
-	return int(_run_value(&"completed_relays", 1 if _relay_completed else 0))
+	return int(_run_value(&"completed_relays", 0))
 
 
 func _get_relay_cell() -> Vector2i:
@@ -922,14 +932,6 @@ func _draw_tile(cell: Vector2i) -> void:
 	_terrain_renderer.call("draw_tile", self, cell)
 
 
-func _terrain_uvs(cell: Vector2i) -> PackedVector2Array:
-	return _terrain_renderer.call("terrain_uvs", cell) as PackedVector2Array
-
-
-func _terrain_tints(cell: Vector2i) -> PackedColorArray:
-	return _terrain_renderer.call("terrain_tints", cell) as PackedColorArray
-
-
 func _draw_drive_vector() -> void:
 	var vector: Vector2 = Vector2(_last_screen_direction).normalized()
 	var start: Vector2 = _robot_visual_position + Vector2(0.0, 15.0)
@@ -944,6 +946,15 @@ func _build_interface() -> void:
 	_hud.connect("repair_requested", Callable(self, "_repair_chassis"))
 	_hud.call("configure_refit", _run_coordinator, Callable(self, "_save_world_state"))
 	add_child(_hud)
+	_terminal_flow = RunTerminalFlowScript.new() as CanvasLayer
+	add_child(_terminal_flow)
+	_terminal_flow.call(
+		"configure",
+		_run_coordinator,
+		Callable(self, "_save_world_state"),
+		func() -> void: get_tree().reload_current_scene(),
+		_mobile_controls
+	)
 
 
 func _build_mobile_controls() -> void:

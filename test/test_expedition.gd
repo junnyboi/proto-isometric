@@ -27,6 +27,7 @@ static func evaluate() -> Array[Dictionary]:
 		int(world.call("get_loaded_chunk_count")) == before
 	)
 	_add(cases, "relay objectives are separated and terrain-valid", _layout_is_valid(first, world))
+	_add(cases, "64-seed relay layout sweep is deterministic and terrain-valid", _seed_sweep(world))
 
 	var coordinator: RefCounted = RunCoordinatorScript.new() as RefCounted
 	coordinator.call("configure_default")
@@ -123,6 +124,19 @@ static func _layout_is_valid(objectives: Array[Dictionary], world: RefCounted) -
 			if Vector2(cell).distance_to(Vector2(objectives[other][&"cell"])) < 18.0:
 				return false
 	return true
+
+
+static func _seed_sweep(world: RefCounted) -> bool:
+	var before: int = int(world.call("get_loaded_chunk_count"))
+	for seed: int in range(64):
+		for modifier: StringName in [
+			RuntimeIdsScript.MODIFIER_NEUTRAL, RuntimeIdsScript.MODIFIER_DEAD_GRID
+		]:
+			var first: Array[Dictionary] = ExpeditionLayoutScript.generate(seed, world, modifier)
+			var second: Array[Dictionary] = ExpeditionLayoutScript.generate(seed, world, modifier)
+			if first != second or first.size() != 3 or not _layout_is_valid(first, world):
+				return false
+	return int(world.call("get_loaded_chunk_count")) == before
 
 
 static func _add(cases: Array[Dictionary], label: String, passed: bool) -> void:

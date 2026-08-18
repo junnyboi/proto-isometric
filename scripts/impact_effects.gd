@@ -15,6 +15,11 @@ var _particles: Array[Dictionary] = []
 var _emission_count: int = 0
 var _damage_emission_count: int = 0
 var _aftershock_emission_count: int = 0
+var _shake_enabled: bool = true
+
+
+func _ready() -> void:
+	call_deferred("_bind_accessibility")
 
 
 func bind_camera(camera: Camera2D) -> void:
@@ -179,11 +184,28 @@ func get_camera_offset() -> Vector2:
 
 
 func _start_shake(duration: float, strength: float, seed: int) -> void:
+	if not _shake_enabled:
+		_shake_time = 0.0
+		if _camera != null:
+			_camera.offset = Vector2.ZERO
+		return
 	_shake_duration = duration
 	_shake_time = duration
 	_shake_strength = strength
 	_shake_seed = seed
 	_apply_camera_offset()
+
+
+func _bind_accessibility() -> void:
+	var panel: Node = get_tree().get_first_node_in_group("accessibility_panel")
+	if panel == null:
+		return
+	_apply_preferences(panel.call("get_preferences") as Dictionary)
+	panel.connect("preferences_changed", _apply_preferences)
+
+
+func _apply_preferences(snapshot: Dictionary) -> void:
+	_shake_enabled = bool(snapshot.get(&"camera_shake", true))
 
 
 func _apply_camera_offset() -> void:

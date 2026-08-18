@@ -496,6 +496,9 @@ func _normalize_run_dictionary(run: Dictionary) -> Variant:
 	normalized[&"relay_objectives"] = normalized_relays
 	normalized[&"completed_objective_ids"] = (completed_objectives as Array).duplicate()
 	normalized[&"refit_purchase_used"] = run.get(&"refit_purchase_used", false)
+	normalized[&"active_modifier_id"] = run.get(
+		&"active_modifier_id", String(RuntimeIdsScript.MODIFIER_NEUTRAL)
+	)
 	normalized[&"worm_cores"] = run.get(&"worm_cores", 0)
 	normalized[&"run_drops"] = normalized_drops
 	normalized[&"next_drop_sequence"] = run.get(&"next_drop_sequence", 1)
@@ -510,6 +513,7 @@ func _normalize_run_dictionary(run: Dictionary) -> Variant:
 		or not normalized.get(&"starter_relay_completed") is bool
 		or not normalized.get(&"shutdown") is bool
 		or not normalized.get(&"refit_purchase_used") is bool
+		or not normalized.get(&"active_modifier_id") is String
 	):
 		return false
 	normalized[&"player_cell"] = player_cell
@@ -531,7 +535,9 @@ func _run_keys(run: Dictionary) -> Variant:
 		&"shutdown",
 		&"applied_event_ids",
 	]
-	for optional: StringName in [&"active_module_ids", &"refit_purchase_used"]:
+	for optional: StringName in [
+		&"active_module_ids", &"refit_purchase_used", &"active_modifier_id"
+	]:
 		if run.has(optional):
 			keys.append(optional)
 	var groups: Array[Array] = [
@@ -651,25 +657,30 @@ func _normalize_profile(value: Variant) -> Dictionary:
 	if not value is Dictionary:
 		return {}
 	var profile: Dictionary = value as Dictionary
+	var profile_keys: Array[StringName] = [
+		&"state_version",
+		&"banked_relay_data",
+		&"banked_scrap",
+		&"success_count",
+		&"failure_count",
+		&"pending_modifier_offer",
+		&"selected_next_modifier",
+		&"last_run_summary",
+	]
+	if profile.has(&"banked_cores"):
+		profile_keys.append(&"banked_cores")
 	if not _exact_keys(
 		profile,
-		[
-			&"state_version",
-			&"banked_relay_data",
-			&"banked_scrap",
-			&"success_count",
-			&"failure_count",
-			&"pending_modifier_offer",
-			&"selected_next_modifier",
-			&"last_run_summary",
-		],
+		profile_keys,
 	):
 		return {}
 	var normalized: Dictionary = profile.duplicate(true)
+	normalized[&"banked_cores"] = profile.get(&"banked_cores", 0)
 	for key: StringName in [
 		&"state_version",
 		&"banked_relay_data",
 		&"banked_scrap",
+		&"banked_cores",
 		&"success_count",
 		&"failure_count",
 	]:

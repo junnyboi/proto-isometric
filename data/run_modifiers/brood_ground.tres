@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/run_modifier_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+modifier_id = &"modifier.brood_ground"
+title = "BROOD GROUND"
+description = "Alert waves add one hunter. Even-numbered worm defeats yield a bonus Core."
+worm_count_bonus = 1
+bonus_core_modulus = 2

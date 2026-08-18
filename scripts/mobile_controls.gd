@@ -3,6 +3,7 @@ extends CanvasLayer
 signal smash_pressed
 
 const FIELD_THEME: Resource = preload("res://data/field_hud_theme.tres")
+const PlayerPreferencesScript: GDScript = preload("res://scripts/player_preferences.gd")
 const TEAL: Color = Color("4eb6aa")
 const AMBER: Color = Color("f5a62d")
 const INK: Color = Color("11171b")
@@ -10,6 +11,8 @@ const JOYSTICK_RADIUS: float = 76.0
 const KNOB_RADIUS: float = 31.0
 const DEAD_ZONE: float = 12.0
 const SMASH_SIZE: Vector2 = Vector2(154.0, 154.0)
+const RUN_ENTER: float = 0.88
+const RUN_EXIT: float = 0.72
 
 var _mobile_device: bool = false
 var _controls_enabled: bool = true
@@ -21,6 +24,9 @@ var _layout: Dictionary = {}
 var _touch_exclusions: Array[Rect2] = []
 var _joystick: Control
 var _smash_button: Button
+var _run_intent: bool = false
+var _left_handed: bool = false
+var _haptics: bool = true
 
 
 func _ready() -> void:
@@ -28,6 +34,10 @@ func _ready() -> void:
 	_mobile_device = _detect_mobile_device()
 	_build_joystick()
 	_build_smash_button()
+	_apply_preferences(
+		(PlayerPreferencesScript.new() as RefCounted).call("load_preferences") as Dictionary
+	)
+	call_deferred("_bind_accessibility")
 	get_viewport().size_changed.connect(_on_viewport_resized)
 	apply_layout(get_viewport().get_visible_rect().size)
 	_apply_visibility()
@@ -55,6 +65,10 @@ func is_mobile_device() -> bool:
 	return _mobile_device
 
 
+func is_run_intended() -> bool:
+	return _run_intent
+
+
 func is_joystick_visible() -> bool:
 	return _joystick != null and _joystick.visible
 
@@ -65,6 +79,13 @@ func get_smash_button() -> Button:
 
 func apply_layout(viewport_size: Vector2) -> bool:
 	var candidate: Dictionary = FIELD_THEME.call("make_layout", viewport_size, true) as Dictionary
+	if _left_handed:
+		candidate[&"smash_button"] = _mirror_rect(
+			candidate[&"smash_button"] as Rect2, viewport_size.x
+		)
+		candidate[&"mobile_charge"] = _mirror_rect(
+			candidate[&"mobile_charge"] as Rect2, viewport_size.x
+		)
 	if not bool(FIELD_THEME.call("validate_layout", candidate, true)):
 		return false
 	_layout = candidate.duplicate(true)
@@ -131,6 +152,8 @@ func end_touch(index: int) -> bool:
 
 func trigger_smash() -> void:
 	if _mobile_device and _controls_enabled:
+		if _haptics:
+			Input.vibrate_handheld(28)
 		smash_pressed.emit()
 
 
@@ -229,15 +252,34 @@ func _update_drive_vector() -> void:
 		_drive_vector = Vector2.ZERO
 		return
 	var strength: float = clampf((distance - DEAD_ZONE) / (JOYSTICK_RADIUS - DEAD_ZONE), 0.0, 1.0)
+	_run_intent = strength >= (RUN_EXIT if _run_intent else RUN_ENTER)
 	_drive_vector = offset.normalized() * smoothstep(0.0, 1.0, strength)
 
 
 func _cancel_joystick() -> void:
 	_touch_index = -1
 	_drive_vector = Vector2.ZERO
+	_run_intent = false
 	if _joystick != null:
 		_joystick.visible = false
 		_joystick.queue_redraw()
+
+
+func _bind_accessibility() -> void:
+	var panel: Node = get_tree().get_first_node_in_group("accessibility_panel")
+	if panel != null:
+		panel.connect("preferences_changed", _apply_preferences)
+
+
+func _apply_preferences(snapshot: Dictionary) -> void:
+	_left_handed = bool(snapshot.get(&"left_handed", false))
+	_haptics = bool(snapshot.get(&"haptics", true))
+	if is_inside_tree():
+		apply_layout(get_viewport().get_visible_rect().size)
+
+
+func _mirror_rect(rect: Rect2, width: float) -> Rect2:
+	return Rect2(Vector2(width - rect.end.x, rect.position.y), rect.size)
 
 
 func _draw_joystick() -> void:

@@ -47,7 +47,7 @@ static func build(
 		. call(
 			"configure_context",
 			context,
-			RuntimeIdsScript.MODIFIER_NEUTRAL,
+			coordinator.call("get_run_value", &"active_modifier_id"),
 			not shutdown and outpost_linked,
 			mobile,
 			coordinator.call("get_run_value", &"active_module_ids"),

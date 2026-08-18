@@ -1,50 +1,47 @@
 # Proto Isometric — WALKER'S WAKE
 
-A Godot 4.7.1 desert exploration prototype built on an exact 2:1 isometric grid.
+**Walker's Wake** is a Godot 4.7.1, 2:1 isometric desert expedition game. Drive Cardinal—a compact gorilla-like salvage robot—through an infinite streamed wasteland, build Impact Charge, counter hunting sandworms, link three relays, survive escalating Alerts, install one-run Refit modules, and return to an outpost to extract.
+
+## Play
+
+Live Web build: https://proto-web-bylaknug.manus.space
+
+Press **Enter** or select **BEGIN** to deploy. Use **WASD** or the **arrow keys** for weighted eight-direction movement, hold **Shift** to run, and press **Space**, **J**, or **K** for Cardinal's contact-frame Smash. On mobile, hold outside UI exclusions to summon the floating joystick; pushing into its outer ring engages the same run path, while the single **SMASH** button supports simultaneous movement and attack. Left-handed mirroring, haptics, SFX, UI scale, reduced flash, and camera shake are available through **ACCESS** on the title and field screens.
+
+## Expedition loop
+
+The run starts with a nearby relay and two deterministic streamed objectives beyond it. Linking relays raises Alert from I to III: a hunter, then a hunter with dust devils, then a hunter inside a broad storm front. Outposts suppress directed pressure and provide repair plus one atomic Refit purchase per expedition.
+
+Sandworms use a readable Burrow → Intercept → Expose → Dive cycle. Cardinal can damage them only during Expose. Four valid hits defeat a worm and create one persistent run-scoped Core/scrap reward. Impact Charge retains its contact, two-cell line, and three-cell fan bands; the Worn Plates starter module increases charge gain without changing damage or footprint.
+
+Refit offers **Ram Plating**, **Aftershock**, and **Storm Seal**. Ram Plating converts a charged running collision into one normal rock break, Aftershock extends the existing high-charge punish window, and Storm Seal reduces weather damage only while running. Each effect uses the existing movement or Smash controls—Cardinal has enough buttons already.
+
+After all three relays, entering any outpost extracts automatically. Success banks the run exactly once and presents a deterministic two-of-three next-run modifier offer: **Hot Front**, **Brood Ground**, or **Dead Grid**. Failure loses all unbanked Cores and half the run scrap using deterministic rounding, then provides an immediate retry. Terminal summaries, pending choices, resumable expeditions, world mutations, and profile progression survive reload.
+
+## Runtime architecture
+
+The world keeps a bounded 5×5 ring of eight-cell chunks and renders a 29×29 cell window. Terrain, objective placement, encounter composition, reward rolls, and replay modifiers are deterministic. Schema-3 persistence uses typed `RunState` and `ProfileState`, primary/backup recovery, atomic replacement, strict bounds, schema-1/2 migration, and quarantine for malformed or future data. Accessibility preferences persist separately from the world save.
+
+The HUD consumes a sealed semantic snapshot and includes a compact expedition radar, non-modal first-run onboarding, objective/Alert truth, Core and scrap wallets, active modifier context, and responsive desktop/mobile safe areas. Generated runtime assets are listed in `data/visual_catalog.tres`; missing optional Cardinal sheets fall back to the procedural avatar without changing gameplay geometry.
 
 ## Develop
 
 ```bash
 $HOME/bin/godot --path .
-```
-
-Build a small playable change, then run the fast check:
-
-```bash
 ./verify.sh
 ```
 
-For a Web release:
+For a clean no-threads Web release:
 
 ```bash
 ./verify.sh --release
 ```
 
-The release command writes the HTML, JavaScript, WASM, and PCK bundle to `/home/ubuntu/proto-isometric-build/web`.
+The release command writes HTML, JavaScript, WASM, and PCK artifacts to `/home/ubuntu/proto-isometric-build/web`.
 
-## Controls
+## Project references
 
-Press **Enter** or select **BEGIN** to enter the desert. Use **WASD** or the **arrow keys** for weighted eight-direction movement, hold **Shift** to run at 1.5× speed, use **Space**, **J**, or **K** for an impact strike, and press **Escape** to return to the title. On detected mobile devices, press and hold anywhere outside the attack control to summon a floating analog joystick, drag for proportional eight-direction drive, and release to coast naturally; the circular **SMASH** button at bottom right routes into the same contact-frame strike. Break rocks with the strike, then move over the dropped teal scrap to collect it. Harvested outposts repair 35 chassis for five scrap; crafting and upgrades are visible but locked.
-
-Rock destruction resolves on Cardinal's attack contact frame with bounded camera shake, rock fragments, and dust. Terrain mutations are stored as compact deltas over the deterministic world seed; broken or placed rocks, dropped and collected scrap, chassis integrity, Cardinal's cell, and facing are saved atomically to `user://walkers-wake-world.json`. Existing schema-one saves migrate on load, while invalid saves are ignored without partially mutating the world.
-
-Dust devils telegraph for three seconds, activate as fast single-tile hazards for 20 seconds, and deal six chassis damage per second. Six-tile sandstorms cross the active world window from one edge to the other with their three-tile side leading for maximum coverage and deal three chassis damage per second. Both are indestructible and nonblocking, so survival depends on movement rather than punching the weather. Multiple instances of both hazards can coexist.
-
-Sandworms are the first defeatable hunters. They emerge from the streamed desert, pursue Cardinal inside an eight-tile detection range, and bite for ten chassis damage per attack. Each worm exposes a world-space health bar and falls after four Cardinal melee impacts. Linking to a harvested outpost forces nearby worms to disperse, making service pads reliable combat sanctuaries.
-
-Hazard contact deals one immediate tick, then repeats once per uninterrupted second while Cardinal remains inside the continuous footprint. Leaving clears that contact timer; re-entry immediately damages again. The heat ripple uses world-space phase and is masked to sand tile tops only, so camera movement does not drag it across the desert and salt, rock, ruin, outpost, scrap, and character pixels remain undistorted. Destroyed rock tiles join the sand mask immediately after salvage.
-
-Chassis hits flash Cardinal and the screen, throw bounded sparks and camera kick, identify the damage source in the HUD, and play a short generated armor-impact cue. At zero chassis Cardinal enters a persistent shutdown state: drive, impact, collection, and field repair remain offline until the player returns to the title. The shutdown overlay and low-pitched final cue make the failure state unambiguous.
-
-The camera follows Cardinal with eased motion, velocity look-ahead, and a 1.2× zoom for a 20% closer field view. Approved square-cell directional sheets dropped into `assets/cardinal/` are auto-bound through the contract in [`assets/cardinal/SOURCES.md`](assets/cardinal/SOURCES.md); missing sheets use the animated procedural proxy.
-
-Terrain is a deterministic, practically unbounded procedural stream. The runtime lazily keeps a 5×5 ring of eight-tile chunks around Cardinal, evicts distant chunk data, and submits only a 29×29 cell window to terrain, object, and haze drawing. Four accepted 512×512 material textures in `assets/textures/terrain/` use continuous low-frequency UV warping and shared-vertex tint variation to break repetition without creating tile seams. Wind-blown sand particles and a Web-compatible heat-haze shader supply the ambient desert layer.
-
-## Concept
-
-Read [`docs/concept/WALKERS_WAKE_PROPOSAL.md`](docs/concept/WALKERS_WAKE_PROPOSAL.md) for the proposed direct-control exploration, caravan, and archaeological-discovery design.
-
-## Links
-
-- Live game: https://proto-web-bylaknug.manus.space
+- [Implementation plan](docs/plans/WALKERS_WAKE_IMPLEMENTATION_PLAN.md)
+- [Gameplay proposal](docs/concept/gameplay-v2/GAMEPLAY_ENHANCEMENT_PROPOSAL.md)
+- [Cardinal sprite contract](assets/cardinal/SOURCES.md)
 - Source: https://github.com/junnyboi/proto-isometric

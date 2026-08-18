@@ -27,6 +27,7 @@ var _completed_objective_ids: Array[StringName] = []
 var _shutdown: bool = false
 var _active_module_ids: Array[StringName] = [RuntimeIdsScript.MODULE_WORN_PLATES]
 var _refit_purchase_used: bool = false
+var _active_modifier_id: StringName = RuntimeIdsScript.MODIFIER_NEUTRAL
 var _applied_event_ids: Dictionary = {}
 
 
@@ -182,6 +183,8 @@ func set_value(key: StringName, value: Variant) -> bool:
 			changed = _set_worm_cores(value)
 		&"refit_purchase_used":
 			changed = _set_refit_purchase_used(value)
+		&"active_modifier_id":
+			changed = _set_active_modifier(value)
 		&"starter_relay_completed":
 			changed = _set_starter_relay_completed(value)
 		&"shutdown":
@@ -208,6 +211,7 @@ func get_value(key: StringName) -> Variant:
 			&"shutdown": _shutdown,
 			&"active_module_ids": _active_module_ids.duplicate(),
 			&"refit_purchase_used": _refit_purchase_used,
+			&"active_modifier_id": _active_modifier_id,
 		}
 		. get(key)
 	)
@@ -233,6 +237,7 @@ func to_dictionary() -> Dictionary:
 		&"shutdown": _shutdown,
 		&"active_module_ids": _string_names(_active_module_ids),
 		&"refit_purchase_used": _refit_purchase_used,
+		&"active_modifier_id": String(_active_modifier_id),
 		&"applied_event_ids": _sorted_string_keys(_applied_event_ids),
 	}
 
@@ -262,6 +267,7 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 	_shutdown = bool(validated[&"shutdown"])
 	_active_module_ids = validated[&"active_module_ids"] as Array[StringName]
 	_refit_purchase_used = bool(validated[&"refit_purchase_used"])
+	_active_modifier_id = validated[&"active_modifier_id"] as StringName
 	_applied_event_ids = validated[&"applied_event_ids"] as Dictionary
 	return true
 
@@ -336,6 +342,14 @@ func _set_refit_purchase_used(value: Variant) -> bool:
 	return true
 
 
+func _set_active_modifier(value: Variant) -> bool:
+	var modifier_id: StringName = StringName(str(value))
+	if modifier_id not in RuntimeIdsScript.catalog()[&"modifiers"]:
+		return false
+	_active_modifier_id = modifier_id
+	return true
+
+
 func _set_starter_relay_completed(value: Variant) -> bool:
 	if not value is bool or not bool(value) or _starter_relay_completed:
 		return false
@@ -385,6 +399,9 @@ func _validate_dictionary(snapshot: Dictionary) -> Dictionary:
 		"active_module_ids", [String(RuntimeIdsScript.MODULE_WORN_PLATES)]
 	)
 	var refit_purchase_used: Variant = snapshot.get("refit_purchase_used", false)
+	var active_modifier: StringName = StringName(
+		str(snapshot.get("active_modifier_id", RuntimeIdsScript.MODIFIER_NEUTRAL))
+	)
 	var applied_events: Variant = snapshot.get("applied_event_ids", null)
 	if (
 		not _is_valid_run_id(run_id)
@@ -410,6 +427,7 @@ func _validate_dictionary(snapshot: Dictionary) -> Dictionary:
 		or not active_modules is Array
 		or (active_modules as Array).size() > MAX_ACTIVE_MODULES
 		or not refit_purchase_used is bool
+		or active_modifier not in RuntimeIdsScript.catalog()[&"modifiers"]
 		or not applied_events is Array
 		or (bool(shutdown) and (chassis != 0 or phase != RuntimeIdsScript.RUN_PHASE_FAILED))
 	):
@@ -447,6 +465,7 @@ func _validate_dictionary(snapshot: Dictionary) -> Dictionary:
 		&"shutdown": bool(shutdown),
 		&"active_module_ids": module_ids,
 		&"refit_purchase_used": bool(refit_purchase_used),
+		&"active_modifier_id": active_modifier,
 		&"applied_event_ids": event_validation[&"events"],
 	}
 

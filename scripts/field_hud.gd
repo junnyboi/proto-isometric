@@ -3,6 +3,10 @@ extends CanvasLayer
 signal repair_requested
 
 const OutpostInterfaceScript: GDScript = preload("res://scripts/outpost_interface.gd")
+const AccessibilityPanelScript: GDScript = preload("res://scripts/accessibility_panel.gd")
+const ExpeditionRadarScript: GDScript = preload("res://scripts/expedition_radar.gd")
+const OnboardingOverlayScript: GDScript = preload("res://scripts/onboarding_overlay.gd")
+const PerformanceSamplerScript: GDScript = preload("res://scripts/performance_sampler.gd")
 const RefitServiceScript: GDScript = preload("res://scripts/refit_service.gd")
 const FIELD_THEME: Resource = preload("res://data/field_hud_theme.tres")
 const AMBER: Color = Color("f5a62d")
@@ -20,6 +24,11 @@ var _mobile_charge_panel: ColorRect
 var _mobile_charge_fill: ColorRect
 var _outpost_interface: Control
 var _refit_service: RefCounted
+var _ui_scale: float = 1.0
+var _onboarding: CanvasLayer
+var _radar: Control
+var _radar_coordinator: RefCounted
+var _left_handed: bool = false
 
 
 func _ready() -> void:
@@ -31,12 +40,26 @@ func _ready() -> void:
 	_outpost_interface.connect("repair_requested", func() -> void: repair_requested.emit())
 	_outpost_interface.connect("refit_requested", _on_refit_requested)
 	add_child(_outpost_interface)
+	var accessibility: CanvasLayer = AccessibilityPanelScript.new() as CanvasLayer
+	accessibility.connect("preferences_changed", _on_preferences_changed)
+	add_child(accessibility)
+	_on_preferences_changed(accessibility.call("get_preferences") as Dictionary)
+	_onboarding = OnboardingOverlayScript.new() as CanvasLayer
+	add_child(_onboarding)
+	_radar = ExpeditionRadarScript.new() as Control
+	add_child(_radar)
+	add_child(PerformanceSamplerScript.new())
+	if _radar_coordinator != null:
+		_radar.call("configure", _radar_coordinator)
 	get_viewport().size_changed.connect(_on_viewport_resized)
 	apply_layout(get_viewport().get_visible_rect().size, false)
 
 
 func configure_refit(coordinator: RefCounted, save_callback: Callable) -> bool:
+	_radar_coordinator = coordinator
 	_refit_service = RefitServiceScript.new() as RefCounted
+	if _radar != null:
+		_radar.call("configure", coordinator)
 	return bool(_refit_service.call("configure", coordinator, save_callback))
 
 
@@ -44,6 +67,7 @@ func apply_state(state: RefCounted) -> bool:
 	if state == null or not state.has_method("is_sealed") or not bool(state.call("is_sealed")):
 		return false
 	_state = state
+	_onboarding.call("apply_state", state)
 	_apply_status()
 	_apply_impact()
 	_apply_objective()
@@ -56,13 +80,18 @@ func apply_state(state: RefCounted) -> bool:
 
 func apply_layout(viewport_size: Vector2, mobile: bool) -> bool:
 	var candidate: Dictionary = FIELD_THEME.call("make_layout", viewport_size, mobile) as Dictionary
+	if mobile and _left_handed:
+		var charge: Rect2 = candidate[&"mobile_charge"] as Rect2
+		candidate[&"mobile_charge"] = Rect2(
+			Vector2(viewport_size.x - charge.end.x, charge.position.y), charge.size
+		)
 	if not bool(FIELD_THEME.call("validate_layout", candidate, mobile)):
 		return false
 	_layout = candidate.duplicate(true)
 	_apply_control_layout(
 		_drive_panel,
 		_layout[&"drive_panel"] as Rect2,
-		float(_layout[&"drive_scale"]),
+		float(_layout[&"drive_scale"]) * _ui_scale,
 	)
 	if _outpost_interface != null:
 		(
@@ -70,15 +99,25 @@ func apply_layout(viewport_size: Vector2, mobile: bool) -> bool:
 			. call(
 				"apply_layout",
 				_layout[&"outpost_panel"] as Rect2,
-				float(_layout[&"outpost_scale"]),
+				float(_layout[&"outpost_scale"]) * _ui_scale,
 			)
 		)
 	_apply_control_layout(
 		_mobile_charge_panel,
 		_layout[&"mobile_charge"] as Rect2,
-		float(_layout[&"mobile_charge_scale"]),
+		float(_layout[&"mobile_charge_scale"]) * _ui_scale,
 	)
 	return true
+
+
+func _on_preferences_changed(snapshot: Dictionary) -> void:
+	_ui_scale = clampf(float(snapshot.get(&"ui_scale", 1.0)), 0.85, 1.25)
+	_left_handed = bool(snapshot.get(&"left_handed", false))
+	if _drive_panel != null:
+		apply_layout(
+			get_viewport().get_visible_rect().size,
+			_state != null and bool(_state.call("get_value", &"mobile_controls"))
+		)
 
 
 func get_layout_snapshot() -> Dictionary:
@@ -112,6 +151,9 @@ func get_outpost_interface() -> Control:
 
 func _apply_status() -> void:
 	var context: String = str(_state.call("get_value", &"context_event"))
+	var modifier: String = str(_state.call("get_value", &"active_modifier_id"))
+	if modifier != "modifier.neutral":
+		context += " // " + modifier.trim_prefix("modifier.").replace("_", " ").to_upper()
 	var debug: String = ""
 	if bool(_state.call("get_value", &"debug_visible")):
 		var cell: Vector2i = _state.call("get_value", &"debug_cell") as Vector2i
@@ -187,6 +229,7 @@ func _apply_outpost() -> void:
 			int(_state.call("get_value", &"max_chassis")),
 			_state.call("get_value", &"active_module_ids"),
 			bool(_state.call("get_value", &"refit_purchase_used")),
+			_state.call("get_value", &"active_modifier_id"),
 		)
 	)
 

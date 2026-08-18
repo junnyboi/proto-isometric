@@ -157,6 +157,10 @@ func get_profile_snapshot() -> Dictionary:
 	return _profile_state.call("to_dictionary") as Dictionary if _profile_state != null else {}
 
 
+func get_profile_value(key: StringName) -> Variant:
+	return _profile_state.call("get_value", key) if _profile_state != null else null
+
+
 func restore_state_snapshots(run_snapshot: Dictionary, profile_snapshot: Dictionary) -> bool:
 	var run_candidate: RefCounted = RunStateScript.new() as RefCounted
 	var profile_candidate: RefCounted = ProfileStateScript.new() as RefCounted
