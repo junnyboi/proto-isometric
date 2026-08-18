@@ -13,9 +13,9 @@ const MobileControlsScript: GDScript = preload("res://scripts/mobile_controls.gd
 const RelayContestScript: GDScript = preload("res://scripts/relay_contest.gd")
 const RunCoordinatorScript: GDScript = preload("res://scripts/run_coordinator.gd")
 const SandwormsScript: GDScript = preload("res://scripts/sandworms.gd")
+const SaveRepositoryScript: GDScript = preload("res://scripts/save_repository.gd")
 const TerrainHazeScript: GDScript = preload("res://scripts/terrain_haze.gd")
 const TerrainRendererScript: GDScript = preload("res://scripts/terrain_renderer.gd")
-const WorldStateStoreScript: GDScript = preload("res://scripts/world_state_store.gd")
 const WorldObjectsScript: GDScript = preload("res://scripts/world_objects.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const SAND_TEXTURE: Texture2D = preload("res://assets/textures/terrain/desert_sand.png")
@@ -26,7 +26,7 @@ const RUIN_TEXTURE: Texture2D = preload("res://assets/textures/terrain/ancient_r
 const TILE_SIZE: Vector2 = Vector2(90.0, 45.0)
 const MAP_ORIGIN: Vector2 = Vector2(760.0, 70.0)
 const START_CELL: Vector2i = Vector2i(8, 10)
-const SAVE_SCHEMA: int = 2
+const SAVE_SCHEMA: int = SaveRepositoryScript.FORMAT_VERSION
 const DEFAULT_SAVE_PATH: String = "user://walkers-wake-world.json"
 const INVALID_CELL: Vector2i = Vector2i(-9999, -9999)
 const WALK_SPEED: float = 150.0
@@ -130,7 +130,7 @@ func _ready() -> void:
 	if not bool(_run_coordinator.call("configure_default", START_CELL, &"SE")):
 		push_error("WW-02 typed state contracts failed validation.")
 	_build_world_stream()
-	_build_state_store(save_path)
+	_build_save_repository(save_path)
 	_load_world_state()
 	_stream_world()
 	_robot_visual_position = grid_to_screen(_robot_grid)
@@ -147,8 +147,8 @@ func _ready() -> void:
 	_build_mobile_controls()
 	_build_chassis_feedback()
 	_build_heat_haze()
-	if _chassis <= 0:
-		_enter_shutdown(&"persistent_damage")
+	if _shutdown:
+		_apply_shutdown_presentation(&"persistent_damage")
 	_collect_scrap_at(_robot_grid)
 	_refresh_outpost_interface()
 	_sync_avatar()
@@ -455,6 +455,11 @@ func _enter_shutdown(source: StringName) -> void:
 	if _shutdown:
 		return
 	_shutdown = true
+	_apply_shutdown_presentation(source)
+	_save_world_state()
+
+
+func _apply_shutdown_presentation(source: StringName) -> void:
 	_velocity = Vector2.ZERO
 	_is_moving = false
 	_is_running = false
@@ -471,7 +476,6 @@ func _enter_shutdown(source: StringName) -> void:
 		_chassis_feedback.call("enter_shutdown", source)
 	_update_status("CARDINAL SHUTDOWN // CHASSIS 000 // ESC: RETURN")
 	_refresh_outpost_interface()
-	_save_world_state()
 
 
 func _is_at_outpost() -> bool:
@@ -584,68 +588,53 @@ func _exit_tree() -> void:
 	_save_world_state()
 
 
-func _build_state_store(path: String) -> void:
-	_state_store = WorldStateStoreScript.new() as RefCounted
-	_state_store.call("configure", path)
+func _build_save_repository(path: String) -> void:
+	_state_store = SaveRepositoryScript.new() as RefCounted
+	var build_id: String = str(
+		ProjectSettings.get_setting("application/config/version", "development")
+	)
+	if not bool(_state_store.call("configure", path, _world, build_id)):
+		push_error("WW-03 save repository failed configuration.")
 
 
 func _load_world_state() -> bool:
 	if _state_store == null:
 		return false
-	var snapshot: Dictionary = _state_store.call("load_snapshot") as Dictionary
-	if snapshot.is_empty():
-		var load_error: String = str(_state_store.call("get_last_error"))
-		if not load_error.is_empty():
-			_state_store.call("clear")
+	var envelope: Dictionary = _state_store.call("load_state") as Dictionary
+	if envelope.is_empty():
 		return false
-	if not _is_valid_snapshot(snapshot):
-		_state_store.call("clear")
+	if not bool(
+		_run_coordinator.call(
+			"restore_persisted_state", envelope[&"active_run"], envelope[&"profile"]
+		)
+	):
+		push_error("Validated save state could not be applied.")
 		return false
-	_apply_snapshot(snapshot)
+	var world_snapshot: Dictionary = (envelope[&"world"] as Dictionary).duplicate(true)
+	world_snapshot[&"schema"] = 2
+	_world.call("apply_snapshot", world_snapshot)
 	return true
 
 
 func _save_world_state() -> bool:
 	if _state_store == null:
 		return false
-	var saved: bool = bool(_state_store.call("save_snapshot", _make_snapshot()))
+	if bool(_state_store.call("is_write_blocked")):
+		return false
+	var saved: bool = bool(
+		(
+			_state_store
+			. call(
+				"save_state",
+				_world.call("make_snapshot"),
+				_run_coordinator.call("get_run_snapshot"),
+				_run_coordinator.call("get_profile_snapshot"),
+			)
+		)
+	)
 	if not saved:
 		push_warning("World save failed: %s" % str(_state_store.call("get_last_error")))
 	return saved
-
-
-func _make_snapshot() -> Dictionary:
-	var snapshot: Dictionary = _world.call("make_snapshot") as Dictionary
-	snapshot["schema"] = SAVE_SCHEMA
-	snapshot.merge(_run_coordinator.call("get_legacy_run_snapshot") as Dictionary, true)
-	return snapshot
-
-
-func _is_valid_snapshot(snapshot: Dictionary) -> bool:
-	var robot_cell: Vector2i = _decode_cell(snapshot.get("robot_cell", []))
-	var facing_value: StringName = StringName(str(snapshot.get("facing", "")))
-	return (
-		int(snapshot.get("schema", -1)) in [1, SAVE_SCHEMA]
-		and int(snapshot.get("scrap_total", -1)) >= 0
-		and int(snapshot.get("chassis", MAX_CHASSIS)) >= 0
-		and int(snapshot.get("chassis", MAX_CHASSIS)) <= MAX_CHASSIS
-		and snapshot.get("relay_completed", false) is bool
-		and robot_cell != INVALID_CELL
-		and facing_value in [&"N", &"NE", &"E", &"SE", &"S", &"SW", &"W", &"NW"]
-		and bool(_world.call("is_valid_snapshot", snapshot, robot_cell))
-	)
-
-
-func _apply_snapshot(snapshot: Dictionary) -> void:
-	_world.call("apply_snapshot", snapshot)
-	_run_coordinator.call(
-		"restore_legacy_run_snapshot", snapshot, _decode_cell(snapshot["robot_cell"])
-	)
-
-
-func _decode_cell(value: Variant) -> Vector2i:
-	var cell: Vector2i = _world.call("decode_cell", value) as Vector2i
-	return cell if _is_in_bounds(cell) and cell != INVALID_CELL else INVALID_CELL
 
 
 func _update_camera_follow(delta: float) -> void:
@@ -876,6 +865,7 @@ func _on_relay_link_started(relay_cell: Vector2i) -> void:
 
 func _on_relay_completed(_relay_cell: Vector2i) -> void:
 	_relay_completed = true
+	_run_coordinator.call("apply_run_event", RuntimeIdsScript.EVENT_RELAY_COMPLETED)
 	if _sandworms != null:
 		_sandworms.call("disperse_all")
 	_status_hold_time = 1.4

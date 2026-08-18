@@ -1,6 +1,8 @@
 extends SceneTree
 
 const BalanceTestsScript: GDScript = preload("res://test/test_balance.gd")
+const SaveMigrationTestsScript: GDScript = preload("res://test/test_save_migrations.gd")
+const SaveRepositoryTestsScript: GDScript = preload("res://test/test_save_repository.gd")
 const StateTestsScript: GDScript = preload("res://test/test_state.gd")
 
 var _checks: int = 0
@@ -74,6 +76,17 @@ func _test_isometric_map() -> void:
 	_check(map.call("get_grid_size") == Vector2i(-1, -1), "world reports unbounded grid")
 	var world: RefCounted = map.get("_world") as RefCounted
 	_check(world != null, "lazy world stream exists")
+	for test_case: Dictionary in SaveMigrationTestsScript.evaluate(world):
+		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
+	for test_case: Dictionary in (
+		SaveRepositoryTestsScript
+		. evaluate(
+			world,
+			run_coordinator.call("get_run_snapshot") as Dictionary,
+			run_coordinator.call("get_profile_snapshot") as Dictionary,
+		)
+	):
+		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
 	_check(
 		int(world.call("get_loaded_chunk_count")) == 25, "stream keeps five by five chunks active"
 	)
@@ -600,6 +613,17 @@ func _test_isometric_map() -> void:
 	effects.call("advance", 1.0)
 	_check(int(effects.call("get_particle_count")) == 0, "debris particles expire")
 	_check(effects.call("get_camera_offset") == Vector2.ZERO, "camera shake resets cleanly")
+	var live_envelope: Dictionary = _read_test_json(save_path)
+	_check(
+		(
+			int(live_envelope.get("save_format_version", -1)) == 3
+			and live_envelope.has("metadata")
+			and live_envelope.has("world")
+			and live_envelope.has("active_run")
+			and live_envelope.has("profile")
+		),
+		"live field writes a complete schema-3 envelope",
+	)
 
 	map.free()
 	await process_frame
@@ -622,7 +646,7 @@ func _test_isometric_map() -> void:
 				== int(map.call("get_scrap_count"))
 			)
 		),
-		"schema-two reload round-trips through typed RunState",
+		"schema-three reload round-trips through typed RunState",
 	)
 	_check(
 		not bool(map.call("has_destructible_rock", Vector2i(4, 4))),
@@ -806,7 +830,16 @@ func _test_isometric_map() -> void:
 		bool(map.call("has_destructible_rock", Vector2i(4, 4))), "malformed save falls back safely"
 	)
 	_check(int(map.call("get_scrap_count")) == 0, "malformed save cannot corrupt inventory")
-	_check(not FileAccess.file_exists(malformed_path), "malformed save self-heals silently")
+	var malformed_repository: RefCounted = map.get("_state_store") as RefCounted
+	var malformed_quarantine: Array = malformed_repository.call("get_quarantine_paths") as Array
+	_check(
+		(
+			not FileAccess.file_exists(malformed_path)
+			and malformed_quarantine.size() == 1
+			and FileAccess.file_exists(malformed_quarantine[0])
+		),
+		"malformed save is quarantined diagnostically",
+	)
 	map.free()
 	await process_frame
 	var incompatible: FileAccess = FileAccess.open(incompatible_path, FileAccess.WRITE)
@@ -834,7 +867,20 @@ func _test_isometric_map() -> void:
 	await process_frame
 	await process_frame
 	_check(int(map.call("get_scrap_count")) == 0, "incompatible save falls back safely")
-	_check(not FileAccess.file_exists(incompatible_path), "incompatible save self-heals silently")
+	var incompatible_repository: RefCounted = map.get("_state_store") as RefCounted
+	var incompatible_quarantine: Array = (
+		incompatible_repository.call("get_quarantine_paths") as Array
+	)
+	_check(
+		(
+			incompatible_repository.call("get_status") == &"incompatible"
+			and bool(incompatible_repository.call("is_write_blocked"))
+			and not FileAccess.file_exists(incompatible_path)
+			and incompatible_quarantine.size() == 1
+			and FileAccess.file_exists(incompatible_quarantine[0])
+		),
+		"future save is quarantined and protected from overwrite",
+	)
 	map.free()
 	await process_frame
 	_clear_test_save(save_path)
@@ -843,9 +889,22 @@ func _test_isometric_map() -> void:
 
 
 func _clear_test_save(path: String) -> void:
-	for candidate: String in [path, path + ".tmp", path + ".bak"]:
-		if FileAccess.file_exists(candidate):
-			DirAccess.remove_absolute(candidate)
+	var directory: DirAccess = DirAccess.open(path.get_base_dir())
+	if directory == null:
+		return
+	var prefix: String = path.get_file()
+	for file_name: String in directory.get_files():
+		if file_name == prefix or file_name.begins_with(prefix + "."):
+			directory.remove(file_name)
+
+
+func _read_test_json(path: String) -> Dictionary:
+	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return {}
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	file.close()
+	return parsed as Dictionary if parsed is Dictionary else {}
 
 
 func _check(condition: bool, label: String) -> void:

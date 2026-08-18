@@ -99,10 +99,10 @@ static func contracts() -> Array[Dictionary]:
 		),
 		_stable_contract(
 			RuntimeIdsScript.DOMAIN_PERSISTENCE,
-			RuntimeIdsScript.OWNER_WORLD_STATE_STORE,
+			RuntimeIdsScript.OWNER_SAVE_REPOSITORY,
 			SCOPE_WORLD,
 			POLICY_AUTHORITATIVE,
-			"res://scripts/world_state_store.gd",
+			"res://scripts/save_repository.gd",
 		),
 		_stable_contract(
 			RuntimeIdsScript.DOMAIN_FIELD_PRESENTATION,

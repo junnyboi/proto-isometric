@@ -17,7 +17,7 @@ static func evaluate(coordinator: RefCounted) -> Array[Dictionary]:
 	_add_case(
 		cases,
 		"stable ID registry version is pinned",
-		RuntimeIdsScript.REGISTRY_VERSION == 1,
+		RuntimeIdsScript.REGISTRY_VERSION == 2,
 	)
 	var unique_ids: Dictionary = {}
 	for identifier: StringName in RuntimeIdsScript.all_ids():
@@ -85,6 +85,14 @@ static func evaluate(coordinator: RefCounted) -> Array[Dictionary]:
 		(
 			RuntimeOwnershipScript.current_owner_for(RuntimeIdsScript.DOMAIN_PROFILE)
 			== RuntimeIdsScript.OWNER_PROFILE_STATE
+		),
+	)
+	_add_case(
+		cases,
+		"schema-3 persistence authority is SaveRepository",
+		(
+			RuntimeOwnershipScript.current_owner_for(RuntimeIdsScript.DOMAIN_PERSISTENCE)
+			== RuntimeIdsScript.OWNER_SAVE_REPOSITORY
 		),
 	)
 	_add_case(cases, "neutral run coordinator exists", coordinator != null)

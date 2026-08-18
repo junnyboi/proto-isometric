@@ -1,0 +1,15 @@
+{
+  "schema": 2,
+  "destroyed_rocks": [[3, 15], [4, 4], [-9, 21]],
+  "placed_rocks": [[25, -7], [16, 6]],
+  "dropped_scrap": [
+    {"cell": [40, -12], "amount": 9},
+    {"cell": [18, 20], "amount": 4}
+  ],
+  "collected_scrap": [[7, 13], [14, 8], [99, 101]],
+  "scrap_total": 84,
+  "chassis": 62,
+  "robot_cell": [31, -11],
+  "facing": "SW",
+  "relay_completed": false
+}

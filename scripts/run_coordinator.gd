@@ -128,16 +128,13 @@ func restore_state_snapshots(run_snapshot: Dictionary, profile_snapshot: Diction
 	return true
 
 
-func get_legacy_run_snapshot() -> Dictionary:
-	return _run_state.call("legacy_snapshot") as Dictionary if _run_state != null else {}
-
-
-func restore_legacy_run_snapshot(snapshot: Dictionary, player_cell: Vector2i) -> bool:
-	return (
-		bool(_run_state.call("restore_legacy_snapshot", snapshot.duplicate(true), player_cell))
-		if _run_state != null
-		else false
-	)
+func restore_persisted_state(active_run: Variant, profile_snapshot: Dictionary) -> bool:
+	var run_snapshot: Dictionary = get_run_snapshot()
+	if active_run is Dictionary:
+		run_snapshot = (active_run as Dictionary).duplicate(true)
+	elif active_run != null:
+		return false
+	return restore_state_snapshots(run_snapshot, profile_snapshot)
 
 
 func get_telemetry_events() -> Array[Dictionary]:

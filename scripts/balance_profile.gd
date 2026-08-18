@@ -55,7 +55,7 @@ extends Resource
 @export var active_cell_limit: int = 1600
 @export var visible_cell_limit: int = 841
 @export var coordinate_limit: int = 1_000_000
-@export var save_schema: int = 2
+@export var save_schema: int = 3
 
 
 func validate() -> bool:

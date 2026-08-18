@@ -46,4 +46,4 @@ loaded_chunk_limit = 25
 active_cell_limit = 1600
 visible_cell_limit = 841
 coordinate_limit = 1000000
-save_schema = 2
+save_schema = 3

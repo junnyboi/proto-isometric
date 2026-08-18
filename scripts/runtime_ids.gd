@@ -1,6 +1,6 @@
 extends RefCounted
 
-const REGISTRY_VERSION: int = 1
+const REGISTRY_VERSION: int = 2
 
 const DOMAIN_FIELD_COMPOSITION: StringName = &"domain.field_composition"
 const DOMAIN_MOVEMENT: StringName = &"domain.movement"
@@ -28,6 +28,7 @@ const OWNER_RELAY_CONTEST: StringName = &"owner.relay_contest"
 const OWNER_SANDWORMS: StringName = &"owner.sandworms"
 const OWNER_DESERT_HAZARDS: StringName = &"owner.desert_hazards"
 const OWNER_WORLD_STATE_STORE: StringName = &"owner.world_state_store"
+const OWNER_SAVE_REPOSITORY: StringName = &"owner.save_repository"
 const OWNER_FIELD_HUD: StringName = &"owner.field_hud"
 const OWNER_FEEDBACK_ROUTER: StringName = &"owner.feedback_router"
 
@@ -93,6 +94,7 @@ static func catalog() -> Dictionary:
 			OWNER_SANDWORMS,
 			OWNER_DESERT_HAZARDS,
 			OWNER_WORLD_STATE_STORE,
+			OWNER_SAVE_REPOSITORY,
 			OWNER_FIELD_HUD,
 			OWNER_FEEDBACK_ROUTER,
 		],
