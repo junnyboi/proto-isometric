@@ -472,23 +472,51 @@ func _normalize_run_dictionary(run: Dictionary) -> Variant:
 	]
 	if run.has(&"active_module_ids"):
 		run_keys.append(&"active_module_ids")
+	var reward_keys: Array[StringName] = [&"worm_cores", &"run_drops", &"next_drop_sequence"]
+	var reward_key_count: int = 0
+	for key: StringName in reward_keys:
+		if run.has(key):
+			reward_key_count += 1
+	if reward_key_count not in [0, reward_keys.size()]:
+		return false
+	if reward_key_count == reward_keys.size():
+		run_keys.append_array(reward_keys)
 	var modules: Variant = run.get(
 		&"active_module_ids", [String(RuntimeIdsScript.MODULE_WORN_PLATES)]
 	)
+	var run_drops: Variant = run.get(&"run_drops", [])
 	if (
 		not _exact_keys(run, run_keys)
 		or not events is Array
 		or (events as Array).size() > MAX_APPLIED_EVENTS
 		or not modules is Array
 		or (modules as Array).size() > RunStateScript.MAX_ACTIVE_MODULES
+		or not run_drops is Array
+		or (run_drops as Array).size() > RunStateScript.MAX_RUN_DROPS
 	):
+		return false
+	var normalized_drops: Variant = _normalize_reward_drops(run_drops as Array)
+	if normalized_drops == null:
 		return false
 	var normalized: Dictionary = run.duplicate(true)
 	normalized[&"active_module_ids"] = (modules as Array).duplicate()
+	normalized[&"worm_cores"] = run.get(&"worm_cores", 0)
+	normalized[&"run_drops"] = normalized_drops
+	normalized[&"next_drop_sequence"] = run.get(&"next_drop_sequence", 1)
 	for key: StringName in [
-		&"state_version", &"seed", &"chassis", &"max_chassis", &"unbanked_scrap"
+		&"state_version",
+		&"seed",
+		&"chassis",
+		&"max_chassis",
+		&"unbanked_scrap",
+		&"worm_cores",
+		&"next_drop_sequence",
 	]:
-		var maximum: int = MAX_WALLET if key == &"unbanked_scrap" else MAX_SEQUENCE
+		var maximum: int = MAX_SEQUENCE
+		if key == &"unbanked_scrap":
+			maximum = MAX_WALLET
+		elif key == &"worm_cores":
+			maximum = RunStateScript.MAX_WORM_CORES
 		var number: Variant = _json_integer(normalized.get(key), 0, maximum)
 		if number == null:
 			return false
@@ -504,7 +532,13 @@ func _normalize_run_dictionary(run: Dictionary) -> Variant:
 	):
 		return false
 	normalized[&"player_cell"] = player_cell
-	if not _run_string_arrays_are_valid(events as Array, modules as Array):
+	return _restore_normalized_run(normalized)
+
+
+func _restore_normalized_run(normalized: Dictionary) -> Variant:
+	if not _run_string_arrays_are_valid(
+		normalized[&"applied_event_ids"] as Array, normalized[&"active_module_ids"] as Array
+	):
 		return false
 	var state: RefCounted = RunStateScript.new() as RefCounted
 	if (
@@ -523,6 +557,39 @@ func _run_string_arrays_are_valid(events: Array, modules: Array) -> bool:
 		if not module_id is String or (module_id as String).length() > 64:
 			return false
 	return true
+
+
+func _normalize_reward_drops(values: Array) -> Variant:
+	var drops: Array[Dictionary] = []
+	for value: Variant in values:
+		var drop: Dictionary = value as Dictionary if value is Dictionary else {}
+		if not _exact_keys(drop, [&"drop_id", &"source_worm_id", &"cell", &"cores", &"scrap"]):
+			return null
+		var source: Variant = _json_integer(drop[&"source_worm_id"], 1, MAX_SEQUENCE)
+		var cores: Variant = _json_integer(drop[&"cores"], 1, RunStateScript.MAX_WORM_CORES)
+		var scrap: Variant = _json_integer(drop[&"scrap"], 0, MAX_WALLET)
+		var cell: Variant = _normalize_cell(drop[&"cell"])
+		if (
+			not drop[&"drop_id"] is String
+			or source == null
+			or cores == null
+			or scrap == null
+			or cell == null
+		):
+			return null
+		(
+			drops
+			. append(
+				{
+					&"drop_id": str(drop[&"drop_id"]),
+					&"source_worm_id": int(source),
+					&"cell": cell,
+					&"cores": int(cores),
+					&"scrap": int(scrap),
+				}
+			)
+		)
+	return drops
 
 
 func _normalize_profile(value: Variant) -> Dictionary:

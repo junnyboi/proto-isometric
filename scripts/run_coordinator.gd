@@ -115,6 +115,20 @@ func _has_run_module(module_id: StringName) -> bool:
 	return bool(_run_state.call("has_module", module_id)) if _run_state != null else false
 
 
+func _place_run_drop(cell: Vector2i, cores: int, scrap: int, source_worm_id: int) -> Dictionary:
+	if _run_state == null:
+		return {}
+	return _run_state.call("_place_drop", cell, cores, scrap, source_worm_id) as Dictionary
+
+
+func _collect_run_drop(cell: Vector2i) -> Dictionary:
+	return _run_state.call("_collect_drop_at", cell) as Dictionary if _run_state != null else {}
+
+
+func _get_run_drops() -> Array[Dictionary]:
+	return _run_state.call("_get_run_drops") as Array[Dictionary] if _run_state != null else []
+
+
 func get_run_snapshot() -> Dictionary:
 	return _run_state.call("to_dictionary") as Dictionary if _run_state != null else {}
 

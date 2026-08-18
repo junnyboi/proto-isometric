@@ -34,6 +34,8 @@ static func _test_run_round_trip(cases: Array[Dictionary]) -> void:
 	source.call("set_value", &"shutdown", true)
 	source.call("apply_event", RuntimeIdsScript.EVENT_RELAY_COMPLETED)
 	source.call("add_module", RuntimeIdsScript.MODULE_AFTERSHOCK)
+	var reward: Dictionary = source.call("_place_drop", Vector2i(21, -4), 1, 2, 77) as Dictionary
+	_add_case(cases, "RunState places one typed worm reward", not reward.is_empty())
 	var snapshot: Dictionary = source.call("to_dictionary") as Dictionary
 	var restored: RefCounted = RunStateScript.new() as RefCounted
 	_add_case(
@@ -73,8 +75,60 @@ static func _test_run_round_trip(cases: Array[Dictionary]) -> void:
 			and bool(restored.call("has_module", RuntimeIdsScript.MODULE_AFTERSHOCK))
 		),
 	)
+	_add_case(
+		cases,
+		"RunState round-trip preserves uncollected rewards",
+		(
+			(restored.call("_get_run_drops") as Array[Dictionary]).size() == 1
+			and int(restored.call("get_value", &"worm_cores")) == 0
+		),
+	)
+	var detached_rewards: Array[Dictionary] = restored.call("_get_run_drops") as Array[Dictionary]
+	detached_rewards.clear()
+	_add_case(
+		cases,
+		"RunState reward projection is detached",
+		(restored.call("_get_run_drops") as Array[Dictionary]).size() == 1,
+	)
+	var collected: Dictionary = restored.call("_collect_drop_at", Vector2i(21, -4)) as Dictionary
+	_add_case(
+		cases,
+		"RunState collection atomically credits Core and scrap",
+		(
+			not collected.is_empty()
+			and int(restored.call("get_value", &"worm_cores")) == 1
+			and int(restored.call("get_value", &"scrap")) == 25
+			and (restored.call("_get_run_drops") as Array[Dictionary]).is_empty()
+		),
+	)
+	_add_case(
+		cases,
+		"RunState collected reward cannot credit twice",
+		(restored.call("_collect_drop_at", Vector2i(21, -4)) as Dictionary).is_empty(),
+	)
+	var duplicate_reward: Dictionary = snapshot.duplicate(true)
+	(duplicate_reward[&"run_drops"] as Array).append(
+		(duplicate_reward[&"run_drops"] as Array)[0].duplicate(true)
+	)
+	_add_case(
+		cases,
+		"RunState rejects duplicate persisted reward records",
+		not bool(restored.call("restore_dictionary", duplicate_reward)),
+	)
+	var oversized_rewards: Dictionary = snapshot.duplicate(true)
+	var oversized_drop_array: Array = oversized_rewards[&"run_drops"] as Array
+	while oversized_drop_array.size() <= RunStateScript.MAX_RUN_DROPS:
+		oversized_drop_array.append((oversized_drop_array[0] as Dictionary).duplicate(true))
+	_add_case(
+		cases,
+		"RunState rejects reward dictionaries above the hard bound",
+		not bool(restored.call("restore_dictionary", oversized_rewards)),
+	)
 	var legacy_schema_three: Dictionary = snapshot.duplicate(true)
 	legacy_schema_three.erase(&"active_module_ids")
+	legacy_schema_three.erase(&"worm_cores")
+	legacy_schema_three.erase(&"run_drops")
+	legacy_schema_three.erase(&"next_drop_sequence")
 	var legacy_restored: RefCounted = RunStateScript.new() as RefCounted
 	_add_case(
 		cases,
@@ -82,6 +136,8 @@ static func _test_run_round_trip(cases: Array[Dictionary]) -> void:
 		(
 			bool(legacy_restored.call("restore_dictionary", legacy_schema_three))
 			and bool(legacy_restored.call("has_module", RuntimeIdsScript.MODULE_WORN_PLATES))
+			and int(legacy_restored.call("get_value", &"worm_cores")) == 0
+			and (legacy_restored.call("_get_run_drops") as Array[Dictionary]).is_empty()
 		),
 	)
 	var malformed: Dictionary = snapshot.duplicate(true)

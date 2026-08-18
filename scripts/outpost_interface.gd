@@ -18,7 +18,7 @@ var _upgrade_button: Button
 func _ready() -> void:
 	size = DESIGN_SIZE
 	_build_panel()
-	set_state(false, 0, 100, 100)
+	set_state(false, 0, 0, 100, 100)
 
 
 func apply_layout(rect: Rect2, scale_value: float) -> bool:
@@ -34,12 +34,14 @@ func get_layout_rect() -> Rect2:
 	return Rect2(position, DESIGN_SIZE * scale)
 
 
-func set_state(linked: bool, scrap: int, chassis: int, max_chassis: int) -> void:
+func set_state(linked: bool, scrap: int, cores: int, chassis: int, max_chassis: int) -> void:
 	if _status == null:
 		return
 	_status.text = "LINKED // SERVICE BUS ONLINE" if linked else "SEARCHING // ENTER AN OUTPOST"
 	_status.add_theme_color_override("font_color", TEAL if linked else MUTED)
-	_inventory.text = "SCRAP %03d   CHASSIS %03d/%03d" % [scrap, chassis, max_chassis]
+	_inventory.text = (
+		"SCRAP %03d   CORE %03d   CHASSIS %03d/%03d" % [scrap, cores, chassis, max_chassis]
+	)
 	_repair_button.disabled = not linked or scrap < REPAIR_COST or chassis >= max_chassis
 	_craft_button.disabled = true
 	_upgrade_button.disabled = true

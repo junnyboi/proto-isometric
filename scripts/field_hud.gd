@@ -174,6 +174,7 @@ func _apply_outpost() -> void:
 			"set_state",
 			bool(_state.call("get_value", &"outpost_linked")),
 			int(_state.call("get_value", &"run_scrap")),
+			int(_state.call("get_value", &"worm_cores")),
 			int(_state.call("get_value", &"chassis")),
 			int(_state.call("get_value", &"max_chassis")),
 		)

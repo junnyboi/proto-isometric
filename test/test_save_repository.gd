@@ -100,19 +100,24 @@ static func _test_schema_three_module_default(
 	var legacy_envelope: Dictionary = _read_json(TEST_ROOT)
 	var legacy_run: Dictionary = legacy_envelope[&"active_run"] as Dictionary
 	legacy_run.erase(&"active_module_ids")
+	legacy_run.erase(&"worm_cores")
+	legacy_run.erase(&"run_drops")
+	legacy_run.erase(&"next_drop_sequence")
 	legacy_envelope[&"active_run"] = legacy_run
 	_write_text(TEST_ROOT, JSON.stringify(legacy_envelope))
 	var reopened: RefCounted = _repository(TEST_ROOT, world)
 	var loaded: Dictionary = reopened.call("load_state") as Dictionary
 	_add_case(
 		cases,
-		"pre-module schema-three run defaults to Worn Plates",
+		"pre-reward schema-three run defaults modules and zero rewards",
 		(
 			not loaded.is_empty()
 			and (
 				"module.worn_plates"
 				in ((loaded[&"active_run"] as Dictionary)[&"active_module_ids"] as Array)
 			)
+			and int((loaded[&"active_run"] as Dictionary)[&"worm_cores"]) == 0
+			and ((loaded[&"active_run"] as Dictionary)[&"run_drops"] as Array).is_empty()
 		),
 	)
 

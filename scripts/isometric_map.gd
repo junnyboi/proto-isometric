@@ -554,10 +554,6 @@ func _set_impact_charge(value: float) -> void:
 	_refresh_outpost_interface()
 
 
-func _get_charge_band() -> int:
-	return int(_impact_charge.call("get_band")) if _impact_charge != null else 0
-
-
 func _get_completed_relays() -> int:
 	return 1 if _relay_completed else 0
 
@@ -767,6 +763,7 @@ func _build_world_layers() -> void:
 			_scrap,
 			_outposts,
 			Callable(self, "grid_to_screen"),
+			Callable(self, "_save_world_state"),
 		)
 	)
 	_world_objects.call("set_visible_cells", _visible_cells)
@@ -955,7 +952,9 @@ func _refresh_outpost_interface() -> void:
 		return
 	var state: RefCounted = FieldUIStateScript.new() as RefCounted
 	var mobile: bool = _mobile_controls != null and bool(_mobile_controls.call("is_mobile_device"))
-	state.call("configure_vitals", _chassis, MAX_CHASSIS, _scrap_count, 0)
+	state.call(
+		"configure_vitals", _chassis, MAX_CHASSIS, _scrap_count, int(_run_value(&"worm_cores", 0))
+	)
 	(
 		state
 		. call(

@@ -12,6 +12,7 @@ var _scrap: Dictionary = {}
 var _outposts: Dictionary = {}
 var _visible_cells: Array[Vector2i] = []
 var _grid_to_screen: Callable
+var _save_callback: Callable
 
 
 func configure(
@@ -19,11 +20,13 @@ func configure(
 	scrap: Dictionary,
 	outposts: Dictionary,
 	grid_to_screen: Callable,
+	save_callback: Callable = Callable(),
 ) -> void:
 	_destructible_rocks = destructible_rocks
 	_scrap = scrap
 	_outposts = outposts
 	_grid_to_screen = grid_to_screen
+	_save_callback = save_callback
 	queue_redraw()
 
 
@@ -42,7 +45,7 @@ func build_run_pickups(world: RefCounted, coordinator: RefCounted, worms: Node2D
 	var pickups: Node2D = RunPickupsScript.new() as Node2D
 	pickups.name = "RunPickups"
 	pickups.z_index = 3
-	if not bool(pickups.call("configure", world, _grid_to_screen, coordinator)):
+	if not bool(pickups.call("configure", world, _grid_to_screen, coordinator, _save_callback)):
 		pickups.free()
 		return null
 	if not bool(pickups.call("bind_worms", worms)):

@@ -1,6 +1,7 @@
 extends RefCounted
 
 const RunPickupsScript: GDScript = preload("res://scripts/run_pickups.gd")
+const RunCoordinatorScript: GDScript = preload("res://scripts/run_coordinator.gd")
 const SandwormsScript: GDScript = preload("res://scripts/sandworms.gd")
 const DEFAULT_PROFILE: Resource = preload("res://data/combat/sandworm_default.tres")
 
@@ -12,12 +13,24 @@ class FakeWorld:
 	func is_walkable(cell: Vector2i) -> bool:
 		return not bool(blocked.get(cell, false))
 
+	func is_cell_loaded(_cell: Vector2i) -> bool:
+		return true
+
 
 class ScreenProjection:
 	extends RefCounted
 
 	func grid_to_screen(cell: Vector2i) -> Vector2:
 		return Vector2(cell) * 10.0
+
+
+class SaveProbe:
+	extends RefCounted
+	var calls: int = 0
+
+	func commit() -> bool:
+		calls += 1
+		return true
 
 
 static func evaluate() -> Array[Dictionary]:
@@ -69,7 +82,7 @@ static func evaluate() -> Array[Dictionary]:
 	_add_case(
 		cases,
 		"blocked defeat cell resolves to the first deterministic valid neighbor",
-		placed[1][&"cell"] == Vector2i(0, -2),
+		placed[1][&"cell"] == [0, -2],
 	)
 	var before_dispersal: int = int(pickups.call("get_drop_count"))
 	var dispersed_worm: int = int(worms.call("spawn_worm", Vector2(8.0, 8.0), 0.0))
@@ -90,9 +103,63 @@ static func evaluate() -> Array[Dictionary]:
 		"active run drop dictionary stays hard bounded",
 		int(pickups.call("get_drop_count")) == RunPickupsScript.MAX_ACTIVE_DROPS,
 	)
+	_test_typed_collection(cases, world, projection)
 	pickups.free()
 	worms.free()
 	return cases
+
+
+static func _test_typed_collection(
+	cases: Array[Dictionary], world: FakeWorld, projection: ScreenProjection
+) -> void:
+	var coordinator: RefCounted = RunCoordinatorScript.new() as RefCounted
+	coordinator.call("configure_default", Vector2i(8, 10), &"SE")
+	var save_probe: SaveProbe = SaveProbe.new()
+	var pickups: Node2D = RunPickupsScript.new() as Node2D
+	(
+		pickups
+		. call(
+			"configure",
+			world,
+			Callable(projection, "grid_to_screen"),
+			coordinator,
+			Callable(save_probe, "commit"),
+		)
+	)
+	pickups.call("_on_worm_defeated", 501, Vector2(9.0, 10.0))
+	var run_snapshot: Dictionary = coordinator.call("get_run_snapshot") as Dictionary
+	_add_case(
+		cases,
+		"typed worm reward persists immediately",
+		(run_snapshot[&"run_drops"] as Array).size() == 1 and save_probe.calls == 1,
+	)
+	var restored_pickups: Node2D = RunPickupsScript.new() as Node2D
+	restored_pickups.call("configure", world, Callable(projection, "grid_to_screen"), coordinator)
+	_add_case(
+		cases,
+		"run pickup controller restores uncollected rewards",
+		int(restored_pickups.call("get_drop_count")) == 1,
+	)
+	var drop: Dictionary = (run_snapshot[&"run_drops"] as Array)[0] as Dictionary
+	var drop_cell: Array = drop[&"cell"] as Array
+	coordinator.call(
+		"set_run_value", &"player_cell", Vector2i(int(drop_cell[0]), int(drop_cell[1]))
+	)
+	pickups.call("_process", 0.0)
+	_add_case(
+		cases,
+		"collection credits one Core and configured scrap exactly once",
+		(
+			int(coordinator.call("get_run_value", &"worm_cores")) == 1
+			and int(coordinator.call("get_run_value", &"scrap")) == 2
+			and (coordinator.call("_get_run_drops") as Array[Dictionary]).is_empty()
+			and save_probe.calls == 2
+		),
+	)
+	pickups.call("_process", 0.0)
+	_add_case(cases, "collected run reward cannot save or credit twice", save_probe.calls == 2)
+	restored_pickups.free()
+	pickups.free()
 
 
 static func _advance_to_expose(worms: Node2D, worm_id: int) -> void:

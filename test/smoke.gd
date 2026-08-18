@@ -260,7 +260,7 @@ func _test_isometric_map() -> void:
 		is_equal_approx(float(impact_charge.call("get_gain_multiplier")), 1.15),
 		"live Worn Plates multiplier is fifteen percent",
 	)
-	_check(int(map.call("_get_charge_band")) == 0, "Impact Charge starts in contact band")
+	_check(int(impact_charge.call("get_band")) == 0, "Impact Charge starts in contact band")
 	var medium_footprint: Array = (
 		impact_charge.call("footprint", Vector2i(6, 6), Vector2i.RIGHT, 1) as Array
 	)
@@ -606,7 +606,7 @@ func _test_isometric_map() -> void:
 		map.call("update_drive", Vector2i(1, 1), 0.05, true)
 	var run_charge: float = float(map.call("_get_impact_charge"))
 	_check(run_charge >= 0.8, "sustained running builds high Impact Charge")
-	_check(int(map.call("_get_charge_band")) == 2, "high charge enters Aftershock band")
+	_check(int(impact_charge.call("get_band")) == 2, "high charge enters Aftershock band")
 	for _step: int in range(60):
 		map.call("update_drive", Vector2i.ZERO, 0.05, false)
 	_check(float(map.call("_get_impact_charge")) < run_charge, "Impact Charge decays while idle")
@@ -694,6 +694,10 @@ func _test_isometric_map() -> void:
 	await process_frame
 	await process_frame
 	run_coordinator = map.get("_run_coordinator") as RefCounted
+	run_pickups = map.get_node("WorldObjectLayer/WorldObjects/RunPickups") as Node2D
+	_check(
+		int(run_pickups.call("get_drop_count")) == 1, "uncollected worm reward persists on reload"
+	)
 	_check(int(map.call("_get_completed_relays")) == 1, "relay completion persists on reload")
 	_check(
 		(

@@ -18,7 +18,7 @@ static func _test_semantic_state(cases: Array[Dictionary]) -> void:
 	_add_case(
 		cases,
 		"field UI accepts bounded vital facts",
-		bool(state.call("configure_vitals", 80, 100, 12, 0))
+		bool(state.call("configure_vitals", 80, 100, 12, 3))
 	)
 	_add_case(
 		cases,
@@ -59,7 +59,7 @@ static func _test_semantic_state(cases: Array[Dictionary]) -> void:
 		not bool(state.call("configure_vitals", 100, 100, 0, 0)),
 	)
 	var snapshot: Dictionary = state.call("to_dictionary") as Dictionary
-	_add_case(cases, "future Core field is present at zero", int(snapshot[&"worm_cores"]) == 0)
+	_add_case(cases, "collected Core wallet is explicit", int(snapshot[&"worm_cores"]) == 3)
 	_add_case(cases, "future Alert field is present at zero", int(snapshot[&"alert_level"]) == 0)
 	_add_case(cases, "future relay total is explicit", int(snapshot[&"total_relays"]) == 1)
 	_add_case(

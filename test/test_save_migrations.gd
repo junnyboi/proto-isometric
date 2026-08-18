@@ -68,6 +68,9 @@ static func _test_schema_one(cases: Array[Dictionary], migrator: RefCounted) -> 
 			and run[&"facing"] == "NW"
 			and int(run[&"chassis"]) == 73
 			and int(run[&"unbanked_scrap"]) == 37
+			and int(run[&"worm_cores"]) == 0
+			and (run[&"run_drops"] as Array).is_empty()
+			and int(run[&"next_drop_sequence"]) == 1
 			and not bool(run[&"starter_relay_completed"])
 			and (run[&"applied_event_ids"] as Array).is_empty()
 		),
@@ -97,6 +100,8 @@ static func _test_schema_two_relay_false(cases: Array[Dictionary], migrator: Ref
 			and run[&"facing"] == "SW"
 			and int(run[&"chassis"]) == 62
 			and int(run[&"unbanked_scrap"]) == 84
+			and int(run[&"worm_cores"]) == 0
+			and (run[&"run_drops"] as Array).is_empty()
 			and not bool(run[&"starter_relay_completed"])
 			and run[&"phase"] == String(RuntimeIdsScript.RUN_PHASE_HUNT)
 		),
