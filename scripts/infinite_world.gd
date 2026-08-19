@@ -6,6 +6,7 @@ const CULL_RADIUS: Vector2i = Vector2i(14, 14)
 const COORDINATE_LIMIT: int = 1_000_000
 const STARTER_SIZE: Vector2i = Vector2i(18, 18)
 const STARTER_RELAY: Vector2i = Vector2i(12, 6)
+const SANCTUARY_RADIUS: float = 2.5
 
 const STARTER_ROCKS: Array[Vector2i] = [
 	Vector2i(2, 3),
@@ -198,7 +199,7 @@ func _relay_candidate_is_valid(cell: Vector2i) -> bool:
 	)
 
 
-func _is_in_sanctuary(position: Vector2, radius: float = 2.5) -> bool:
+func _is_in_sanctuary(position: Vector2, radius: float = SANCTUARY_RADIUS) -> bool:
 	var center: Vector2i = Vector2i(position.round())
 	var extent: int = ceili(maxf(radius, 0.0))
 	for y: int in range(center.y - extent, center.y + extent + 1):

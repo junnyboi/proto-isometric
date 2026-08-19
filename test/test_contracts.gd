@@ -8,6 +8,7 @@ const PerformanceTestsScript: GDScript = preload("res://test/test_performance.gd
 const RefitTestsScript: GDScript = preload("res://test/test_refit.gd")
 const ResponsiveViewportTestsScript: GDScript = preload("res://test/test_responsive_viewport.gd")
 const RunPickupTestsScript: GDScript = preload("res://test/test_run_pickups.gd")
+const SanctuaryBoundaryTestsScript: GDScript = preload("res://test/test_sanctuary_boundary.gd")
 const SaveMigrationTestsScript: GDScript = preload("res://test/test_save_migrations.gd")
 const SaveRepositoryTestsScript: GDScript = preload("res://test/test_save_repository.gd")
 const StateTestsScript: GDScript = preload("res://test/test_state.gd")
@@ -32,6 +33,7 @@ static func evaluate(coordinator: RefCounted, world: RefCounted) -> Array[Dictio
 	cases.append_array(WormCounterplayTestsScript.evaluate())
 	cases.append_array(RunPickupTestsScript.evaluate())
 	cases.append_array(WormTelegraphTestsScript.evaluate())
+	cases.append_array(SanctuaryBoundaryTestsScript.evaluate(world))
 	cases.append_array(SaveMigrationTestsScript.evaluate(world))
 	(
 		cases

@@ -1,12 +1,17 @@
 extends Node2D
 
 const EncounterDirectorScript: GDScript = preload("res://scripts/encounter_director.gd")
+const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const RunPickupsScript: GDScript = preload("res://scripts/run_pickups.gd")
 
 const ROCK: Color = Color("934d35")
 const TEAL: Color = Color("4eb6aa")
 const AMBER: Color = Color("f5a62d")
 const INK: Color = Color("11151a")
+const SANCTUARY_FILL: Color = Color(0.16, 0.78, 0.72, 0.09)
+const SANCTUARY_GLOW: Color = Color(0.30, 0.96, 0.88, 0.26)
+const SANCTUARY_LINE: Color = Color(0.34, 1.0, 0.91, 0.88)
+const SANCTUARY_SEGMENTS: int = 48
 
 var _destructible_rocks: Dictionary = {}
 var _scrap: Dictionary = {}
@@ -14,6 +19,8 @@ var _outposts: Dictionary = {}
 var _visible_cells: Array[Vector2i] = []
 var _grid_to_screen: Callable
 var _save_callback: Callable
+var _tile_size: Vector2 = Vector2(90.0, 45.0)
+var _sanctuary_radius: float = InfiniteWorldScript.SANCTUARY_RADIUS
 
 
 func configure(
@@ -22,12 +29,16 @@ func configure(
 	outposts: Dictionary,
 	grid_to_screen: Callable,
 	save_callback: Callable = Callable(),
+	tile_size: Vector2 = Vector2(90.0, 45.0),
+	sanctuary_radius: float = InfiniteWorldScript.SANCTUARY_RADIUS,
 ) -> void:
 	_destructible_rocks = destructible_rocks
 	_scrap = scrap
 	_outposts = outposts
 	_grid_to_screen = grid_to_screen
 	_save_callback = save_callback
+	_tile_size = tile_size
+	_sanctuary_radius = maxf(sanctuary_radius, 0.0)
 	queue_redraw()
 
 
@@ -38,6 +49,29 @@ func set_visible_cells(cells: Array[Vector2i]) -> void:
 
 func get_visible_cell_count() -> int:
 	return _visible_cells.size()
+
+
+func get_sanctuary_radius() -> float:
+	return _sanctuary_radius
+
+
+func get_visible_sanctuary_count() -> int:
+	var count: int = 0
+	for value: Variant in _outposts:
+		var cell: Vector2i = value as Vector2i
+		if bool(_outposts[cell]) and cell in _visible_cells:
+			count += 1
+	return count
+
+
+func get_sanctuary_boundary_points(outpost_cell: Vector2i) -> PackedVector2Array:
+	var center: Vector2 = _grid_to_screen.call(outpost_cell) as Vector2
+	var points: PackedVector2Array = PackedVector2Array()
+	for index: int in range(SANCTUARY_SEGMENTS):
+		var angle: float = TAU * float(index) / float(SANCTUARY_SEGMENTS)
+		var offset: Vector2 = Vector2.from_angle(angle) * _sanctuary_radius
+		points.append(center + _project_grid_offset(offset))
+	return points
 
 
 func build_run_pickups(world: RefCounted, coordinator: RefCounted, worms: Node2D) -> Node2D:
@@ -76,8 +110,40 @@ func build_encounter_director(
 func _draw() -> void:
 	if not _grid_to_screen.is_valid():
 		return
+	for value: Variant in _outposts:
+		var outpost_cell: Vector2i = value as Vector2i
+		if bool(_outposts[outpost_cell]) and outpost_cell in _visible_cells:
+			_draw_sanctuary_boundary(outpost_cell)
 	for cell: Vector2i in _visible_cells:
 		_draw_cell_objects(cell)
+
+
+func _draw_sanctuary_boundary(outpost_cell: Vector2i) -> void:
+	var points: PackedVector2Array = get_sanctuary_boundary_points(outpost_cell)
+	if points.size() < 3:
+		return
+	draw_colored_polygon(points, SANCTUARY_FILL)
+	var closed: PackedVector2Array = points.duplicate()
+	closed.append(points[0])
+	draw_polyline(closed, Color(INK, 0.72), 8.0, true)
+	draw_polyline(closed, SANCTUARY_GLOW, 6.0, true)
+	draw_polyline(closed, SANCTUARY_LINE, 2.5, true)
+	for index: int in range(0, SANCTUARY_SEGMENTS, 6):
+		var next: int = (index + 1) % SANCTUARY_SEGMENTS
+		var outward: Vector2 = (points[index] - points[next]).orthogonal().normalized()
+		if outward.dot(points[index] - (_grid_to_screen.call(outpost_cell) as Vector2)) < 0.0:
+			outward = -outward
+		draw_line(points[index] - outward * 5.0, points[index] + outward * 7.0, SANCTUARY_LINE, 3.0)
+	var center: Vector2 = _grid_to_screen.call(outpost_cell) as Vector2
+	draw_string(
+		ThemeDB.fallback_font,
+		center + Vector2(-39.0, -54.0),
+		"SAFE ZONE",
+		HORIZONTAL_ALIGNMENT_LEFT,
+		-1.0,
+		14,
+		Color(0.74, 1.0, 0.95, 0.92),
+	)
 
 
 func _draw_cell_objects(cell: Vector2i) -> void:
@@ -111,3 +177,10 @@ func _draw_scrap(center: Vector2, amount: int) -> void:
 		draw_circle(center + offset, 7.0, TEAL.darkened(0.35))
 		draw_arc(center + offset, 8.0, 0.0, TAU, 12, TEAL, 2.0)
 		draw_circle(center + offset, 2.0, AMBER)
+
+
+func _project_grid_offset(offset: Vector2) -> Vector2:
+	return Vector2(
+		(offset.x - offset.y) * _tile_size.x * 0.5,
+		(offset.x + offset.y) * _tile_size.y * 0.5,
+	)
