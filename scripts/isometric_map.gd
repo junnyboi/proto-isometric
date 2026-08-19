@@ -144,7 +144,7 @@ func _ready() -> void:
 	if _shutdown:
 		_apply_shutdown_presentation(&"persistent_damage")
 		_terminal_flow.call("settle_failure")
-	_collect_scrap_near(_robot_grid, 0)
+	call_deferred("_collect_scrap_near", _robot_grid, 0)
 	_refresh_outpost_interface()
 	_sync_avatar()
 	queue_redraw()
