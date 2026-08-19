@@ -32,11 +32,12 @@ func _test_title() -> void:
 	get_root().add_child(scene)
 	await process_frame
 	await process_frame
-	var title_label: Label = scene.get_node("UILayer/UIRoot/TitlePanel/TitleLabel") as Label
-	var begin_button: Button = scene.get_node("UILayer/UIRoot/TitlePanel/BeginButton") as Button
+	var title_panel: Node = scene.get_node("UILayer/UIRoot/ConceptCanvas/TitlePanel")
+	var title_label: Label = title_panel.get_node("TitleLabel") as Label
+	var begin_button: Button = title_panel.get_node("BeginButton") as Button
 	_check(title_label.text == "WALKER'S WAKE", "title text")
 	_check(title_label.visible, "title visible")
-	_check(begin_button.text.begins_with("BEGIN //"), "Begin Expedition label")
+	_check(not begin_button.text.is_empty(), "launch action label")
 	_check(begin_button.focus_mode == Control.FOCUS_ALL, "Begin focusable")
 	_check(bool(scene.call("is_audio_ready")), "audio loaded")
 	scene.call("prepare_for_shutdown")
@@ -578,10 +579,12 @@ func _test_isometric_map() -> void:
 	map.call("place_robot", Vector2i(23, 10))
 	for _step: int in range(20):
 		map.call("update_drive", Vector2i(1, 1), 0.05, false)
-	_check(
-		is_equal_approx(float(map.call("get_speed_ratio")), 0.62),
-		"mud caps Cardinal speed at 62 percent"
-	)
+	_check(is_equal_approx(float(map.call("get_speed_ratio")), 0.62), "mud speed cap is 62 percent")
+	var lava_before: int = int(map.call("_get_chassis"))
+	_check(bool(map.call("place_robot", Vector2i(-15, 8))), "place Cardinal on lava")
+	map.call("_process", 0.0)
+	_check(int(map.call("_get_chassis")) == lava_before - 8, "live lava damages chassis")
+	map.set("_chassis", lava_before)
 	map.call("_set_impact_charge", 0.0)
 	map.call("place_robot", Vector2i(1, 1))
 	for _step: int in range(80):

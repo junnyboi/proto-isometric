@@ -88,9 +88,34 @@ func _build_interface() -> void:
 	var access: Button = Button.new()
 	_access_button = access
 	access.name = "AccessibilityButton"
-	access.text = "ACCESS"
-	access.position = Vector2(1138.0, 18.0)
-	access.size = Vector2(124.0, 42.0)
+	access.text = "ACCESSIBILITY"
+	access.position = Vector2(1072.0, 18.0)
+	access.size = Vector2(190.0, 42.0)
+	access.add_theme_font_size_override("font_size", 14)
+	access.add_theme_color_override("font_color", Color("a9b5b5"))
+	access.add_theme_color_override("font_hover_color", Color("f3a21e"))
+	access.add_theme_color_override("font_focus_color", Color("f3a21e"))
+	(
+		access
+		. add_theme_stylebox_override(
+			"normal",
+			_make_access_style(Color(0.0, 0.0, 0.0, 0.0), Color(0.36, 0.45, 0.47, 0.55), 1),
+		)
+	)
+	(
+		access
+		. add_theme_stylebox_override(
+			"hover",
+			_make_access_style(Color(0.02, 0.035, 0.05, 0.92), Color("f3a21e"), 1),
+		)
+	)
+	(
+		access
+		. add_theme_stylebox_override(
+			"focus",
+			_make_access_style(Color(0.02, 0.035, 0.05, 0.96), Color("f3a21e"), 2),
+		)
+	)
 	access.pressed.connect(_toggle_panel)
 	add_child(access)
 	_panel = ColorRect.new()
@@ -133,3 +158,18 @@ func _apply_layout() -> void:
 	_panel.scale = Vector2.ONE * scale_factor
 	_panel.position = Vector2(viewport_size.x - _panel.size.x * scale_factor - 18.0, 72.0)
 	_access_button.position = Vector2(viewport_size.x - _access_button.size.x - 18.0, 18.0)
+
+
+func _make_access_style(color: Color, border_color: Color, border_width: int) -> StyleBoxFlat:
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = color
+	style.border_color = border_color
+	style.border_width_left = border_width
+	style.border_width_top = border_width
+	style.border_width_right = border_width
+	style.border_width_bottom = border_width
+	style.corner_radius_top_left = 2
+	style.corner_radius_top_right = 2
+	style.corner_radius_bottom_left = 2
+	style.corner_radius_bottom_right = 2
+	return style

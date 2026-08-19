@@ -6,6 +6,7 @@ signal defeated(worm_id: int, position: Vector2)
 const DEFAULT_PROFILE: Resource = preload("res://data/combat/sandworm_default.tres")
 const MUD_SKIMMER_TEXTURE: Texture2D = preload("res://assets/enemies/mud_skimmer.png")
 const RIME_STALKER_TEXTURE: Texture2D = preload("res://assets/enemies/rime_stalker.png")
+const CINDER_CRAWLER_TEXTURE: Texture2D = preload("res://assets/enemies/cinder_crawler.png")
 
 const MAX_HEALTH: int = 4
 const ATTACK_DAMAGE: int = 10
@@ -33,9 +34,11 @@ const HEALTH: Color = Color("e75d46")
 const HEALTH_BACK: Color = Color("1a1110")
 const SKIMMER_KIND: StringName = &"mud_skimmer"
 const RIME_KIND: StringName = &"rime_stalker"
+const CINDER_KIND: StringName = &"cinder_crawler"
 const WORM_KIND: StringName = &"sandworm"
 const SKIMMER_EMERGE_SECONDS: float = 0.45
 const RIME_EMERGE_SECONDS: float = 0.6
+const CINDER_EMERGE_SECONDS: float = 0.5
 const MUD: Color = Color("2d281f")
 const WETLAND: Color = Color("75a06c")
 
@@ -132,10 +135,20 @@ func spawn_worm(position: Vector2, emerge_seconds: float = -1.0) -> int:
 		kind = SKIMMER_KIND
 	elif _active_biome == &"frozen":
 		kind = RIME_KIND
+	elif _active_biome == &"lava":
+		kind = CINDER_KIND
 	var default_emerge: float = (
-		RIME_EMERGE_SECONDS
-		if kind == RIME_KIND
-		else SKIMMER_EMERGE_SECONDS if kind == SKIMMER_KIND else _p_float(&"spawn_burrow_seconds")
+		CINDER_EMERGE_SECONDS
+		if kind == CINDER_KIND
+		else (
+			RIME_EMERGE_SECONDS
+			if kind == RIME_KIND
+			else (
+				SKIMMER_EMERGE_SECONDS
+				if kind == SKIMMER_KIND
+				else _p_float(&"spawn_burrow_seconds")
+			)
+		)
 	)
 	var spawn_seconds: float = default_emerge if emerge_seconds < 0.0 else maxf(emerge_seconds, 0.0)
 	(
@@ -197,6 +210,8 @@ func _get_enemy_label(worm_id: int) -> String:
 		return "MUD SKIMMER"
 	if kind == RIME_KIND:
 		return "RIME STALKER"
+	if kind == CINDER_KIND:
+		return "CINDER CRAWLER"
 	return "SANDWORM"
 
 
@@ -473,6 +488,18 @@ func _draw_worm(worm: Dictionary) -> void:
 			RIME_STALKER_TEXTURE,
 			Color("aeeeff"),
 			Color("27688f")
+		)
+		return
+	if kind == CINDER_KIND:
+		_draw_native_enemy(
+			center,
+			worm,
+			state,
+			progress,
+			alpha,
+			CINDER_CRAWLER_TEXTURE,
+			Color("ff9b2f"),
+			Color("8f2414"),
 		)
 		return
 	_draw_sand_wake(center, worm, alpha)

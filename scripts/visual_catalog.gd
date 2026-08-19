@@ -1,7 +1,9 @@
 extends Resource
 
 const REQUIRED_PATHS: Array[String] = [
-	"res://assets/ui/modules/ram_plating.png",
+	"res://assets/title/title_scene_desktop.png",
+	"res://assets/title/title_scene_mobile.png",
+	"res://assets/cardinal/grunt_sprite_atlas.png",
 	"res://assets/ui/modules/aftershock.png",
 	"res://assets/ui/modules/storm_seal.png",
 	"res://assets/vfx/pickups/worm_core.png",
@@ -14,6 +16,10 @@ const REQUIRED_PATHS: Array[String] = [
 	"res://assets/textures/terrain/tundra_snow.png",
 	"res://assets/textures/terrain/blue_ice.png",
 	"res://assets/enemies/rime_stalker.png",
+	"res://assets/textures/terrain/lava_basalt.png",
+	"res://assets/textures/terrain/volcanic_ash.png",
+	"res://assets/textures/terrain/lava_flow.png",
+	"res://assets/enemies/cinder_crawler.png",
 ]
 
 

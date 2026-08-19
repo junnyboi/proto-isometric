@@ -17,3 +17,13 @@ The generated assets are original production derivatives for Walker's Wake. Geom
 |---|---|
 | `tundra_snow.png` | `e28b84df4f8e6d9db54becafe485c6ffb95e3fd9b41583bbce5bec1f6ff58c4e` |
 | `blue_ice.png` | `3d2cb8e9f6b208f27474add6ace8c83f49ec4c77bcabce957254c54519923f0d` |
+
+## Lava Fields
+
+`lava_basalt.png`, `volcanic_ash.png`, and `lava_flow.png` were generated with **GPT Image 2** on 2026-08-19 and processed through the default-threshold seamless salvage workflow. Their 512×512 RGB derivatives and 3×3 previews passed objective and visual checks; raw masters and QA files remain outside Git.
+
+| Runtime file | SHA-256 |
+|---|---|
+| `lava_basalt.png` | `d2327cfea86c29f3133eaac03a12583d7ae04ce9adbf427da72afc02b8d3967d` |
+| `volcanic_ash.png` | `8d4352bf34aea0d6c6200cb1d51f858556db2010c78dd93f3b40510977d017c9` |
+| `lava_flow.png` | `2c317efc3b1ae9c8853d14e6b3d5e990b5309880598a15e822f3b5804f433247` |

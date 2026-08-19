@@ -9,6 +9,7 @@ const SandwormsScript: GDScript = preload("res://scripts/sandworms.gd")
 const DesertHazardsScript: GDScript = preload("res://scripts/desert_hazards.gd")
 const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const OasisWetlandsScript: GDScript = preload("res://scripts/oasis_wetlands.gd")
+const LavaFieldsScript: GDScript = preload("res://scripts/lava_fields.gd")
 const SurfaceDriveScript: GDScript = preload("res://scripts/surface_drive.gd")
 
 
@@ -176,6 +177,8 @@ static func _test_balance_snapshot(cases: Array[Dictionary], balance: Dictionary
 		&"tornado_fade_seconds": DesertHazardsScript.TORNADO_FADE_SECONDS,
 		&"sandstorm_damage_per_second": DesertHazardsScript.SANDSTORM_DAMAGE_PER_SECOND,
 		&"sandstorm_speed": DesertHazardsScript.SANDSTORM_SPEED,
+		&"lava_damage_per_tick": LavaFieldsScript.LAVA_DAMAGE,
+		&"lava_tick_seconds": LavaFieldsScript.LAVA_TICK_SECONDS,
 		&"chunk_size": InfiniteWorldScript.CHUNK_SIZE,
 		&"stream_radius": InfiniteWorldScript.STREAM_RADIUS,
 		&"coordinate_limit": InfiniteWorldScript.COORDINATE_LIMIT,

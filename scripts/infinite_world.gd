@@ -2,6 +2,7 @@ extends RefCounted
 
 const OasisWetlandsScript: GDScript = preload("res://scripts/oasis_wetlands.gd")
 const FrozenTundraScript: GDScript = preload("res://scripts/frozen_tundra.gd")
+const LavaFieldsScript: GDScript = preload("res://scripts/lava_fields.gd")
 
 const CHUNK_SIZE: int = 8
 const STREAM_RADIUS: int = 2
@@ -116,6 +117,8 @@ func terrain_at(cell: Vector2i) -> StringName:
 func _biome_at(cell: Vector2i) -> StringName:
 	if FrozenTundraScript.contains(cell):
 		return FrozenTundraScript.BIOME_FROZEN
+	if LavaFieldsScript.contains(cell):
+		return LavaFieldsScript.BIOME_LAVA
 	return OasisWetlandsScript.biome_at(cell)
 
 
@@ -389,6 +392,8 @@ func _surface_for(cell: Vector2i, base_terrain: StringName) -> StringName:
 	var sanctuary: bool = _is_in_sanctuary(Vector2(cell))
 	if _biome_at(cell) == FrozenTundraScript.BIOME_FROZEN:
 		return FrozenTundraScript.surface_for(cell, base_terrain, sanctuary)
+	if _biome_at(cell) == LavaFieldsScript.BIOME_LAVA:
+		return LavaFieldsScript.surface_for(cell, base_terrain, sanctuary)
 	return OasisWetlandsScript.surface_for(cell, base_terrain, sanctuary)
 
 

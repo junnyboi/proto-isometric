@@ -20,6 +20,15 @@ static func evaluate() -> Array[Dictionary]:
 			in (CATALOG.call("get_required_paths") as Array)
 		),
 	)
+	var required: Array = CATALOG.call("get_required_paths") as Array
+	_add(
+		cases,
+		"desktop and mobile title compositions are required",
+		(
+			"res://assets/title/title_scene_desktop.png" in required
+			and "res://assets/title/title_scene_mobile.png" in required
+		),
+	)
 	var cardinal: Node2D = CardinalAvatarScript.new() as Node2D
 	cardinal.call("_ready")
 	_add(

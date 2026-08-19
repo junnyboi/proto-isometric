@@ -11,6 +11,9 @@ const WETLAND: Color = Color("879b55")
 const MUD: Color = Color("2d281f")
 const SNOW: Color = Color("dce8ed")
 const BLUE_ICE: Color = Color("36a8c8")
+const LAVA_BASALT: Color = Color("252326")
+const VOLCANIC_ASH: Color = Color("8c8a86")
+const LAVA: Color = Color("ff5a12")
 const TEAL: Color = Color("4eb6aa")
 const GRID_LINE: Color = Color(0.18, 0.12, 0.08, 0.32)
 const TEXTURES: Dictionary = {
@@ -22,6 +25,9 @@ const TEXTURES: Dictionary = {
 	&"mud": preload("res://assets/textures/terrain/dark_mud.png"),
 	&"snow": preload("res://assets/textures/terrain/tundra_snow.png"),
 	&"blue_ice": preload("res://assets/textures/terrain/blue_ice.png"),
+	&"lava_basalt": preload("res://assets/textures/terrain/lava_basalt.png"),
+	&"volcanic_ash": preload("res://assets/textures/terrain/volcanic_ash.png"),
+	&"lava": preload("res://assets/textures/terrain/lava_flow.png"),
 }
 
 var _terrain: Dictionary
@@ -84,6 +90,12 @@ func draw_tile(canvas: Node2D, cell: Vector2i) -> void:
 		color = SNOW
 	elif terrain_id == &"blue_ice":
 		color = BLUE_ICE
+	elif terrain_id == &"lava_basalt":
+		color = LAVA_BASALT
+	elif terrain_id == &"volcanic_ash":
+		color = VOLCANIC_ASH
+	elif terrain_id == &"lava":
+		color = LAVA
 
 	if height > 0.0:
 		(
@@ -131,6 +143,10 @@ func draw_tile(canvas: Node2D, cell: Vector2i) -> void:
 			Color(0.75, 0.96, 1.0, 0.42),
 			1.5
 		)
+	elif terrain_id == &"lava":
+		var closed: PackedVector2Array = points.duplicate()
+		closed.append(points[0])
+		canvas.draw_polyline(closed, Color(1.0, 0.76, 0.18, 0.58), 2.0)
 
 
 func terrain_uvs(cell: Vector2i) -> PackedVector2Array:

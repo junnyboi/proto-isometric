@@ -20,8 +20,11 @@ const MUD: Color = Color("2d281f")
 const WETLAND: Color = Color("75a06c")
 const SKIMMER_KIND: StringName = &"mud_skimmer"
 const RIME_KIND: StringName = &"rime_stalker"
+const CINDER_KIND: StringName = &"cinder_crawler"
 const ICE: Color = Color("aeeeff")
 const ICE_DARK: Color = Color("27688f")
+const CINDER: Color = Color("ff9b2f")
+const CINDER_DARK: Color = Color("8f2414")
 
 var _tile_size: Vector2 = Vector2(90.0, 45.0)
 var _map_origin: Vector2 = Vector2(760.0, 70.0)
@@ -150,8 +153,9 @@ func _draw_trail(worm_id: int, snapshot: Dictionary) -> void:
 		screen_points.append(_grid_to_screen(point as Vector2))
 	if screen_points.size() >= 2:
 		var kind: StringName = snapshot.get(&"kind", &"sandworm") as StringName
-		var dark: Color = MUD if kind == SKIMMER_KIND else ICE_DARK if kind == RIME_KIND else RUST
-		var light: Color = WETLAND if kind == SKIMMER_KIND else ICE if kind == RIME_KIND else SAND
+		var colors: Array[Color] = _kind_colors(kind)
+		var dark: Color = colors[0]
+		var light: Color = colors[1]
 		draw_polyline(screen_points, Color(dark, 0.58), 7.0, true)
 		draw_polyline(screen_points, Color(light, 0.78), 3.0, true)
 	if snapshot.get(&"kind", &"sandworm") != &"sandworm":
@@ -172,7 +176,7 @@ func _draw_target(snapshot: Dictionary) -> void:
 	var duration: float = maxf(float(snapshot.get(&"state_duration", 0.0)), 0.001)
 	var remaining: float = clampf(float(snapshot.get(&"state_remaining", 0.0)) / duration, 0.0, 1.0)
 	var kind: StringName = snapshot.get(&"kind", &"sandworm") as StringName
-	var warning: Color = WETLAND if kind == SKIMMER_KIND else ICE if kind == RIME_KIND else AMBER
+	var warning: Color = _kind_colors(kind)[1]
 	draw_dashed_line(current, target, Color(warning, 0.68), 2.0, 10.0, true)
 	draw_arc(target, TARGET_RADIUS, -PI * 0.5, -PI * 0.5 + TAU * remaining, 32, warning, 4.0)
 	draw_arc(target, TARGET_RADIUS + 7.0, angle - 0.5, angle + 0.5, 10, Color(warning, 0.42), 2.0)
@@ -196,7 +200,7 @@ func _draw_expose(worm_id: int, snapshot: Dictionary) -> void:
 	draw_arc(center, 42.0, 0.0, TAU, 32, Color(AMBER, 0.32), 2.0)
 	var kind: StringName = snapshot.get(&"kind", &"sandworm") as StringName
 	if kind != &"sandworm":
-		var accent: Color = WETLAND if kind == SKIMMER_KIND else ICE
+		var accent: Color = _kind_colors(kind)[1]
 		draw_arc(center, 48.0, 0.0, TAU, 36, Color(accent, 0.48), 3.0)
 		return
 	var breach: float = float(_breaches.get(worm_id, 0.0))
@@ -207,6 +211,16 @@ func _draw_expose(worm_id: int, snapshot: Dictionary) -> void:
 			0.22,
 			0.6 * breach / BREACH_SECONDS,
 		)
+
+
+func _kind_colors(kind: StringName) -> Array[Color]:
+	if kind == SKIMMER_KIND:
+		return [MUD, WETLAND]
+	if kind == RIME_KIND:
+		return [ICE_DARK, ICE]
+	if kind == CINDER_KIND:
+		return [CINDER_DARK, CINDER]
+	return [RUST, SAND]
 
 
 func _draw_texture_centered(

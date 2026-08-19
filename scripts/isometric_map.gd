@@ -118,6 +118,8 @@ var _world_objects: Node2D
 
 
 func _ready() -> void:
+	var web: bool = OS.has_feature("web")
+	if web: JavaScriptBridge.eval("document.body.dataset.godotScene='field-building';", true)
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	_run_coordinator = RunCoordinatorScript.new() as RefCounted
@@ -149,6 +151,7 @@ func _ready() -> void:
 	_sync_avatar()
 	queue_redraw()
 	_run_coordinator.call("record_event", RuntimeIdsScript.EVENT_FIELD_READY)
+	if web: JavaScriptBridge.eval("document.body.dataset.godotScene='field-ready';", true)
 	print("[ISOMETRIC_MAP_READY]")
 
 
@@ -189,6 +192,7 @@ func _process(delta: float) -> void:
 	var player_grid_position: Vector2 = (
 		Vector2(INVALID_CELL) if _shutdown else Vector2(_robot_grid) + fractional
 	)
+	_world_objects.call("advance_lava", player_grid_position, delta)
 	var player_grid_velocity: Vector2 = Vector2(
 		_velocity.x / TILE_SIZE.x + _velocity.y / TILE_SIZE.y,
 		_velocity.y / TILE_SIZE.y - _velocity.x / TILE_SIZE.x,
@@ -324,9 +328,7 @@ func attack() -> bool:
 		if _impact_charge != null
 		else [_robot_grid + IsometricControlsScript.screen_to_grid_delta(screen_direction)]
 	)
-	var targets: Dictionary = ImpactTargetingScript.scan(
-		footprint, _sandworms, _destructible_rocks
-	)
+	var targets: Dictionary = ImpactTargetingScript.scan(footprint, _sandworms, _destructible_rocks)
 	_pending_impact_rock_cells = targets[&"rock_cells"] as Array[Vector2i]
 	_pending_impact_worm_ids = targets[&"worm_ids"] as Array[int]
 	_pending_impact_cells = footprint
@@ -789,6 +791,7 @@ func _build_world_layers() -> void:
 			Callable(self, "_save_world_state"),
 		)
 	)
+	_world_objects.call("bind_world", _world, Callable(self, "_on_hazard_damage"))
 	_world_objects.call("set_visible_cells", _visible_cells)
 
 

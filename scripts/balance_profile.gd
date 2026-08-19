@@ -51,6 +51,8 @@ extends Resource
 @export var tornado_fade_seconds: float = 2.0
 @export var sandstorm_damage_per_second: float = 3.0
 @export var sandstorm_speed: float = 0.62
+@export var lava_damage_per_tick: int = 8
+@export var lava_tick_seconds: float = 1.0
 
 @export_category("World Bounds")
 @export var chunk_size: int = 8
@@ -91,6 +93,8 @@ func validate() -> bool:
 		and tornado_lifetime_seconds > 0.0
 		and tornado_damage_per_second > 0.0
 		and sandstorm_damage_per_second > 0.0
+		and lava_damage_per_tick > 0
+		and lava_tick_seconds > 0.0
 		and chunk_size > 0
 		and stream_radius >= 0
 		and loaded_chunk_limit == (stream_radius * 2 + 1) ** 2
@@ -145,6 +149,8 @@ func baseline_snapshot() -> Dictionary:
 		&"tornado_fade_seconds": tornado_fade_seconds,
 		&"sandstorm_damage_per_second": sandstorm_damage_per_second,
 		&"sandstorm_speed": sandstorm_speed,
+		&"lava_damage_per_tick": lava_damage_per_tick,
+		&"lava_tick_seconds": lava_tick_seconds,
 		&"chunk_size": chunk_size,
 		&"stream_radius": stream_radius,
 		&"loaded_chunk_limit": loaded_chunk_limit,

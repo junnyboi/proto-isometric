@@ -6,26 +6,36 @@ const SaveRepositoryScript: GDScript = preload("res://scripts/save_repository.gd
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const PlayerPreferencesScript: GDScript = preload("res://scripts/player_preferences.gd")
 const ResponsiveViewportScript: GDScript = preload("res://scripts/responsive_viewport.gd")
+const FIELD_SCENE: PackedScene = preload("res://scenes/isometric_map.tscn")
+const TITLE_DESKTOP: Texture2D = preload("res://assets/title/title_scene_desktop.png")
+const TITLE_MOBILE: Texture2D = preload("res://assets/title/title_scene_mobile.png")
 
-const BG_DEEP: Color = Color(0.027, 0.039, 0.071, 1.0)
-const BG_MID: Color = Color(0.047, 0.067, 0.118, 1.0)
-const GRID_LINE: Color = Color(0.20, 0.38, 0.46, 0.22)
-const AMBER: Color = Color(0.95, 0.64, 0.20, 1.0)
-const AMBER_SOFT: Color = Color(0.95, 0.64, 0.20, 0.18)
-const INK: Color = Color(0.04, 0.055, 0.09, 0.96)
-const TEXT: Color = Color(0.90, 0.94, 0.92, 1.0)
-const MUTED: Color = Color(0.52, 0.66, 0.68, 1.0)
+const AMBER: Color = Color("f3a21e")
+const AMBER_HOVER: Color = Color("ffc35c")
+const INK: Color = Color("0a0d12")
+const PANEL: Color = Color(0.018, 0.027, 0.043, 0.96)
+const PANEL_SOFT: Color = Color(0.025, 0.043, 0.057, 0.91)
+const TEXT: Color = Color("edf0ed")
+const MUTED: Color = Color("789095")
+const TEAL: Color = Color("668f91")
 
+var _background: TextureRect
+var _content_group: Control
 var _title_panel: Control
-var _staging_panel: Control
 var _title_label: Label
+var _mission_label: Label
+var _mission_rail: Control
 var _subtitle: Label
-var _status_bar: Label
 var _begin_button: Button
+var _cta_keycap: Label
+var _controls_strip: Control
+var _field_guide_button: Button
+var _field_guide_panel: ColorRect
+var _field_guide_close: Button
 var _audio_player: AudioStreamPlayer
+var _layout: Dictionary = {}
 var _field_visible: bool = false
 var _audio_trigger_count: int = 0
-var _layout: Dictionary = {}
 
 
 func _ready() -> void:
@@ -34,121 +44,25 @@ func _ready() -> void:
 	_apply_save_metadata()
 	get_viewport().size_changed.connect(_apply_responsive_layout)
 	_apply_responsive_layout()
-	queue_redraw()
+	_begin_button.grab_focus()
+	_set_web_scene_state("title-ready")
 	print("[PROTO_ISOMETRIC_READY]")
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _field_guide_panel.visible and event.is_action_pressed("ui_cancel"):
+		get_viewport().set_input_as_handled()
+		_set_field_guide_visible(false)
+		return
+	if event is InputEventKey:
+		var key_event: InputEventKey = event as InputEventKey
+		if key_event.pressed and not key_event.echo and key_event.keycode == KEY_F1:
+			get_viewport().set_input_as_handled()
+			_set_field_guide_visible(not _field_guide_panel.visible)
+			return
 	if _begin_button.visible and event.is_action_pressed("ui_accept"):
 		get_viewport().set_input_as_handled()
 		_on_begin_pressed()
-
-
-func _draw() -> void:
-	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
-	draw_rect(Rect2(Vector2.ZERO, viewport_size), BG_DEEP)
-	for band_index: int in range(ceili(viewport_size.y / 60.0)):
-		var band_y: float = float(band_index) * 60.0
-		var blend: float = float(band_index) / 11.0
-		var band_color: Color = BG_MID.lerp(BG_DEEP, blend)
-		draw_rect(Rect2(0.0, band_y, viewport_size.x, 62.0), band_color)
-	for scan_y: int in range(0, roundi(viewport_size.y), 6):
-		draw_line(
-			Vector2(0.0, float(scan_y)),
-			Vector2(viewport_size.x, float(scan_y)),
-			Color(1.0, 1.0, 1.0, 0.012),
-			1.0
-		)
-	_draw_isometric_field()
-	_draw_interface_accents()
-
-
-func _draw_isometric_field() -> void:
-	var origin: Vector2 = _layout.get(&"field_origin", Vector2(905.0, 170.0)) as Vector2
-	var half_tile: Vector2 = _layout.get(&"half_tile", Vector2(38.0, 19.0)) as Vector2
-	for diagonal: int in range(17):
-		for row: int in range(9):
-			var column: int = diagonal - row
-			if column < 0 or column >= 9:
-				continue
-			var center: Vector2 = (
-				origin
-				+ Vector2(float(column - row) * half_tile.x, float(column + row) * half_tile.y)
-			)
-			var elevation: float = float((row * 3 + column * 5) % 4) * 5.0
-			if _field_visible and (row + column) % 5 == 0:
-				elevation += 12.0
-			var tint_step: float = float((row + column) % 4) * 0.025
-			var tile_color: Color = Color(
-				0.10 + tint_step, 0.22 + tint_step, 0.25 + tint_step, 0.92
-			)
-			if (row + column) % 6 == 0:
-				tile_color = Color(0.28, 0.22, 0.12, 0.96)
-			_draw_iso_tile(center, half_tile, elevation, tile_color)
-
-
-func _draw_iso_tile(
-	center: Vector2, half_tile: Vector2, elevation: float, tile_color: Color
-) -> void:
-	var base_points: PackedVector2Array = PackedVector2Array(
-		[
-			center + Vector2(0.0, -half_tile.y),
-			center + Vector2(half_tile.x, 0.0),
-			center + Vector2(0.0, half_tile.y),
-			center + Vector2(-half_tile.x, 0.0),
-		]
-	)
-	var top_points: PackedVector2Array = PackedVector2Array()
-	for point: Vector2 in base_points:
-		top_points.append(point - Vector2(0.0, elevation))
-	if elevation > 0.0:
-		draw_colored_polygon(
-			PackedVector2Array([top_points[1], base_points[1], base_points[2], top_points[2]]),
-			tile_color.darkened(0.36)
-		)
-		draw_colored_polygon(
-			PackedVector2Array([top_points[2], base_points[2], base_points[3], top_points[3]]),
-			tile_color.darkened(0.50)
-		)
-	draw_colored_polygon(top_points, tile_color)
-	for edge_index: int in range(4):
-		draw_line(top_points[edge_index], top_points[(edge_index + 1) % 4], GRID_LINE, 1.0)
-
-
-func _draw_interface_accents() -> void:
-	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
-	if bool(_layout.get(&"portrait", false)):
-		draw_line(Vector2(18.0, 54.0), Vector2(viewport_size.x - 18.0, 54.0), AMBER, 3.0)
-		draw_circle(Vector2(viewport_size.x - 28.0, 34.0), 4.0, AMBER)
-	else:
-		var offset: Vector2 = _layout.get(&"accent_offset", Vector2.ZERO) as Vector2
-		var scale_value: float = float(_layout.get(&"accent_scale", 1.0))
-		draw_line(
-			offset + Vector2(88.0, 78.0) * scale_value,
-			offset + Vector2(388.0, 78.0) * scale_value,
-			AMBER,
-			3.0
-		)
-		draw_line(
-			offset + Vector2(88.0, 78.0) * scale_value,
-			offset + Vector2(88.0, 114.0) * scale_value,
-			AMBER,
-			3.0
-		)
-		draw_circle(offset + Vector2(1115.0, 111.0) * scale_value, 4.0, AMBER)
-	if _field_visible:
-		var center: Vector2 = _layout.get(&"field_origin", Vector2(905.0, 170.0)) as Vector2
-		var radius: float = (_layout.get(&"half_tile", Vector2(38.0, 19.0)) as Vector2).x * 2.2
-		draw_arc(center + Vector2(0.0, radius), radius, 0.0, TAU, 64, AMBER_SOFT, 3.0)
-		draw_arc(
-			center + Vector2(0.0, radius),
-			radius * 0.7,
-			0.0,
-			TAU,
-			64,
-			Color(0.32, 0.72, 0.68, 0.25),
-			2.0
-		)
 
 
 func _build_interface() -> void:
@@ -162,162 +76,24 @@ func _build_interface() -> void:
 	ui_root.mouse_filter = Control.MOUSE_FILTER_PASS
 	layer.add_child(ui_root)
 
+	_background = TextureRect.new()
+	_background.name = "GeneratedTitleArt"
+	_background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	_background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui_root.add_child(_background)
+
+	_content_group = Control.new()
+	_content_group.name = "ConceptCanvas"
+	ui_root.add_child(_content_group)
+
 	_title_panel = Control.new()
 	_title_panel.name = "TitlePanel"
-	_title_panel.position = Vector2(88.0, 92.0)
-	_title_panel.size = Vector2(540.0, 530.0)
-	ui_root.add_child(_title_panel)
-
-	var eyebrow: Label = Label.new()
-	eyebrow.name = "Eyebrow"
-	eyebrow.text = "WALKER'S WAKE // EXPEDITION"
-	eyebrow.position = Vector2(0.0, 0.0)
-	eyebrow.size = Vector2(520.0, 48.0)
-	eyebrow.add_theme_color_override("font_color", AMBER)
-	_title_panel.add_child(eyebrow)
-
-	_title_label = Label.new()
-	_title_label.name = "TitleLabel"
-	_title_label.text = "WALKER'S WAKE"
-	_title_label.position = Vector2(-2.0, 34.0)
-	_title_label.size = Vector2(540.0, 70.0)
-	_title_label.add_theme_font_size_override("font_size", 52)
-	_title_label.add_theme_color_override("font_color", TEXT)
-	_title_panel.add_child(_title_label)
-
-	var story_heading: Label = Label.new()
-	story_heading.name = "StoryHeading"
-	story_heading.text = "MISSION // CARDINAL"
-	story_heading.position = Vector2(0.0, 112.0)
-	story_heading.size = Vector2(520.0, 24.0)
-	story_heading.add_theme_font_size_override("font_size", 14)
-	story_heading.add_theme_color_override("font_color", AMBER)
-	_title_panel.add_child(story_heading)
-
-	var story: Label = Label.new()
-	story.name = "Story"
-	story.text = (
-		"CARDINAL WAKES IN A DEAD DESERT.\n"
-		+ "LINK THE LOST RELAYS. SALVAGE WHAT REMAINS.\n"
-		+ "RETURN BEFORE THE STORM TAKES THE WALKER."
-	)
-	story.position = Vector2(0.0, 138.0)
-	story.size = Vector2(520.0, 58.0)
-	story.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	story.add_theme_font_size_override("font_size", 16)
-	story.add_theme_color_override("font_color", TEXT)
-	story.add_theme_constant_override("line_spacing", 2)
-	_title_panel.add_child(story)
-
-	var tutorial_heading: Label = Label.new()
-	tutorial_heading.name = "TutorialHeading"
-	tutorial_heading.text = "FIELD GUIDE"
-	tutorial_heading.position = Vector2(0.0, 208.0)
-	tutorial_heading.size = Vector2(520.0, 24.0)
-	tutorial_heading.add_theme_font_size_override("font_size", 14)
-	tutorial_heading.add_theme_color_override("font_color", AMBER)
-	_title_panel.add_child(tutorial_heading)
-
-	var tutorial: Label = Label.new()
-	tutorial.name = "Tutorial"
-	tutorial.text = (
-		"DRIVE     WASD / TAP-HOLD JOYSTICK\n"
-		+ "RUN       HOLD SHIFT + BUILD IMPACT\n"
-		+ "SMASH     SPACE / J / K / SMASH BUTTON\n"
-		+ "THREATS   AVOID STORMS; STRIKE WORMS WHEN EXPOSED"
-	)
-	tutorial.position = Vector2(0.0, 234.0)
-	tutorial.size = Vector2(520.0, 92.0)
-	tutorial.add_theme_font_size_override("font_size", 15)
-	tutorial.add_theme_color_override("font_color", MUTED)
-	tutorial.add_theme_constant_override("line_spacing", 3)
-	_title_panel.add_child(tutorial)
-
-	var objective_heading: Label = Label.new()
-	objective_heading.name = "ObjectiveHeading"
-	objective_heading.text = "EXPEDITION OBJECTIVES"
-	objective_heading.position = Vector2(0.0, 338.0)
-	objective_heading.size = Vector2(520.0, 24.0)
-	objective_heading.add_theme_font_size_override("font_size", 14)
-	objective_heading.add_theme_color_override("font_color", AMBER)
-	_title_panel.add_child(objective_heading)
-
-	var objectives: Label = Label.new()
-	objectives.name = "Objectives"
-	objectives.text = (
-		"01  LINK ALL 3 RELAYS\n"
-		+ "02  SURVIVE EACH ALERT\n"
-		+ "03  RETURN TO AN OUTPOST TO EXTRACT"
-	)
-	objectives.position = Vector2(0.0, 364.0)
-	objectives.size = Vector2(520.0, 66.0)
-	objectives.add_theme_font_size_override("font_size", 15)
-	objectives.add_theme_color_override("font_color", TEXT)
-	objectives.add_theme_constant_override("line_spacing", 3)
-	_title_panel.add_child(objectives)
-
-	_subtitle = Label.new()
-	_subtitle.name = "RunStatus"
-	_subtitle.text = "NO ACTIVE FIELD RECORD."
-	_subtitle.position = Vector2(0.0, 434.0)
-	_subtitle.size = Vector2(540.0, 24.0)
-	_subtitle.add_theme_font_size_override("font_size", 13)
-	_subtitle.add_theme_color_override("font_color", MUTED)
-	_title_panel.add_child(_subtitle)
-
-	_begin_button = Button.new()
-	_begin_button.name = "BeginButton"
-	_begin_button.text = "BEGIN // NEW EXPEDITION  >"
-	_begin_button.position = Vector2(0.0, 462.0)
-	_begin_button.size = Vector2(380.0, 64.0)
-	_begin_button.focus_mode = Control.FOCUS_ALL
-	_begin_button.add_theme_color_override("font_color", INK)
-	_begin_button.add_theme_color_override("font_hover_color", INK)
-	_begin_button.add_theme_color_override("font_pressed_color", TEXT)
-	_begin_button.add_theme_stylebox_override("normal", _make_button_style(AMBER, 0.0))
-	_begin_button.add_theme_stylebox_override(
-		"hover", _make_button_style(Color(1.0, 0.74, 0.34, 1.0), 2.0)
-	)
-	_begin_button.add_theme_stylebox_override(
-		"pressed", _make_button_style(Color(0.34, 0.22, 0.10, 1.0), 0.0)
-	)
-	_begin_button.pressed.connect(_on_begin_pressed)
-	_title_panel.add_child(_begin_button)
-	if _begin_button.is_inside_tree():
-		_begin_button.grab_focus()
-
-	_staging_panel = Control.new()
-	_staging_panel.name = "StagingPanel"
-	_staging_panel.position = Vector2(88.0, 124.0)
-	_staging_panel.size = Vector2(520.0, 470.0)
-	_staging_panel.visible = false
-	ui_root.add_child(_staging_panel)
-
-	var staging_title: Label = Label.new()
-	staging_title.name = "StagingTitle"
-	staging_title.text = "STAGING FIELD"
-	staging_title.position = Vector2(0.0, 36.0)
-	staging_title.size = Vector2(520.0, 96.0)
-	staging_title.add_theme_font_size_override("font_size", 56)
-	staging_title.add_theme_color_override("font_color", TEXT)
-	_staging_panel.add_child(staging_title)
-
-	var staging_status: Label = Label.new()
-	staging_status.name = "StagingStatus"
-	staging_status.text = "GRID ONLINE\nNO UNITS DEPLOYED\nAWAITING NEXT BUILD ORDER"
-	staging_status.position = Vector2(0.0, 160.0)
-	staging_status.size = Vector2(520.0, 170.0)
-	staging_status.add_theme_color_override("font_color", MUTED)
-	staging_status.add_theme_constant_override("line_spacing", 8)
-	_staging_panel.add_child(staging_status)
-
-	_status_bar = Label.new()
-	_status_bar.name = "StatusBar"
-	_status_bar.text = "BUILD 0001   //   GODOT 4.7.1   //   WEB READY"
-	_status_bar.position = Vector2(88.0, 652.0)
-	_status_bar.size = Vector2(1100.0, 48.0)
-	_status_bar.add_theme_color_override("font_color", MUTED)
-	ui_root.add_child(_status_bar)
+	_content_group.add_child(_title_panel)
+	_build_briefing()
+	_build_controls_strip()
+	_build_field_guide(ui_root)
 
 	_audio_player = AudioStreamPlayer.new()
 	_audio_player.name = "BeginAudio"
@@ -326,45 +102,474 @@ func _build_interface() -> void:
 	add_child(_audio_player)
 
 
-func _make_button_style(color: Color, border_width: float) -> StyleBoxFlat:
+func _build_briefing() -> void:
+	var eyebrow: Label = _make_label(
+		"Eyebrow",
+		"EXPEDITION 01 // CARDINAL",
+		14,
+		AMBER,
+	)
+	_title_panel.add_child(eyebrow)
+
+	_title_label = _make_label("TitleLabel", "WALKER'S WAKE", 56, TEXT)
+	_title_panel.add_child(_title_label)
+
+	_mission_label = _make_label(
+		"Mission",
+		"LINK 3 RELAYS. SURVIVE THE ALERT. EXTRACT AT AN OUTPOST.",
+		15,
+		TEXT,
+	)
+	_mission_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_title_panel.add_child(_mission_label)
+
+	_mission_rail = Control.new()
+	_mission_rail.name = "MissionRail"
+	_title_panel.add_child(_mission_rail)
+	_add_rail_step("LinkStep", "01", "LINK")
+	_add_rail_step("EndureStep", "02", "ENDURE")
+	_add_rail_step("ExtractStep", "03", "EXTRACT")
+
+	_subtitle = _make_label(
+		"RunStatus",
+		"NEW EXPEDITION // NO ACTIVE RECORD",
+		13,
+		MUTED,
+	)
+	_title_panel.add_child(_subtitle)
+
+	_begin_button = Button.new()
+	_begin_button.name = "BeginButton"
+	_begin_button.text = "DEPLOY CARDINAL"
+	_begin_button.focus_mode = Control.FOCUS_ALL
+	_begin_button.add_theme_font_size_override("font_size", 26)
+	_begin_button.add_theme_color_override("font_color", INK)
+	_begin_button.add_theme_color_override("font_hover_color", INK)
+	_begin_button.add_theme_color_override("font_focus_color", INK)
+	_begin_button.add_theme_color_override("font_pressed_color", TEXT)
+	_begin_button.add_theme_stylebox_override("normal", _make_button_style(AMBER, INK, 2))
+	(
+		_begin_button
+		. add_theme_stylebox_override(
+			"hover",
+			_make_button_style(AMBER_HOVER, TEXT, 2),
+		)
+	)
+	(
+		_begin_button
+		. add_theme_stylebox_override(
+			"focus",
+			_make_button_style(AMBER_HOVER, TEXT, 3),
+		)
+	)
+	(
+		_begin_button
+		. add_theme_stylebox_override(
+			"pressed",
+			_make_button_style(Color("8f5610"), TEXT, 2),
+		)
+	)
+	_begin_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_begin_button.pressed.connect(_on_begin_pressed)
+	_title_panel.add_child(_begin_button)
+
+	_cta_keycap = _make_label("Keycap", "ENTER", 13, INK)
+	_cta_keycap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_cta_keycap.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_cta_keycap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_begin_button.add_child(_cta_keycap)
+
+
+func _add_rail_step(node_name: String, number: String, action: String) -> void:
+	var step: Control = Control.new()
+	step.name = node_name
+	_mission_rail.add_child(step)
+	var number_label: Label = _make_label("Number", number, 22, AMBER)
+	number_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	number_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	step.add_child(number_label)
+	var action_label: Label = _make_label("Action", action, 14, AMBER)
+	action_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	step.add_child(action_label)
+
+
+func _build_controls_strip() -> void:
+	_controls_strip = Control.new()
+	_controls_strip.name = "ControlsStrip"
+	_content_group.add_child(_controls_strip)
+	_add_control_hint("MoveHint", "MOVE", "W A S D")
+	_add_control_hint("RunHint", "RUN", "SHIFT")
+	_add_control_hint("SmashHint", "SMASH", "SPACE")
+
+	_field_guide_button = Button.new()
+	_field_guide_button.name = "FieldGuideButton"
+	_field_guide_button.text = "FIELD GUIDE   F1"
+	_field_guide_button.focus_mode = Control.FOCUS_ALL
+	_field_guide_button.add_theme_font_size_override("font_size", 14)
+	_field_guide_button.add_theme_color_override("font_color", AMBER)
+	_field_guide_button.add_theme_color_override("font_hover_color", TEXT)
+	_field_guide_button.add_theme_color_override("font_focus_color", TEXT)
+	(
+		_field_guide_button
+		. add_theme_stylebox_override(
+			"normal",
+			_make_button_style(Color(0.0, 0.0, 0.0, 0.0), Color(0.0, 0.0, 0.0, 0.0), 0),
+		)
+	)
+	(
+		_field_guide_button
+		. add_theme_stylebox_override(
+			"hover",
+			_make_button_style(PANEL_SOFT, AMBER, 1),
+		)
+	)
+	(
+		_field_guide_button
+		. add_theme_stylebox_override(
+			"focus",
+			_make_button_style(PANEL_SOFT, AMBER, 2),
+		)
+	)
+	_field_guide_button.pressed.connect(_toggle_field_guide)
+	_controls_strip.add_child(_field_guide_button)
+
+
+func _add_control_hint(node_name: String, action: String, input: String) -> void:
+	var hint: Control = Control.new()
+	hint.name = node_name
+	_controls_strip.add_child(hint)
+	var action_label: Label = _make_label("Action", action, 12, MUTED)
+	action_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	hint.add_child(action_label)
+	var input_label: Label = _make_label("Input", input, 12, TEXT)
+	input_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	input_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	(
+		input_label
+		. add_theme_stylebox_override(
+			"normal",
+			_make_panel_style(Color(0.025, 0.04, 0.055, 0.82), MUTED, 1),
+		)
+	)
+	hint.add_child(input_label)
+
+
+func _build_field_guide(ui_root: Control) -> void:
+	_field_guide_panel = ColorRect.new()
+	_field_guide_panel.name = "FieldGuidePanel"
+	_field_guide_panel.color = PANEL
+	_field_guide_panel.visible = false
+	_field_guide_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	ui_root.add_child(_field_guide_panel)
+
+	var title: Label = _make_label("Title", "FIELD GUIDE // CARDINAL", 24, TEXT)
+	_field_guide_panel.add_child(title)
+	var guide: Label = _make_label(
+		"Guide",
+		(
+			"MOVE     WASD / ARROW KEYS     |     TOUCH: DRAG AND HOLD\n"
+			+ "RUN      HOLD SHIFT — BUILDS IMPACT     |     TOUCH: PUSH OUTER RING\n"
+			+ "SMASH    SPACE / J / K     |     TOUCH: TAP SMASH\n\n"
+			+ "STORMS   AVOID ACTIVE STORM FRONTS\n"
+			+ "HUNTERS  STRIKE ONLY WHILE EXPOSED"
+		),
+		15,
+		TEXT,
+	)
+	guide.name = "GuideText"
+	guide.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	guide.add_theme_constant_override("line_spacing", 6)
+	_field_guide_panel.add_child(guide)
+
+	_field_guide_close = Button.new()
+	_field_guide_close.name = "CloseButton"
+	_field_guide_close.text = "RETURN TO BRIEFING"
+	_field_guide_close.focus_mode = Control.FOCUS_ALL
+	_field_guide_close.add_theme_font_size_override("font_size", 15)
+	_field_guide_close.add_theme_color_override("font_color", INK)
+	_field_guide_close.add_theme_color_override("font_hover_color", INK)
+	(
+		_field_guide_close
+		. add_theme_stylebox_override(
+			"normal",
+			_make_button_style(AMBER, INK, 2),
+		)
+	)
+	(
+		_field_guide_close
+		. add_theme_stylebox_override(
+			"hover",
+			_make_button_style(AMBER_HOVER, TEXT, 2),
+		)
+	)
+	_field_guide_close.pressed.connect(_close_field_guide)
+	_field_guide_panel.add_child(_field_guide_close)
+
+
+func _make_label(node_name: String, value: String, font_size: int, color: Color) -> Label:
+	var label: Label = Label.new()
+	label.name = node_name
+	label.text = value
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", color)
+	return label
+
+
+func _make_button_style(color: Color, border_color: Color, border_width: int) -> StyleBoxFlat:
+	var style: StyleBoxFlat = _make_panel_style(color, border_color, border_width)
+	style.corner_radius_top_left = 2
+	style.corner_radius_top_right = 2
+	style.corner_radius_bottom_left = 2
+	style.corner_radius_bottom_right = 2
+	style.content_margin_left = 22.0
+	style.content_margin_right = 22.0
+	return style
+
+
+func _make_panel_style(color: Color, border_color: Color, border_width: int) -> StyleBoxFlat:
 	var style: StyleBoxFlat = StyleBoxFlat.new()
 	style.bg_color = color
-	style.corner_radius_top_left = 3
-	style.corner_radius_top_right = 3
-	style.corner_radius_bottom_left = 3
-	style.corner_radius_bottom_right = 3
-	style.border_width_left = int(border_width)
-	style.border_width_top = int(border_width)
-	style.border_width_right = int(border_width)
-	style.border_width_bottom = int(border_width)
-	style.border_color = TEXT
-	style.content_margin_left = 24.0
-	style.content_margin_right = 24.0
+	style.border_color = border_color
+	style.border_width_left = border_width
+	style.border_width_top = border_width
+	style.border_width_right = border_width
+	style.border_width_bottom = border_width
 	return style
 
 
 func _apply_responsive_layout() -> void:
 	_layout = ResponsiveViewportScript.title_layout(get_viewport().get_visible_rect().size)
-	var position: Vector2 = _layout[&"panel_position"] as Vector2
-	var scale_value: float = float(_layout[&"panel_scale"])
-	_title_panel.position = position
-	_title_panel.scale = Vector2.ONE * scale_value
-	_staging_panel.position = position
-	_staging_panel.scale = Vector2.ONE * scale_value
-	var status: Rect2 = _layout[&"status_rect"] as Rect2
-	_status_bar.position = status.position
-	_status_bar.size = status.size
-	_status_bar.add_theme_font_size_override("font_size", int(_layout[&"status_font_size"]))
-	queue_redraw()
+	var portrait: bool = bool(_layout[&"portrait"])
+	var design_size: Vector2 = _layout[&"design_size"] as Vector2
+	_content_group.position = _layout[&"canvas_position"] as Vector2
+	_content_group.size = design_size
+	_content_group.scale = Vector2.ONE * float(_layout[&"canvas_scale"])
+	_background.texture = TITLE_MOBILE if portrait else TITLE_DESKTOP
+	if portrait:
+		_apply_portrait_layout()
+	else:
+		_apply_landscape_layout()
+	_layout_field_guide()
+
+
+func _apply_landscape_layout() -> void:
+	_title_panel.position = Vector2(62.0, 132.0)
+	_title_panel.size = Vector2(560.0, 470.0)
+	var eyebrow: Label = _title_panel.get_node("Eyebrow") as Label
+	eyebrow.position = Vector2(0.0, 0.0)
+	eyebrow.size = Vector2(520.0, 28.0)
+	eyebrow.add_theme_font_size_override("font_size", 14)
+	_title_label.position = Vector2(0.0, 30.0)
+	_title_label.size = Vector2(560.0, 90.0)
+	_title_label.add_theme_font_size_override("font_size", 56)
+	_mission_label.position = Vector2(0.0, 128.0)
+	_mission_label.size = Vector2(555.0, 48.0)
+	_mission_label.add_theme_font_size_override("font_size", 15)
+	_mission_rail.position = Vector2(0.0, 190.0)
+	_mission_rail.size = Vector2(530.0, 92.0)
+	_layout_rail(false)
+	_subtitle.position = Vector2(0.0, 336.0)
+	_subtitle.size = Vector2(520.0, 28.0)
+	_subtitle.add_theme_font_size_override("font_size", 13)
+	_begin_button.position = Vector2(0.0, 370.0)
+	_begin_button.size = Vector2(475.0, 84.0)
+	_begin_button.add_theme_font_size_override("font_size", 26)
+	_cta_keycap.position = Vector2(365.0, 17.0)
+	_cta_keycap.size = Vector2(82.0, 38.0)
+	_cta_keycap.add_theme_font_size_override("font_size", 13)
+	(
+		_cta_keycap
+		. add_theme_stylebox_override(
+			"normal",
+			_make_panel_style(Color(1.0, 1.0, 1.0, 0.08), Color(0.1, 0.1, 0.1, 0.24), 1),
+		)
+	)
+	_controls_strip.position = Vector2(32.0, 644.0)
+	_controls_strip.size = Vector2(1216.0, 56.0)
+	_layout_controls(false)
+
+
+func _apply_portrait_layout() -> void:
+	_title_panel.position = Vector2(40.0, 58.0)
+	_title_panel.size = Vector2(640.0, 1010.0)
+	var eyebrow: Label = _title_panel.get_node("Eyebrow") as Label
+	eyebrow.position = Vector2(0.0, 0.0)
+	eyebrow.size = Vector2(620.0, 38.0)
+	eyebrow.add_theme_font_size_override("font_size", 20)
+	_title_label.position = Vector2(0.0, 42.0)
+	_title_label.size = Vector2(640.0, 96.0)
+	_title_label.add_theme_font_size_override("font_size", 62)
+	_mission_label.position = Vector2(0.0, 146.0)
+	_mission_label.size = Vector2(620.0, 60.0)
+	_mission_label.add_theme_font_size_override("font_size", 16)
+	_mission_rail.position = Vector2(58.0, 708.0)
+	_mission_rail.size = Vector2(524.0, 118.0)
+	_layout_rail(true)
+	_subtitle.position = Vector2(0.0, 842.0)
+	_subtitle.size = Vector2(620.0, 28.0)
+	_subtitle.add_theme_font_size_override("font_size", 13)
+	_begin_button.position = Vector2(0.0, 880.0)
+	_begin_button.size = Vector2(640.0, 128.0)
+	_begin_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_begin_button.add_theme_font_size_override("font_size", 42)
+	_cta_keycap.visible = false
+	_controls_strip.position = Vector2(40.0, 1080.0)
+	_controls_strip.size = Vector2(640.0, 160.0)
+	_layout_controls(true)
+
+
+func _layout_rail(portrait: bool) -> void:
+	var step_width: float = 150.0 if portrait else 130.0
+	var gap: float = 37.0 if portrait else 65.0
+	var steps: Array[Node] = _mission_rail.get_children()
+	for index: int in range(steps.size()):
+		var step: Control = steps[index] as Control
+		step.position = Vector2(float(index) * (step_width + gap), 0.0)
+		step.size = Vector2(step_width, _mission_rail.size.y)
+		var number_label: Label = step.get_node("Number") as Label
+		number_label.position = Vector2((step_width - 58.0) * 0.5, 0.0)
+		number_label.size = Vector2(58.0, 58.0)
+		number_label.add_theme_font_size_override("font_size", 28 if portrait else 22)
+		(
+			number_label
+			. add_theme_stylebox_override(
+				"normal",
+				_make_panel_style(Color(0.0, 0.0, 0.0, 0.18), AMBER, 2),
+			)
+		)
+		var action_label: Label = step.get_node("Action") as Label
+		action_label.position = Vector2(0.0, 68.0)
+		action_label.size = Vector2(step_width, 32.0)
+		action_label.add_theme_font_size_override("font_size", 18 if portrait else 14)
+
+
+func _layout_controls(portrait: bool) -> void:
+	var move_hint: Control = _controls_strip.get_node("MoveHint") as Control
+	var run_hint: Control = _controls_strip.get_node("RunHint") as Control
+	var smash_hint: Control = _controls_strip.get_node("SmashHint") as Control
+	_cta_keycap.visible = not portrait
+	if portrait:
+		_layout_control_hint(move_hint, Vector2(0.0, 0.0), "DRAG\nTO DRIVE", "◉", true)
+		_layout_control_hint(run_hint, Vector2(213.0, 0.0), "PUSH\nTO RUN", "▲", true)
+		_layout_control_hint(smash_hint, Vector2(426.0, 0.0), "TAP\nSMASH", "◆", true)
+		_field_guide_button.position = Vector2(174.0, 112.0)
+		_field_guide_button.size = Vector2(292.0, 48.0)
+		_field_guide_button.text = "FIELD GUIDE"
+		_field_guide_button.add_theme_font_size_override("font_size", 18)
+	else:
+		_layout_control_hint(move_hint, Vector2(0.0, 0.0), "MOVE", "W A S D", false)
+		_layout_control_hint(run_hint, Vector2(214.0, 0.0), "RUN", "SHIFT", false)
+		_layout_control_hint(smash_hint, Vector2(414.0, 0.0), "SMASH", "SPACE", false)
+		_field_guide_button.position = Vector2(1044.0, 5.0)
+		_field_guide_button.size = Vector2(172.0, 42.0)
+		_field_guide_button.text = "FIELD GUIDE   F1"
+		_field_guide_button.add_theme_font_size_override("font_size", 14)
+
+
+func _layout_control_hint(
+	hint: Control,
+	position: Vector2,
+	action: String,
+	input: String,
+	portrait: bool,
+) -> void:
+	hint.position = position
+	hint.size = Vector2(213.0 if portrait else 190.0, 96.0 if portrait else 48.0)
+	var action_label: Label = hint.get_node("Action") as Label
+	var input_label: Label = hint.get_node("Input") as Label
+	if portrait:
+		input_label.position = Vector2(8.0, 16.0)
+		input_label.size = Vector2(62.0, 62.0)
+		input_label.add_theme_font_size_override("font_size", 28)
+		action_label.position = Vector2(82.0, 18.0)
+		action_label.size = Vector2(123.0, 64.0)
+		action_label.text = action
+		action_label.add_theme_font_size_override("font_size", 18)
+	else:
+		action_label.position = Vector2(0.0, 5.0)
+		action_label.size = Vector2(58.0, 38.0)
+		action_label.text = action
+		action_label.add_theme_font_size_override("font_size", 12)
+		input_label.position = Vector2(64.0, 7.0)
+		input_label.size = Vector2(98.0, 34.0)
+		input_label.text = input
+		input_label.add_theme_font_size_override("font_size", 12)
+
+
+func _layout_field_guide() -> void:
+	var viewport: Vector2 = _layout[&"viewport"] as Vector2
+	var portrait: bool = bool(_layout[&"portrait"])
+	var panel_size: Vector2 = (
+		Vector2(minf(viewport.x - 28.0, 680.0), minf(viewport.y - 36.0, 500.0))
+		if portrait
+		else Vector2(minf(viewport.x - 64.0, 760.0), minf(viewport.y - 64.0, 430.0))
+	)
+	_field_guide_panel.size = panel_size
+	_field_guide_panel.position = (viewport - panel_size) * 0.5
+	var title: Label = _field_guide_panel.get_node("Title") as Label
+	title.position = Vector2(28.0, 22.0)
+	title.size = Vector2(panel_size.x - 56.0, 42.0)
+	var guide: Label = _field_guide_panel.get_node("GuideText") as Label
+	guide.position = Vector2(28.0, 78.0)
+	guide.size = Vector2(panel_size.x - 56.0, panel_size.y - 160.0)
+	guide.add_theme_font_size_override("font_size", 13 if portrait else 15)
+	_field_guide_close.position = Vector2(28.0, panel_size.y - 66.0)
+	_field_guide_close.size = Vector2(panel_size.x - 56.0, 44.0)
+
+
+func _toggle_field_guide() -> void:
+	_set_field_guide_visible(not _field_guide_panel.visible)
+
+
+func _close_field_guide() -> void:
+	_set_field_guide_visible(false)
+
+
+func _set_field_guide_visible(value: bool) -> void:
+	_field_guide_panel.visible = value
+	if not is_inside_tree():
+		return
+	if value:
+		_field_guide_close.grab_focus()
+	else:
+		_field_guide_button.grab_focus()
 
 
 func _on_begin_pressed() -> void:
 	if _field_visible:
 		return
 	_field_visible = true
+	_begin_button.disabled = true
+	_begin_button.text = "DEPLOYING CARDINAL..."
+	_set_web_scene_state("field-loading")
 	_trigger_begin_audio()
 	print("[PROTO_ISOMETRIC_BEGIN]")
-	get_tree().change_scene_to_file("res://scenes/isometric_map.tscn")
+	_enter_field()
+
+
+func _enter_field() -> void:
+	var field: Node = FIELD_SCENE.instantiate()
+	if field == null:
+		_field_visible = false
+		_begin_button.disabled = false
+		_apply_save_metadata()
+		push_error("Field scene instantiation failed.")
+		return
+	get_tree().root.add_child(field)
+	get_tree().current_scene = field
+	queue_free()
+
+
+func _set_web_scene_state(value: String) -> void:
+	if not OS.has_feature("web"):
+		return
+	(
+		JavaScriptBridge
+		. eval(
+			"document.body.dataset.godotScene=%s;" % JSON.stringify(value),
+			true,
+		)
+	)
 
 
 func _apply_save_metadata() -> void:
@@ -374,8 +579,8 @@ func _apply_save_metadata() -> void:
 		return
 	var envelope: Dictionary = repository.call("load_state") as Dictionary
 	if envelope.is_empty():
-		_begin_button.text = "BEGIN // NEW EXPEDITION  >"
-		_subtitle.text = "NO ACTIVE FIELD RECORD."
+		_begin_button.text = "DEPLOY CARDINAL"
+		_subtitle.text = "NEW EXPEDITION // NO ACTIVE RECORD"
 		return
 	var run: Dictionary = envelope.get(&"active_run", {}) as Dictionary
 	var profile: Dictionary = envelope.get(&"profile", {}) as Dictionary
@@ -383,16 +588,19 @@ func _apply_save_metadata() -> void:
 	var terminal: bool = (
 		phase in [RuntimeIdsScript.RUN_PHASE_SUCCEEDED, RuntimeIdsScript.RUN_PHASE_FAILED]
 	)
-	_begin_button.text = "BEGIN // REVIEW SUMMARY  >" if terminal else "BEGIN // CONTINUE  >"
-	_subtitle.text = "TERMINAL RECORD READY." if terminal else "ACTIVE EXPEDITION READY."
-	_status_bar.text = (
-		"BANK // DATA %03d // SCRAP %03d // CORE %03d"
-		% [
-			int(profile.get(&"banked_relay_data", 0)),
-			int(profile.get(&"banked_scrap", 0)),
-			int(profile.get(&"banked_cores", 0)),
-		]
+	_begin_button.text = "REVIEW SUMMARY" if terminal else "CONTINUE EXPEDITION"
+	_subtitle.text = (
+		"TERMINAL RECORD // REVIEW REQUIRED"
+		if terminal
+		else "ACTIVE EXPEDITION // RELAY %d/3" % int(run.get(&"completed_relays", 0))
 	)
+	var banked_total: int = (
+		int(profile.get(&"banked_relay_data", 0))
+		+ int(profile.get(&"banked_scrap", 0))
+		+ int(profile.get(&"banked_cores", 0))
+	)
+	if banked_total > 0 and not terminal:
+		_subtitle.text += " // BANK %03d" % banked_total
 
 
 func is_title_visible() -> bool:
@@ -400,7 +608,7 @@ func is_title_visible() -> bool:
 
 
 func is_staging_visible() -> bool:
-	return _staging_panel.visible and _field_visible
+	return false
 
 
 func get_begin_button() -> Button:
@@ -409,6 +617,14 @@ func get_begin_button() -> Button:
 
 func get_title_label() -> Label:
 	return _title_label
+
+
+func is_field_guide_visible() -> bool:
+	return _field_guide_panel.visible
+
+
+func get_field_guide_button() -> Button:
+	return _field_guide_button
 
 
 func is_audio_ready() -> bool:

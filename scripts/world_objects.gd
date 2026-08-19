@@ -2,6 +2,7 @@ extends Node2D
 
 const EncounterDirectorScript: GDScript = preload("res://scripts/encounter_director.gd")
 const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
+const LavaContactScript: GDScript = preload("res://scripts/lava_contact.gd")
 const RunPickupsScript: GDScript = preload("res://scripts/run_pickups.gd")
 
 const ROCK: Color = Color("934d35")
@@ -21,6 +22,8 @@ var _grid_to_screen: Callable
 var _save_callback: Callable
 var _tile_size: Vector2 = Vector2(90.0, 45.0)
 var _sanctuary_radius: float = InfiniteWorldScript.SANCTUARY_RADIUS
+var _lava_contact: RefCounted
+var _damage_callback: Callable
 
 
 func configure(
@@ -40,6 +43,20 @@ func configure(
 	_tile_size = tile_size
 	_sanctuary_radius = maxf(sanctuary_radius, 0.0)
 	queue_redraw()
+
+
+func bind_world(world: RefCounted, damage_callback: Callable) -> bool:
+	_lava_contact = LavaContactScript.new() as RefCounted
+	_damage_callback = damage_callback
+	return bool(_lava_contact.call("configure", world))
+
+
+func advance_lava(position: Vector2, delta: float) -> void:
+	if _lava_contact == null or not _damage_callback.is_valid():
+		return
+	var damage: int = int(_lava_contact.call("advance", position, delta))
+	if damage > 0:
+		_damage_callback.call(damage, &"lava")
 
 
 func set_visible_cells(cells: Array[Vector2i]) -> void:
