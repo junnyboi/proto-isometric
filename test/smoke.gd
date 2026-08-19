@@ -40,7 +40,7 @@ func _test_title() -> void:
 	var begin_button: Button = panel.get_node("BeginButton") as Button
 	_check(title_label.text == LocalizationScript.t(&"title.name"), "title text")
 	_check(title_label.visible, "title visible")
-	_check(begin_button.text == LocalizationScript.t(&"title.begin_new"), "Deploy Cardinal label")
+	_check(begin_button.text == LocalizationScript.t(&"title.begin_new"), "Deploy Walker label")
 	_check(begin_button.focus_mode == Control.FOCUS_ALL, "Begin focusable")
 	var background: TextureRect = scene.get_node("UILayer/UIRoot/GeneratedTitleArt") as TextureRect
 	_check(background.texture != null, "Signal-First title art loaded")
@@ -69,7 +69,7 @@ func _test_isometric_map() -> void:
 	var run_coordinator: RefCounted = map.get("_run_coordinator") as RefCounted
 	_check(
 		run_coordinator.call("get_run_value", &"player_cell") == map.call("get_robot_grid"),
-		"live RunState owns Cardinal position",
+		"live RunState owns Walker position",
 	)
 
 	_check(map.call("get_grid_size") == Vector2i(145, 145), "world reports compact grid")
@@ -144,11 +144,11 @@ func _test_isometric_map() -> void:
 	_check(touch_drive.x > 0.5 and touch_drive.y < -0.5, "joystick supplies fluid analog diagonal")
 	_check(touch_drive.length() <= 1.0, "joystick output is bounded")
 	_check(bool(mobile_controls.call("is_run_intended")), "joystick outer ring enters run intent")
-	_check(bool(map.call("place_robot", Vector2i(8, 8))), "place Cardinal for touch drive")
+	_check(bool(map.call("place_robot", Vector2i(8, 8))), "place Walker for touch drive")
 	var touch_start: Vector2 = map.call("get_robot_position") as Vector2
 	_check(
 		bool(map.call("_update_drive_vector", touch_drive, 0.05, false)),
-		"touch drive moves Cardinal"
+		"touch drive moves Walker"
 	)
 	_check(
 		(map.call("get_robot_position") as Vector2).distance_to(touch_start) > 0.0,
@@ -271,7 +271,7 @@ func _test_isometric_map() -> void:
 	_check(hazards.get_parent() == world_effects_layer, "hazard particles use the effects layer")
 	hazards.call("set_auto_spawn", false)
 	hazards.call("clear_hazards")
-	_check(bool(map.call("place_robot", Vector2i(5, 5))), "place Cardinal for moving tornado")
+	_check(bool(map.call("place_robot", Vector2i(5, 5))), "place Walker for moving tornado")
 	var moving_damage_before: int = int(map.call("_get_chassis"))
 	var moving_tornado: int = int(hazards.call("spawn_tornado", Vector2i(5, 5), 0.0, 20.0, 3.2))
 	var tornado_start: Vector2 = hazards.call("get_tornado_position", moving_tornado) as Vector2
@@ -289,7 +289,7 @@ func _test_isometric_map() -> void:
 	hazards.call("spawn_tornado", Vector2i(12, 12))
 	_check(int(hazards.call("get_hazard_count", &"tornado")) == 2, "multiple tornadoes coexist")
 	hazards.call("clear_hazards")
-	_check(bool(map.call("place_robot", Vector2i(5, 7))), "place Cardinal for hazard damage")
+	_check(bool(map.call("place_robot", Vector2i(5, 7))), "place Walker for hazard damage")
 	var telegraph_chassis: int = int(map.call("_get_chassis"))
 	var tornado_id: int = int(hazards.call("spawn_tornado", Vector2i(5, 7), 3.0, 20.0, 0.0))
 	hazards.call("advance", 2.9)
@@ -393,10 +393,10 @@ func _test_isometric_map() -> void:
 	hazards.call("clear_hazards")
 
 	var avatar: Node2D = map.call("get_avatar") as Node2D
-	_check(avatar != null, "Cardinal avatar exists")
-	_check(avatar.get_parent() == world_object_layer, "Cardinal renders above sand ripple")
-	_check(avatar.has_method("set_motion"), "Cardinal animation adapter is connected")
-	_check(not bool(avatar.call("is_using_proxy")), "Cardinal uses approved combined atlas")
+	_check(avatar != null, "Walker avatar exists")
+	_check(avatar.get_parent() == world_object_layer, "Walker renders above sand ripple")
+	_check(avatar.has_method("set_motion"), "Walker animation adapter is connected")
+	_check(not bool(avatar.call("is_using_proxy")), "Walker uses approved combined atlas")
 	var sandworms: Node2D = map.get_node("WorldObjectLayer/Sandworms") as Node2D
 	_check(sandworms != null, "sandworm controller exists")
 	var run_pickups: Node2D = map.get_node("WorldObjectLayer/WorldObjects/RunPickups") as Node2D
@@ -407,7 +407,7 @@ func _test_isometric_map() -> void:
 	_check(worm_telegraph.z_index < sandworms.z_index, "worm telegraphs render beneath worm bodies")
 	sandworms.call("set_auto_spawn", false)
 	sandworms.call("clear_worms")
-	_check(bool(map.call("place_robot", Vector2i(6, 6))), "place Cardinal for sandworm pursuit")
+	_check(bool(map.call("place_robot", Vector2i(6, 6))), "place Walker for sandworm pursuit")
 	var chase_worm: int = int(sandworms.call("spawn_worm", Vector2(9.0, 6.0), 0.0))
 	var chase_start: Vector2 = sandworms.call("get_worm_position", chase_worm) as Vector2
 	sandworms.call("advance", 0.5)
@@ -436,7 +436,7 @@ func _test_isometric_map() -> void:
 		"one committed Intercept cannot attack twice",
 	)
 	sandworms.call("clear_worms")
-	_check(bool(map.call("place_robot", Vector2i(6, 6))), "place Cardinal for worm melee")
+	_check(bool(map.call("place_robot", Vector2i(6, 6))), "place Walker for worm melee")
 	map.set("_facing", &"E")
 	var melee_worm: int = int(sandworms.call("spawn_worm", Vector2(7.0, 5.0), 0.0))
 	SmokeHelpersScript.advance_worm_to_expose(sandworms, melee_worm)
@@ -456,7 +456,7 @@ func _test_isometric_map() -> void:
 	sandworms.call("advance", 0.65)
 	_check(int(sandworms.call("get_worm_count")) == 0, "defeated worm presentation expires")
 	sandworms.call("clear_worms")
-	_check(bool(map.call("place_robot", Vector2i(6, 6))), "place Cardinal for shock line")
+	_check(bool(map.call("place_robot", Vector2i(6, 6))), "place Walker for shock line")
 	map.set("_facing", &"E")
 	map.call("_set_impact_charge", 0.5)
 	var line_worm: int = int(sandworms.call("spawn_worm", Vector2(8.0, 4.0), 0.0))
@@ -493,18 +493,18 @@ func _test_isometric_map() -> void:
 	_check(relay != null, "contested relay controller exists")
 	_check(relay_cell == Vector2i(12, 6), "starter relay placement is deterministic")
 	_check(world.call("terrain_at", relay_cell) == &"ruin", "relay occupies reserved ruin terrain")
-	_check(bool(map.call("place_robot", relay_cell)), "Cardinal enters the relay zone")
+	_check(bool(map.call("place_robot", relay_cell)), "Walker enters the relay zone")
 	relay.call("advance", 0.5)
 	_check(relay.call("get_state") == &"linking", "entering relay zone starts linking")
 	_check(int(sandworms.call("get_worm_count")) == 0, "linking does not spawn before Alert credit")
 	relay.call("advance", 1.75)
-	_check(float(relay.call("get_progress")) >= 0.49, "relay link builds while Cardinal holds zone")
-	_check(bool(map.call("place_robot", Vector2i(8, 10))), "Cardinal can leave the relay zone")
+	_check(float(relay.call("get_progress")) >= 0.49, "relay link builds while Walker holds zone")
+	_check(bool(map.call("place_robot", Vector2i(8, 10))), "Walker can leave the relay zone")
 	relay.call("advance", 0.01)
 	_check(
-		is_zero_approx(float(relay.call("get_progress"))), "relay link resets when Cardinal leaves"
+		is_zero_approx(float(relay.call("get_progress"))), "relay link resets when Walker leaves"
 	)
-	_check(bool(map.call("place_robot", relay_cell)), "Cardinal re-enters the relay zone")
+	_check(bool(map.call("place_robot", relay_cell)), "Walker re-enters the relay zone")
 	relay.call("advance", 0.01)
 	_check(
 		int(sandworms.call("get_worm_count")) == 0,
@@ -524,10 +524,10 @@ func _test_isometric_map() -> void:
 	_check("ALERT 1" in str(field_hud.call("get_relay_text")), "HUD reports completed relay alert")
 	sandworms.call("clear_worms")
 	var safe_worm: int = int(sandworms.call("spawn_worm", Vector2(3.0, 10.0), 0.0))
-	_check(bool(map.call("place_robot", Vector2i(1, 10))), "place Cardinal at linked outpost")
+	_check(bool(map.call("place_robot", Vector2i(1, 10))), "place Walker at linked outpost")
 	_check(sandworms.call("get_state", safe_worm) == &"dispersing", "outpost link disperses worms")
 	sandworms.call("advance", 1.3)
-	_check(int(sandworms.call("get_worm_count")) == 0, "dispersed worm leaves Cardinal alone")
+	_check(int(sandworms.call("get_worm_count")) == 0, "dispersed worm leaves Walker alone")
 	hazard_chassis_after = int(map.call("_get_chassis"))
 
 	var directions: Dictionary = {
@@ -543,7 +543,7 @@ func _test_isometric_map() -> void:
 	for direction: Variant in directions:
 		var screen_direction: Vector2i = direction as Vector2i
 		var label: StringName = directions[direction] as StringName
-		_check(bool(map.call("place_robot", Vector2i(8, 8))), "place Cardinal for %s" % label)
+		_check(bool(map.call("place_robot", Vector2i(8, 8))), "place Walker for %s" % label)
 		var start_position: Vector2 = map.call("get_robot_position") as Vector2
 		_check(
 			bool(map.call("update_drive", screen_direction, 0.05, false)),
@@ -557,23 +557,23 @@ func _test_isometric_map() -> void:
 		_check(map.call("get_facing") == label, "%s facing" % label)
 		_check(avatar.call("get_facing") == label, "%s animation facing" % label)
 
-	_check(bool(map.call("place_robot", Vector2i(8, 8))), "place Cardinal for inertia test")
+	_check(bool(map.call("place_robot", Vector2i(8, 8))), "place Walker for inertia test")
 	map.call("update_drive", Vector2i(1, 0), 0.05, false)
 	var first_speed: float = (map.call("get_velocity") as Vector2).length()
 	var before_second_step: Vector2 = map.call("get_robot_position") as Vector2
 	map.call("update_drive", Vector2i(1, 0), 0.05, false)
 	var second_speed: float = (map.call("get_velocity") as Vector2).length()
-	_check(second_speed > first_speed, "Cardinal accelerates")
+	_check(second_speed > first_speed, "Walker accelerates")
 	_check(second_speed < 150.0, "acceleration is not instant")
 	map.call("update_drive", Vector2i.ZERO, 0.05, false)
 	var release_speed: float = (map.call("get_velocity") as Vector2).length()
-	_check(release_speed < second_speed and release_speed > 0.0, "Cardinal decelerates over time")
+	_check(release_speed < second_speed and release_speed > 0.0, "Walker decelerates over time")
 	_check(
 		(map.call("get_robot_position") as Vector2).distance_to(before_second_step) > 0.0,
-		"Cardinal coasts during release",
+		"Walker coasts during release",
 	)
 
-	_check(bool(map.call("place_robot", Vector2i(1, 1))), "place Cardinal for walk speed")
+	_check(bool(map.call("place_robot", Vector2i(1, 1))), "place Walker for walk speed")
 	for _step: int in range(20):
 		map.call("update_drive", Vector2i(1, 1), 0.05, false)
 	_check(is_equal_approx(float(map.call("get_speed_ratio")), 1.0), "walk reaches rated speed")
@@ -586,7 +586,7 @@ func _test_isometric_map() -> void:
 		map.call("update_drive", Vector2i(1, 1), 0.05, false)
 	_check(is_equal_approx(float(map.call("get_speed_ratio")), 0.62), "mud speed cap is 62 percent")
 	var lava_before: int = int(map.call("_get_chassis"))
-	_check(bool(map.call("place_robot", Vector2i(-15, 8))), "place Cardinal on lava")
+	_check(bool(map.call("place_robot", Vector2i(-15, 8))), "place Walker on lava")
 	map.call("_process", 0.0)
 	_check(int(map.call("_get_chassis")) == lava_before - 8, "live lava damages chassis")
 	map.set("_chassis", lava_before)
@@ -614,7 +614,7 @@ func _test_isometric_map() -> void:
 	var camera_target: Vector2 = map.call("get_camera_target") as Vector2
 	map.call("_update_camera_follow", 0.1)
 	var camera_after: Vector2 = map.call("get_camera_position") as Vector2
-	_check(camera_after != camera_start, "camera follows Cardinal")
+	_check(camera_after != camera_start, "camera follows Walker")
 	_check(
 		camera_after.distance_to(camera_target) < camera_start.distance_to(camera_target),
 		"camera eases toward target",
@@ -624,7 +624,7 @@ func _test_isometric_map() -> void:
 		"camera leads movement direction",
 	)
 
-	_check(bool(map.call("place_robot", Vector2i(3, 4))), "place Cardinal beside rock")
+	_check(bool(map.call("place_robot", Vector2i(3, 4))), "place Walker beside rock")
 	_check(bool(map.call("has_destructible_rock", Vector2i(4, 4))), "destructible rock exists")
 	_check(not bool(heat_haze.call("has_haze_at", Vector2i(4, 4))), "intact rock masks haze")
 	var blocked_position: Vector2 = map.call("get_robot_position") as Vector2
@@ -642,7 +642,7 @@ func _test_isometric_map() -> void:
 	var windup_position: Vector2 = map.call("get_robot_position") as Vector2
 	map.call("update_drive", Vector2i(1, 1), 0.05, false)
 	_check(
-		map.call("get_robot_position") == windup_position, "Cardinal braces through strike windup"
+		map.call("get_robot_position") == windup_position, "Walker braces through strike windup"
 	)
 	avatar.call("_process", float(avatar.call("get_attack_contact_time")) + 0.01)
 	var magnet_scrap_total: int = int(map.call("get_scrap_count"))
@@ -713,7 +713,7 @@ func _test_isometric_map() -> void:
 		not bool(map.call("has_destructible_rock", Vector2i(4, 4))),
 		"broken rock persists on reload"
 	)
-	_check(map.call("get_robot_grid") == Vector2i(3, 4), "Cardinal position persists on reload")
+	_check(map.call("get_robot_grid") == Vector2i(3, 4), "Walker position persists on reload")
 	_check(magnet_scrap_total == scrap_before_rock + 2, "resource magnet collects adjacent scrap")
 	map.free()
 	await process_frame
@@ -733,7 +733,7 @@ func _test_isometric_map() -> void:
 	)
 	var outpost_cell: Vector2i = Vector2i(1, 10)
 	_check(bool(map.call("_place_scrap", outpost_cell, 5)), "stage repair scrap at outpost")
-	_check(bool(map.call("place_robot", outpost_cell)), "Cardinal enters harvested outpost")
+	_check(bool(map.call("place_robot", outpost_cell)), "Walker enters harvested outpost")
 	_check(bool(map.call("_is_at_outpost")), "outpost service link activates")
 	field_hud = map.get_node("FieldHUD") as CanvasLayer
 	outpost_interface = field_hud.call("get_outpost_interface") as Control
@@ -743,7 +743,7 @@ func _test_isometric_map() -> void:
 	var scrap_before_repair: int = int(map.call("get_scrap_count"))
 	var chassis_before_repair: int = int(map.call("_get_chassis"))
 	var repaired_chassis: int = mini(chassis_before_repair + 35, 100)
-	_check(bool(map.call("_repair_chassis")), "outpost repairs Cardinal")
+	_check(bool(map.call("_repair_chassis")), "outpost repairs Walker")
 	_check(int(map.call("_get_chassis")) == repaired_chassis, "repair restores thirty-five chassis")
 	_check(
 		int(map.call("get_scrap_count")) == scrap_before_repair - 5, "repair consumes five scrap"
@@ -783,8 +783,8 @@ func _test_isometric_map() -> void:
 
 	world = map.get("_world") as RefCounted
 	var far_cell: Vector2i = Vector2i(-32, -24)
-	_check(bool(map.call("place_robot", far_cell)), "Cardinal crosses the compact field")
-	_check(not bool(map.call("place_robot", Vector2i(73, 0))), "Cardinal cannot leave world bounds")
+	_check(bool(map.call("place_robot", far_cell)), "Walker crosses the compact field")
+	_check(not bool(map.call("place_robot", Vector2i(73, 0))), "Walker cannot leave world bounds")
 	var far_terrain: StringName = world.call("terrain_at", far_cell) as StringName
 	_check(far_terrain != &"void", "far terrain generates lazily")
 	_check(int(world.call("get_loaded_chunk_count")) == 25, "far travel evicts old chunks")
@@ -796,9 +796,9 @@ func _test_isometric_map() -> void:
 		bool(map.call("place_destructible_rock", far_cell + Vector2i.RIGHT)), "far mutation saves"
 	)
 	_check(
-		bool(map.call("place_robot", Vector2i(0, 0))), "Cardinal returns across chunk boundaries"
+		bool(map.call("place_robot", Vector2i(0, 0))), "Walker returns across chunk boundaries"
 	)
-	_check(bool(map.call("place_robot", far_cell)), "Cardinal revisits generated terrain")
+	_check(bool(map.call("place_robot", far_cell)), "Walker revisits generated terrain")
 	_check(world.call("terrain_at", far_cell) == far_terrain, "procedural terrain is deterministic")
 	var follow_zoom: Vector2 = (map.get_node("FollowCamera") as Camera2D).zoom
 	_check(follow_zoom.x >= 0.649, "camera applies responsive framing")
@@ -815,7 +815,7 @@ func _test_isometric_map() -> void:
 		"nonlethal damage reduces chassis",
 	)
 	_check(float(chassis_feedback.call("get_flash_alpha")) > 0.0, "damage flashes the screen")
-	_check(avatar.modulate != Color.WHITE, "damage flashes Cardinal")
+	_check(avatar.modulate != Color.WHITE, "damage flashes Walker")
 	_check(
 		int(chassis_feedback.call("get_audio_trigger_count")) == damage_audio_before + 1,
 		"damage triggers one audio cue",
@@ -834,7 +834,7 @@ func _test_isometric_map() -> void:
 	)
 	chassis_feedback.call("advance", 0.5)
 	_check(is_zero_approx(float(chassis_feedback.call("get_flash_alpha"))), "damage flash expires")
-	_check(avatar.modulate.is_equal_approx(Color.WHITE), "Cardinal flash resets")
+	_check(avatar.modulate.is_equal_approx(Color.WHITE), "Walker flash resets")
 
 	var lethal_damage: int = int(map.call("_get_chassis"))
 	_check(
@@ -860,7 +860,7 @@ func _test_isometric_map() -> void:
 	_check(not bool(map.call("update_drive", Vector2i.RIGHT, 0.05, false)), "shutdown blocks drive")
 	_check(not bool(map.call("attack")), "shutdown blocks impact strike")
 	_check(not bool(map.call("place_robot", Vector2i(2, 2))), "shutdown blocks placement")
-	_check("CARDINAL SHUTDOWN" in str(map.call("get_status_text")), "shutdown status is readable")
+	_check("WALKER SHUTDOWN" in str(map.call("get_status_text")), "shutdown status is readable")
 	field_hud = map.get_node("FieldHUD") as CanvasLayer
 	outpost_interface = field_hud.call("get_outpost_interface") as Control
 	_check(not bool(outpost_interface.call("is_repair_enabled")), "shutdown disables field repair")

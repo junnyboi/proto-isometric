@@ -6,13 +6,13 @@
 
 ## 1. Scope and simplicity contracts
 
-This plan adds three deterministic terrain biomes to **Walker's Wake** in the order **Oasis / Wetlands**, **Lava Fields**, then **Frozen Tundra**. It follows the approved direction that a biome is a clear change of place with exactly one ground rule, not a new rulebook.[1] Cardinal keeps the shipped expedition loop, controls, combat vocabulary, enemies, resources, relays, outposts, settlement, responsive layouts, and save model described by the current game and implementation baseline.[2][3]
+This plan adds three deterministic terrain biomes to **Walker's Wake** in the order **Oasis / Wetlands**, **Lava Fields**, then **Frozen Tundra**. It follows the approved direction that a biome is a clear change of place with exactly one ground rule, not a new rulebook.[1] Walker keeps the shipped expedition loop, controls, combat vocabulary, enemies, resources, relays, outposts, settlement, responsive layouts, and save model described by the current game and implementation baseline.[2][3]
 
 > **Product promise:** The player enters a visually distinct place, understands its single terrain rule from the ground itself, and continues playing with Drive, Run, and Smash.
 
 | Contract | Required result |
 |---|---|
-| **One biome, one rule** | Dark mud slows Cardinal; lava damages Cardinal while touched; blue ice preserves momentum and reduces steering until snow. No biome receives a second mechanical rule. |
+| **One biome, one rule** | Dark mud slows Walker; lava damages Walker while touched; blue ice preserves momentum and reduces steering until snow. No biome receives a second mechanical rule. |
 | **No new field verbs** | WASD/arrows, Shift, Space/J/K, the floating joystick, outer-ring run intent, and the single SMASH button remain the complete field vocabulary.[6][7] |
 | **Ground is the explanation** | Surface value, pattern, edge shape, and material contrast communicate safe versus special ground. No biome meter, status stack, immunity icon, interaction prompt, or tutorial button is added. |
 | **Existing systems remain authoritative** | Projection, collision, diagonal corner checks, Impact Charge, contact-frame Smash, enemies, hazards, relays, outposts, economy, extraction, settlement, and responsive UI retain their current owners and values.[2][3][5] |
@@ -74,7 +74,7 @@ This order intentionally permits previously unrecorded sand/salt to look differe
 4. Compute the existing analog walk/run maximum; apply the Oasis multiplier only for `dark_mud`.
 5. Pass current velocity, desired velocity, delta, and surface ID through the pure `SurfaceDrive` adapter once Frozen Tundra lands. Normal ground reproduces current acceleration/deceleration exactly; blue ice uses its traction limits.
 6. Hard-clamp mud velocity to its reduced maximum, then call the unchanged movement/collision path.
-7. Feed actual resulting velocity to DRIVE, Cardinal animation, camera lead, and Impact Charge.
+7. Feed actual resulting velocity to DRIVE, Walker animation, camera lead, and Impact Charge.
 
 OW-01 initially implements step 4 directly in `_update_drive_vector`. FT-01 introduces `scripts/surface_drive.gd` and moves the shared velocity calculation into that pure adapter while preserving byte-for-value normal-ground behavior and the existing mud cap. `SurfaceDrive` cannot query `Input`, world state, collision, Smash, saves, Nodes, hazards, or economy.
 
@@ -135,7 +135,7 @@ Every public increment uses one shared release gate. Run focused tests while ite
 
 ### 5.1 Player promise and smallest playable increment
 
-> **Player promise:** Dark mud slows Cardinal while the occupied center cell is mud; every other wetland surface and every existing action follow shipped rules.
+> **Player promise:** Dark mud slows Walker while the occupied center cell is mud; every other wetland surface and every existing action follow shipped rules.
 
 OW-01 is one complete vertical slice, not a precursor framework commit. It contains a guaranteed nearby wetland outside the unchanged starter, connected firm wetland ground, three readable mud lenses with at least a two-cell firm bypass, a visibly firm outpost sanctuary, accepted wetland/mud textures, and the occupied-cell speed cap. Existing worms and weather remain present and mechanically unchanged. The player can choose the slower shortcut or drive around it with no new UI.
 
@@ -219,7 +219,7 @@ Initial 25-chunk generation must remain below 5 ms median and one 8×8 chunk bel
 
 Rollback reverts the OW-01 source commit and restores the previous immutable WebDev PCK pointer. Because schema and world snapshots never contain biome fields, existing saves need no downgrade transform. If the shared resolver, starter preservation, or old-save tests fail, rollback the whole vertical slice rather than retaining dormant biome framework.
 
-**OW-01 is done** when a clean public build can start or reload legacy/schema-3 runs, reach recurring Oasis terrain, distinguish firm wetland from mud without UI, and cap Cardinal to 62% of the same walk/run vector only while the occupied cell is mud across keyboard and touch. Projection, collision, Smash, charge, enemies, hazards, relays, outposts and 2.5-cell firm sanctuary, economy, settlement, portrait layout, streaming/culling, save behavior, focused tests, release export, immutable PCK verification, matching pushed source, and clean worktrees must all pass.
+**OW-01 is done** when a clean public build can start or reload legacy/schema-3 runs, reach recurring Oasis terrain, distinguish firm wetland from mud without UI, and cap Walker to 62% of the same walk/run vector only while the occupied cell is mud across keyboard and touch. Projection, collision, Smash, charge, enemies, hazards, relays, outposts and 2.5-cell firm sanctuary, economy, settlement, portrait layout, streaming/culling, save behavior, focused tests, release export, immutable PCK verification, matching pushed source, and clean worktrees must all pass.
 
 ## 6. Lava Fields
 
@@ -263,7 +263,7 @@ Damage travels through `_apply_chassis_damage(amount, &"lava")`, so existing fee
 
 ### 6.5 Enemy visual treatment without logic changes
 
-LF-01 may ship with the existing roster art. LF-02 may select an obsidian shell/wake palette for worms, ash-and-ember colors for tornadoes, an ash-front palette for broad storms, and sparse bounded ember atmosphere. Selection occurs when Cardinal's resolved biome changes, not per enemy decision. Tests snapshot worm health 4, attack 10, FSM/timing/reward/caps, tornado 6 DPS/formation/lifetime, sandstorm 3 DPS/footprint, Alert compositions, and sanctuary behavior before and after palette switching. Any gameplay difference blocks the visual treatment; removing the treatment must leave the biome fully playable.
+LF-01 may ship with the existing roster art. LF-02 may select an obsidian shell/wake palette for worms, ash-and-ember colors for tornadoes, an ash-front palette for broad storms, and sparse bounded ember atmosphere. Selection occurs when Walker's resolved biome changes, not per enemy decision. Tests snapshot worm health 4, attack 10, FSM/timing/reward/caps, tornado 6 DPS/formation/lifetime, sandstorm 3 DPS/footprint, Alert compositions, and sanctuary behavior before and after palette switching. Any gameplay difference blocks the visual treatment; removing the treatment must leave the biome fully playable.
 
 ### 6.6 Save/load and streaming
 
@@ -273,7 +273,7 @@ A soak crosses at least 100 positive and negative macro-regions and revisits evi
 
 ### 6.7 Accessibility and mobile
 
-Lava must remain identifiable without hue through high luminance, dark crust fissures, and a clear inner rim; basalt and ash remain quieter. Inspect grayscale/high-contrast views at 1280×720, 844×390, and 390×844 with storms, telegraphs, Cardinal, sanctuary rings, joystick, and SMASH present. Escape lanes cannot be hidden by UI or bright overdraw.
+Lava must remain identifiable without hue through high luminance, dark crust fissures, and a clear inner rim; basalt and ash remain quieter. Inspect grayscale/high-contrast views at 1280×720, 844×390, and 390×844 with storms, telegraphs, Walker, sanctuary rings, joystick, and SMASH present. Escape lanes cannot be hidden by UI or bright overdraw.
 
 Keyboard and touch use unchanged movement. Contact cadence is independent of analog strength. Tests cover shallow/full touch vectors, outer-ring run, release/coast over an edge, exclusions, left-handed mirror, and simultaneous SMASH. No warning meter, lava button, custom haptic loop, or alternate control appears.
 
@@ -324,7 +324,7 @@ LF-01 rollback removes LavaContact/profile/surface registration and restores the
 
 ### 7.1 Player promise and smallest playable increment
 
-> **Player promise:** Blue ice preserves Cardinal's current momentum and reduces steering until Cardinal reaches snow; it adds no input, damage type, meter, resource, or objective.
+> **Player promise:** Blue ice preserves Walker's current momentum and reduces steering until Walker reaches snow; it adds no input, damage type, meter, resource, or objective.
 
 FT-01 adds the forced northern macro-region `(0,-1)`, broad normal-traction snow, contiguous short blue-ice lakes, snow exit aprons, safe outpost/objective areas, pure surface traction, and procedural renderer fallbacks. One route begins on snow, crosses a short lake with snow at both ends, and supports an existing encounter. Frozen ships last because it is the only biome that changes movement response.
 
@@ -374,7 +374,7 @@ Destroyed generated rocks reveal coordinate-derived snow/ice ground; placed rock
 
 ### 7.7 Accessibility and mobile
 
-Snow and ice differ by pattern and value as well as hue. Snow uses broad low-contrast packed drifts and sparse blue-gray grit; ice uses dark anchors, long directional grain, and cracks without white glare that obscures Cardinal, relays, sanctuary rings, worms, or telegraphs. Validate grayscale/high-readability at zoom 0.65 in 390×844, 844×390, and 1280×720.
+Snow and ice differ by pattern and value as well as hue. Snow uses broad low-contrast packed drifts and sparse blue-gray grit; ice uses dark anchors, long directional grain, and cracks without white glare that obscures Walker, relays, sanctuary rings, worms, or telegraphs. Validate grayscale/high-readability at zoom 0.65 in 390×844, 844×390, and 1280×720.
 
 Keyboard tests cover all eight directions, 90-degree turns, reversal, no-input coast, and snow braking. Touch tests cover low-strength and outer-ring vectors, run hysteresis, release while on ice, reduced-steering reacquisition, simultaneous SMASH, exclusions, handedness, and resize cancellation. There is no second joystick, brake button, ice meter, haptic pattern, or orientation lock.
 
@@ -431,7 +431,7 @@ The final three-biome build passes only when every row below is true in one clea
 | Gate | Acceptance |
 |---|---|
 | Exclusive ownership | Every valid cell resolves to desert or exactly one biome. Forced Oasis `(0,0)`, Lava 32-cell `(1,0)`, and Frozen `(0,-1)` showcases are reachable and stable. Hashed overlaps resolve by coordinate rank, never generation order. |
-| One-rule isolation | Mud only changes Cardinal maximum speed; lava only emits chassis damage while touched; ice only changes traction. No cell combines rules and no rule changes enemies, rewards, objectives, or economy. |
+| One-rule isolation | Mud only changes Walker maximum speed; lava only emits chassis damage while touched; ice only changes traction. No cell combines rules and no rule changes enemies, rewards, objectives, or economy. |
 | Baseline movement | Desert, firm wetland, basalt, ash, snow, and ruin reproduce current eight-direction mappings, 2:1 displacement, 150/225 maxima, 310/390 traction, normalized diagonals, corner checks, camera lead, animation, and Impact Charge. |
 | Combined surface behavior | Mud's maximum clamp remains effective after `SurfaceDrive`; lava does not alter velocity; ice does not change damage; moving directly across biome boundaries switches only the occupied-cell rule. |
 | Starter and objectives | The 18×18 starter is behaviorally unchanged. All outpost sanctuaries are visibly safe. Relay hold/approach areas are stoppable and nondamaging without changing link radius, duration, registry, or saved objective identity. |
@@ -457,7 +457,7 @@ The following work is outside this plan. Adding any item requires a separately a
 | Combat and roster | New enemy family, biome enemy AI, changed worm/hazard damage or timing, altered hitboxes/telegraphs/rewards/quotas, elemental damage trees, freeze/burn/stamina systems, or biome-specific loot multipliers. |
 | Progression and economy | New currency, crafting tree, survival resource, resistance module, biome gear, unlock tree, objective type, relay reward, outpost service, settlement rule, or lore-gated progression. |
 | World content | A fourth biome, finite biome maps/scenes, palms/reed prop Nodes, vents with behavior, authored settlements, quest lines, lore symbols, currencies, or mandatory surface crossings. Decorative marks inside terrain textures are acceptable only when inert. |
-| Presentation | New HUD art, Cardinal atlas, enemy atlas, audio suite, per-cell particles, normal maps, shaders that become gameplay authority, or concept-art export. Optional enemy palettes remain visual-only and may be cut. |
+| Presentation | New HUD art, Walker atlas, enemy atlas, audio suite, per-cell particles, normal maps, shaders that become gameplay authority, or concept-art export. Optional enemy palettes remain visual-only and may be cut. |
 | Architecture and persistence | Autoload biome manager, second terrain renderer, per-biome scene tree, biome save fields, schema bump, generation-version negotiation, cache that grows with travel, edits to save migration/repository behavior, or duplicate input/collision authority. |
 | Process | Evidence ledgers, review folders, audit records, duplicate verification pipelines, speculative framework releases, or documentation bundles beyond the source plan, concise release note, and shared terrain provenance required for the assets. |
 
@@ -492,4 +492,4 @@ When a failure implicates generation compatibility, movement parity, objective s
 [21]: ../../test/test_contracts.gd "Focused contract-suite aggregator"
 [22]: ../../test/test_save_repository.gd "Schema-3 repository regression suite"
 [23]: ../../scripts/performance_sampler.gd "Bounded 600-frame performance sampler"
-[24]: ../../test/test_visual_catalog.gd "Runtime asset and Cardinal frame/contact contracts"
+[24]: ../../test/test_visual_catalog.gd "Runtime asset and Walker frame/contact contracts"

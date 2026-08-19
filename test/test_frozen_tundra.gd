@@ -19,7 +19,7 @@ static func evaluate() -> Array[Dictionary]:
 	)
 	_add(
 		cases,
-		"Frozen begins eighteen cells north of Cardinal",
+		"Frozen begins eighteen cells north of Walker",
 		FrozenTundraScript.contains(Vector2i(8, -8))
 	)
 	_add(

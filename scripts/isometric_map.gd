@@ -1,6 +1,6 @@
 extends Node2D
 
-const CardinalAvatarScript: GDScript = preload("res://scripts/cardinal_avatar.gd")
+const WalkerAvatarScript: GDScript = preload("res://scripts/walker_avatar.gd")
 const ChassisFeedbackScript: GDScript = preload("res://scripts/chassis_feedback.gd")
 const DesertAtmosphereScript: GDScript = preload("res://scripts/desert_atmosphere.gd")
 const DesertHazardsScript: GDScript = preload("res://scripts/desert_hazards.gd")
@@ -810,8 +810,8 @@ func _build_world_layers() -> void:
 
 
 func _build_avatar() -> void:
-	_avatar = CardinalAvatarScript.new() as Node2D
-	_avatar.name = "CardinalAvatar"
+	_avatar = WalkerAvatarScript.new() as Node2D
+	_avatar.name = "WalkerAvatar"
 	_avatar.position = _robot_visual_position
 	_avatar.z_index = 20
 	_avatar.connect("impact_frame", Callable(self, "_on_avatar_impact_frame"))

@@ -1,7 +1,7 @@
 # WALKER'S WAKE — Gameplay Enhancement Proposal
 
 **Author:** Manus AI
-**Purpose:** Turn the current systems prototype into a replayable action-exploration loop without discarding its strongest asset: the feel of driving Cardinal.
+**Purpose:** Turn the current systems prototype into a replayable action-exploration loop without discarding its strongest asset: the feel of driving Walker.
 
 ![Impact Run gameplay target](impact-run-concept.jpg)
 
@@ -9,7 +9,7 @@
 
 The next version should become an **8–12 minute expedition game** built around a simple objective: activate three buried relays, survive the resulting escalation, and return to a harvested outpost to bank the run. Movement, smashing, scrap, sandworms, storms, outposts, damage, and persistence already exist. The missing ingredient is not more content; it is a structure that makes those systems collide in useful ways.
 
-The proposed loop adds four connected mechanics. Movement builds **Impact Charge**, activated relays increase **Alert**, sandworms drop **Worm Cores**, and outposts turn scrap plus cores into one-run upgrades. This gives Cardinal a reason to move aggressively, a reason to fight selectively, a reason to explore, and a reason to retreat. In other words, the desert stops being a screensaver with opinions.
+The proposed loop adds four connected mechanics. Movement builds **Impact Charge**, activated relays increase **Alert**, sandworms drop **Worm Cores**, and outposts turn scrap plus cores into one-run upgrades. This gives Walker a reason to move aggressively, a reason to fight selectively, a reason to explore, and a reason to retreat. In other words, the desert stops being a screensaver with opinions.
 
 ## Player Promise
 
@@ -32,7 +32,7 @@ A successful run should contain roughly three relay encounters, two to four worm
 
 ## Core Mechanic: Impact Charge
 
-Impact Charge converts good driving into better combat. Cardinal gains charge while moving above a speed threshold, gains it faster while running, and loses it slowly while idle. The existing smash remains available at zero charge, but charge adds range and utility rather than merely inflating damage.
+Impact Charge converts good driving into better combat. Walker gains charge while moving above a speed threshold, gains it faster while running, and loses it slowly while idle. The existing smash remains available at zero charge, but charge adds range and utility rather than merely inflating damage.
 
 | Charge state | Smash behavior | Intended use |
 |---|---|---|
@@ -40,11 +40,11 @@ Impact Charge converts good driving into better combat. Cardinal gains charge wh
 | 40–79% | Two-cell forward shock line and stronger knockback cue | Catching a pursuing worm after a dodge |
 | 80–100% | Three-tile fan-shaped aftershock, extra debris, and brief worm stagger | A deliberate payoff for maintaining momentum under pressure |
 
-The charge should be highly readable through one compact meter, Cardinal's forearm glow, and an audio pitch layer. It should not become a combo counter. The point is to reward motion planning, not to issue performance reviews after every punch.
+The charge should be highly readable through one compact meter, Walker's forearm glow, and an audio pitch layer. It should not become a combo counter. The point is to reward motion planning, not to issue performance reviews after every punch.
 
 ## Relay Encounters and Alert
 
-Relays turn terrain traversal into local arenas without requiring walls. A relay starts dormant and emits a directional signal pulse from several screens away. Entering its zone begins a short link sequence. Cardinal can move within the zone but loses link progress if it leaves. Linking does not make Cardinal invulnerable; it creates a defend-or-dodge problem around an understandable location.
+Relays turn terrain traversal into local arenas without requiring walls. A relay starts dormant and emits a directional signal pulse from several screens away. Entering its zone begins a short link sequence. Walker can move within the zone but loses link progress if it leaves. Linking does not make Walker invulnerable; it creates a defend-or-dodge problem around an understandable location.
 
 Each completed relay raises **Alert** from I to III. Alert changes combinations rather than only increasing health. Alert I introduces a single hunting worm. Alert II allows a worm plus telegraphing dust devils. Alert III allows a worm encounter during a broad sandstorm crossing. Environmental enemies remain indestructible, so the player must solve mixed encounters through movement while deciding when to commit a smash to the worm.
 
@@ -54,7 +54,7 @@ Outposts remain sanctuaries. Linking to an outpost disperses worms, pauses Alert
 
 Current worms pursue, bite for ten damage, expose health, die in four hits, and disperse at outposts. Their next improvement should be **attack readability**, not more statistics.
 
-A worm alternates between three states. During **Burrow**, a moving ridge marks its path. During **Intercept**, an amber ground arc predicts where it will surface relative to Cardinal's current velocity. During **Expose**, the worm attacks, remains vulnerable for a short window, and then dives again. Cardinal can avoid the intercept, turn, and punish the exposed flank. A high-charge smash briefly staggers the worm and extends the vulnerability window.
+A worm alternates between three states. During **Burrow**, a moving ridge marks its path. During **Intercept**, an amber ground arc predicts where it will surface relative to Walker's current velocity. During **Expose**, the worm attacks, remains vulnerable for a short window, and then dives again. Walker can avoid the intercept, turn, and punish the exposed flank. A high-charge smash briefly staggers the worm and extends the vulnerability window.
 
 Defeated worms drop one Worm Core plus scrap. Cores are intentionally rarer than scrap and gate stronger outpost modules. This makes combat optional but economically tempting; running away remains valid when chassis integrity matters more than greed.
 

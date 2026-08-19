@@ -19,7 +19,7 @@ static func evaluate() -> Array[Dictionary]:
 	)
 	_add(
 		cases,
-		"Lava Fields begin sixteen cells west of Cardinal",
+		"Lava Fields begin sixteen cells west of Walker",
 		LavaFieldsScript.contains(Vector2i(-8, 10))
 	)
 	_add(

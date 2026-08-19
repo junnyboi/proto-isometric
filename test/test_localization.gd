@@ -23,6 +23,21 @@ static func evaluate() -> Array[Dictionary]:
 	_add(cases, "localization catalogs have exact key parity", _keys(english) == _keys(chinese))
 	_add(
 		cases,
+		"Walker is named consistently in both localization catalogs",
+		english.get("title.begin_new", "") == "DEPLOY WALKER"
+		and chinese.get("title.begin_new", "") == "部署行者",
+	)
+	var catalog_text: String = JSON.stringify(english) + JSON.stringify(chinese)
+	var retired_english_name: String = "Car" + "dinal"
+	var retired_chinese_name: String = "红" + "雀"
+	_add(
+		cases,
+		"retired unit name is absent from runtime localization catalogs",
+		retired_english_name.to_lower() not in catalog_text.to_lower()
+		and retired_chinese_name not in catalog_text,
+	)
+	_add(
+		cases,
 		"localization catalogs preserve named placeholder parity",
 		_placeholders_match(english, chinese),
 	)

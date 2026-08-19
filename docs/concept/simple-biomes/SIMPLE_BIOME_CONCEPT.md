@@ -6,7 +6,7 @@
 
 ## Direction
 
-Walker's Wake should use biomes as **clear changes of place**, not as new rulebooks. Cardinal keeps the same eight-direction movement, running, Smash attack, enemies, resources, outposts, relays, and expedition structure everywhere. Each biome changes only the ground beneath those familiar systems.
+Walker's Wake should use biomes as **clear changes of place**, not as new rulebooks. Walker keeps the same eight-direction movement, running, Smash attack, enemies, resources, outposts, relays, and expedition structure everywhere. Each biome changes only the ground beneath those familiar systems.
 
 > **Player promise:** Enter a place that looks different, understand its single terrain rule at a glance, and keep playing with the controls already learned.
 
@@ -29,7 +29,7 @@ The previous biome-expansion plan is rejected. Its lore-heavy names, reactive te
 
 **Oasis / Wetlands** is a bright pocket of shallow turquoise water, palms, reeds, pale sand, flat stone, and dark mud. Pale sand and stone are the normal lanes. Dark glossy mud is the only special surface.
 
-> **Single rule:** Mud slows Cardinal while Cardinal is standing on it.
+> **Single rule:** Mud slows Walker while Walker is standing on it.
 
 The player can follow broad firm paths at normal speed or cut through mud and accept slower movement. Sandworms emerge from muddy reed banks, tornadoes read as reed-and-mist waterspouts, and distant dry sandstorms remain recognizable at the desert edge; their underlying behavior does not change. Outposts sit on raised dry stone beneath palms, with no mud inside the sanctuary.
 
@@ -41,7 +41,7 @@ The smallest playable increment is one compact area containing a raised outpost,
 
 **Frozen Tundra** uses white packed snow, glossy blue ice, dark frozen wreckage, and windblown powder. White snow supports normal movement. Blue ice is the only special surface.
 
-> **Single rule:** Cardinal slides in the chosen direction on blue ice and regains normal control on snow.
+> **Single rule:** Walker slides in the chosen direction on blue ice and regains normal control on snow.
 
 Snow lanes remain wide enough for ordinary combat. Short ice crossings reward lining up an exit before committing without adding a new button or meter. Sandworms breach through snow, tornadoes become white funnels, and broad storms become whiteout walls while retaining their existing timing and damage. Outposts use warm lights and packed snow, with no blue ice inside the sanctuary.
 
@@ -53,7 +53,7 @@ The smallest playable increment is one route from an outpost to a frozen wreck, 
 
 **Lava Fields** uses matte black basalt, bright red-orange lava, pale ash, and simple volcanic vents. Basalt is the safe traversable surface. Lava is the only special surface.
 
-> **Single rule:** Touching lava damages Cardinal.
+> **Single rule:** Touching lava damages Walker.
 
 The map becomes a network of broad basalt lanes around highly visible lava pools and channels. Sandworms use an obsidian-dusted treatment, tornadoes carry ash and embers, and broad storms become ash fronts without changing their logic. Outposts occupy cool raised basalt islands with a clean lava-free sanctuary perimeter.
 

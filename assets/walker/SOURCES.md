@@ -1,6 +1,6 @@
-# Cardinal runtime atlas contract
+# Walker runtime atlas contract
 
-Cardinal now uses the accepted combined sprite atlas supplied as `grunt_sprite_atlas_godot.zip` on 2026-08-19.
+Walker now uses the accepted combined sprite atlas supplied as `grunt_sprite_atlas_godot.zip` on 2026-08-19.
 
 ## Runtime files
 

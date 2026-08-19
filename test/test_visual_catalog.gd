@@ -1,6 +1,6 @@
 extends RefCounted
 
-const CardinalAvatarScript: GDScript = preload("res://scripts/cardinal_avatar.gd")
+const WalkerAvatarScript: GDScript = preload("res://scripts/walker_avatar.gd")
 const CATALOG: Resource = preload("res://data/visual_catalog.tres")
 const DIRECTIONS: Array[StringName] = [&"N", &"NE", &"E", &"SE", &"S", &"SW", &"W", &"NW"]
 
@@ -14,9 +14,9 @@ static func evaluate() -> Array[Dictionary]:
 	)
 	_add(
 		cases,
-		"combined Cardinal atlas is a required runtime asset",
+		"combined Walker atlas is a required runtime asset",
 		(
-			"res://assets/cardinal/grunt_sprite_atlas.png"
+			"res://assets/walker/grunt_sprite_atlas.png"
 			in (CATALOG.call("get_required_paths") as Array)
 		),
 	)
@@ -29,45 +29,45 @@ static func evaluate() -> Array[Dictionary]:
 			and "res://assets/title/title_scene_mobile.png" in required
 		),
 	)
-	var cardinal: Node2D = CardinalAvatarScript.new() as Node2D
-	cardinal.call("_ready")
+	var walker: Node2D = WalkerAvatarScript.new() as Node2D
+	walker.call("_ready")
 	_add(
 		cases,
-		"Cardinal uses the validated combined atlas",
-		not bool(cardinal.call("is_using_proxy"))
+		"Walker uses the validated combined atlas",
+		not bool(walker.call("is_using_proxy"))
 	)
-	var idle_redraws: int = int(cardinal.call("get_redraw_request_count"))
-	cardinal.call("_process", 0.016)
+	var idle_redraws: int = int(walker.call("get_redraw_request_count"))
+	walker.call("_process", 0.016)
 	_add(
 		cases,
-		"validated Cardinal atlas requests no idle proxy redraw",
-		int(cardinal.call("get_redraw_request_count")) == idle_redraws,
+		"validated Walker atlas requests no idle proxy redraw",
+		int(walker.call("get_redraw_request_count")) == idle_redraws,
 	)
 	_add(
 		cases,
 		"all eight walk directions are available",
-		(cardinal.call("get_missing_directions", &"walk") as Array).is_empty(),
+		(walker.call("get_missing_directions", &"walk") as Array).is_empty(),
 	)
 	_add(
 		cases,
 		"all eight attack directions are available",
-		(cardinal.call("get_missing_directions", &"attack") as Array).is_empty(),
+		(walker.call("get_missing_directions", &"attack") as Array).is_empty(),
 	)
 	var frame_contract_valid: bool = true
 	for direction: StringName in DIRECTIONS:
 		frame_contract_valid = (
 			frame_contract_valid
 			and (
-				int(cardinal.call("get_animation_frame_count", &"walk", direction)) == 25
-				and int(cardinal.call("get_animation_frame_count", &"attack", direction)) == 25
+				int(walker.call("get_animation_frame_count", &"walk", direction)) == 25
+				and int(walker.call("get_animation_frame_count", &"attack", direction)) == 25
 				and is_equal_approx(
-					float(cardinal.call("get_animation_speed", &"walk", direction)), 12.0
+					float(walker.call("get_animation_speed", &"walk", direction)), 12.0
 				)
 				and is_equal_approx(
-					float(cardinal.call("get_animation_speed", &"attack", direction)), 12.0
+					float(walker.call("get_animation_speed", &"attack", direction)), 12.0
 				)
-				and bool(cardinal.call("is_animation_looping", &"walk", direction))
-				and not bool(cardinal.call("is_animation_looping", &"attack", direction))
+				and bool(walker.call("is_animation_looping", &"walk", direction))
+				and not bool(walker.call("is_animation_looping", &"attack", direction))
 			)
 		)
 	_add(
@@ -76,42 +76,42 @@ static func evaluate() -> Array[Dictionary]:
 	_add(
 		cases,
 		"attack gameplay contact uses atlas frame 11",
-		int(cardinal.call("get_attack_event_frame")) == 11
+		int(walker.call("get_attack_event_frame")) == 11
 	)
 	var impact_count: Array[int] = [0]
-	cardinal.connect("impact_frame", func() -> void: impact_count[0] += 1)
+	walker.connect("impact_frame", func() -> void: impact_count[0] += 1)
 	var direction_contract_valid: bool = true
 	for direction: StringName in DIRECTIONS:
-		cardinal.call("set_motion", direction, false, 0.0)
-		cardinal.call("play_attack")
+		walker.call("set_motion", direction, false, 0.0)
+		walker.call("play_attack")
 		var before: int = impact_count[0]
-		cardinal.call("_process", float(cardinal.call("get_attack_contact_time")) - 0.01)
+		walker.call("_process", float(walker.call("get_attack_contact_time")) - 0.01)
 		direction_contract_valid = (
 			direction_contract_valid
 			and (
 				(
-					cardinal.call("get_active_animation")
-					== cardinal.call("get_animation_name", &"attack", direction)
+					walker.call("get_active_animation")
+					== walker.call("get_animation_name", &"attack", direction)
 				)
-				and int(cardinal.call("get_active_frame")) == 10
+				and int(walker.call("get_active_frame")) == 10
 				and impact_count[0] == before
 			)
 		)
-		cardinal.call("_process", 0.02)
+		walker.call("_process", 0.02)
 		direction_contract_valid = (
 			direction_contract_valid
-			and (int(cardinal.call("get_active_frame")) >= 11 and impact_count[0] == before + 1)
+			and (int(walker.call("get_active_frame")) >= 11 and impact_count[0] == before + 1)
 		)
-		cardinal.call("_process", float(cardinal.call("get_attack_duration")))
+		walker.call("_process", float(walker.call("get_attack_duration")))
 		direction_contract_valid = (
-			direction_contract_valid and not bool(cardinal.call("is_attacking"))
+			direction_contract_valid and not bool(walker.call("is_attacking"))
 		)
 	_add(
 		cases,
 		"all eight attack directions reach frame 11 once and recover",
 		direction_contract_valid,
 	)
-	cardinal.free()
+	walker.free()
 	return cases
 
 

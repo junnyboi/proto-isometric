@@ -18,7 +18,7 @@ static func evaluate() -> Array[Dictionary]:
 	)
 	_add(
 		cases,
-		"Oasis begins ten cells east of Cardinal",
+		"Oasis begins ten cells east of Walker",
 		OasisWetlandsScript.biome_at(Vector2i(18, 10)) == &"oasis"
 	)
 	_add(

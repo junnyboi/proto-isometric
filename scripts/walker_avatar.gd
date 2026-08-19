@@ -4,9 +4,9 @@ signal impact_frame
 
 const DIRECTIONS: Array[StringName] = [&"N", &"NE", &"E", &"SE", &"S", &"SW", &"W", &"NW"]
 const STATES: Array[StringName] = [&"walk", &"attack"]
-const AtlasTextureResource: Texture2D = preload("res://assets/cardinal/grunt_sprite_atlas.png")
+const AtlasTextureResource: Texture2D = preload("res://assets/walker/grunt_sprite_atlas.png")
 const GruntSpriteFramesBuilderScript: GDScript = preload(
-	"res://assets/cardinal/grunt_sprite_frames_builder.gd"
+	"res://assets/walker/grunt_sprite_frames_builder.gd"
 )
 const TARGET_RUNTIME_HEIGHT: float = 148.0
 const ATTACK_EVENT_FRAME: int = 11
