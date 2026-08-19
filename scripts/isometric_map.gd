@@ -25,6 +25,7 @@ const SaveRepositoryScript: GDScript = preload("res://scripts/save_repository.gd
 const StatusLocalizerScript: GDScript = preload("res://scripts/status_localizer.gd")
 const TerrainHazeScript: GDScript = preload("res://scripts/terrain_haze.gd")
 const TerrainRendererScript: GDScript = preload("res://scripts/terrain_renderer.gd")
+const TerrainSurfaceScript: GDScript = preload("res://scripts/terrain_surface.gd")
 const SurfaceDriveScript: GDScript = preload("res://scripts/surface_drive.gd")
 const WormTelegraphScript: GDScript = preload("res://scripts/worm_telegraph.gd")
 const WorldObjectsScript: GDScript = preload("res://scripts/world_objects.gd")
@@ -114,6 +115,7 @@ var _sandworms: Node2D
 var _state_store: RefCounted
 var _terrain_haze: Node2D
 var _terrain_renderer: RefCounted
+var _terrain_surface: Node2D
 var _visible_cells: Array[Vector2i] = []
 var _worm_telegraph: Node2D
 var _world: RefCounted
@@ -234,9 +236,6 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _draw() -> void:
-	_terrain_renderer.call("draw_world_backdrop", self, _robot_visual_position)
-	for cell: Vector2i in _visible_cells:
-		_terrain_renderer.call("draw_tile", self, cell)
 	_terrain_renderer.call(
 		"draw_drive_vector",
 		self,
@@ -589,10 +588,6 @@ func get_facing() -> StringName:
 	return _facing
 
 
-func get_grid_size() -> Vector2i:
-	return InfiniteWorldScript.PLAYABLE_SIZE
-
-
 func get_avatar() -> Node2D:
 	return _avatar
 
@@ -737,6 +732,9 @@ func _build_world_stream() -> void:
 	_terrain_renderer.call(
 		"configure", _terrain, _elevation, _terrain_textures, TILE_SIZE, MAP_ORIGIN
 	)
+	_terrain_surface = TerrainSurfaceScript.new() as Node2D
+	_terrain_surface.call("configure", _terrain_renderer, _performance_sampler)
+	add_child(_terrain_surface)
 	(
 		_world
 		. call(
@@ -757,6 +755,7 @@ func _stream_world() -> void:
 	var started_usec: int = _performance_sampler.call("begin_scope") as int
 	_world.call("stream_around", _robot_grid)
 	_visible_cells = _world.call("visible_cells", _robot_grid) as Array[Vector2i]
+	_terrain_surface.call("set_visible_cells", _visible_cells)
 	if _world_objects != null:
 		_world_objects.call("set_visible_cells", _visible_cells)
 	if _terrain_haze != null:
@@ -832,6 +831,7 @@ func _build_impact_effects() -> void:
 	_effects.name = "ImpactEffects"
 	_effects.z_index = 30
 	_effects.call("bind_camera", _camera)
+	_effects.call("bind_performance", _performance_sampler)
 	_effects_layer.add_child(_effects)
 
 

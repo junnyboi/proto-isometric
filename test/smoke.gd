@@ -72,8 +72,8 @@ func _test_isometric_map() -> void:
 		"live RunState owns Walker position",
 	)
 
-	_check(map.call("get_grid_size") == Vector2i(145, 145), "world reports compact grid")
 	var world: RefCounted = map.get("_world") as RefCounted
+	_check(world.call("_get_playable_size") == Vector2i(145, 145), "world reports compact grid")
 	_check(world != null, "lazy world stream exists")
 	for test_case: Dictionary in ContractTestsScript.evaluate(run_coordinator, world, map):
 		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
@@ -147,8 +147,7 @@ func _test_isometric_map() -> void:
 	_check(bool(map.call("place_robot", Vector2i(8, 8))), "place Walker for touch drive")
 	var touch_start: Vector2 = map.call("get_robot_position") as Vector2
 	_check(
-		bool(map.call("_update_drive_vector", touch_drive, 0.05, false)),
-		"touch drive moves Walker"
+		bool(map.call("_update_drive_vector", touch_drive, 0.05, false)), "touch drive moves Walker"
 	)
 	_check(
 		(map.call("get_robot_position") as Vector2).distance_to(touch_start) > 0.0,
@@ -641,9 +640,7 @@ func _test_isometric_map() -> void:
 	_check(int(effects.call("get_emission_count")) == 0, "windup emits no premature debris")
 	var windup_position: Vector2 = map.call("get_robot_position") as Vector2
 	map.call("update_drive", Vector2i(1, 1), 0.05, false)
-	_check(
-		map.call("get_robot_position") == windup_position, "Walker braces through strike windup"
-	)
+	_check(map.call("get_robot_position") == windup_position, "Walker braces through strike windup")
 	avatar.call("_process", float(avatar.call("get_attack_contact_time")) + 0.01)
 	var magnet_scrap_total: int = int(map.call("get_scrap_count"))
 	_check("ROCK SALVAGED" in str(map.call("get_status_text")), "impact feedback remains readable")
@@ -795,9 +792,7 @@ func _test_isometric_map() -> void:
 	_check(
 		bool(map.call("place_destructible_rock", far_cell + Vector2i.RIGHT)), "far mutation saves"
 	)
-	_check(
-		bool(map.call("place_robot", Vector2i(0, 0))), "Walker returns across chunk boundaries"
-	)
+	_check(bool(map.call("place_robot", Vector2i(0, 0))), "Walker returns across chunk boundaries")
 	_check(bool(map.call("place_robot", far_cell)), "Walker revisits generated terrain")
 	_check(world.call("terrain_at", far_cell) == far_terrain, "procedural terrain is deterministic")
 	var follow_zoom: Vector2 = (map.get_node("FollowCamera") as Camera2D).zoom
