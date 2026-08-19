@@ -11,6 +11,9 @@ const REQUIRED_PATHS: Array[String] = [
 	"res://assets/textures/terrain/oasis_wetland.png",
 	"res://assets/textures/terrain/dark_mud.png",
 	"res://assets/enemies/mud_skimmer.png",
+	"res://assets/textures/terrain/tundra_snow.png",
+	"res://assets/textures/terrain/blue_ice.png",
+	"res://assets/enemies/rime_stalker.png",
 ]
 
 

@@ -7,3 +7,11 @@
 | `mud_skimmer.png` | `70586b8d9c32f51aa05f045c977fe1476db0023ea2f8d857874a9c5bfdf898ec` |
 
 Combat state, collision targeting, damage, rewards, and biome selection remain deterministic Godot logic; the image is presentation only.
+
+## Rime Stalker
+
+`rime_stalker.png` was generated with **GPT Image 2** on 2026-08-19 as an original Frozen Tundra enemy. Deterministic edge-connected key-color cleanup, hue decontamination, trimming, and Lanczos downsampling produced the centered 512×512 RGBA runtime sprite; the untouched master remains outside Git.
+
+| Runtime file | SHA-256 |
+|---|---|
+| `rime_stalker.png` | `d271094736e97c6e5dc9cb674105806cf24a9a76f0d31b63d76e47a4ccc73ce5` |

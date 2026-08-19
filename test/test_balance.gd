@@ -9,6 +9,7 @@ const SandwormsScript: GDScript = preload("res://scripts/sandworms.gd")
 const DesertHazardsScript: GDScript = preload("res://scripts/desert_hazards.gd")
 const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const OasisWetlandsScript: GDScript = preload("res://scripts/oasis_wetlands.gd")
+const SurfaceDriveScript: GDScript = preload("res://scripts/surface_drive.gd")
 
 
 static func evaluate(coordinator: RefCounted) -> Array[Dictionary]:
@@ -144,6 +145,9 @@ static func _test_balance_snapshot(cases: Array[Dictionary], balance: Dictionary
 		&"camera_look_ahead_seconds": IsometricMapScript.CAMERA_LOOK_AHEAD_SECONDS,
 		&"camera_max_lead": IsometricMapScript.CAMERA_MAX_LEAD,
 		&"mud_speed_multiplier": OasisWetlandsScript.MUD_SPEED_MULTIPLIER,
+		&"ice_longitudinal_acceleration": SurfaceDriveScript.ICE_LONGITUDINAL_ACCELERATION,
+		&"ice_lateral_acceleration": SurfaceDriveScript.ICE_LATERAL_ACCELERATION,
+		&"ice_drag": SurfaceDriveScript.ICE_DRAG,
 		&"max_chassis": IsometricMapScript.MAX_CHASSIS,
 		&"repair_cost": IsometricMapScript.REPAIR_COST,
 		&"repair_amount": IsometricMapScript.REPAIR_AMOUNT,

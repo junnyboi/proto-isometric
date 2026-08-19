@@ -1,6 +1,7 @@
 extends RefCounted
 
 const OasisWetlandsScript: GDScript = preload("res://scripts/oasis_wetlands.gd")
+const FrozenTundraScript: GDScript = preload("res://scripts/frozen_tundra.gd")
 
 const CHUNK_SIZE: int = 8
 const STREAM_RADIUS: int = 2
@@ -113,11 +114,17 @@ func terrain_at(cell: Vector2i) -> StringName:
 
 
 func _biome_at(cell: Vector2i) -> StringName:
+	if FrozenTundraScript.contains(cell):
+		return FrozenTundraScript.BIOME_FROZEN
 	return OasisWetlandsScript.biome_at(cell)
 
 
 func _is_mud(cell: Vector2i) -> bool:
 	return terrain_at(cell) == &"mud"
+
+
+func _is_blue_ice(cell: Vector2i) -> bool:
+	return terrain_at(cell) == &"blue_ice"
 
 
 func place_rock(cell: Vector2i, robot_cell: Vector2i) -> bool:
@@ -139,7 +146,7 @@ func break_rock(cell: Vector2i) -> bool:
 	_placed_rocks.erase(cell)
 	_rocks.erase(cell)
 	_blocked.erase(cell)
-	_terrain[cell] = OasisWetlandsScript.surface_for(cell, &"sand", _is_in_sanctuary(Vector2(cell)))
+	_terrain[cell] = _surface_for(cell, &"sand")
 	_elevation[cell] = 0
 	_dropped_scrap[cell] = int(_dropped_scrap.get(cell, 0)) + 2
 	_scrap[cell] = int(_scrap.get(cell, 0)) + 2
@@ -333,9 +340,7 @@ func _generate_cell(cell: Vector2i) -> void:
 	var base_terrain: StringName = _base_terrain(cell)
 	if _destroyed_rocks.has(cell) and base_terrain == &"rock":
 		base_terrain = &"sand"
-	var terrain_id: StringName = OasisWetlandsScript.surface_for(
-		cell, base_terrain, _is_in_sanctuary(Vector2(cell))
-	)
+	var terrain_id: StringName = _surface_for(cell, base_terrain)
 	if _placed_rocks.has(cell):
 		terrain_id = &"rock"
 	_terrain[cell] = terrain_id
@@ -378,6 +383,13 @@ func _base_terrain(cell: Vector2i) -> StringName:
 	if not _is_starter_region(cell) and value < 23:
 		return &"rock"
 	return &"sand"
+
+
+func _surface_for(cell: Vector2i, base_terrain: StringName) -> StringName:
+	var sanctuary: bool = _is_in_sanctuary(Vector2(cell))
+	if _biome_at(cell) == FrozenTundraScript.BIOME_FROZEN:
+		return FrozenTundraScript.surface_for(cell, base_terrain, sanctuary)
+	return OasisWetlandsScript.surface_for(cell, base_terrain, sanctuary)
 
 
 func _is_outpost(cell: Vector2i) -> bool:

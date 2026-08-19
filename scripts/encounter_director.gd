@@ -190,13 +190,13 @@ func _spawn_composition(alert: int, player: Vector2) -> void:
 	var modifier: StringName = (
 		_coordinator.call("get_run_value", &"active_modifier_id") as StringName
 	)
-	if _active_biome == &"oasis":
-		var skimmer_count: int = (
+	if _active_biome != &"desert":
+		var native_count: int = (
 			RunModifierEffectsScript.worm_count(int(profile.get("worm_count")), modifier)
 			+ int(profile.get("tornado_count"))
 			+ int(profile.get("broad_storm_count"))
 		)
-		for index: int in range(skimmer_count):
+		for index: int in range(native_count):
 			if int(_worms.call("get_worm_count")) >= get_worm_soft_cap():
 				break
 			_worms.call("spawn_worm", player + Vector2(4.0 + index * 1.5, -2.0), 0.45)

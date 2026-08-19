@@ -13,7 +13,6 @@ const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const IsometricControlsScript: GDScript = preload("res://scripts/isometric_controls.gd")
 const MobileControlsScript: GDScript = preload("res://scripts/mobile_controls.gd")
 const ModuleEffectsScript: GDScript = preload("res://scripts/module_effects.gd")
-const OasisWetlandsScript: GDScript = preload("res://scripts/oasis_wetlands.gd")
 const RelayContestScript: GDScript = preload("res://scripts/relay_registry.gd")
 const ResponsiveCameraScript: GDScript = preload("res://scripts/responsive_camera.gd")
 const ResourceMagnetScript: GDScript = preload("res://scripts/resource_magnet.gd")
@@ -24,6 +23,7 @@ const SandwormsScript: GDScript = preload("res://scripts/sandworms.gd")
 const SaveRepositoryScript: GDScript = preload("res://scripts/save_repository.gd")
 const TerrainHazeScript: GDScript = preload("res://scripts/terrain_haze.gd")
 const TerrainRendererScript: GDScript = preload("res://scripts/terrain_renderer.gd")
+const SurfaceDriveScript: GDScript = preload("res://scripts/surface_drive.gd")
 const WormTelegraphScript: GDScript = preload("res://scripts/worm_telegraph.gd")
 const WorldObjectsScript: GDScript = preload("res://scripts/world_objects.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
@@ -270,6 +270,7 @@ func _update_drive_vector(screen_direction: Vector2, delta: float, running: bool
 		quantized_direction = Vector2i.ZERO
 	var has_input: bool = analog_direction.length() >= 0.05 and quantized_direction != Vector2i.ZERO
 	_is_running = running and has_input
+	var desired_velocity: Vector2 = Vector2.ZERO
 
 	if has_input:
 		_last_screen_direction = quantized_direction
@@ -284,21 +285,18 @@ func _update_drive_vector(screen_direction: Vector2, delta: float, running: bool
 		var maximum_speed: float = (
 			WALK_SPEED * analog_direction.length() * (RUN_MULTIPLIER if running else 1.0)
 		)
-		var desired_velocity: Vector2 = analog_direction.normalized() * maximum_speed
-		_velocity = _velocity.move_toward(desired_velocity, ACCELERATION * step_delta)
-	else:
-		_velocity = _velocity.move_toward(Vector2.ZERO, DECELERATION * step_delta)
-	var surface_multiplier: float = (
-		OasisWetlandsScript.MUD_SPEED_MULTIPLIER
-		if _world != null and bool(_world.call("_is_mud", _robot_grid))
-		else 1.0
+		desired_velocity = analog_direction.normalized() * maximum_speed
+	var surface: StringName = _world.call("terrain_at", _robot_grid) as StringName
+	_velocity = (
+		SurfaceDriveScript
+		. advance(
+			_velocity,
+			desired_velocity,
+			WALK_SPEED * (RUN_MULTIPLIER if _is_running else 1.0),
+			surface,
+			step_delta,
+		)
 	)
-	_velocity = _velocity.limit_length(
-		WALK_SPEED * (RUN_MULTIPLIER if _is_running else 1.0) * surface_multiplier
-	)
-
-	if _velocity.length() < 0.05:
-		_velocity = Vector2.ZERO
 	_is_moving = not _velocity.is_zero_approx()
 	var moved: bool = _move_velocity(step_delta)
 	if _impact_charge != null:

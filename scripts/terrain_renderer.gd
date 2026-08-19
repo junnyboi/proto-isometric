@@ -9,6 +9,8 @@ const ROCK: Color = Color("934d35")
 const RUIN: Color = Color("39454a")
 const WETLAND: Color = Color("879b55")
 const MUD: Color = Color("2d281f")
+const SNOW: Color = Color("dce8ed")
+const BLUE_ICE: Color = Color("36a8c8")
 const TEAL: Color = Color("4eb6aa")
 const GRID_LINE: Color = Color(0.18, 0.12, 0.08, 0.32)
 const TEXTURES: Dictionary = {
@@ -18,6 +20,8 @@ const TEXTURES: Dictionary = {
 	&"ruin": preload("res://assets/textures/terrain/ancient_ruin.png"),
 	&"wetland": preload("res://assets/textures/terrain/oasis_wetland.png"),
 	&"mud": preload("res://assets/textures/terrain/dark_mud.png"),
+	&"snow": preload("res://assets/textures/terrain/tundra_snow.png"),
+	&"blue_ice": preload("res://assets/textures/terrain/blue_ice.png"),
 }
 
 var _terrain: Dictionary
@@ -76,6 +80,10 @@ func draw_tile(canvas: Node2D, cell: Vector2i) -> void:
 		color = WETLAND
 	elif terrain_id == &"mud":
 		color = MUD
+	elif terrain_id == &"snow":
+		color = SNOW
+	elif terrain_id == &"blue_ice":
+		color = BLUE_ICE
 
 	if height > 0.0:
 		(
@@ -116,6 +124,13 @@ func draw_tile(canvas: Node2D, cell: Vector2i) -> void:
 	if terrain_id == &"ruin":
 		canvas.draw_circle(center, 6.0, TEAL.darkened(0.15))
 		canvas.draw_arc(center, 13.0, 0.0, TAU, 20, TEAL, 2.0)
+	elif terrain_id == &"blue_ice":
+		canvas.draw_line(
+			center + Vector2(-23.0, 4.0),
+			center + Vector2(19.0, -6.0),
+			Color(0.75, 0.96, 1.0, 0.42),
+			1.5
+		)
 
 
 func terrain_uvs(cell: Vector2i) -> PackedVector2Array:

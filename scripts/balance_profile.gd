@@ -9,6 +9,9 @@ extends Resource
 @export var camera_look_ahead_seconds: float = 0.32
 @export var camera_max_lead: float = 82.0
 @export var mud_speed_multiplier: float = 0.62
+@export var ice_longitudinal_acceleration: float = 155.0
+@export var ice_lateral_acceleration: float = 68.0
+@export var ice_drag: float = 24.0
 
 @export_category("Chassis and Outpost")
 @export var max_chassis: int = 100
@@ -68,6 +71,9 @@ func validate() -> bool:
 		and deceleration > 0.0
 		and mud_speed_multiplier > 0.0
 		and mud_speed_multiplier < 1.0
+		and ice_longitudinal_acceleration > 0.0
+		and ice_lateral_acceleration > 0.0
+		and ice_drag > 0.0
 		and max_chassis > 0
 		and repair_cost >= 0
 		and repair_amount > 0
@@ -107,6 +113,9 @@ func baseline_snapshot() -> Dictionary:
 		&"camera_look_ahead_seconds": camera_look_ahead_seconds,
 		&"camera_max_lead": camera_max_lead,
 		&"mud_speed_multiplier": mud_speed_multiplier,
+		&"ice_longitudinal_acceleration": ice_longitudinal_acceleration,
+		&"ice_lateral_acceleration": ice_lateral_acceleration,
+		&"ice_drag": ice_drag,
 		&"max_chassis": max_chassis,
 		&"repair_cost": repair_cost,
 		&"repair_amount": repair_amount,

@@ -5,6 +5,7 @@ signal defeated(worm_id: int, position: Vector2)
 
 const DEFAULT_PROFILE: Resource = preload("res://data/combat/sandworm_default.tres")
 const MUD_SKIMMER_TEXTURE: Texture2D = preload("res://assets/enemies/mud_skimmer.png")
+const RIME_STALKER_TEXTURE: Texture2D = preload("res://assets/enemies/rime_stalker.png")
 
 const MAX_HEALTH: int = 4
 const ATTACK_DAMAGE: int = 10
@@ -31,8 +32,10 @@ const SHELL_DARK: Color = Color("351d19")
 const HEALTH: Color = Color("e75d46")
 const HEALTH_BACK: Color = Color("1a1110")
 const SKIMMER_KIND: StringName = &"mud_skimmer"
+const RIME_KIND: StringName = &"rime_stalker"
 const WORM_KIND: StringName = &"sandworm"
 const SKIMMER_EMERGE_SECONDS: float = 0.45
+const RIME_EMERGE_SECONDS: float = 0.6
 const MUD: Color = Color("2d281f")
 const WETLAND: Color = Color("75a06c")
 
@@ -124,9 +127,15 @@ func spawn_worm(position: Vector2, emerge_seconds: float = -1.0) -> int:
 		return -1
 	var worm_id: int = _next_id
 	_next_id += 1
-	var kind: StringName = SKIMMER_KIND if _active_biome == &"oasis" else WORM_KIND
+	var kind: StringName = WORM_KIND
+	if _active_biome == &"oasis":
+		kind = SKIMMER_KIND
+	elif _active_biome == &"frozen":
+		kind = RIME_KIND
 	var default_emerge: float = (
-		SKIMMER_EMERGE_SECONDS if kind == SKIMMER_KIND else _p_float(&"spawn_burrow_seconds")
+		RIME_EMERGE_SECONDS
+		if kind == RIME_KIND
+		else SKIMMER_EMERGE_SECONDS if kind == SKIMMER_KIND else _p_float(&"spawn_burrow_seconds")
 	)
 	var spawn_seconds: float = default_emerge if emerge_seconds < 0.0 else maxf(emerge_seconds, 0.0)
 	(
@@ -183,7 +192,12 @@ func _get_enemy_kind(worm_id: int) -> StringName:
 
 
 func _get_enemy_label(worm_id: int) -> String:
-	return "MUD SKIMMER" if _get_enemy_kind(worm_id) == SKIMMER_KIND else "SANDWORM"
+	var kind: StringName = _get_enemy_kind(worm_id)
+	if kind == SKIMMER_KIND:
+		return "MUD SKIMMER"
+	if kind == RIME_KIND:
+		return "RIME STALKER"
+	return "SANDWORM"
 
 
 func _get_active_biome() -> StringName:
@@ -445,8 +459,21 @@ func _draw_worm(worm: Dictionary) -> void:
 	var alpha: float = 1.0
 	if state in [STATE_DISPERSING, STATE_DEFEATED]:
 		alpha = 1.0 - progress
-	if worm.get(&"kind", WORM_KIND) == SKIMMER_KIND:
+	var kind: StringName = worm.get(&"kind", WORM_KIND) as StringName
+	if kind == SKIMMER_KIND:
 		_draw_skimmer(center, worm, state, progress, alpha)
+		return
+	if kind == RIME_KIND:
+		_draw_native_enemy(
+			center,
+			worm,
+			state,
+			progress,
+			alpha,
+			RIME_STALKER_TEXTURE,
+			Color("aeeeff"),
+			Color("27688f")
+		)
 		return
 	_draw_sand_wake(center, worm, alpha)
 	if state in [STATE_BURROW, STATE_INTERCEPT]:
@@ -474,6 +501,37 @@ func _draw_skimmer(
 		Rect2(center - size * Vector2(0.5, 0.66), size),
 		false,
 		Color(1.0, 1.0, 1.0, alpha),
+	)
+	if state in [STATE_EXPOSE, STATE_STAGGERED]:
+		_draw_health_bar(center + Vector2(0.0, -69.0), int(worm[&"health"]), alpha)
+
+
+func _draw_native_enemy(
+	center: Vector2,
+	worm: Dictionary,
+	state: StringName,
+	progress: float,
+	alpha: float,
+	texture: Texture2D,
+	wake_light: Color,
+	wake_dark: Color,
+) -> void:
+	draw_arc(center, 18.0 + progress * 14.0, 0.0, TAU, 28, Color(wake_light, 0.7 * alpha), 3.0)
+	for mote: int in range(10):
+		var phase: float = float(mote) * 2.399 + _time * 3.2
+		var point: Vector2 = center + Vector2(cos(phase) * 24.0, sin(phase) * 9.0)
+		draw_circle(
+			point, 2.0 + float(mote % 2), Color(wake_dark, (0.25 + mote % 3 * 0.08) * alpha)
+		)
+	if state == STATE_BURROW:
+		return
+	if state == STATE_DIVE:
+		alpha *= 1.0 - progress
+	if state == STATE_INTERCEPT:
+		alpha *= 0.78
+	var size: Vector2 = texture.get_size() * 0.23
+	draw_texture_rect(
+		texture, Rect2(center - size * Vector2(0.5, 0.66), size), false, Color(1.0, 1.0, 1.0, alpha)
 	)
 	if state in [STATE_EXPOSE, STATE_STAGGERED]:
 		_draw_health_bar(center + Vector2(0.0, -69.0), int(worm[&"health"]), alpha)
