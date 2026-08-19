@@ -433,7 +433,14 @@ func _decode_cell(value: Variant, legacy_bounds: bool) -> Dictionary:
 	if x_result.is_empty() or y_result.is_empty():
 		return {}
 	var cell: Vector2i = Vector2i(int(x_result[&"value"]), int(y_result[&"value"]))
-	if not bool(_world_validator.call("is_valid_cell", cell)):
+	var valid: bool = bool(
+		(
+			_world_validator.call("_is_valid_storage_cell", cell)
+			if _world_validator.has_method("_is_valid_storage_cell")
+			else _world_validator.call("is_valid_cell", cell)
+		)
+	)
+	if not valid:
 		return {}
 	return {&"cell": cell}
 

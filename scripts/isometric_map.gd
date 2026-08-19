@@ -12,6 +12,7 @@ const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const IsometricControlsScript: GDScript = preload("res://scripts/isometric_controls.gd")
 const MobileControlsScript: GDScript = preload("res://scripts/mobile_controls.gd")
 const ModuleEffectsScript: GDScript = preload("res://scripts/module_effects.gd")
+const OasisWetlandsScript: GDScript = preload("res://scripts/oasis_wetlands.gd")
 const RelayContestScript: GDScript = preload("res://scripts/relay_registry.gd")
 const ResponsiveCameraScript: GDScript = preload("res://scripts/responsive_camera.gd")
 const RunCoordinatorScript: GDScript = preload("res://scripts/run_coordinator.gd")
@@ -24,11 +25,6 @@ const TerrainRendererScript: GDScript = preload("res://scripts/terrain_renderer.
 const WormTelegraphScript: GDScript = preload("res://scripts/worm_telegraph.gd")
 const WorldObjectsScript: GDScript = preload("res://scripts/world_objects.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
-const SAND_TEXTURE: Texture2D = preload("res://assets/textures/terrain/desert_sand.png")
-const SALT_TEXTURE: Texture2D = preload("res://assets/textures/terrain/salt_crust.png")
-const ROCK_TEXTURE: Texture2D = preload("res://assets/textures/terrain/iron_rock.png")
-const RUIN_TEXTURE: Texture2D = preload("res://assets/textures/terrain/ancient_ruin.png")
-
 const TILE_SIZE: Vector2 = Vector2(90.0, 45.0)
 const MAP_ORIGIN: Vector2 = Vector2(760.0, 70.0)
 const START_CELL: Vector2i = Vector2i(8, 10)
@@ -67,12 +63,7 @@ var _chassis: int:
 		return int(_run_value(&"chassis", MAX_CHASSIS))
 	set(value):
 		_set_run_value(&"chassis", value)
-var _terrain_textures: Dictionary = {
-	&"sand": SAND_TEXTURE,
-	&"salt": SALT_TEXTURE,
-	&"rock": ROCK_TEXTURE,
-	&"ruin": RUIN_TEXTURE,
-}
+var _terrain_textures: Dictionary = TerrainRendererScript.TEXTURES
 
 var _robot_grid: Vector2i:
 	get:
@@ -255,10 +246,6 @@ func screen_to_grid(point: Vector2) -> Vector2i:
 	return Vector2i(roundi(grid_x), roundi(grid_y))
 
 
-func _is_in_bounds(cell: Vector2i) -> bool:
-	return _world != null and bool(_world.call("is_valid_cell", cell))
-
-
 func is_walkable(cell: Vector2i) -> bool:
 	return _world != null and bool(_world.call("is_walkable", cell))
 
@@ -302,6 +289,14 @@ func _update_drive_vector(screen_direction: Vector2, delta: float, running: bool
 		_velocity = _velocity.move_toward(desired_velocity, ACCELERATION * step_delta)
 	else:
 		_velocity = _velocity.move_toward(Vector2.ZERO, DECELERATION * step_delta)
+	var surface_multiplier: float = (
+		OasisWetlandsScript.MUD_SPEED_MULTIPLIER
+		if _world != null and bool(_world.call("_is_mud", _robot_grid))
+		else 1.0
+	)
+	_velocity = _velocity.limit_length(
+		WALK_SPEED * (RUN_MULTIPLIER if _is_running else 1.0) * surface_multiplier
+	)
 
 	if _velocity.length() < 0.05:
 		_velocity = Vector2.ZERO
@@ -392,9 +387,10 @@ func _on_avatar_impact_frame() -> void:
 				_sandworms.call("stagger_worm", worm_id)
 		_update_status(
 			(
-				"%s // SANDWORM %s // HP %d/4"
+				"%s // %s %s // HP %d/4"
 				% [
 					_impact_charge.call("get_band_name", impact_band),
+					_sandworms.call("_get_enemy_label", worm_id),
 					"DESTROYED" if remaining <= 0 else "HIT",
 					remaining,
 				]
@@ -595,7 +591,7 @@ func get_facing() -> StringName:
 
 
 func get_grid_size() -> Vector2i:
-	return Vector2i(-1, -1)
+	return InfiniteWorldScript.PLAYABLE_SIZE
 
 
 func get_avatar() -> Node2D:
@@ -643,6 +639,8 @@ func _load_world_state() -> bool:
 	):
 		push_error("Validated save state could not be applied.")
 		return false
+	if not bool(_world.call("is_valid_cell", _robot_grid)):
+		_robot_grid = START_CELL
 	var world_snapshot: Dictionary = (envelope[&"world"] as Dictionary).duplicate(true)
 	world_snapshot[&"schema"] = 2
 	_world.call("apply_snapshot", world_snapshot)
@@ -862,7 +860,7 @@ func _build_sandworms() -> void:
 	_sandworms = SandwormsScript.new() as Node2D
 	_sandworms.name = "Sandworms"
 	_sandworms.z_index = 18
-	_sandworms.call("configure", TILE_SIZE, MAP_ORIGIN)
+	_sandworms.call("configure", TILE_SIZE, MAP_ORIGIN, null, _world)
 	_sandworms.call("set_player_position", Vector2(_robot_grid))
 	_sandworms.call("set_outpost_linked", _is_at_outpost())
 	_sandworms.connect("damage_tick", Callable(self, "_on_hazard_damage"))

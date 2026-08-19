@@ -4,6 +4,7 @@ signal damage_tick(amount: int, source: StringName)
 signal defeated(worm_id: int, position: Vector2)
 
 const DEFAULT_PROFILE: Resource = preload("res://data/combat/sandworm_default.tres")
+const MUD_SKIMMER_TEXTURE: Texture2D = preload("res://assets/enemies/mud_skimmer.png")
 
 const MAX_HEALTH: int = 4
 const ATTACK_DAMAGE: int = 10
@@ -29,6 +30,11 @@ const SHELL: Color = Color("7e3f2b")
 const SHELL_DARK: Color = Color("351d19")
 const HEALTH: Color = Color("e75d46")
 const HEALTH_BACK: Color = Color("1a1110")
+const SKIMMER_KIND: StringName = &"mud_skimmer"
+const WORM_KIND: StringName = &"sandworm"
+const SKIMMER_EMERGE_SECONDS: float = 0.45
+const MUD: Color = Color("2d281f")
+const WETLAND: Color = Color("75a06c")
 
 var _tile_size: Vector2 = Vector2(90.0, 45.0)
 var _map_origin: Vector2 = Vector2(760.0, 70.0)
@@ -42,6 +48,8 @@ var _auto_spawn: bool = true
 var _outpost_linked: bool = false
 var _last_attack_count: int = 0
 var _profile: Resource = DEFAULT_PROFILE
+var _world: RefCounted
+var _active_biome: StringName = &"desert"
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 
@@ -53,12 +61,16 @@ func configure(
 	tile_size: Vector2,
 	map_origin: Vector2,
 	profile: Resource = DEFAULT_PROFILE,
+	world: RefCounted = null,
 ) -> bool:
+	if profile == null:
+		profile = DEFAULT_PROFILE
 	if profile == null or not profile.has_method("validate") or not bool(profile.call("validate")):
 		return false
 	_tile_size = tile_size
 	_map_origin = map_origin
 	_profile = profile
+	_world = world
 	return true
 
 
@@ -66,7 +78,14 @@ func set_auto_spawn(enabled: bool) -> void:
 	_auto_spawn = enabled
 
 
+func _set_active_biome(biome: StringName) -> void:
+	if biome != _active_biome:
+		clear_worms()
+	_active_biome = biome
+
+
 func set_player_position(position: Vector2, velocity: Vector2 = Vector2.ZERO) -> void:
+	_sync_biome(position)
 	_player_position = position
 	_player_velocity = velocity
 
@@ -105,14 +124,17 @@ func spawn_worm(position: Vector2, emerge_seconds: float = -1.0) -> int:
 		return -1
 	var worm_id: int = _next_id
 	_next_id += 1
-	var spawn_seconds: float = (
-		_p_float(&"spawn_burrow_seconds") if emerge_seconds < 0.0 else maxf(emerge_seconds, 0.0)
+	var kind: StringName = SKIMMER_KIND if _active_biome == &"oasis" else WORM_KIND
+	var default_emerge: float = (
+		SKIMMER_EMERGE_SECONDS if kind == SKIMMER_KIND else _p_float(&"spawn_burrow_seconds")
 	)
+	var spawn_seconds: float = default_emerge if emerge_seconds < 0.0 else maxf(emerge_seconds, 0.0)
 	(
 		_worms
 		. append(
 			{
 				&"id": worm_id,
+				&"kind": kind,
 				&"position": position,
 				&"direction": Vector2.DOWN,
 				&"health": _p_int(&"max_health"),
@@ -155,6 +177,19 @@ func get_worm_position(worm_id: int) -> Vector2:
 	return worm.get(&"position", MISSING_POSITION) as Vector2
 
 
+func _get_enemy_kind(worm_id: int) -> StringName:
+	var worm: Dictionary = _find_worm(worm_id)
+	return worm.get(&"kind", WORM_KIND) as StringName
+
+
+func _get_enemy_label(worm_id: int) -> String:
+	return "MUD SKIMMER" if _get_enemy_kind(worm_id) == SKIMMER_KIND else "SANDWORM"
+
+
+func _get_active_biome() -> StringName:
+	return _active_biome
+
+
 func get_state(worm_id: int) -> StringName:
 	var worm: Dictionary = _find_worm(worm_id)
 	return worm.get(&"state", &"missing") as StringName
@@ -170,6 +205,7 @@ func get_combat_snapshot(worm_id: int) -> Dictionary:
 		return {}
 	return {
 		&"id": int(worm[&"id"]),
+		&"kind": worm.get(&"kind", WORM_KIND),
 		&"state": worm[&"state"],
 		&"position": worm[&"position"],
 		&"direction": worm[&"direction"],
@@ -336,7 +372,7 @@ func _resolve_attack(worm: Dictionary) -> bool:
 	if (worm[&"position"] as Vector2).distance_to(_player_position) > _p_float(&"attack_range"):
 		return false
 	_last_attack_count += 1
-	damage_tick.emit(_p_int(&"attack_damage"), &"sandworm")
+	damage_tick.emit(_p_int(&"attack_damage"), worm.get(&"kind", WORM_KIND) as StringName)
 	return true
 
 
@@ -372,6 +408,13 @@ func _find_worm(worm_id: int) -> Dictionary:
 	return {}
 
 
+func _sync_biome(position: Vector2) -> void:
+	if _world == null:
+		return
+	var next_biome: StringName = _world.call("_biome_at", Vector2i(position.round())) as StringName
+	_set_active_biome(next_biome)
+
+
 func _p_float(property: StringName) -> float:
 	return float(_profile.get(property))
 
@@ -402,6 +445,9 @@ func _draw_worm(worm: Dictionary) -> void:
 	var alpha: float = 1.0
 	if state in [STATE_DISPERSING, STATE_DEFEATED]:
 		alpha = 1.0 - progress
+	if worm.get(&"kind", WORM_KIND) == SKIMMER_KIND:
+		_draw_skimmer(center, worm, state, progress, alpha)
+		return
 	_draw_sand_wake(center, worm, alpha)
 	if state in [STATE_BURROW, STATE_INTERCEPT]:
 		var warning: Color = PALE_SAND if state == STATE_BURROW else Color("f5a62d")
@@ -410,6 +456,35 @@ func _draw_worm(worm: Dictionary) -> void:
 	if state == STATE_DIVE:
 		alpha *= 1.0 - progress
 	_draw_exposed_body(center, worm, alpha)
+
+
+func _draw_skimmer(
+	center: Vector2, worm: Dictionary, state: StringName, progress: float, alpha: float
+) -> void:
+	_draw_mud_wake(center, progress, alpha)
+	if state == STATE_BURROW:
+		return
+	if state == STATE_DIVE:
+		alpha *= 1.0 - progress
+	if state == STATE_INTERCEPT:
+		alpha *= 0.78
+	var size: Vector2 = MUD_SKIMMER_TEXTURE.get_size() * 0.23
+	draw_texture_rect(
+		MUD_SKIMMER_TEXTURE,
+		Rect2(center - size * Vector2(0.5, 0.66), size),
+		false,
+		Color(1.0, 1.0, 1.0, alpha),
+	)
+	if state in [STATE_EXPOSE, STATE_STAGGERED]:
+		_draw_health_bar(center + Vector2(0.0, -69.0), int(worm[&"health"]), alpha)
+
+
+func _draw_mud_wake(center: Vector2, progress: float, alpha: float) -> void:
+	draw_arc(center, 18.0 + progress * 14.0, 0.0, TAU, 28, Color(WETLAND, 0.7 * alpha), 3.0)
+	for mote: int in range(10):
+		var phase: float = float(mote) * 2.399 + _time * 3.2
+		var point: Vector2 = center + Vector2(cos(phase) * 24.0, sin(phase) * 9.0)
+		draw_circle(point, 2.0 + float(mote % 2), Color(MUD, (0.25 + mote % 3 * 0.08) * alpha))
 
 
 func _draw_exposed_body(center: Vector2, worm: Dictionary, alpha: float) -> void:

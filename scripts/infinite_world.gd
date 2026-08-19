@@ -1,9 +1,13 @@
 extends RefCounted
 
+const OasisWetlandsScript: GDScript = preload("res://scripts/oasis_wetlands.gd")
+
 const CHUNK_SIZE: int = 8
 const STREAM_RADIUS: int = 2
 const CULL_RADIUS: Vector2i = Vector2i(14, 14)
 const COORDINATE_LIMIT: int = 1_000_000
+const PLAYABLE_HALF_EXTENT: int = 72
+const PLAYABLE_SIZE: Vector2i = Vector2i(145, 145)
 const STARTER_SIZE: Vector2i = Vector2i(18, 18)
 const STARTER_RELAY: Vector2i = Vector2i(12, 6)
 const SANCTUARY_RADIUS: float = 2.5
@@ -65,7 +69,9 @@ func stream_around(center: Vector2i) -> bool:
 	var desired: Dictionary = {}
 	for y: int in range(center_chunk.y - STREAM_RADIUS, center_chunk.y + STREAM_RADIUS + 1):
 		for x: int in range(center_chunk.x - STREAM_RADIUS, center_chunk.x + STREAM_RADIUS + 1):
-			desired[Vector2i(x, y)] = true
+			var chunk: Vector2i = Vector2i(x, y)
+			if _chunk_intersects_world(chunk):
+				desired[chunk] = true
 	var changed: bool = false
 	for value: Variant in _loaded_chunks.keys():
 		var loaded: Vector2i = value as Vector2i
@@ -81,13 +87,15 @@ func stream_around(center: Vector2i) -> bool:
 
 
 func _ensure_cell(cell: Vector2i) -> void:
+	if not is_valid_cell(cell):
+		return
 	var chunk: Vector2i = chunk_for_cell(cell)
 	if not _loaded_chunks.has(chunk):
 		_load_chunk(chunk)
 
 
 func is_valid_cell(cell: Vector2i) -> bool:
-	return absi(cell.x) <= COORDINATE_LIMIT and absi(cell.y) <= COORDINATE_LIMIT
+	return absi(cell.x) <= PLAYABLE_HALF_EXTENT and absi(cell.y) <= PLAYABLE_HALF_EXTENT
 
 
 func is_walkable(cell: Vector2i) -> bool:
@@ -102,6 +110,14 @@ func terrain_at(cell: Vector2i) -> StringName:
 		return &"void"
 	_ensure_cell(cell)
 	return _terrain.get(cell, &"sand") as StringName
+
+
+func _biome_at(cell: Vector2i) -> StringName:
+	return OasisWetlandsScript.biome_at(cell)
+
+
+func _is_mud(cell: Vector2i) -> bool:
+	return terrain_at(cell) == &"mud"
 
 
 func place_rock(cell: Vector2i, robot_cell: Vector2i) -> bool:
@@ -123,7 +139,7 @@ func break_rock(cell: Vector2i) -> bool:
 	_placed_rocks.erase(cell)
 	_rocks.erase(cell)
 	_blocked.erase(cell)
-	_terrain[cell] = &"sand"
+	_terrain[cell] = OasisWetlandsScript.surface_for(cell, &"sand", _is_in_sanctuary(Vector2(cell)))
 	_elevation[cell] = 0
 	_dropped_scrap[cell] = int(_dropped_scrap.get(cell, 0)) + 2
 	_scrap[cell] = int(_scrap.get(cell, 0)) + 2
@@ -184,6 +200,10 @@ func get_render_cell_limit() -> int:
 
 func get_cull_radius() -> Vector2i:
 	return CULL_RADIUS
+
+
+func _get_playable_size() -> Vector2i:
+	return PLAYABLE_SIZE
 
 
 func _get_starter_relay_cell() -> Vector2i:
@@ -268,7 +288,11 @@ func decode_cell(value: Variant) -> Vector2i:
 	):
 		return Vector2i(COORDINATE_LIMIT + 1, COORDINATE_LIMIT + 1)
 	var cell: Vector2i = Vector2i(int(coordinates[0]), int(coordinates[1]))
-	return cell if is_valid_cell(cell) else Vector2i(COORDINATE_LIMIT + 1, COORDINATE_LIMIT + 1)
+	return (
+		cell
+		if _is_valid_storage_cell(cell)
+		else Vector2i(COORDINATE_LIMIT + 1, COORDINATE_LIMIT + 1)
+	)
 
 
 func _load_chunk(chunk: Vector2i) -> void:
@@ -276,7 +300,9 @@ func _load_chunk(chunk: Vector2i) -> void:
 	var start: Vector2i = chunk * CHUNK_SIZE
 	for y: int in range(start.y, start.y + CHUNK_SIZE):
 		for x: int in range(start.x, start.x + CHUNK_SIZE):
-			_generate_cell(Vector2i(x, y))
+			var cell: Vector2i = Vector2i(x, y)
+			if is_valid_cell(cell):
+				_generate_cell(cell)
 
 
 func _unload_chunk(chunk: Vector2i) -> void:
@@ -304,9 +330,12 @@ func _clear_active_chunks() -> void:
 
 
 func _generate_cell(cell: Vector2i) -> void:
-	var terrain_id: StringName = _base_terrain(cell)
-	if _destroyed_rocks.has(cell) and terrain_id == &"rock":
-		terrain_id = &"sand"
+	var base_terrain: StringName = _base_terrain(cell)
+	if _destroyed_rocks.has(cell) and base_terrain == &"rock":
+		base_terrain = &"sand"
+	var terrain_id: StringName = OasisWetlandsScript.surface_for(
+		cell, base_terrain, _is_in_sanctuary(Vector2(cell))
+	)
 	if _placed_rocks.has(cell):
 		terrain_id = &"rock"
 	_terrain[cell] = terrain_id
@@ -380,6 +409,21 @@ func _cell_hash(cell: Vector2i, salt: int) -> int:
 	return value ^ (value >> 16)
 
 
+func _chunk_intersects_world(chunk: Vector2i) -> bool:
+	var start: Vector2i = chunk * CHUNK_SIZE
+	var finish: Vector2i = start + Vector2i(CHUNK_SIZE - 1, CHUNK_SIZE - 1)
+	return (
+		finish.x >= -PLAYABLE_HALF_EXTENT
+		and start.x <= PLAYABLE_HALF_EXTENT
+		and finish.y >= -PLAYABLE_HALF_EXTENT
+		and start.y <= PLAYABLE_HALF_EXTENT
+	)
+
+
+func _is_valid_storage_cell(cell: Vector2i) -> bool:
+	return absi(cell.x) <= COORDINATE_LIMIT and absi(cell.y) <= COORDINATE_LIMIT
+
+
 func _encode_cells(source: Dictionary) -> Array[Array]:
 	var result: Array[Array] = []
 	for value: Variant in source:
@@ -413,7 +457,7 @@ func _cell_array_is_valid(
 	var seen: Dictionary = {}
 	for entry: Variant in value as Array:
 		var cell: Vector2i = decode_cell(entry)
-		if not is_valid_cell(cell) or cell == forbidden or seen.has(cell):
+		if not _is_valid_storage_cell(cell) or cell == forbidden or seen.has(cell):
 			return false
 		seen[cell] = true
 	return true
@@ -429,7 +473,7 @@ func _amount_array_is_valid(value: Variant) -> bool:
 		var entry: Dictionary = item as Dictionary
 		var cell: Vector2i = decode_cell(entry.get("cell", []))
 		var amount: int = int(entry.get("amount", 0))
-		if not is_valid_cell(cell) or seen.has(cell) or amount <= 0 or amount > 999:
+		if not _is_valid_storage_cell(cell) or seen.has(cell) or amount <= 0 or amount > 999:
 			return false
 		seen[cell] = true
 	return true

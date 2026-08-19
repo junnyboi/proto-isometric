@@ -34,6 +34,7 @@ var _ambient_enabled: bool = true
 var _ambient_worm_remaining: float = AMBIENT_WORM_INITIAL_SECONDS
 var _ambient_tornado_remaining: float = AMBIENT_TORNADO_INITIAL_SECONDS
 var _ambient_sandstorm_remaining: float = AMBIENT_SANDSTORM_INITIAL_SECONDS
+var _active_biome: StringName = &"desert"
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 
@@ -72,6 +73,7 @@ func _process(delta: float) -> void:
 		return
 	var step: float = maxf(delta, 0.0)
 	var player: Vector2 = Vector2(_coordinator.call("get_run_value", &"player_cell"))
+	_sync_biome(player)
 	var sanctuary_now: bool = bool(_world.call("_is_in_sanctuary", player))
 	if sanctuary_now and not _sanctuary:
 		_worms.call("disperse_all")
@@ -116,6 +118,8 @@ func _advance_ambient(delta: float, player: Vector2) -> void:
 		_ambient_worm_remaining = _rng.randf_range(
 			AMBIENT_WORM_INTERVAL_MIN, AMBIENT_WORM_INTERVAL_MAX
 		)
+	if _active_biome != &"desert":
+		return
 	_ambient_tornado_remaining -= delta
 	if _ambient_tornado_remaining <= 0.0:
 		if int(_hazards.call("get_hazard_count", &"tornado")) < AMBIENT_TORNADO_SOFT_CAP:
@@ -186,6 +190,17 @@ func _spawn_composition(alert: int, player: Vector2) -> void:
 	var modifier: StringName = (
 		_coordinator.call("get_run_value", &"active_modifier_id") as StringName
 	)
+	if _active_biome == &"oasis":
+		var skimmer_count: int = (
+			RunModifierEffectsScript.worm_count(int(profile.get("worm_count")), modifier)
+			+ int(profile.get("tornado_count"))
+			+ int(profile.get("broad_storm_count"))
+		)
+		for index: int in range(skimmer_count):
+			if int(_worms.call("get_worm_count")) >= get_worm_soft_cap():
+				break
+			_worms.call("spawn_worm", player + Vector2(4.0 + index * 1.5, -2.0), 0.45)
+		return
 	for index: int in range(
 		RunModifierEffectsScript.worm_count(int(profile.get("worm_count")), modifier)
 	):
@@ -199,3 +214,14 @@ func _spawn_composition(alert: int, player: Vector2) -> void:
 		_hazards.call(
 			"spawn_sandstorm", Vector2i(player.round()) + Vector2i(-16, -1), Vector2i.RIGHT
 		)
+
+
+func _sync_biome(player: Vector2) -> void:
+	var biome: StringName = _world.call("_biome_at", Vector2i(player.round())) as StringName
+	if biome == _active_biome:
+		return
+	_active_biome = biome
+	_worms.call("_set_active_biome", biome)
+	if biome != &"desert":
+		_hazards.call("clear_hazards")
+	_reset_ambient_grace()

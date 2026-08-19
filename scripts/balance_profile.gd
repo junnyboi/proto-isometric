@@ -8,6 +8,7 @@ extends Resource
 @export var camera_response: float = 4.8
 @export var camera_look_ahead_seconds: float = 0.32
 @export var camera_max_lead: float = 82.0
+@export var mud_speed_multiplier: float = 0.62
 
 @export_category("Chassis and Outpost")
 @export var max_chassis: int = 100
@@ -55,6 +56,7 @@ extends Resource
 @export var active_cell_limit: int = 1600
 @export var visible_cell_limit: int = 841
 @export var coordinate_limit: int = 1_000_000
+@export var playable_half_extent: int = 72
 @export var save_schema: int = 3
 
 
@@ -64,6 +66,8 @@ func validate() -> bool:
 		and run_multiplier >= 1.0
 		and acceleration > 0.0
 		and deceleration > 0.0
+		and mud_speed_multiplier > 0.0
+		and mud_speed_multiplier < 1.0
 		and max_chassis > 0
 		and repair_cost >= 0
 		and repair_amount > 0
@@ -87,6 +91,8 @@ func validate() -> bool:
 		and active_cell_limit >= loaded_chunk_limit * chunk_size * chunk_size
 		and visible_cell_limit > 0
 		and coordinate_limit > 0
+		and playable_half_extent > 0
+		and playable_half_extent < coordinate_limit
 		and save_schema > 0
 	)
 
@@ -100,6 +106,7 @@ func baseline_snapshot() -> Dictionary:
 		&"camera_response": camera_response,
 		&"camera_look_ahead_seconds": camera_look_ahead_seconds,
 		&"camera_max_lead": camera_max_lead,
+		&"mud_speed_multiplier": mud_speed_multiplier,
 		&"max_chassis": max_chassis,
 		&"repair_cost": repair_cost,
 		&"repair_amount": repair_amount,
@@ -135,5 +142,6 @@ func baseline_snapshot() -> Dictionary:
 		&"active_cell_limit": active_cell_limit,
 		&"visible_cell_limit": visible_cell_limit,
 		&"coordinate_limit": coordinate_limit,
+		&"playable_half_extent": playable_half_extent,
 		&"save_schema": save_schema,
 	}

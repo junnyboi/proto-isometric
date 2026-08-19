@@ -8,6 +8,9 @@ const REQUIRED_PATHS: Array[String] = [
 	"res://assets/vfx/worm/ridge_segment.png",
 	"res://assets/vfx/worm/breach_plume.png",
 	"res://assets/cardinal/grunt_sprite_atlas.png",
+	"res://assets/textures/terrain/oasis_wetland.png",
+	"res://assets/textures/terrain/dark_mud.png",
+	"res://assets/enemies/mud_skimmer.png",
 ]
 
 

@@ -4,8 +4,8 @@ const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const RunModifierEffectsScript: GDScript = preload("res://scripts/run_modifier_effects.gd")
 const STARTER_RELAY: Vector2i = Vector2i(12, 6)
 const SEARCH_LIMIT: int = 256
-const MIN_SEPARATION: float = 18.0
-const TARGET_RADII: Array[int] = [30, 48]
+const MIN_SEPARATION: float = 12.0
+const TARGET_RADII: Array[int] = [16, 28]
 
 
 static func generate(

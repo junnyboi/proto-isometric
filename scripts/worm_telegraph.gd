@@ -16,6 +16,9 @@ const AMBER: Color = Color("f5a62d")
 const TEAL: Color = Color("4eb6aa")
 const RUST: Color = Color("7e3f2b")
 const SAND: Color = Color("d69a49")
+const MUD: Color = Color("2d281f")
+const WETLAND: Color = Color("75a06c")
+const SKIMMER_KIND: StringName = &"mud_skimmer"
 
 var _tile_size: Vector2 = Vector2(90.0, 45.0)
 var _map_origin: Vector2 = Vector2(760.0, 70.0)
@@ -143,8 +146,11 @@ func _draw_trail(worm_id: int, snapshot: Dictionary) -> void:
 	for point: Variant in trail:
 		screen_points.append(_grid_to_screen(point as Vector2))
 	if screen_points.size() >= 2:
-		draw_polyline(screen_points, Color(RUST, 0.58), 7.0, true)
-		draw_polyline(screen_points, Color(SAND, 0.78), 3.0, true)
+		var skimmer: bool = snapshot.get(&"kind", &"sandworm") == SKIMMER_KIND
+		draw_polyline(screen_points, Color(MUD if skimmer else RUST, 0.58), 7.0, true)
+		draw_polyline(screen_points, Color(WETLAND if skimmer else SAND, 0.78), 3.0, true)
+	if snapshot.get(&"kind", &"sandworm") == SKIMMER_KIND:
+		return
 	for index: int in range(screen_points.size()):
 		var alpha: float = 0.09 + 0.22 * float(index + 1) / float(screen_points.size())
 		var scale: float = 0.22 + 0.08 * float(index + 1) / float(screen_points.size())
@@ -160,9 +166,10 @@ func _draw_target(snapshot: Dictionary) -> void:
 	var angle: float = direction.angle() if not direction.is_zero_approx() else 0.0
 	var duration: float = maxf(float(snapshot.get(&"state_duration", 0.0)), 0.001)
 	var remaining: float = clampf(float(snapshot.get(&"state_remaining", 0.0)) / duration, 0.0, 1.0)
-	draw_dashed_line(current, target, Color(AMBER, 0.68), 2.0, 10.0, true)
-	draw_arc(target, TARGET_RADIUS, -PI * 0.5, -PI * 0.5 + TAU * remaining, 32, AMBER, 4.0)
-	draw_arc(target, TARGET_RADIUS + 7.0, angle - 0.5, angle + 0.5, 10, Color(AMBER, 0.42), 2.0)
+	var warning: Color = WETLAND if snapshot.get(&"kind", &"sandworm") == SKIMMER_KIND else AMBER
+	draw_dashed_line(current, target, Color(warning, 0.68), 2.0, 10.0, true)
+	draw_arc(target, TARGET_RADIUS, -PI * 0.5, -PI * 0.5 + TAU * remaining, 32, warning, 4.0)
+	draw_arc(target, TARGET_RADIUS + 7.0, angle - 0.5, angle + 0.5, 10, Color(warning, 0.42), 2.0)
 	draw_arc(target, SAFE_RADIUS, angle + PI * 0.55, angle + PI * 1.45, 20, Color(TEAL, 0.82), 4.0)
 	for side: float in [-1.0, 1.0]:
 		var lateral: Vector2 = (
@@ -181,6 +188,9 @@ func _draw_expose(worm_id: int, snapshot: Dictionary) -> void:
 	var remaining: float = clampf(float(snapshot.get(&"state_remaining", 0.0)) / duration, 0.0, 1.0)
 	draw_arc(center, 36.0, -PI * 0.5, -PI * 0.5 + TAU * remaining, 32, TEAL, 4.0)
 	draw_arc(center, 42.0, 0.0, TAU, 32, Color(AMBER, 0.32), 2.0)
+	if snapshot.get(&"kind", &"sandworm") == SKIMMER_KIND:
+		draw_arc(center, 48.0, 0.0, TAU, 36, Color(WETLAND, 0.48), 3.0)
+		return
 	var breach: float = float(_breaches.get(worm_id, 0.0))
 	if breach > 0.0:
 		_draw_texture_centered(

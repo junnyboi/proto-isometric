@@ -66,7 +66,7 @@ func _test_isometric_map() -> void:
 		"live RunState owns Cardinal position",
 	)
 
-	_check(map.call("get_grid_size") == Vector2i(-1, -1), "world reports unbounded grid")
+	_check(map.call("get_grid_size") == Vector2i(145, 145), "world reports compact grid")
 	var world: RefCounted = map.get("_world") as RefCounted
 	_check(world != null, "lazy world stream exists")
 	for test_case: Dictionary in ContractTestsScript.evaluate(run_coordinator, world):
@@ -80,18 +80,6 @@ func _test_isometric_map() -> void:
 	_check(map.call("screen_to_grid", projected) == sample, "2:1 projection round trip")
 	_check(not bool(map.call("is_walkable", Vector2i(4, 4))), "rock tile blocks movement")
 	_check(bool(map.call("is_walkable", Vector2i(5, 7))), "sand tile is walkable")
-	var texture_paths: Array[String] = [
-		"res://assets/textures/terrain/desert_sand.png",
-		"res://assets/textures/terrain/salt_crust.png",
-		"res://assets/textures/terrain/iron_rock.png",
-		"res://assets/textures/terrain/ancient_ruin.png",
-	]
-	for texture_path: String in texture_paths:
-		var texture: Texture2D = load(texture_path) as Texture2D
-		_check(texture != null, "%s texture loads" % texture_path.get_file())
-		_check(
-			texture.get_size() == Vector2(512.0, 512.0), "%s runtime size" % texture_path.get_file()
-		)
 	_check(
 		int(map.get("texture_repeat")) == CanvasItem.TEXTURE_REPEAT_ENABLED,
 		"terrain textures repeat explicitly",
@@ -583,6 +571,13 @@ func _test_isometric_map() -> void:
 	for _step: int in range(20):
 		map.call("update_drive", Vector2i(1, 1), 0.05, true)
 	_check(is_equal_approx(float(map.call("get_speed_ratio")), 1.5), "Shift run reaches 1.5x speed")
+	map.call("place_robot", Vector2i(23, 10))
+	for _step: int in range(20):
+		map.call("update_drive", Vector2i(1, 1), 0.05, false)
+	_check(
+		is_equal_approx(float(map.call("get_speed_ratio")), 0.62),
+		"mud caps Cardinal speed at 62 percent"
+	)
 	map.call("_set_impact_charge", 0.0)
 	map.call("place_robot", Vector2i(1, 1))
 	for _step: int in range(80):
@@ -779,7 +774,8 @@ func _test_isometric_map() -> void:
 
 	world = map.get("_world") as RefCounted
 	var far_cell: Vector2i = Vector2i(-32, -24)
-	_check(bool(map.call("place_robot", far_cell)), "Cardinal crosses former map bounds")
+	_check(bool(map.call("place_robot", far_cell)), "Cardinal crosses the compact field")
+	_check(not bool(map.call("place_robot", Vector2i(73, 0))), "Cardinal cannot leave world bounds")
 	var far_terrain: StringName = world.call("terrain_at", far_cell) as StringName
 	_check(far_terrain != &"void", "far terrain generates lazily")
 	_check(int(world.call("get_loaded_chunk_count")) == 25, "far travel evicts old chunks")

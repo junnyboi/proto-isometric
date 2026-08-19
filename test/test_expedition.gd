@@ -100,7 +100,7 @@ static func evaluate() -> Array[Dictionary]:
 		"outpost sanctuary suppresses Alert III spawn",
 		int(worms.call("get_worm_count")) == 0 and int(hazards.call("get_hazard_count")) == 0
 	)
-	coordinator.call("set_run_value", &"player_cell", Vector2i(22, 22))
+	coordinator.call("set_run_value", &"player_cell", Vector2i(10, 20))
 	director.call("_process", 4.1)
 	_add(
 		cases,
@@ -120,7 +120,7 @@ static func evaluate() -> Array[Dictionary]:
 static func _test_ambient_pressure(cases: Array[Dictionary], world: RefCounted) -> void:
 	var coordinator: RefCounted = RunCoordinatorScript.new() as RefCounted
 	coordinator.call("configure_default")
-	coordinator.call("set_run_value", &"player_cell", Vector2i(22, 22))
+	coordinator.call("set_run_value", &"player_cell", Vector2i(10, 20))
 	var worms: Node2D = SandwormsScript.new() as Node2D
 	worms.call("configure", Vector2(90.0, 45.0), Vector2.ZERO)
 	var hazards: Node2D = DesertHazardsScript.new() as Node2D
@@ -208,7 +208,7 @@ static func _test_ambient_pressure(cases: Array[Dictionary], world: RefCounted) 
 		"outpost sanctuary suppresses ambient threats",
 		int(worms.call("get_worm_count")) == 0 and int(hazards.call("get_hazard_count")) == 0,
 	)
-	coordinator.call("set_run_value", &"player_cell", Vector2i(22, 22))
+	coordinator.call("set_run_value", &"player_cell", Vector2i(10, 20))
 	director.call("_process", 2.9)
 	_add(
 		cases,
@@ -226,7 +226,10 @@ static func _layout_is_valid(objectives: Array[Dictionary], world: RefCounted) -
 		if not bool(world.call("_relay_candidate_is_valid", cell)):
 			return false
 		for other: int in range(index):
-			if Vector2(cell).distance_to(Vector2(objectives[other][&"cell"])) < 18.0:
+			if (
+				Vector2(cell).distance_to(Vector2(objectives[other][&"cell"]))
+				< ExpeditionLayoutScript.MIN_SEPARATION
+			):
 				return false
 	return true
 

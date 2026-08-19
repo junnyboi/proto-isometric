@@ -7,8 +7,18 @@ const SAND_LIGHT: Color = Color("e8b861")
 const SALT: Color = Color("d8d0b5")
 const ROCK: Color = Color("934d35")
 const RUIN: Color = Color("39454a")
+const WETLAND: Color = Color("879b55")
+const MUD: Color = Color("2d281f")
 const TEAL: Color = Color("4eb6aa")
 const GRID_LINE: Color = Color(0.18, 0.12, 0.08, 0.32)
+const TEXTURES: Dictionary = {
+	&"sand": preload("res://assets/textures/terrain/desert_sand.png"),
+	&"salt": preload("res://assets/textures/terrain/salt_crust.png"),
+	&"rock": preload("res://assets/textures/terrain/iron_rock.png"),
+	&"ruin": preload("res://assets/textures/terrain/ancient_ruin.png"),
+	&"wetland": preload("res://assets/textures/terrain/oasis_wetland.png"),
+	&"mud": preload("res://assets/textures/terrain/dark_mud.png"),
+}
 
 var _terrain: Dictionary
 var _elevation: Dictionary
@@ -62,6 +72,10 @@ func draw_tile(canvas: Node2D, cell: Vector2i) -> void:
 		color = ROCK
 	elif terrain_id == &"ruin":
 		color = RUIN
+	elif terrain_id == &"wetland":
+		color = WETLAND
+	elif terrain_id == &"mud":
+		color = MUD
 
 	if height > 0.0:
 		(

@@ -8,6 +8,7 @@ const RelayContestScript: GDScript = preload("res://scripts/relay_contest.gd")
 const SandwormsScript: GDScript = preload("res://scripts/sandworms.gd")
 const DesertHazardsScript: GDScript = preload("res://scripts/desert_hazards.gd")
 const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
+const OasisWetlandsScript: GDScript = preload("res://scripts/oasis_wetlands.gd")
 
 
 static func evaluate(coordinator: RefCounted) -> Array[Dictionary]:
@@ -142,6 +143,7 @@ static func _test_balance_snapshot(cases: Array[Dictionary], balance: Dictionary
 		&"camera_response": IsometricMapScript.CAMERA_RESPONSE,
 		&"camera_look_ahead_seconds": IsometricMapScript.CAMERA_LOOK_AHEAD_SECONDS,
 		&"camera_max_lead": IsometricMapScript.CAMERA_MAX_LEAD,
+		&"mud_speed_multiplier": OasisWetlandsScript.MUD_SPEED_MULTIPLIER,
 		&"max_chassis": IsometricMapScript.MAX_CHASSIS,
 		&"repair_cost": IsometricMapScript.REPAIR_COST,
 		&"repair_amount": IsometricMapScript.REPAIR_AMOUNT,
@@ -173,6 +175,7 @@ static func _test_balance_snapshot(cases: Array[Dictionary], balance: Dictionary
 		&"chunk_size": InfiniteWorldScript.CHUNK_SIZE,
 		&"stream_radius": InfiniteWorldScript.STREAM_RADIUS,
 		&"coordinate_limit": InfiniteWorldScript.COORDINATE_LIMIT,
+		&"playable_half_extent": InfiniteWorldScript.PLAYABLE_HALF_EXTENT,
 		&"save_schema": IsometricMapScript.SAVE_SCHEMA,
 	}
 	_add_case(cases, "default balance snapshot is populated", balance.size() >= expected.size())
