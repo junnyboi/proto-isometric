@@ -175,7 +175,7 @@ func _test_isometric_map() -> void:
 		"mobile smash enters contact-frame attack",
 	)
 	var touch_avatar: Node2D = map.call("get_avatar") as Node2D
-	touch_avatar.call("_process", 0.23)
+	touch_avatar.call("_process", float(touch_avatar.call("get_attack_contact_time")) + 0.01)
 	mobile_controls.call("force_mobile", false)
 	_check(not smash_button.visible, "desktop mode removes touch affordances")
 	_check(heat_haze.z_index == 1, "sand ripple occupies terrain-only depth")
@@ -398,7 +398,7 @@ func _test_isometric_map() -> void:
 	_check(avatar != null, "Cardinal avatar exists")
 	_check(avatar.get_parent() == world_object_layer, "Cardinal renders above sand ripple")
 	_check(avatar.has_method("set_motion"), "Cardinal animation adapter is connected")
-	_check(bool(avatar.call("is_using_proxy")), "unapproved sheets use animated proxy")
+	_check(not bool(avatar.call("is_using_proxy")), "Cardinal uses approved combined atlas")
 	var sandworms: Node2D = map.get_node("WorldObjectLayer/Sandworms") as Node2D
 	_check(sandworms != null, "sandworm controller exists")
 	var run_pickups: Node2D = map.get_node("WorldObjectLayer/WorldObjects/RunPickups") as Node2D
@@ -444,12 +444,12 @@ func _test_isometric_map() -> void:
 	_advance_worm_to_expose(sandworms, melee_worm)
 	for hit: int in range(1, 5):
 		_check(bool(map.call("attack")), "melee strike %d targets sandworm" % hit)
-		avatar.call("_process", 0.23)
+		avatar.call("_process", float(avatar.call("get_attack_contact_time")) + 0.01)
 		_check(
 			int(sandworms.call("get_health", melee_worm)) == 4 - hit,
 			"sandworm health drops on strike %d" % hit,
 		)
-		avatar.call("_process", 0.23)
+		avatar.call("_process", float(avatar.call("get_attack_duration")))
 	_check(
 		sandworms.call("get_state", melee_worm) == &"defeated", "four melee hits defeat sandworm"
 	)
@@ -464,11 +464,11 @@ func _test_isometric_map() -> void:
 	var line_worm: int = int(sandworms.call("spawn_worm", Vector2(8.0, 4.0), 0.0))
 	_advance_worm_to_expose(sandworms, line_worm)
 	_check(bool(map.call("attack")), "mid charge reaches a worm two cells ahead")
-	avatar.call("_process", 0.23)
+	avatar.call("_process", float(avatar.call("get_attack_contact_time")) + 0.01)
 	_check(
 		int(sandworms.call("get_health", line_worm)) == 3, "shock line damages its distant target"
 	)
-	avatar.call("_process", 0.23)
+	avatar.call("_process", float(avatar.call("get_attack_duration")))
 	sandworms.call("clear_worms")
 	map.call("_set_impact_charge", 0.9)
 	var fan_worm: int = int(sandworms.call("spawn_worm", Vector2(7.0, 6.0), 0.0))
@@ -476,7 +476,7 @@ func _test_isometric_map() -> void:
 	var charge_effects: Node2D = map.get_node("WorldEffectsLayer/ImpactEffects") as Node2D
 	var charged_emissions: int = int(charge_effects.call("get_aftershock_emission_count"))
 	_check(bool(map.call("attack")), "high charge catches a worm on the fan flank")
-	avatar.call("_process", 0.23)
+	avatar.call("_process", float(avatar.call("get_attack_contact_time")) + 0.01)
 	_check(int(sandworms.call("get_health", fan_worm)) == 3, "aftershock fan damages its target")
 	_check(
 		sandworms.call("get_state", fan_worm) == &"staggered",
@@ -487,7 +487,7 @@ func _test_isometric_map() -> void:
 		int(charge_effects.call("get_aftershock_emission_count")) == charged_emissions + 1,
 		"charged smash emits distinct debris",
 	)
-	avatar.call("_process", 0.23)
+	avatar.call("_process", float(avatar.call("get_attack_duration")))
 	charge_effects.call("advance", 1.0)
 	sandworms.call("clear_worms")
 	var relay: Node2D = map.get_node("WorldObjectLayer/RelayContest") as Node2D
@@ -636,7 +636,7 @@ func _test_isometric_map() -> void:
 	_check(
 		map.call("get_robot_position") == windup_position, "Cardinal braces through strike windup"
 	)
-	avatar.call("_process", 0.23)
+	avatar.call("_process", float(avatar.call("get_attack_contact_time")) + 0.01)
 	_check("ROCK SALVAGED" in str(map.call("get_status_text")), "impact feedback remains readable")
 	_check(not bool(map.call("has_destructible_rock", Vector2i(4, 4))), "rock is destroyed")
 	_check(bool(map.call("is_walkable", Vector2i(4, 4))), "destroyed rock becomes walkable")
@@ -648,7 +648,7 @@ func _test_isometric_map() -> void:
 	_check(
 		(effects.call("get_camera_offset") as Vector2).length() <= 11.01, "camera shake is bounded"
 	)
-	avatar.call("_process", 0.23)
+	avatar.call("_process", float(avatar.call("get_attack_duration")))
 	_check(int(effects.call("get_emission_count")) == 1, "attack contact cannot fire twice")
 	effects.call("advance", 1.0)
 	_check(int(effects.call("get_particle_count")) == 0, "debris particles expire")
