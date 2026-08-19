@@ -11,6 +11,7 @@ const INVALID_POSITION: Vector2 = Vector2(-9999.0, -9999.0)
 const AMBIENT_WORM_INITIAL_SECONDS: float = 3.0
 const AMBIENT_WORM_INTERVAL_MIN: float = 8.0
 const AMBIENT_WORM_INTERVAL_MAX: float = 12.0
+const INITIAL_WORM_SOFT_CAP: int = 1
 const AMBIENT_WORM_SOFT_CAP: int = 4
 const AMBIENT_TORNADO_INITIAL_SECONDS: float = 4.0
 const AMBIENT_TORNADO_INTERVAL_MIN: float = 5.0
@@ -101,10 +102,16 @@ func get_spawned_alert() -> int:
 	return _spawned_alert
 
 
+func get_worm_soft_cap() -> int:
+	if _coordinator == null or not bool(_coordinator.call("get_run_value", &"first_worm_defeated")):
+		return INITIAL_WORM_SOFT_CAP
+	return AMBIENT_WORM_SOFT_CAP
+
+
 func _advance_ambient(delta: float, player: Vector2) -> void:
 	_ambient_worm_remaining -= delta
 	if _ambient_worm_remaining <= 0.0:
-		if int(_worms.call("get_worm_count")) < AMBIENT_WORM_SOFT_CAP:
+		if int(_worms.call("get_worm_count")) < get_worm_soft_cap():
 			_spawn_ambient_worm(player)
 		_ambient_worm_remaining = _rng.randf_range(
 			AMBIENT_WORM_INTERVAL_MIN, AMBIENT_WORM_INTERVAL_MAX
@@ -182,6 +189,8 @@ func _spawn_composition(alert: int, player: Vector2) -> void:
 	for index: int in range(
 		RunModifierEffectsScript.worm_count(int(profile.get("worm_count")), modifier)
 	):
+		if int(_worms.call("get_worm_count")) >= get_worm_soft_cap():
+			break
 		_worms.call("spawn_worm", player + Vector2(5.0 + index * 2.0, -2.0), 0.8)
 	for index: int in range(int(profile.get("tornado_count"))):
 		var offset: Vector2i = Vector2i(-5 + index * 10, -4 if index == 0 else 5)

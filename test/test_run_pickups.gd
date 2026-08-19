@@ -131,7 +131,11 @@ static func _test_typed_collection(
 	_add_case(
 		cases,
 		"typed worm reward persists immediately",
-		(run_snapshot[&"run_drops"] as Array).size() == 1 and save_probe.calls == 1,
+		(
+			(run_snapshot[&"run_drops"] as Array).size() == 1
+			and bool(run_snapshot[&"first_worm_defeated"])
+			and save_probe.calls == 1
+		),
 	)
 	var restored_pickups: Node2D = RunPickupsScript.new() as Node2D
 	restored_pickups.call("configure", world, Callable(projection, "grid_to_screen"), coordinator)

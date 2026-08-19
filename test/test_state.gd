@@ -29,6 +29,7 @@ static func _test_run_round_trip(cases: Array[Dictionary]) -> void:
 	source.call("set_value", &"player_cell", Vector2i(19, -4))
 	source.call("set_value", &"facing", &"NW")
 	source.call("set_value", &"scrap", 23)
+	source.call("set_value", &"first_worm_defeated", true)
 	source.call("set_value", &"starter_relay_completed", true)
 	source.call("set_value", &"chassis", 0)
 	source.call("set_value", &"shutdown", true)
@@ -72,6 +73,11 @@ static func _test_run_round_trip(cases: Array[Dictionary]) -> void:
 			int(restored.call("get_value", &"scrap")) == 23
 			and bool(restored.call("get_value", &"starter_relay_completed"))
 		),
+	)
+	_add_case(
+		cases,
+		"RunState round-trip preserves first worm defeat",
+		bool(restored.call("get_value", &"first_worm_defeated")),
 	)
 	_add_case(
 		cases,
@@ -136,6 +142,7 @@ static func _test_run_round_trip(cases: Array[Dictionary]) -> void:
 	legacy_schema_three.erase(&"run_drops")
 	legacy_schema_three.erase(&"next_drop_sequence")
 	legacy_schema_three.erase(&"refit_purchase_used")
+	legacy_schema_three.erase(&"first_worm_defeated")
 	var legacy_restored: RefCounted = RunStateScript.new() as RefCounted
 	_add_case(
 		cases,
@@ -146,6 +153,18 @@ static func _test_run_round_trip(cases: Array[Dictionary]) -> void:
 			and int(legacy_restored.call("get_value", &"worm_cores")) == 0
 			and not bool(legacy_restored.call("get_value", &"refit_purchase_used"))
 			and (legacy_restored.call("_get_run_drops") as Array[Dictionary]).is_empty()
+			and not bool(legacy_restored.call("get_value", &"first_worm_defeated"))
+		),
+	)
+	var reward_legacy: Dictionary = snapshot.duplicate(true)
+	reward_legacy.erase(&"first_worm_defeated")
+	var reward_legacy_restored: RefCounted = RunStateScript.new() as RefCounted
+	_add_case(
+		cases,
+		"legacy worm reward infers first defeat progression",
+		(
+			bool(reward_legacy_restored.call("restore_dictionary", reward_legacy))
+			and bool(reward_legacy_restored.call("get_value", &"first_worm_defeated"))
 		),
 	)
 	var malformed: Dictionary = snapshot.duplicate(true)
@@ -244,6 +263,15 @@ static func _test_lifecycle_and_idempotency(cases: Array[Dictionary]) -> void:
 		(
 			bool(state.call("set_value", &"starter_relay_completed", true))
 			and not bool(state.call("set_value", &"starter_relay_completed", false))
+		),
+	)
+	_add_case(
+		cases,
+		"first worm defeat is monotonic",
+		(
+			bool(state.call("set_value", &"first_worm_defeated", true))
+			and not bool(state.call("set_value", &"first_worm_defeated", false))
+			and not bool(state.call("set_value", &"first_worm_defeated", true))
 		),
 	)
 

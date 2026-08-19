@@ -514,6 +514,10 @@ func _normalize_run_dictionary(run: Dictionary) -> Variant:
 		or not normalized.get(&"shutdown") is bool
 		or not normalized.get(&"refit_purchase_used") is bool
 		or not normalized.get(&"active_modifier_id") is String
+		or (
+			normalized.has(&"first_worm_defeated")
+			and not normalized.get(&"first_worm_defeated") is bool
+		)
 	):
 		return false
 	normalized[&"player_cell"] = player_cell
@@ -536,7 +540,10 @@ func _run_keys(run: Dictionary) -> Variant:
 		&"applied_event_ids",
 	]
 	for optional: StringName in [
-		&"active_module_ids", &"refit_purchase_used", &"active_modifier_id"
+		&"active_module_ids",
+		&"refit_purchase_used",
+		&"active_modifier_id",
+		&"first_worm_defeated",
 	]:
 		if run.has(optional):
 			keys.append(optional)

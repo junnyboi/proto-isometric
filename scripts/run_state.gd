@@ -19,6 +19,7 @@ var _chassis: int
 var _max_chassis: int
 var _unbanked_scrap: int = 0
 var _worm_cores: int = 0
+var _first_worm_defeated: bool = false
 var _run_drops: Array[Dictionary] = []
 var _next_drop_sequence: int = 1
 var _starter_relay_completed: bool = false
@@ -181,6 +182,8 @@ func set_value(key: StringName, value: Variant) -> bool:
 			changed = _set_scrap(value)
 		&"worm_cores":
 			changed = _set_worm_cores(value)
+		&"first_worm_defeated":
+			changed = _set_first_worm_defeated(value)
 		&"refit_purchase_used":
 			changed = _set_refit_purchase_used(value)
 		&"active_modifier_id":
@@ -204,6 +207,7 @@ func get_value(key: StringName) -> Variant:
 			&"max_chassis": _max_chassis,
 			&"scrap": _unbanked_scrap,
 			&"worm_cores": _worm_cores,
+			&"first_worm_defeated": _first_worm_defeated,
 			&"starter_relay_completed": _starter_relay_completed,
 			&"completed_relays": _completed_objective_ids.size(),
 			&"relay_objectives": _relay_objectives.duplicate(true),
@@ -229,6 +233,7 @@ func to_dictionary() -> Dictionary:
 		&"max_chassis": _max_chassis,
 		&"unbanked_scrap": _unbanked_scrap,
 		&"worm_cores": _worm_cores,
+		&"first_worm_defeated": _first_worm_defeated,
 		&"run_drops": _run_drops.duplicate(true),
 		&"next_drop_sequence": _next_drop_sequence,
 		&"starter_relay_completed": _starter_relay_completed,
@@ -255,6 +260,7 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 	_max_chassis = int(validated[&"max_chassis"])
 	_unbanked_scrap = int(validated[&"unbanked_scrap"])
 	_worm_cores = int(validated[&"worm_cores"])
+	_first_worm_defeated = bool(validated[&"first_worm_defeated"])
 	_run_drops = validated[&"run_drops"] as Array[Dictionary]
 	_next_drop_sequence = int(validated[&"next_drop_sequence"])
 	_starter_relay_completed = bool(validated[&"starter_relay_completed"])
@@ -335,6 +341,13 @@ func _set_worm_cores(value: Variant) -> bool:
 	return true
 
 
+func _set_first_worm_defeated(value: Variant) -> bool:
+	if not value is bool or not bool(value) or _first_worm_defeated:
+		return false
+	_first_worm_defeated = true
+	return true
+
+
 func _set_refit_purchase_used(value: Variant) -> bool:
 	if not value is bool or not bool(value) or _refit_purchase_used:
 		return false
@@ -384,6 +397,11 @@ func _validate_dictionary(snapshot: Dictionary) -> Dictionary:
 	var scrap: int = int(snapshot.get("unbanked_scrap", -1))
 	var worm_cores: Variant = snapshot.get("worm_cores", 0)
 	var run_drops: Variant = snapshot.get("run_drops", [])
+	var prior_worm_reward: bool = (
+		(worm_cores is int and int(worm_cores) > 0)
+		or (run_drops is Array and not (run_drops as Array).is_empty())
+	)
+	var first_worm_defeated: Variant = snapshot.get("first_worm_defeated", prior_worm_reward)
 	var next_drop_sequence: Variant = snapshot.get("next_drop_sequence", 1)
 	var relay_completed: Variant = snapshot.get("starter_relay_completed", null)
 	var relay_objectives: Variant = snapshot.get("relay_objectives", [])
@@ -416,6 +434,7 @@ func _validate_dictionary(snapshot: Dictionary) -> Dictionary:
 		or not worm_cores is int
 		or int(worm_cores) < 0
 		or int(worm_cores) > MAX_WORM_CORES
+		or not first_worm_defeated is bool
 		or not run_drops is Array
 		or (run_drops as Array).size() > MAX_RUN_DROPS
 		or not next_drop_sequence is int
@@ -457,6 +476,7 @@ func _validate_dictionary(snapshot: Dictionary) -> Dictionary:
 		&"max_chassis": max_chassis,
 		&"unbanked_scrap": scrap,
 		&"worm_cores": int(worm_cores),
+		&"first_worm_defeated": bool(first_worm_defeated),
 		&"run_drops": drop_validation[&"drops"],
 		&"next_drop_sequence": int(next_drop_sequence),
 		&"starter_relay_completed": bool(relay_completed),

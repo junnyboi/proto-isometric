@@ -102,22 +102,39 @@ func get_snapshot() -> Array[Dictionary]:
 
 
 func _on_worm_defeated(worm_id: int, position: Vector2) -> void:
-	if _handled_worm_ids.has(worm_id) or _drops.size() >= MAX_ACTIVE_DROPS:
+	if _handled_worm_ids.has(worm_id):
 		return
 	_handled_worm_ids[worm_id] = true
+	var progression_changed: bool = _record_first_worm_defeat()
+	if _drops.size() >= MAX_ACTIVE_DROPS:
+		if progression_changed:
+			_commit_save()
+		return
 	var player_cell: Vector2i = _get_player_cell()
 	var cell: Vector2i = _find_drop_cell(
 		Vector2i(roundi(position.x), roundi(position.y)), player_cell
 	)
 	if not bool(_world.call("is_walkable", cell)) or cell == player_cell:
+		if progression_changed:
+			_commit_save()
 		return
 	var drop: Dictionary = _place_drop(cell, worm_id)
 	if drop.is_empty():
+		if progression_changed:
+			_commit_save()
 		return
 	_sync_drops()
 	_commit_save()
 	drop_placed.emit(StringName(str(drop[&"drop_id"])), cell)
 	queue_redraw()
+
+
+func _record_first_worm_defeat() -> bool:
+	return (
+		bool(_coordinator.call("set_run_value", &"first_worm_defeated", true))
+		if _coordinator != null
+		else false
+	)
 
 
 func _place_drop(cell: Vector2i, worm_id: int) -> Dictionary:

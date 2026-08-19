@@ -133,9 +133,11 @@ static func _test_ambient_pressure(cases: Array[Dictionary], world: RefCounted) 
 	)
 	_add(
 		cases,
-		"ambient departure quotas are doubled",
+		"normal departure quotas remain doubled",
 		(
-			EncounterDirectorScript.AMBIENT_WORM_SOFT_CAP == 4
+			EncounterDirectorScript.INITIAL_WORM_SOFT_CAP == 1
+			and int(director.call("get_worm_soft_cap")) == 1
+			and EncounterDirectorScript.AMBIENT_WORM_SOFT_CAP == 4
 			and EncounterDirectorScript.AMBIENT_TORNADO_SOFT_CAP == 6
 			and EncounterDirectorScript.AMBIENT_SANDSTORM_SOFT_CAP == 2
 		),
@@ -149,6 +151,13 @@ static func _test_ambient_pressure(cases: Array[Dictionary], world: RefCounted) 
 	director.call("_process", 0.2)
 	_add(
 		cases, "ambient hunter arrives within four seconds", int(worms.call("get_worm_count")) == 1
+	)
+	coordinator.call("set_run_value", &"starter_relay_completed", true)
+	director.call("_process", 4.1)
+	_add(
+		cases,
+		"initial relay alert cannot add a second worm",
+		int(worms.call("get_worm_count")) == 1,
 	)
 	director.call("_process", 1.0)
 	_add(
@@ -166,9 +175,9 @@ static func _test_ambient_pressure(cases: Array[Dictionary], world: RefCounted) 
 		director.call("_process", 14.0)
 	_add(
 		cases,
-		"ambient population fills and stops at doubled quotas",
+		"worm population stays at one before the first defeat",
 		(
-			int(worms.call("get_worm_count")) == EncounterDirectorScript.AMBIENT_WORM_SOFT_CAP
+			int(worms.call("get_worm_count")) == EncounterDirectorScript.INITIAL_WORM_SOFT_CAP
 			and (
 				int(hazards.call("get_hazard_count", &"tornado"))
 				== EncounterDirectorScript.AMBIENT_TORNADO_SOFT_CAP
@@ -177,6 +186,17 @@ static func _test_ambient_pressure(cases: Array[Dictionary], world: RefCounted) 
 				int(hazards.call("get_hazard_count", &"sandstorm"))
 				== EncounterDirectorScript.AMBIENT_SANDSTORM_SOFT_CAP
 			)
+		),
+	)
+	coordinator.call("set_run_value", &"first_worm_defeated", true)
+	for _interval: int in range(3):
+		director.call("_process", 14.0)
+	_add(
+		cases,
+		"first worm defeat restores the normal population quota",
+		(
+			int(director.call("get_worm_soft_cap")) == EncounterDirectorScript.AMBIENT_WORM_SOFT_CAP
+			and int(worms.call("get_worm_count")) == EncounterDirectorScript.AMBIENT_WORM_SOFT_CAP
 		),
 	)
 	worms.call("clear_worms")
