@@ -28,7 +28,9 @@ static func _test_title_layout(
 	portrait: bool,
 ) -> void:
 	var layout: Dictionary = ResponsiveViewportScript.title_layout(viewport)
-	var panel_size: Vector2 = Vector2(540.0, 490.0) * float(layout[&"panel_scale"])
+	var panel_size: Vector2 = (
+		ResponsiveViewportScript.TITLE_PANEL_SIZE * float(layout[&"panel_scale"])
+	)
 	var panel: Rect2 = Rect2(layout[&"panel_position"] as Vector2, panel_size)
 	var bounds: Rect2 = Rect2(Vector2.ZERO, viewport)
 	var label: String = "%dx%d" % [roundi(viewport.x), roundi(viewport.y)]

@@ -164,8 +164,8 @@ func _build_interface() -> void:
 
 	_title_panel = Control.new()
 	_title_panel.name = "TitlePanel"
-	_title_panel.position = Vector2(88.0, 120.0)
-	_title_panel.size = Vector2(540.0, 490.0)
+	_title_panel.position = Vector2(88.0, 92.0)
+	_title_panel.size = Vector2(540.0, 530.0)
 	ui_root.add_child(_title_panel)
 
 	var eyebrow: Label = Label.new()
@@ -178,27 +178,98 @@ func _build_interface() -> void:
 
 	_title_label = Label.new()
 	_title_label.name = "TitleLabel"
-	_title_label.text = "WALKER'S\nWAKE"
-	_title_label.position = Vector2(-4.0, 54.0)
-	_title_label.size = Vector2(540.0, 190.0)
-	_title_label.add_theme_font_size_override("font_size", 72)
+	_title_label.text = "WALKER'S WAKE"
+	_title_label.position = Vector2(-2.0, 34.0)
+	_title_label.size = Vector2(540.0, 70.0)
+	_title_label.add_theme_font_size_override("font_size", 52)
 	_title_label.add_theme_color_override("font_color", TEXT)
-	_title_label.add_theme_constant_override("line_spacing", -12)
 	_title_panel.add_child(_title_label)
 
+	var story_heading: Label = Label.new()
+	story_heading.name = "StoryHeading"
+	story_heading.text = "MISSION // CARDINAL"
+	story_heading.position = Vector2(0.0, 112.0)
+	story_heading.size = Vector2(520.0, 24.0)
+	story_heading.add_theme_font_size_override("font_size", 14)
+	story_heading.add_theme_color_override("font_color", AMBER)
+	_title_panel.add_child(story_heading)
+
+	var story: Label = Label.new()
+	story.name = "Story"
+	story.text = (
+		"CARDINAL WAKES IN A DEAD DESERT.\n"
+		+ "LINK THE LOST RELAYS. SALVAGE WHAT REMAINS.\n"
+		+ "RETURN BEFORE THE STORM TAKES THE WALKER."
+	)
+	story.position = Vector2(0.0, 138.0)
+	story.size = Vector2(520.0, 58.0)
+	story.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	story.add_theme_font_size_override("font_size", 16)
+	story.add_theme_color_override("font_color", TEXT)
+	story.add_theme_constant_override("line_spacing", 2)
+	_title_panel.add_child(story)
+
+	var tutorial_heading: Label = Label.new()
+	tutorial_heading.name = "TutorialHeading"
+	tutorial_heading.text = "FIELD GUIDE"
+	tutorial_heading.position = Vector2(0.0, 208.0)
+	tutorial_heading.size = Vector2(520.0, 24.0)
+	tutorial_heading.add_theme_font_size_override("font_size", 14)
+	tutorial_heading.add_theme_color_override("font_color", AMBER)
+	_title_panel.add_child(tutorial_heading)
+
+	var tutorial: Label = Label.new()
+	tutorial.name = "Tutorial"
+	tutorial.text = (
+		"DRIVE     WASD / TAP-HOLD JOYSTICK\n"
+		+ "RUN       HOLD SHIFT + BUILD IMPACT\n"
+		+ "SMASH     SPACE / J / K / SMASH BUTTON\n"
+		+ "THREATS   AVOID STORMS; STRIKE WORMS WHEN EXPOSED"
+	)
+	tutorial.position = Vector2(0.0, 234.0)
+	tutorial.size = Vector2(520.0, 92.0)
+	tutorial.add_theme_font_size_override("font_size", 15)
+	tutorial.add_theme_color_override("font_color", MUTED)
+	tutorial.add_theme_constant_override("line_spacing", 3)
+	_title_panel.add_child(tutorial)
+
+	var objective_heading: Label = Label.new()
+	objective_heading.name = "ObjectiveHeading"
+	objective_heading.text = "EXPEDITION OBJECTIVES"
+	objective_heading.position = Vector2(0.0, 338.0)
+	objective_heading.size = Vector2(520.0, 24.0)
+	objective_heading.add_theme_font_size_override("font_size", 14)
+	objective_heading.add_theme_color_override("font_color", AMBER)
+	_title_panel.add_child(objective_heading)
+
+	var objectives: Label = Label.new()
+	objectives.name = "Objectives"
+	objectives.text = (
+		"01  LINK ALL 3 RELAYS\n"
+		+ "02  SURVIVE EACH ALERT\n"
+		+ "03  RETURN TO AN OUTPOST TO EXTRACT"
+	)
+	objectives.position = Vector2(0.0, 364.0)
+	objectives.size = Vector2(520.0, 66.0)
+	objectives.add_theme_font_size_override("font_size", 15)
+	objectives.add_theme_color_override("font_color", TEXT)
+	objectives.add_theme_constant_override("line_spacing", 3)
+	_title_panel.add_child(objectives)
+
 	_subtitle = Label.new()
-	_subtitle.name = "Subtitle"
-	_subtitle.text = "A TACTICAL SYSTEM IS TAKING SHAPE."
-	_subtitle.position = Vector2(0.0, 264.0)
-	_subtitle.size = Vector2(540.0, 48.0)
+	_subtitle.name = "RunStatus"
+	_subtitle.text = "NO ACTIVE FIELD RECORD."
+	_subtitle.position = Vector2(0.0, 434.0)
+	_subtitle.size = Vector2(540.0, 24.0)
+	_subtitle.add_theme_font_size_override("font_size", 13)
 	_subtitle.add_theme_color_override("font_color", MUTED)
 	_title_panel.add_child(_subtitle)
 
 	_begin_button = Button.new()
 	_begin_button.name = "BeginButton"
-	_begin_button.text = "BEGIN  >"
-	_begin_button.position = Vector2(0.0, 350.0)
-	_begin_button.size = Vector2(300.0, 76.0)
+	_begin_button.text = "BEGIN // NEW EXPEDITION  >"
+	_begin_button.position = Vector2(0.0, 462.0)
+	_begin_button.size = Vector2(380.0, 64.0)
 	_begin_button.focus_mode = Control.FOCUS_ALL
 	_begin_button.add_theme_color_override("font_color", INK)
 	_begin_button.add_theme_color_override("font_hover_color", INK)
@@ -212,7 +283,8 @@ func _build_interface() -> void:
 	)
 	_begin_button.pressed.connect(_on_begin_pressed)
 	_title_panel.add_child(_begin_button)
-	_begin_button.grab_focus()
+	if _begin_button.is_inside_tree():
+		_begin_button.grab_focus()
 
 	_staging_panel = Control.new()
 	_staging_panel.name = "StagingPanel"

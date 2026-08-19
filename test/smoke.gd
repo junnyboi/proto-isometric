@@ -34,9 +34,9 @@ func _test_title() -> void:
 	await process_frame
 	var title_label: Label = scene.get_node("UILayer/UIRoot/TitlePanel/TitleLabel") as Label
 	var begin_button: Button = scene.get_node("UILayer/UIRoot/TitlePanel/BeginButton") as Button
-	_check(title_label.text == "WALKER'S\nWAKE", "title text")
+	_check(title_label.text == "WALKER'S WAKE", "title text")
 	_check(title_label.visible, "title visible")
-	_check(begin_button.text.begins_with("BEGIN"), "Begin label")
+	_check(begin_button.text.begins_with("BEGIN //"), "Begin Expedition label")
 	_check(begin_button.focus_mode == Control.FOCUS_ALL, "Begin focusable")
 	_check(bool(scene.call("is_audio_ready")), "audio loaded")
 	scene.call("prepare_for_shutdown")
