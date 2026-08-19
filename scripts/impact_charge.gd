@@ -9,6 +9,8 @@ const WALK_GAIN_PER_SECOND: float = 0.16
 const RUN_GAIN_PER_SECOND: float = 0.25
 const IDLE_DECAY_PER_SECOND: float = 0.045
 const WORN_PLATES_GAIN_MULTIPLIER: float = 1.15
+const ATTACK_ARC_DEGREES: float = 150.0
+const ATTACK_ARC_RADIUS_CELLS: int = 1
 const AMBER: Color = Color("f5a62d")
 const TEAL: Color = Color("4eb6aa")
 const SCREEN_DIRECTIONS: Array[Vector2i] = [
@@ -105,6 +107,29 @@ func footprint(origin: Vector2i, screen_direction: Vector2i, band: int) -> Array
 			for offset: int in [-1, 1]:
 				var flank_screen: Vector2i = SCREEN_DIRECTIONS[posmod(direction_index + offset, 8)]
 				result.append(origin + IsometricControlsScript.screen_to_grid_delta(flank_screen))
+	return result
+
+
+func attack_footprint(
+	origin: Vector2i,
+	screen_direction: Vector2i,
+	band: int,
+) -> Array[Vector2i]:
+	var result: Array[Vector2i] = footprint(origin, screen_direction, band)
+	var direction_index: int = SCREEN_DIRECTIONS.find(screen_direction)
+	if direction_index < 0:
+		return result
+	var half_arc: float = ATTACK_ARC_DEGREES * 0.5
+	var direction_step: float = 360.0 / float(SCREEN_DIRECTIONS.size())
+	for offset: int in range(-SCREEN_DIRECTIONS.size() / 2, SCREEN_DIRECTIONS.size() / 2 + 1):
+		if absf(float(offset) * direction_step) > half_arc:
+			continue
+		var arc_direction: Vector2i = SCREEN_DIRECTIONS[posmod(direction_index + offset, 8)]
+		var arc_delta: Vector2i = IsometricControlsScript.screen_to_grid_delta(arc_direction)
+		for distance: int in range(1, ATTACK_ARC_RADIUS_CELLS + 1):
+			var cell: Vector2i = origin + arc_delta * distance
+			if cell not in result:
+				result.append(cell)
 	return result
 
 

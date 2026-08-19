@@ -8,6 +8,7 @@ const FieldHudScript: GDScript = preload("res://scripts/field_hud.gd")
 const FieldUIBuilderScript: GDScript = preload("res://scripts/field_ui_builder.gd")
 const ImpactChargeScript: GDScript = preload("res://scripts/impact_charge.gd")
 const ImpactEffectsScript: GDScript = preload("res://scripts/impact_effects.gd")
+const ImpactTargetingScript: GDScript = preload("res://scripts/impact_targeting.gd")
 const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const IsometricControlsScript: GDScript = preload("res://scripts/isometric_controls.gd")
 const MobileControlsScript: GDScript = preload("res://scripts/mobile_controls.gd")
@@ -15,6 +16,7 @@ const ModuleEffectsScript: GDScript = preload("res://scripts/module_effects.gd")
 const OasisWetlandsScript: GDScript = preload("res://scripts/oasis_wetlands.gd")
 const RelayContestScript: GDScript = preload("res://scripts/relay_registry.gd")
 const ResponsiveCameraScript: GDScript = preload("res://scripts/responsive_camera.gd")
+const ResourceMagnetScript: GDScript = preload("res://scripts/resource_magnet.gd")
 const RunCoordinatorScript: GDScript = preload("res://scripts/run_coordinator.gd")
 const RunModifierEffectsScript: GDScript = preload("res://scripts/run_modifier_effects.gd")
 const RunTerminalFlowScript: GDScript = preload("res://scripts/run_terminal_flow.gd")
@@ -41,12 +43,10 @@ const CAMERA_MAX_LEAD: float = 82.0
 const MAX_CHASSIS: int = 100
 const REPAIR_COST: int = 5
 const REPAIR_AMOUNT: int = 35
-
+const RESOURCE_MAGNET_RADIUS_CELLS: int = 2
 const TEAL: Color = Color("4eb6aa")
 const AMBER: Color = Color("f5a62d")
-
 @export var save_path: String = DEFAULT_SAVE_PATH
-
 var _terrain: Dictionary = {}
 var _elevation: Dictionary = {}
 var _blocked: Dictionary = {}
@@ -64,7 +64,6 @@ var _chassis: int:
 	set(value):
 		_set_run_value(&"chassis", value)
 var _terrain_textures: Dictionary = TerrainRendererScript.TEXTURES
-
 var _robot_grid: Vector2i:
 	get:
 		return _run_value(&"player_cell", START_CELL) as Vector2i
@@ -85,15 +84,15 @@ var _status_hold_time: float = 0.0
 var _context_event: String = "HEAVY FRAME ONLINE"
 var _attack_was_pressed: bool = false
 var _pending_impact_cell: Vector2i = INVALID_CELL
-var _pending_impact_breaks_rock: bool = false
-var _pending_impact_worm_id: int = -1
 var _pending_impact_band: int = 0
+var _pending_impact_cells: Array[Vector2i] = []
+var _pending_impact_rock_cells: Array[Vector2i] = []
+var _pending_impact_worm_ids: Array[int] = []
 var _shutdown: bool:
 	get:
 		return bool(_run_value(&"shutdown", false))
 	set(value):
 		_set_run_value(&"shutdown", value)
-
 var _avatar: Node2D
 var _atmosphere: Node2D
 var _camera: Camera2D
@@ -145,7 +144,7 @@ func _ready() -> void:
 	if _shutdown:
 		_apply_shutdown_presentation(&"persistent_damage")
 		_terminal_flow.call("settle_failure")
-	_collect_scrap_at(_robot_grid)
+	_collect_scrap_near(_robot_grid, 0)
 	_refresh_outpost_interface()
 	_sync_avatar()
 	queue_redraw()
@@ -323,21 +322,17 @@ func attack() -> bool:
 	var screen_direction: Vector2i = IsometricControlsScript.facing_to_screen_direction(_facing)
 	_pending_impact_band = int(_impact_charge.call("get_band")) if _impact_charge != null else 0
 	var footprint: Array[Vector2i] = (
-		_impact_charge.call("footprint", _robot_grid, screen_direction, _pending_impact_band)
+		_impact_charge.call("attack_footprint", _robot_grid, screen_direction, _pending_impact_band)
 		if _impact_charge != null
 		else [_robot_grid + IsometricControlsScript.screen_to_grid_delta(screen_direction)]
 	)
-	var target: Vector2i = footprint[0]
-	for cell: Vector2i in footprint:
-		var worm_id: int = int(_sandworms.call("find_target", cell)) if _sandworms != null else -1
-		if worm_id >= 0 or bool(_destructible_rocks.get(cell, false)):
-			target = cell
-			break
-	_pending_impact_cell = target
-	_pending_impact_breaks_rock = bool(_destructible_rocks.get(target, false))
-	_pending_impact_worm_id = (
-		int(_sandworms.call("find_target", target)) if _sandworms != null else -1
+	var targets: Dictionary = ImpactTargetingScript.scan(
+		footprint, _sandworms, _destructible_rocks
 	)
+	_pending_impact_rock_cells = targets[&"rock_cells"] as Array[Vector2i]
+	_pending_impact_worm_ids = targets[&"worm_ids"] as Array[int]
+	_pending_impact_cells = footprint
+	_pending_impact_cell = targets[&"target_cell"] as Vector2i
 	_status_hold_time = 0.7
 	var band_name: StringName = (
 		_impact_charge.call("get_band_name", _pending_impact_band)
@@ -346,28 +341,26 @@ func attack() -> bool:
 	)
 	_update_status("IMPACT // %s WINDUP // SCRAP %03d" % [band_name, _scrap_count])
 	_avatar.call("play_attack")
-	return _pending_impact_breaks_rock or _pending_impact_worm_id >= 0
+	return not _pending_impact_rock_cells.is_empty() or not _pending_impact_worm_ids.is_empty()
 
 
 func _on_avatar_impact_frame() -> void:
 	if _pending_impact_cell == INVALID_CELL:
 		return
 	var target: Vector2i = _pending_impact_cell
-	var breaks_rock: bool = _pending_impact_breaks_rock
-	var worm_id: int = _pending_impact_worm_id
 	var impact_band: int = _pending_impact_band
+	var footprint: Array[Vector2i] = _pending_impact_cells.duplicate()
+	var rock_cells: Array[Vector2i] = _pending_impact_rock_cells.duplicate()
+	var worm_ids: Array[int] = _pending_impact_worm_ids.duplicate()
 	_pending_impact_cell = INVALID_CELL
-	_pending_impact_breaks_rock = false
-	_pending_impact_worm_id = -1
 	_pending_impact_band = 0
+	_pending_impact_cells.clear()
+	_pending_impact_rock_cells.clear()
+	_pending_impact_worm_ids.clear()
 	_impact_flash = 0.36
 	_status_hold_time = 0.7
-	var screen_direction: Vector2i = IsometricControlsScript.facing_to_screen_direction(_facing)
-	var footprint: Array[Vector2i] = (
-		_impact_charge.call("footprint", _robot_grid, screen_direction, impact_band)
-		if _impact_charge != null
-		else [target]
-	)
+	if footprint.is_empty():
+		footprint = [target]
 	if _impact_charge != null:
 		_impact_charge.call("consume_attack")
 		if impact_band > 0:
@@ -377,31 +370,32 @@ func _on_avatar_impact_frame() -> void:
 			_impact_charge.call("show_aftershock", positions, impact_band)
 	if impact_band > 0 and _effects != null:
 		_effects.call("emit_aftershock", grid_to_screen(target), target, impact_band)
-	if worm_id >= 0 and _sandworms != null and bool(_sandworms.call("hit_worm", worm_id, 1)):
-		var remaining: int = int(_sandworms.call("get_health", worm_id))
-		if remaining > 0 and impact_band >= 2:
-			var bonus: float = ModuleEffectsScript.aftershock_stagger(_run_coordinator)
-			if bonus > 0.0:
-				_sandworms.call("stagger_worm", worm_id, bonus)
-			else:
-				_sandworms.call("stagger_worm", worm_id)
+	var worm_result: Dictionary = ImpactTargetingScript.hit_worms(
+		_sandworms, worm_ids, impact_band, _run_coordinator
+	)
+	var worm_hits: int = int(worm_result[&"hits"])
+	var worms_destroyed: int = int(worm_result[&"destroyed"])
+	var last_worm_health: int = int(worm_result[&"last_health"])
+	var rocks_broken: int = 0
+	for rock_cell: Vector2i in rock_cells:
+		if not _break_rock(rock_cell):
+			continue
+		rocks_broken += 1
+		if _effects != null:
+			_effects.call("emit_rock_impact", grid_to_screen(rock_cell), rock_cell)
+	if rocks_broken > 0 and _collect_scrap_near(_robot_grid) <= 0:
+		_save_world_state()
+	if worm_hits > 0:
+		var result: String = "DESTROYED" if worms_destroyed > 0 else "HIT"
+		var health_text: String = "" if worm_hits > 1 else " // HP %d/4" % last_worm_health
+		var enemy_label: String = str(_sandworms.call("_get_enemy_label", worm_ids[0]))
+		var band_name: StringName = _impact_charge.call("get_band_name", impact_band)
 		_update_status(
-			(
-				"%s // %s %s // HP %d/4"
-				% [
-					_impact_charge.call("get_band_name", impact_band),
-					_sandworms.call("_get_enemy_label", worm_id),
-					"DESTROYED" if remaining <= 0 else "HIT",
-					remaining,
-				]
-			)
+			"%s // %s %s x%d%s" % [band_name, enemy_label, result, worm_hits, health_text]
 		)
 		return
-	if breaks_rock and _break_rock(target):
-		if _effects != null:
-			_effects.call("emit_rock_impact", grid_to_screen(target), target)
-		_save_world_state()
-		_update_status("IMPACT // ROCK SALVAGED // SCRAP %03d" % _scrap_count)
+	if rocks_broken > 0:
+		_update_status("IMPACT // ROCK SALVAGED x%d // SCRAP %03d" % [rocks_broken, _scrap_count])
 		return
 	_update_status("IMPACT // CLEAR // SCRAP %03d" % _scrap_count)
 
@@ -489,9 +483,10 @@ func _apply_shutdown_presentation(source: StringName) -> void:
 	_is_moving = false
 	_is_running = false
 	_pending_impact_cell = INVALID_CELL
-	_pending_impact_breaks_rock = false
-	_pending_impact_worm_id = -1
 	_pending_impact_band = 0
+	_pending_impact_cells.clear()
+	_pending_impact_rock_cells.clear()
+	_pending_impact_worm_ids.clear()
 	if _mobile_controls != null:
 		_mobile_controls.call("set_controls_enabled", false)
 	_status_hold_time = INF
@@ -540,7 +535,7 @@ func place_robot(cell: Vector2i) -> bool:
 	_is_moving = false
 	_is_running = false
 	_stream_world()
-	_collect_scrap_at(cell)
+	_collect_scrap_near(cell)
 	if _hazards != null:
 		_hazards.call("set_player_cell", cell)
 	if _sandworms != null:
@@ -689,7 +684,7 @@ func _move_velocity(delta: float) -> bool:
 	if candidate_grid != _robot_grid:
 		_robot_grid = candidate_grid
 		_stream_world()
-		_collect_scrap_at(_robot_grid)
+		_collect_scrap_near(_robot_grid)
 	return true
 
 
@@ -704,21 +699,26 @@ func _can_transition(from: Vector2i, target: Vector2i) -> bool:
 	return true
 
 
-func _collect_scrap_at(cell: Vector2i) -> int:
+func _collect_scrap_near(cell: Vector2i, radius_cells: int = RESOURCE_MAGNET_RADIUS_CELLS) -> int:
 	if _shutdown:
 		return 0
-	var amount: int = int(_world.call("collect_scrap", cell)) if _world != null else 0
-	if amount <= 0:
+	var total: int = ResourceMagnetScript.collect_and_emit(
+		_world,
+		_effects,
+		Callable(self, "grid_to_screen"),
+		_robot_visual_position,
+		cell,
+		radius_cells,
+	)
+	if total <= 0:
 		return 0
-	_scrap_count += amount
+	_scrap_count += total
 	_status_hold_time = 0.9
-	if _effects != null:
-		_effects.call("emit_scrap_pickup", grid_to_screen(cell), amount)
 	_refresh_outpost_interface()
 	_save_world_state()
-	_update_status("SCRAP COLLECTED +%d // TOTAL %03d" % [amount, _scrap_count])
+	_update_status("RESOURCE MAGNET +%d // TOTAL %03d" % [total, _scrap_count])
 	queue_redraw()
-	return amount
+	return total
 
 
 func _build_world_stream() -> void:

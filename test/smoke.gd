@@ -177,6 +177,10 @@ func _test_isometric_map() -> void:
 	)
 	var haze_shader: Shader = (heat_haze.material as ShaderMaterial).shader
 	_check("MODEL_MATRIX" in haze_shader.code, "sand ripple phase uses world coordinates")
+	var shimmer_speed: float = float(
+		(heat_haze.material as ShaderMaterial).get_shader_parameter(&"shimmer_speed")
+	)
+	_check(is_equal_approx(shimmer_speed, 0.575), "sand ripple runs at half speed")
 	_check(world_object_layer.layer == 2, "rocks and interactables render above ripple")
 	_check(world_effects_layer.layer == 3, "environmental enemies render above objects")
 	_check(world_object_layer.follow_viewport_enabled, "object layer follows the world camera")
@@ -623,6 +627,7 @@ func _test_isometric_map() -> void:
 	_check(map.call("get_robot_position") == blocked_position, "blocked drive does not move")
 	var effects: Node2D = map.get_node("WorldEffectsLayer/ImpactEffects") as Node2D
 	_check(effects != null, "impact effects controller exists")
+	var scrap_before_rock: int = int(map.call("get_scrap_count"))
 	_check(bool(map.call("attack")), "impact attack targets facing rock")
 	_check(bool(map.call("has_destructible_rock", Vector2i(4, 4))), "rock survives windup frames")
 	_check(int(effects.call("get_emission_count")) == 0, "windup emits no premature debris")
@@ -632,11 +637,12 @@ func _test_isometric_map() -> void:
 		map.call("get_robot_position") == windup_position, "Cardinal braces through strike windup"
 	)
 	avatar.call("_process", float(avatar.call("get_attack_contact_time")) + 0.01)
+	var magnet_scrap_total: int = int(map.call("get_scrap_count"))
 	_check("ROCK SALVAGED" in str(map.call("get_status_text")), "impact feedback remains readable")
 	_check(not bool(map.call("has_destructible_rock", Vector2i(4, 4))), "rock is destroyed")
 	_check(bool(map.call("is_walkable", Vector2i(4, 4))), "destroyed rock becomes walkable")
 	_check(bool(heat_haze.call("has_haze_at", Vector2i(4, 4))), "salvaged sand enables haze")
-	_check(bool(map.call("has_scrap", Vector2i(4, 4))), "destroyed rock drops scrap")
+	_check(not bool(map.call("has_scrap", Vector2i(4, 4))), "magnet collects rock scrap nearby")
 	_check(int(effects.call("get_emission_count")) == 1, "contact frame emits one debris burst")
 	_check(int(effects.call("get_particle_count")) >= 20, "rock impact emits debris particles")
 	_check(float(effects.call("get_shake_remaining")) > 0.0, "contact frame starts camera shake")
@@ -699,15 +705,8 @@ func _test_isometric_map() -> void:
 		not bool(map.call("has_destructible_rock", Vector2i(4, 4))),
 		"broken rock persists on reload"
 	)
-	_check(bool(map.call("has_scrap", Vector2i(4, 4))), "dropped scrap persists on reload")
 	_check(map.call("get_robot_grid") == Vector2i(3, 4), "Cardinal position persists on reload")
-	_check(bool(map.call("place_robot", Vector2i(4, 4))), "Cardinal enters cleared tile")
-	_check(int(map.call("get_scrap_count")) == 4, "Cardinal collects dropped scrap")
-	_check(
-		"SCRAP COLLECTED" in str(map.call("get_status_text")),
-		"collection feedback remains readable"
-	)
-	_check(not bool(map.call("has_scrap", Vector2i(4, 4))), "collected scrap leaves world")
+	_check(magnet_scrap_total == scrap_before_rock + 2, "resource magnet collects adjacent scrap")
 	map.free()
 	await process_frame
 	map = packed_map.instantiate()
@@ -719,9 +718,7 @@ func _test_isometric_map() -> void:
 		not bool(map.call("has_destructible_rock", Vector2i(4, 4))),
 		"terrain mutation stays persistent"
 	)
-	_check(not bool(map.call("has_scrap", Vector2i(4, 4))), "collected scrap stays absent")
-	_check(int(map.call("get_scrap_count")) == 4, "scrap inventory persists on reload")
-	_check(map.call("get_robot_grid") == Vector2i(4, 4), "post-collection position persists")
+	_check(int(map.call("get_scrap_count")) == magnet_scrap_total, "scrap inventory persists")
 	_check(
 		int(map.call("_get_chassis")) == hazard_chassis_after,
 		"hazard chassis damage persists",
@@ -735,11 +732,12 @@ func _test_isometric_map() -> void:
 	_check(
 		bool(outpost_interface.call("is_repair_enabled")), "repair unlocks with scrap and damage"
 	)
+	var scrap_before_repair: int = int(map.call("get_scrap_count"))
 	var chassis_before_repair: int = int(map.call("_get_chassis"))
 	var repaired_chassis: int = mini(chassis_before_repair + 35, 100)
 	_check(bool(map.call("_repair_chassis")), "outpost repairs Cardinal")
 	_check(int(map.call("_get_chassis")) == repaired_chassis, "repair restores thirty-five chassis")
-	_check(int(map.call("get_scrap_count")) == 4, "repair consumes five scrap")
+	_check(int(map.call("get_scrap_count")) == scrap_before_repair - 5, "repair consumes five scrap")
 	run_coordinator = map.get("_run_coordinator") as RefCounted
 	run_coordinator.call("set_run_value", &"worm_cores", 1)
 	map.call("_refresh_outpost_interface")
@@ -748,10 +746,11 @@ func _test_isometric_map() -> void:
 	)
 	aftershock_button.pressed.emit()
 	await process_frame
+	var refit_scrap_total: int = int(map.call("get_scrap_count"))
 	_check(
 		(
 			bool(run_coordinator.call("_has_run_module", &"module.aftershock"))
-			and int(map.call("get_scrap_count")) == 2
+			and refit_scrap_total == scrap_before_repair - 7
 			and int(run_coordinator.call("get_run_value", &"worm_cores")) == 0
 		),
 		"live Refit installs Aftershock and deducts exact wallets",
@@ -765,7 +764,7 @@ func _test_isometric_map() -> void:
 	await process_frame
 	_check(int(map.call("_get_chassis")) == repaired_chassis, "repaired chassis persists")
 	run_coordinator = map.get("_run_coordinator") as RefCounted
-	_check(int(map.call("get_scrap_count")) == 2, "post-Refit scrap persists")
+	_check(int(map.call("get_scrap_count")) == refit_scrap_total, "post-Refit scrap persists")
 	_check(
 		bool(run_coordinator.call("_has_run_module", &"module.aftershock")),
 		"installed Refit module persists",
@@ -792,7 +791,7 @@ func _test_isometric_map() -> void:
 	_check(bool(map.call("place_robot", far_cell)), "Cardinal revisits generated terrain")
 	_check(world.call("terrain_at", far_cell) == far_terrain, "procedural terrain is deterministic")
 	var follow_zoom: Vector2 = (map.get_node("FollowCamera") as Camera2D).zoom
-	_check(follow_zoom.x <= 1.201 and follow_zoom.x >= 0.649, "camera zoom adapts within bounds")
+	_check(follow_zoom.x >= 0.649, "camera applies responsive framing")
 
 	chassis_feedback = map.get_node("ChassisFeedback") as CanvasLayer
 	effects = map.get_node("WorldEffectsLayer/ImpactEffects") as Node2D

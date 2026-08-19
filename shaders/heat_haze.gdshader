@@ -3,7 +3,7 @@ render_mode unshaded;
 
 uniform sampler2D screen_texture : hint_screen_texture, filter_linear_mipmap;
 uniform float strength : hint_range(0.0, 0.01) = 0.0017;
-uniform float shimmer_speed : hint_range(0.0, 4.0) = 1.15;
+uniform float shimmer_speed : hint_range(0.0, 4.0) = 0.575;
 
 varying vec2 world_anchor;
 

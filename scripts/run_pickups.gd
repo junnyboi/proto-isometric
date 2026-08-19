@@ -8,6 +8,8 @@ const CORE_TEXTURE: Texture2D = preload("res://assets/vfx/pickups/worm_core.png"
 const CORE_PER_WORM: int = 1
 const SCRAP_PER_WORM: int = 2
 const MAX_ACTIVE_DROPS: int = 64
+const RESOURCE_MAGNET_RADIUS_CELLS: float = 2.0
+const MAGNET_TRAIL_SECONDS: float = 0.24
 const SEARCH_OFFSETS: Array[Vector2i] = [
 	Vector2i.ZERO,
 	Vector2i(0, -1),
@@ -35,6 +37,7 @@ var _handled_worm_ids: Dictionary = {}
 var _next_drop_sequence: int = 1
 var _pulse_time: float = 0.0
 var _visible_drop_count: int = 0
+var _magnet_trails: Array[Dictionary] = []
 
 
 func configure(
@@ -63,8 +66,13 @@ func bind_worms(worms: Node2D) -> bool:
 
 
 func _process(delta: float) -> void:
-	_pulse_time += maxf(delta, 0.0)
-	_collect_player_cell()
+	var step: float = maxf(delta, 0.0)
+	_pulse_time += step
+	_collect_near_player()
+	for index: int in range(_magnet_trails.size() - 1, -1, -1):
+		_magnet_trails[index][&"life"] = float(_magnet_trails[index][&"life"]) - step
+		if float(_magnet_trails[index][&"life"]) <= 0.0:
+			_magnet_trails.remove_at(index)
 	queue_redraw()
 
 
@@ -158,16 +166,33 @@ func _place_drop(cell: Vector2i, worm_id: int) -> Dictionary:
 	return drop.duplicate(true)
 
 
-func _collect_player_cell() -> void:
+func _collect_near_player() -> void:
 	if _coordinator == null:
 		return
-	var cell: Vector2i = _get_player_cell()
-	var collected: Dictionary = _coordinator.call("_collect_run_drop", cell) as Dictionary
-	if collected.is_empty():
+	var player_cell: Vector2i = _get_player_cell()
+	var total_cores: int = 0
+	var total_scrap: int = 0
+	for drop: Dictionary in _drops.duplicate(true):
+		var drop_cell: Vector2i = _drop_cell(drop)
+		if Vector2(drop_cell - player_cell).length() > RESOURCE_MAGNET_RADIUS_CELLS:
+			continue
+		var collected: Dictionary = _coordinator.call("_collect_run_drop", drop_cell) as Dictionary
+		if collected.is_empty():
+			continue
+		total_cores += int(collected[&"cores"])
+		total_scrap += int(collected[&"scrap"])
+		_magnet_trails.append(
+			{
+				&"from": _grid_to_screen.call(drop_cell) as Vector2,
+				&"to": _grid_to_screen.call(player_cell) as Vector2,
+				&"life": MAGNET_TRAIL_SECONDS,
+			}
+		)
+	if total_cores <= 0 and total_scrap <= 0:
 		return
 	_sync_drops()
 	_commit_save()
-	drop_collected.emit(int(collected[&"cores"]), int(collected[&"scrap"]))
+	drop_collected.emit(total_cores, total_scrap)
 
 
 func _sync_drops() -> void:
@@ -214,6 +239,13 @@ func _drop_cell(drop: Dictionary) -> Vector2i:
 func _draw() -> void:
 	if not _grid_to_screen.is_valid():
 		return
+	for trail: Dictionary in _magnet_trails:
+		var ratio: float = clampf(float(trail[&"life"]) / MAGNET_TRAIL_SECONDS, 0.0, 1.0)
+		var start: Vector2 = trail[&"from"] as Vector2
+		var finish: Vector2 = trail[&"to"] as Vector2
+		var head: Vector2 = start.lerp(finish, 1.0 - ratio)
+		draw_line(start, head, Color(TEAL, ratio * 0.72), 3.0)
+		draw_circle(head, 5.0 + ratio * 3.0, Color(AMBER, ratio))
 	_visible_drop_count = 0
 	var pulse: float = 0.5 + 0.5 * sin(_pulse_time * 4.0)
 	for drop: Dictionary in _drops:

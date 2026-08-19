@@ -146,15 +146,18 @@ static func _test_typed_collection(
 	)
 	var drop: Dictionary = (run_snapshot[&"run_drops"] as Array)[0] as Dictionary
 	var drop_cell: Array = drop[&"cell"] as Array
-	coordinator.call(
-		"set_run_value", &"player_cell", Vector2i(int(drop_cell[0]), int(drop_cell[1]))
-	)
+	var drop_position: Vector2i = Vector2i(int(drop_cell[0]), int(drop_cell[1]))
+	var nearby_position: Vector2i = drop_position + Vector2i.LEFT
+	coordinator.call("set_run_value", &"player_cell", nearby_position)
 	pickups.call("_process", 0.0)
 	_add_case(
 		cases,
-		"collection credits one Core and configured scrap exactly once",
+		"resource magnet credits a nearby Core and scrap exactly once",
 		(
-			int(coordinator.call("get_run_value", &"worm_cores")) == 1
+			Vector2(drop_position - nearby_position).length()
+			<= RunPickupsScript.RESOURCE_MAGNET_RADIUS_CELLS
+			and nearby_position != drop_position
+			and int(coordinator.call("get_run_value", &"worm_cores")) == 1
 			and int(coordinator.call("get_run_value", &"scrap")) == 2
 			and (coordinator.call("_get_run_drops") as Array[Dictionary]).is_empty()
 			and save_probe.calls == 2

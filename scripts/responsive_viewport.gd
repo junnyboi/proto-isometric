@@ -4,7 +4,9 @@ const DESIGN_SIZE: Vector2 = Vector2(1280.0, 720.0)
 const TITLE_PANEL_SIZE: Vector2 = Vector2(540.0, 530.0)
 const STATUS_DESIGN_SIZE: Vector2 = Vector2(1100.0, 48.0)
 const BASE_CAMERA_ZOOM: float = 1.2
+const DESKTOP_LANDSCAPE_CAMERA_ZOOM: float = 1.4
 const MIN_CAMERA_ZOOM: float = 0.65
+const DESKTOP_LANDSCAPE_MIN_SIZE: Vector2 = Vector2(1000.0, 600.0)
 
 
 static func title_layout(raw_size: Vector2) -> Dictionary:
@@ -16,10 +18,16 @@ static func title_layout(raw_size: Vector2) -> Dictionary:
 
 
 static func camera_zoom(raw_size: Vector2) -> float:
-	var shortest_side: float = maxf(minf(raw_size.x, raw_size.y), 320.0)
-	return clampf(
-		BASE_CAMERA_ZOOM * shortest_side / DESIGN_SIZE.y, MIN_CAMERA_ZOOM, BASE_CAMERA_ZOOM
-	)
+	var viewport: Vector2 = Vector2(maxf(raw_size.x, 320.0), maxf(raw_size.y, 320.0))
+	if (
+		viewport.x >= DESKTOP_LANDSCAPE_MIN_SIZE.x
+		and viewport.y >= DESKTOP_LANDSCAPE_MIN_SIZE.y
+		and viewport.x >= viewport.y
+	):
+		var desktop_scale: float = maxf(viewport.x / DESIGN_SIZE.x, viewport.y / DESIGN_SIZE.y)
+		return DESKTOP_LANDSCAPE_CAMERA_ZOOM * desktop_scale
+	var shortest_side: float = minf(viewport.x, viewport.y)
+	return clampf(BASE_CAMERA_ZOOM * shortest_side / DESIGN_SIZE.y, MIN_CAMERA_ZOOM, BASE_CAMERA_ZOOM)
 
 
 static func _portrait_title_layout(viewport: Vector2) -> Dictionary:

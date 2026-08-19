@@ -67,21 +67,33 @@ func emit_rock_impact(position: Vector2, cell: Vector2i) -> void:
 	queue_redraw()
 
 
-func emit_scrap_pickup(position: Vector2, amount: int) -> void:
+func emit_scrap_pickup(
+	position: Vector2,
+	amount: int,
+	destination: Vector2 = Vector2.INF,
+) -> void:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = amount * 104729 + _emission_count * 17
-	for index: int in range(clampi(amount * 4, 5, 14)):
-		var angle: float = TAU * float(index) / float(clampi(amount * 4, 5, 14))
+	var particle_count: int = clampi(amount * 4, 5, 14)
+	var magnetized: bool = destination.is_finite() and not destination.is_equal_approx(position)
+	for index: int in range(particle_count):
+		var angle: float = TAU * float(index) / float(particle_count)
+		var start: Vector2 = position + Vector2.from_angle(angle) * rng.randf_range(2.0, 10.0)
+		var life: float = rng.randf_range(0.28, 0.48)
+		var velocity: Vector2 = Vector2.from_angle(angle) * rng.randf_range(55.0, 115.0)
+		if magnetized:
+			velocity = (destination - start) / life
 		(
 			_particles
 			. append(
 				{
-					"position": position,
-					"velocity": Vector2(cos(angle), sin(angle)) * rng.randf_range(55.0, 115.0),
-					"life": rng.randf_range(0.28, 0.48),
+					"position": start,
+					"velocity": velocity,
+					"life": life,
 					"maximum_life": 0.48,
 					"radius": rng.randf_range(2.0, 4.0),
 					"color": SCRAP,
+					"gravity": 0.0 if magnetized else 480.0,
 				}
 			)
 		)
@@ -148,7 +160,7 @@ func advance(delta: float) -> void:
 	for index: int in range(_particles.size() - 1, -1, -1):
 		var particle: Dictionary = _particles[index]
 		var velocity: Vector2 = particle["velocity"] as Vector2
-		velocity.y += 480.0 * step
+		velocity.y += float(particle.get("gravity", 480.0)) * step
 		particle["velocity"] = velocity
 		particle["position"] = (particle["position"] as Vector2) + velocity * step
 		particle["life"] = float(particle["life"]) - step

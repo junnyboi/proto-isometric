@@ -9,15 +9,27 @@ static func evaluate() -> Array[Dictionary]:
 	_test_title_layout(cases, Vector2(844.0, 390.0), false)
 	_test_title_layout(cases, Vector2(1280.0, 720.0), false)
 	var portrait_zoom: float = ResponsiveViewportScript.camera_zoom(Vector2(390.0, 844.0))
+	var compact_landscape_zoom: float = ResponsiveViewportScript.camera_zoom(Vector2(844.0, 390.0))
 	var landscape_zoom: float = ResponsiveViewportScript.camera_zoom(Vector2(1280.0, 720.0))
+	var large_landscape_zoom: float = ResponsiveViewportScript.camera_zoom(Vector2(1920.0, 1080.0))
 	_add(
 		cases, "portrait camera zooms out for horizontal play space", portrait_zoom < landscape_zoom
 	)
 	_add(cases, "portrait camera zoom stays readable", portrait_zoom >= 0.649)
 	_add(
 		cases,
-		"reference landscape camera preserves shipped zoom",
-		is_equal_approx(landscape_zoom, 1.2)
+		"compact landscape preserves mobile overview",
+		is_equal_approx(compact_landscape_zoom, ResponsiveViewportScript.MIN_CAMERA_ZOOM)
+	)
+	_add(
+		cases,
+		"reference desktop landscape tightens framing",
+		is_equal_approx(landscape_zoom, ResponsiveViewportScript.DESKTOP_LANDSCAPE_CAMERA_ZOOM)
+	)
+	_add(
+		cases,
+		"large desktop keeps the same bounded world envelope",
+		is_equal_approx(large_landscape_zoom, landscape_zoom * 1.5)
 	)
 	return cases
 

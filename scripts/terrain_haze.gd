@@ -1,6 +1,7 @@
 extends Node2D
 
 const HEAT_HAZE_SHADER: Shader = preload("res://shaders/heat_haze.gdshader")
+const SHIMMER_SPEED: float = 0.575
 
 var _terrain: Dictionary = {}
 var _visible_cells: Array[Vector2i] = []
@@ -18,6 +19,7 @@ func _ready() -> void:
 	z_index = 1
 	var haze_material: ShaderMaterial = ShaderMaterial.new()
 	haze_material.shader = HEAT_HAZE_SHADER
+	haze_material.set_shader_parameter(&"shimmer_speed", SHIMMER_SPEED)
 	material = haze_material
 	queue_redraw()
 
