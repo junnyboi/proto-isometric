@@ -158,5 +158,9 @@
   "chassis.shutdown_generic": "CHASSIS 000\nDRIVE AND IMPACT SYSTEMS OFFLINE",
   "chassis.return_title": "PRESS ESC TO RETURN TO TITLE",
   "world.safe_zone": "SAFE ZONE",
-  "radar.route": "ROUTE {completed}/3"
+  "radar.route": "ROUTE {completed}/3",
+  "radar.biome.tundra": "TUNDRA",
+  "radar.biome.lava": "LAVA FIELDS",
+  "radar.biome_direction": "{name}  {direction}  {distance} CELLS",
+  "radar.biome_here": "{name}  HERE"
 }

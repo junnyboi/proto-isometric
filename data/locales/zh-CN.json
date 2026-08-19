@@ -158,5 +158,9 @@
   "chassis.shutdown_generic": "机体 000\n驾驶与冲击系统离线",
   "chassis.return_title": "按 ESC 返回标题界面",
   "world.safe_zone": "安全区",
-  "radar.route": "路线 {completed}/3"
+  "radar.route": "路线 {completed}/3",
+  "radar.biome.tundra": "冻土",
+  "radar.biome.lava": "熔岩地带",
+  "radar.biome_direction": "{name}  {direction}  {distance}格",
+  "radar.biome_here": "{name}  当前区域"
 }
