@@ -131,6 +131,15 @@ static func _test_ambient_pressure(cases: Array[Dictionary], world: RefCounted) 
 		"ambient director configures independently of relay alerts",
 		bool(director.call("configure", coordinator, world, worms, hazards)),
 	)
+	_add(
+		cases,
+		"ambient departure quotas are doubled",
+		(
+			EncounterDirectorScript.AMBIENT_WORM_SOFT_CAP == 4
+			and EncounterDirectorScript.AMBIENT_TORNADO_SOFT_CAP == 6
+			and EncounterDirectorScript.AMBIENT_SANDSTORM_SOFT_CAP == 2
+		),
+	)
 	director.call("_process", 2.9)
 	_add(
 		cases,
@@ -153,19 +162,20 @@ static func _test_ambient_pressure(cases: Array[Dictionary], world: RefCounted) 
 		"ambient broad storm arrives within nine seconds",
 		int(hazards.call("get_hazard_count", &"sandstorm")) == 1,
 	)
-	director.call("_process", 40.0)
+	for _interval: int in range(6):
+		director.call("_process", 14.0)
 	_add(
 		cases,
-		"ambient population remains bounded",
+		"ambient population fills and stops at doubled quotas",
 		(
-			int(worms.call("get_worm_count")) <= EncounterDirectorScript.AMBIENT_WORM_SOFT_CAP
+			int(worms.call("get_worm_count")) == EncounterDirectorScript.AMBIENT_WORM_SOFT_CAP
 			and (
 				int(hazards.call("get_hazard_count", &"tornado"))
-				<= EncounterDirectorScript.AMBIENT_TORNADO_SOFT_CAP
+				== EncounterDirectorScript.AMBIENT_TORNADO_SOFT_CAP
 			)
 			and (
 				int(hazards.call("get_hazard_count", &"sandstorm"))
-				<= EncounterDirectorScript.AMBIENT_SANDSTORM_SOFT_CAP
+				== EncounterDirectorScript.AMBIENT_SANDSTORM_SOFT_CAP
 			)
 		),
 	)
