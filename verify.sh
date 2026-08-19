@@ -15,6 +15,7 @@ fi
 cd "$ROOT"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
+mkdir -p "$tmp/user-data"
 
 printf '[1/3] import\n'
 timeout 30s "$GODOT" --headless --path . --import >"$tmp/import.log" 2>&1
@@ -27,7 +28,8 @@ printf '[2/3] lint + smoke\n'
 mapfile -d '' gd_files < <(find scripts test -type f -name '*.gd' -print0 | sort -z)
 ((${#gd_files[@]} > 0))
 gdlint "${gd_files[@]}"
-timeout 30s "$GODOT" --headless --path . -s test/smoke.gd >"$tmp/smoke.log" 2>&1
+timeout 30s env XDG_DATA_HOME="$tmp/user-data" "$GODOT" \
+  --headless --path . -s test/smoke.gd >"$tmp/smoke.log" 2>&1
 cat "$tmp/smoke.log"
 grep -F '[SMOKE_PASS]' "$tmp/smoke.log" >/dev/null
 if grep -E 'ERROR:|SCRIPT ERROR:' "$tmp/smoke.log"; then
@@ -58,6 +60,20 @@ if [[ "$MODE" == "--release" ]]; then
   for ext in html js wasm pck; do
     test -s "$WEB_OUT/proto-isometric.$ext"
   done
+  printf '[release] exported PCK boot\n'
+  (
+    cd "$tmp"
+    timeout 30s env XDG_DATA_HOME="$tmp/user-data" "$GODOT" \
+      --headless \
+      --main-pack "$WEB_OUT/proto-isometric.pck" \
+      -s "$ROOT/test/exported_pack_boot.gd" \
+      >"$tmp/pck-boot.log" 2>&1
+  )
+  cat "$tmp/pck-boot.log"
+  grep -F '[PCK_BOOT_PASS]' "$tmp/pck-boot.log" >/dev/null
+  if grep -E 'ERROR:|SCRIPT ERROR:|Parse Error' "$tmp/pck-boot.log"; then
+    exit 1
+  fi
 fi
 
 printf '[PASS] Proto Isometric%s\n' "${MODE:+ $MODE}"
