@@ -11,7 +11,11 @@ const REQUIRED_SECTIONS: int = (
 	SECTION_VITALS | SECTION_IMPACT | SECTION_OBJECTIVE | SECTION_CONTEXT | SECTION_DEBUG
 )
 const VALID_RELAY_STATES: Array[StringName] = [&"dormant", &"signaling", &"linking", &"completed"]
-const VALID_IMPACT_BANDS: Array[StringName] = [&"CONTACT", &"SHOCK LINE", &"AFTERSHOCK"]
+const VALID_IMPACT_BANDS: Array[StringName] = [
+	&"impact.band.contact",
+	&"impact.band.shock_line",
+	&"impact.band.aftershock",
+]
 const VALID_FACINGS: Array[StringName] = [&"N", &"NE", &"E", &"SE", &"S", &"SW", &"W", &"NW"]
 const MAX_TEXT_LENGTH: int = 96
 
@@ -22,15 +26,15 @@ var _max_chassis: int = 0
 var _run_scrap: int = 0
 var _worm_cores: int = 0
 var _impact_charge: float = 0.0
-var _impact_band: StringName = &"CONTACT"
+var _impact_band: StringName = &"impact.band.contact"
 var _completed_relays: int = 0
 var _total_relays: int = 0
 var _relay_progress: float = 0.0
 var _relay_state: StringName = &"dormant"
 var _alert_level: int = 0
 var _active_modifier_id: StringName = RuntimeIdsScript.MODIFIER_NEUTRAL
-var _objective_guidance: String = "SEARCHING"
-var _context_event: String = "HEAVY FRAME ONLINE"
+var _objective_guidance: String = ""
+var _context_event: String = ""
 var _outpost_linked: bool = false
 var _mobile_controls: bool = false
 var _active_module_ids: Array[StringName] = []

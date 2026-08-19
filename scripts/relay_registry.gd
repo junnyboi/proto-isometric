@@ -3,6 +3,7 @@ extends Node2D
 signal link_started(relay_cell: Vector2i)
 signal completed(relay_cell: Vector2i)
 
+const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 const ExpeditionLayoutScript: GDScript = preload("res://scripts/expedition_layout.gd")
 const RelayContestScript: GDScript = preload("res://scripts/relay_contest.gd")
 const RunModifierEffectsScript: GDScript = preload("res://scripts/run_modifier_effects.gd")
@@ -88,7 +89,7 @@ func get_signal_hint() -> String:
 	return (
 		str(_contest.call("get_signal_hint"))
 		if _contest != null
-		else "EXTRACTION READY // RETURN TO OUTPOST"
+		else LocalizationScript.t(&"relay.extraction_ready")
 	)
 
 

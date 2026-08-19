@@ -6,9 +6,9 @@
 [resource]
 script = ExtResource("1_script")
 module_id = &"module.ram_plating"
-display_name = "RAM PLATING"
+display_name = "module.ram_plating.name"
 category = &"drive"
-summary = "RUN + FULL IMPACT BREAKS ONE ROCK"
+summary = "module.ram_plating.summary"
 core_cost = 1
 scrap_cost = 2
 effect_value = 0.8

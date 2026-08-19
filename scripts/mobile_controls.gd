@@ -2,6 +2,7 @@ extends CanvasLayer
 
 signal smash_pressed
 
+const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 const FIELD_THEME: Resource = preload("res://data/field_hud_theme.tres")
 const PlayerPreferencesScript: GDScript = preload("res://scripts/player_preferences.gd")
 const TEAL: Color = Color("4eb6aa")
@@ -34,6 +35,7 @@ func _ready() -> void:
 	_mobile_device = _detect_mobile_device()
 	_build_joystick()
 	_build_smash_button()
+	add_to_group("localization_listeners")
 	_apply_preferences(
 		(PlayerPreferencesScript.new() as RefCounted).call("load_preferences") as Dictionary
 	)
@@ -191,7 +193,7 @@ func _build_smash_button() -> void:
 	_smash_button = Button.new()
 	_smash_button.name = "SmashButton"
 	_smash_button.size = SMASH_SIZE
-	_smash_button.text = "SMASH"
+	_smash_button.text = LocalizationScript.t(&"mobile.smash")
 	_smash_button.focus_mode = Control.FOCUS_NONE
 	_smash_button.add_theme_font_size_override("font_size", 24)
 	_smash_button.add_theme_color_override("font_color", Color("fff4dc"))
@@ -276,6 +278,11 @@ func _apply_preferences(snapshot: Dictionary) -> void:
 	_haptics = bool(snapshot.get(&"haptics", true))
 	if is_inside_tree():
 		apply_layout(get_viewport().get_visible_rect().size)
+
+
+func _on_locale_changed(_locale: StringName) -> void:
+	if _smash_button != null:
+		_smash_button.text = LocalizationScript.t(&"mobile.smash")
 
 
 func _mirror_rect(rect: Rect2, width: float) -> Rect2:

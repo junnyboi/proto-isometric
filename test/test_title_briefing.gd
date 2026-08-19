@@ -1,52 +1,74 @@
 extends RefCounted
 
+const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 const TitleScreenScript: GDScript = preload("res://scripts/title_screen.gd")
+
+const DESKTOP_ART: String = "res://assets/title/title_scene_desktop.png"
+const MOBILE_ART: String = "res://assets/title/title_scene_mobile.png"
 
 
 static func evaluate() -> Array[Dictionary]:
 	var cases: Array[Dictionary] = []
+	LocalizationScript.set_locale(&"en", false)
 	var title: Node = TitleScreenScript.new()
 	title.call("_build_interface")
+	title.call("_layout_controls", false)
 	var panel: Node = title.get_node("UILayer/UIRoot/ConceptCanvas/TitlePanel")
 	var mission: Label = panel.get_node("Mission") as Label
-	var rail: Control = panel.get_node("MissionRail") as Control
 	var begin: Button = panel.get_node("BeginButton") as Button
-	var guide_panel: ColorRect = title.get_node("UILayer/UIRoot/FieldGuidePanel") as ColorRect
-	var guide: Label = guide_panel.get_node("GuideText") as Label
-	_add(
-		cases,
-		"launch mission names Cardinal's relay objective",
-		mission.text.contains("LINK 3 RELAYS")
+	var link: Label = panel.get_node("MissionRail/LinkStep/Action") as Label
+	var guide: Label = title.get_node("UILayer/UIRoot/FieldGuidePanel/GuideText") as Label
+	var move: Label = (
+		title.get_node("UILayer/UIRoot/ConceptCanvas/ControlsStrip/MoveHint/Action") as Label
 	)
 	_add(
 		cases,
-		"launch mission states survival and extraction",
+		"Signal-First mission uses the English dictionary",
+		mission.text == LocalizationScript.t(&"title.mission"),
+	)
+	_add(
+		cases,
+		"Signal-First rail uses semantic localization keys",
+		link.text == LocalizationScript.t(&"title.step.link"),
+	)
+	_add(
+		cases,
+		"field guide teaches desktop, touch, and exposed-enemy timing",
 		(
-			mission.text.contains("SURVIVE THE ALERT")
-			and mission.text.contains("EXTRACT AT AN OUTPOST")
-		),
-	)
-	_add(cases, "launch rail teaches link endure extract", rail.get_child_count() == 3)
-	_add(
-		cases,
-		"field guide teaches desktop and touch movement",
-		guide.text.contains("WASD") and guide.text.contains("TOUCH: DRAG AND HOLD"),
-	)
-	_add(
-		cases,
-		"field guide teaches Smash and exposed hunter timing",
-		(
-			guide.text.contains("SMASH")
-			and guide.text.contains("HUNTERS")
+			guide.text.contains("WASD")
+			and guide.text.contains("TOUCH")
 			and guide.text.contains("EXPOSED")
 		),
 	)
-	_add(cases, "launch action deploys Cardinal", begin.text == "DEPLOY CARDINAL")
 	_add(
 		cases,
-		"field guide is keyboard and button accessible",
-		title.call("get_field_guide_button") != null
+		"launch action uses the English dictionary",
+		begin.text == LocalizationScript.t(&"title.begin_new"),
 	)
+	_add(
+		cases,
+		"desktop and mobile Signal-First artwork load",
+		load(DESKTOP_ART) is Texture2D and load(MOBILE_ART) is Texture2D,
+	)
+	LocalizationScript.set_locale(&"zh-CN", false)
+	title.call("_refresh_localized_text")
+	_add(
+		cases,
+		"Signal-First title refreshes fully to Simplified Chinese",
+		(
+			mission.text == LocalizationScript.t(&"title.mission")
+			and link.text == LocalizationScript.t(&"title.step.link")
+			and guide.text == LocalizationScript.t(&"title.field_guide")
+			and move.text == LocalizationScript.t(&"title.control.move")
+		),
+	)
+	title.call("_prepare_field_entry")
+	_add(
+		cases,
+		"deployment state remains localized while the field initializes",
+		begin.disabled and begin.text == LocalizationScript.t(&"title.deploying"),
+	)
+	LocalizationScript.set_locale(&"en", false)
 	title.free()
 	return cases
 

@@ -23,7 +23,7 @@ static func _test_semantic_state(cases: Array[Dictionary]) -> void:
 	_add_case(
 		cases,
 		"field UI accepts semantic Impact facts",
-		bool(state.call("configure_impact", 0.65, &"SHOCK LINE"))
+		bool(state.call("configure_impact", 0.65, &"impact.band.shock_line"))
 	)
 	_add_case(
 		cases,

@@ -204,15 +204,15 @@ func _get_enemy_kind(worm_id: int) -> StringName:
 	return worm.get(&"kind", WORM_KIND) as StringName
 
 
-func _get_enemy_label(worm_id: int) -> String:
+func _get_enemy_label(worm_id: int) -> StringName:
 	var kind: StringName = _get_enemy_kind(worm_id)
 	if kind == SKIMMER_KIND:
-		return "MUD SKIMMER"
+		return &"enemy.mud_skimmer.name"
 	if kind == RIME_KIND:
-		return "RIME STALKER"
+		return &"enemy.rime_stalker.name"
 	if kind == CINDER_KIND:
-		return "CINDER CRAWLER"
-	return "SANDWORM"
+		return &"enemy.cinder_crawler.name"
+	return &"enemy.sandworm.name"
 
 
 func _get_active_biome() -> StringName:

@@ -3,8 +3,8 @@ extends Resource
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 
 @export var modifier_id: StringName = RuntimeIdsScript.MODIFIER_NEUTRAL
-@export var title: String = "NEUTRAL"
-@export_multiline var description: String = "Baseline expedition conditions."
+@export var title: String = "modifier.neutral.title"
+@export_multiline var description: String = "modifier.neutral.description"
 @export var storm_interval_multiplier: float = 1.0
 @export var relay_scrap_multiplier: int = 1
 @export var worm_count_bonus: int = 0

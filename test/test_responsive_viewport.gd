@@ -34,35 +34,39 @@ static func evaluate() -> Array[Dictionary]:
 	return cases
 
 
-static func _test_title_layout(cases: Array[Dictionary], viewport: Vector2, portrait: bool) -> void:
+static func _test_title_layout(
+	cases: Array[Dictionary],
+	viewport: Vector2,
+	portrait: bool,
+) -> void:
 	var layout: Dictionary = ResponsiveViewportScript.title_layout(viewport)
 	var bounds: Rect2 = Rect2(Vector2.ZERO, viewport)
 	var label: String = "%dx%d" % [roundi(viewport.x), roundi(viewport.y)]
 	_add(cases, "%s title orientation is native" % label, bool(layout[&"portrait"]) == portrait)
 	_add(
 		cases,
-		"%s title canvas remains visible" % label,
-		bounds.encloses(layout[&"canvas_rect"] as Rect2)
+		"%s Signal-First canvas remains visible" % label,
+		bounds.encloses(layout[&"canvas_rect"] as Rect2),
 	)
 	_add(
 		cases,
-		"%s title panel remains visible" % label,
-		bounds.encloses(layout[&"title_rect"] as Rect2)
+		"%s title briefing remains visible" % label,
+		bounds.encloses(layout[&"title_rect"] as Rect2),
 	)
 	_add(
 		cases,
-		"%s launch action remains visible" % label,
-		bounds.encloses(layout[&"cta_rect"] as Rect2)
+		"%s deployment CTA remains visible" % label,
+		bounds.encloses(layout[&"cta_rect"] as Rect2),
 	)
 	_add(
 		cases,
 		"%s controls remain visible" % label,
-		bounds.encloses(layout[&"controls_rect"] as Rect2)
+		bounds.encloses(layout[&"controls_rect"] as Rect2),
 	)
 	_add(
 		cases,
-		"%s field composition remains visible" % label,
-		bounds.has_point(layout[&"field_origin"] as Vector2)
+		"%s field focus remains visible" % label,
+		bounds.has_point(layout[&"field_origin"] as Vector2),
 	)
 
 

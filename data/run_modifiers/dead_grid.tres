@@ -5,7 +5,7 @@
 [resource]
 script = ExtResource("1")
 modifier_id = &"modifier.dead_grid"
-title = "DEAD GRID"
-description = "Later relays are farther apart. Outpost repairs cost two less scrap."
+title = "modifier.dead_grid.title"
+description = "modifier.dead_grid.description"
 relay_spacing_bonus = 8.0
 repair_cost_discount = 2

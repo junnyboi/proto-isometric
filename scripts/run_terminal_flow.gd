@@ -1,5 +1,7 @@
 extends CanvasLayer
 
+const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
+
 const RunSettlementScript: GDScript = preload("res://scripts/run_settlement.gd")
 const ModifierServiceScript: GDScript = preload("res://scripts/modifier_service.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
@@ -17,6 +19,7 @@ var _details: Label
 var _choice_buttons: Array[Button] = []
 var _retry_button: Button
 var _summary: Dictionary = {}
+var _selected_modifier_id: StringName = &""
 var _audio: AudioStreamPlayer
 var _mobile_controls: CanvasLayer
 
@@ -24,6 +27,7 @@ var _mobile_controls: CanvasLayer
 func _ready() -> void:
 	layer = 20
 	_build_interface()
+	add_to_group("localization_listeners")
 	_audio = AudioStreamPlayer.new()
 	_audio.stream = CONFIRM_CUE
 	add_child(_audio)
@@ -88,48 +92,75 @@ func get_retry_button() -> Button:
 
 func _show_summary(summary: Dictionary) -> void:
 	_summary = summary.duplicate(true)
-	var succeeded: bool = bool(summary.get(&"succeeded", false))
-	_title.text = "EXPEDITION BANKED" if succeeded else "CARDINAL RECOVERED"
-	_details.text = (
-		"RELAYS %d/3\nBANKED // SCRAP %03d // CORE %03d\nLOST // SCRAP %03d // CORE %03d"
-		% [
-			int(summary.get(&"relays", 0)),
-			int(summary.get(&"banked_scrap", 0)),
-			int(summary.get(&"banked_cores", 0)),
-			int(summary.get(&"lost_scrap", 0)),
-			int(summary.get(&"lost_cores", 0)),
-		]
-	)
-	var offer: Array = _coordinator.call("get_profile_value", &"pending_modifier_offer") as Array
-	for index: int in range(_choice_buttons.size()):
-		var button: Button = _choice_buttons[index]
-		button.visible = index < offer.size()
-		if not button.visible:
-			continue
-		var modifier_id: StringName = StringName(str(offer[index]))
-		var definition: Resource = ModifierServiceScript.definition(modifier_id)
-		button.set_meta("modifier_id", modifier_id)
-		button.text = "%s\n%s" % [str(definition.get("title")), str(definition.get("description"))]
-	_retry_button.disabled = not offer.is_empty()
-	_retry_button.text = "SELECT CONDITION" if not offer.is_empty() else "NEW EXPEDITION"
+	_selected_modifier_id = &""
+	_refresh_summary_text()
 	_panel.visible = true
 	if _mobile_controls != null:
 		_mobile_controls.call("set_controls_enabled", false)
-	_play_cue(1.04 if succeeded else 0.72)
+	_play_cue(1.04 if bool(summary.get(&"succeeded", false)) else 0.72)
+	var offer: Array = _coordinator.call("get_profile_value", &"pending_modifier_offer") as Array
 	if not offer.is_empty():
 		_choice_buttons[0].grab_focus()
 	else:
 		_retry_button.grab_focus()
 
 
+func _refresh_summary_text() -> void:
+	if _summary.is_empty() or _coordinator == null:
+		return
+	var succeeded: bool = bool(_summary.get(&"succeeded", false))
+	_title.text = LocalizationScript.t(
+		&"terminal.success_title" if succeeded else &"terminal.failure_title"
+	)
+	_details.text = (
+		LocalizationScript
+		. t(
+			&"terminal.details",
+			{
+				"relays": int(_summary.get(&"relays", 0)),
+				"banked_scrap": "%03d" % int(_summary.get(&"banked_scrap", 0)),
+				"banked_cores": "%03d" % int(_summary.get(&"banked_cores", 0)),
+				"lost_scrap": "%03d" % int(_summary.get(&"lost_scrap", 0)),
+				"lost_cores": "%03d" % int(_summary.get(&"lost_cores", 0)),
+			}
+		)
+	)
+	var offer: Array = _coordinator.call("get_profile_value", &"pending_modifier_offer") as Array
+	for index: int in range(_choice_buttons.size()):
+		var button: Button = _choice_buttons[index]
+		button.visible = _selected_modifier_id == &"" and index < offer.size()
+		if index >= offer.size():
+			continue
+		var modifier_id: StringName = StringName(str(offer[index]))
+		var definition: Resource = ModifierServiceScript.definition(modifier_id)
+		button.set_meta("modifier_id", modifier_id)
+		button.text = (
+			"%s\n%s"
+			% [
+				LocalizationScript.t(definition.get("title")),
+				LocalizationScript.t(definition.get("description")),
+			]
+		)
+	if _selected_modifier_id != &"":
+		var selected_definition: Resource = ModifierServiceScript.definition(_selected_modifier_id)
+		_retry_button.disabled = false
+		_retry_button.text = LocalizationScript.t(
+			&"terminal.deploy",
+			{"condition": LocalizationScript.t(selected_definition.get("title"))}
+		)
+	else:
+		_retry_button.disabled = not offer.is_empty()
+		_retry_button.text = LocalizationScript.t(
+			&"terminal.select_condition" if not offer.is_empty() else &"terminal.new_expedition"
+		)
+
+
 func _on_choice_pressed(button: Button) -> void:
 	var modifier_id: StringName = button.get_meta("modifier_id", RuntimeIdsScript.MODIFIER_NEUTRAL)
 	if not RunSettlementScript.select_modifier(_coordinator, modifier_id, _save_callback):
 		return
-	for choice: Button in _choice_buttons:
-		choice.visible = false
-	_retry_button.disabled = false
-	_retry_button.text = "DEPLOY // %s" % String(modifier_id).trim_prefix("modifier.").to_upper()
+	_selected_modifier_id = modifier_id
+	_refresh_summary_text()
 	_retry_button.grab_focus()
 	_play_cue(1.16)
 
@@ -143,6 +174,11 @@ func _on_retry_pressed() -> void:
 		_restart_callback.call()
 
 
+func _on_locale_changed(_locale: StringName) -> void:
+	if _panel != null and _panel.visible:
+		_refresh_summary_text()
+
+
 func _build_interface() -> void:
 	_panel = ColorRect.new()
 	_panel.name = "RunSummary"
@@ -151,7 +187,13 @@ func _build_interface() -> void:
 	_panel.color = Color(0.025, 0.035, 0.04, 0.96)
 	_panel.visible = false
 	add_child(_panel)
-	_title = _label("EXPEDITION BANKED", Vector2(36.0, 28.0), Vector2(580.0, 55.0), 34, AMBER)
+	_title = _label(
+		LocalizationScript.t(&"terminal.success_title"),
+		Vector2(36.0, 28.0),
+		Vector2(580.0, 55.0),
+		34,
+		AMBER
+	)
 	_panel.add_child(_title)
 	_details = _label("", Vector2(38.0, 98.0), Vector2(570.0, 118.0), 19, TEAL)
 	_panel.add_child(_details)
@@ -167,7 +209,7 @@ func _build_interface() -> void:
 	_retry_button.name = "RetryButton"
 	_retry_button.position = Vector2(185.0, 400.0)
 	_retry_button.size = Vector2(280.0, 68.0)
-	_retry_button.text = "NEW EXPEDITION"
+	_retry_button.text = LocalizationScript.t(&"terminal.new_expedition")
 	_retry_button.pressed.connect(_on_retry_pressed)
 	_panel.add_child(_retry_button)
 

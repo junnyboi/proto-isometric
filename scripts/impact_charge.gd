@@ -135,10 +135,10 @@ func attack_footprint(
 
 func get_band_name(band: int = _band) -> StringName:
 	if band >= 2:
-		return &"AFTERSHOCK"
+		return &"impact.band.aftershock"
 	if band == 1:
-		return &"SHOCK LINE"
-	return &"CONTACT"
+		return &"impact.band.shock_line"
+	return &"impact.band.contact"
 
 
 static func charge_band(value: float) -> int:

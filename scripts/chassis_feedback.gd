@@ -1,5 +1,7 @@
 extends CanvasLayer
 
+const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
+
 const DAMAGE_COLOR: Color = Color("ff6b3d")
 const WARNING_COLOR: Color = Color("ffb12d")
 const DAMAGE_FLASH_SECONDS: float = 0.34
@@ -10,6 +12,7 @@ var _damage_label: Label
 var _shutdown_panel: ColorRect
 var _shutdown_title: Label
 var _shutdown_detail: Label
+var _shutdown_instruction: Label
 var _audio_player: AudioStreamPlayer
 var _avatar: Node2D
 var _flash_remaining: float = 0.0
@@ -19,6 +22,9 @@ var _damage_event_count: int = 0
 var _shutdown: bool = false
 var _reduced_flash: bool = false
 var _sfx_enabled: bool = true
+var _last_damage_amount: int = 0
+var _last_damage_source: StringName = &"hazard"
+var _shutdown_source: StringName = &"hazard"
 
 
 func _ready() -> void:
@@ -26,6 +32,7 @@ func _ready() -> void:
 	_build_damage_overlay()
 	_build_shutdown_panel()
 	_build_audio_player()
+	add_to_group("localization_listeners")
 	get_viewport().size_changed.connect(_apply_layout)
 	_apply_layout()
 	call_deferred("_bind_accessibility")
@@ -62,7 +69,12 @@ func show_damage(
 	_overlay.color.a = 0.07 if _reduced_flash else 0.16
 	_border.border_color.a = 0.38 if _reduced_flash else 0.82
 	_damage_label.modulate.a = 1.0
-	_damage_label.text = "CHASSIS HIT  -%02d  //  %s" % [amount, String(source).to_upper()]
+	_last_damage_amount = amount
+	_last_damage_source = source
+	_damage_label.text = LocalizationScript.t(
+		&"chassis.damage",
+		{"damage": "%02d" % amount, "source": LocalizationScript.t("source.%s" % source)}
+	)
 	if _avatar != null:
 		_avatar.modulate = DAMAGE_COLOR
 	if not lethal:
@@ -87,9 +99,10 @@ func enter_shutdown(source: StringName) -> void:
 		return
 	_shutdown = true
 	_shutdown_elapsed = 0.0
+	_shutdown_source = source
 	_shutdown_panel.visible = true
-	_shutdown_detail.text = (
-		"CHASSIS 000 // %s EXPOSURE\nDRIVE AND IMPACT SYSTEMS OFFLINE" % String(source).to_upper()
+	_shutdown_detail.text = LocalizationScript.t(
+		&"chassis.shutdown_detail", {"source": LocalizationScript.t("source.%s" % source)}
 	)
 	if _avatar != null:
 		_avatar.modulate = Color("6f554d")
@@ -149,7 +162,9 @@ func _build_damage_overlay() -> void:
 	_damage_label.position = Vector2(420.0, 616.0)
 	_damage_label.size = Vector2(440.0, 46.0)
 	_damage_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_damage_label.text = "CHASSIS HIT"
+	_damage_label.text = LocalizationScript.t(
+		&"chassis.damage", {"damage": "00", "source": LocalizationScript.t(&"source.hazard")}
+	)
 	_damage_label.add_theme_font_size_override("font_size", 20)
 	_damage_label.add_theme_color_override("font_color", Color.WHITE)
 	_damage_label.modulate.a = 0.0
@@ -170,7 +185,7 @@ func _build_shutdown_panel() -> void:
 	_shutdown_title = Label.new()
 	_shutdown_title.position = Vector2(34.0, 24.0)
 	_shutdown_title.size = Vector2(492.0, 62.0)
-	_shutdown_title.text = "CARDINAL // SHUTDOWN"
+	_shutdown_title.text = LocalizationScript.t(&"chassis.shutdown_title")
 	_shutdown_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_shutdown_title.add_theme_font_size_override("font_size", 30)
 	_shutdown_title.add_theme_color_override("font_color", DAMAGE_COLOR)
@@ -179,20 +194,20 @@ func _build_shutdown_panel() -> void:
 	_shutdown_detail = Label.new()
 	_shutdown_detail.position = Vector2(34.0, 96.0)
 	_shutdown_detail.size = Vector2(492.0, 74.0)
-	_shutdown_detail.text = "CHASSIS 000\nDRIVE AND IMPACT SYSTEMS OFFLINE"
+	_shutdown_detail.text = LocalizationScript.t(&"chassis.shutdown_generic")
 	_shutdown_detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_shutdown_detail.add_theme_font_size_override("font_size", 16)
 	_shutdown_detail.add_theme_color_override("font_color", WARNING_COLOR)
 	_shutdown_panel.add_child(_shutdown_detail)
 
-	var instruction: Label = Label.new()
-	instruction.position = Vector2(34.0, 184.0)
-	instruction.size = Vector2(492.0, 28.0)
-	instruction.text = "PRESS ESC TO RETURN TO TITLE"
-	instruction.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	instruction.add_theme_font_size_override("font_size", 13)
-	instruction.add_theme_color_override("font_color", Color("d8d0b5"))
-	_shutdown_panel.add_child(instruction)
+	_shutdown_instruction = Label.new()
+	_shutdown_instruction.position = Vector2(34.0, 184.0)
+	_shutdown_instruction.size = Vector2(492.0, 28.0)
+	_shutdown_instruction.text = LocalizationScript.t(&"chassis.return_title")
+	_shutdown_instruction.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_shutdown_instruction.add_theme_font_size_override("font_size", 13)
+	_shutdown_instruction.add_theme_color_override("font_color", Color("d8d0b5"))
+	_shutdown_panel.add_child(_shutdown_instruction)
 
 
 func _build_audio_player() -> void:
@@ -222,3 +237,29 @@ func _apply_layout() -> void:
 	_shutdown_panel.scale = Vector2.ONE * panel_scale
 	_shutdown_panel.position = (viewport - _shutdown_panel.size * panel_scale) * 0.5
 	_damage_label.position = Vector2((viewport.x - _damage_label.size.x) * 0.5, viewport.y - 104.0)
+
+
+func _on_locale_changed(_locale: StringName) -> void:
+	if _shutdown_title == null:
+		return
+	_shutdown_title.text = LocalizationScript.t(&"chassis.shutdown_title")
+	_shutdown_instruction.text = LocalizationScript.t(&"chassis.return_title")
+	_shutdown_detail.text = (
+		LocalizationScript.t(
+			&"chassis.shutdown_detail",
+			{"source": LocalizationScript.t("source.%s" % _shutdown_source)}
+		)
+		if _shutdown
+		else LocalizationScript.t(&"chassis.shutdown_generic")
+	)
+	if _last_damage_amount > 0:
+		_damage_label.text = (
+			LocalizationScript
+			. t(
+				&"chassis.damage",
+				{
+					"damage": "%02d" % _last_damage_amount,
+					"source": LocalizationScript.t("source.%s" % _last_damage_source),
+				}
+			)
+		)

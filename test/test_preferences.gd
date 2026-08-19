@@ -12,10 +12,16 @@ static func evaluate() -> Array[Dictionary]:
 	var defaults: Dictionary = preferences.call("load_preferences") as Dictionary
 	_add(cases, "preferences default camera shake on", bool(defaults[&"camera_shake"]))
 	_add(cases, "preferences default reduced flash off", not bool(defaults[&"reduced_flash"]))
+	_add(cases, "preferences default locale is English", defaults[&"locale"] == &"en")
 	_add(
 		cases,
 		"preferences reject unsafe UI scale",
 		not bool(preferences.call("set_value", &"ui_scale", 1.5)),
+	)
+	_add(
+		cases,
+		"preferences reject unsupported locales",
+		not bool(preferences.call("set_value", &"locale", "fr-FR")),
 	)
 	preferences.call("set_value", &"ui_scale", 1.15)
 	preferences.call("set_value", &"camera_shake", false)
@@ -23,6 +29,7 @@ static func evaluate() -> Array[Dictionary]:
 	preferences.call("set_value", &"haptics", false)
 	preferences.call("set_value", &"left_handed", true)
 	preferences.call("set_value", &"sfx_enabled", false)
+	preferences.call("set_value", &"locale", "zh_CN")
 	_add(cases, "preferences save atomically", bool(preferences.call("save_preferences")))
 	var restored: RefCounted = PlayerPreferencesScript.new() as RefCounted
 	var snapshot: Dictionary = restored.call("load_preferences") as Dictionary
@@ -36,6 +43,7 @@ static func evaluate() -> Array[Dictionary]:
 			and not bool(snapshot[&"haptics"])
 			and bool(snapshot[&"left_handed"])
 			and not bool(snapshot[&"sfx_enabled"])
+			and snapshot[&"locale"] == &"zh-CN"
 		),
 	)
 	var malformed: FileAccess = FileAccess.open(PATH, FileAccess.WRITE)
@@ -47,7 +55,11 @@ static func evaluate() -> Array[Dictionary]:
 	_add(
 		cases,
 		"malformed preferences fail safely to defaults",
-		bool(recovered[&"camera_shake"]) and not bool(recovered[&"reduced_flash"]),
+		(
+			bool(recovered[&"camera_shake"])
+			and not bool(recovered[&"reduced_flash"])
+			and recovered[&"locale"] == &"en"
+		),
 	)
 	var panel: CanvasLayer = AccessibilityPanelScript.new() as CanvasLayer
 	_add(cases, "accessibility panel script instantiates", panel != null)

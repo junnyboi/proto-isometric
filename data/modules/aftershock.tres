@@ -6,9 +6,9 @@
 [resource]
 script = ExtResource("1_script")
 module_id = &"module.aftershock"
-display_name = "AFTERSHOCK"
+display_name = "module.aftershock.name"
 category = &"impact"
-summary = "HIGH IMPACT EXTENDS WORM STAGGER"
+summary = "module.aftershock.summary"
 core_cost = 1
 scrap_cost = 2
 effect_value = 1.4

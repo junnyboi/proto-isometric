@@ -1,6 +1,7 @@
 extends SceneTree
 
 const ContractTestsScript: GDScript = preload("res://test/test_contracts.gd")
+const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 
 var _checks: int = 0
 var _failures: int = 0
@@ -11,11 +12,10 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	LocalizationScript.set_locale(&"en", false)
 	_check(
-		(
-			str(ProjectSettings.get_setting("application/run/main_scene", ""))
-			== "res://scenes/title_screen.tscn"
-		),
+		ProjectSettings.get_setting("application/run/main_scene")
+		== "res://scenes/title_screen.tscn",
 		"main scene",
 	)
 	await _test_title()
@@ -32,13 +32,15 @@ func _test_title() -> void:
 	get_root().add_child(scene)
 	await process_frame
 	await process_frame
-	var title_panel: Node = scene.get_node("UILayer/UIRoot/ConceptCanvas/TitlePanel")
-	var title_label: Label = title_panel.get_node("TitleLabel") as Label
-	var begin_button: Button = title_panel.get_node("BeginButton") as Button
-	_check(title_label.text == "WALKER'S WAKE", "title text")
+	var panel: Node = scene.get_node("UILayer/UIRoot/ConceptCanvas/TitlePanel")
+	var title_label: Label = panel.get_node("TitleLabel") as Label
+	var begin_button: Button = panel.get_node("BeginButton") as Button
+	_check(title_label.text == LocalizationScript.t(&"title.name"), "title text")
 	_check(title_label.visible, "title visible")
-	_check(not begin_button.text.is_empty(), "launch action label")
+	_check(begin_button.text == LocalizationScript.t(&"title.begin_new"), "Deploy Cardinal label")
 	_check(begin_button.focus_mode == Control.FOCUS_ALL, "Begin focusable")
+	var background: TextureRect = scene.get_node("UILayer/UIRoot/GeneratedTitleArt") as TextureRect
+	_check(background.texture != null, "Signal-First title art loaded")
 	_check(bool(scene.call("is_audio_ready")), "audio loaded")
 	scene.call("prepare_for_shutdown")
 	scene.free()
@@ -822,7 +824,7 @@ func _test_isometric_map() -> void:
 		(effects.call("get_camera_offset") as Vector2).length() <= 6.01,
 		"damage camera kick is bounded",
 	)
-	_check("TEST_IMPACT CONTACT" in str(map.call("get_status_text")), "damage source is readable")
+	_check(LocalizationScript.t(&"source.test_impact") in str(map.call("get_status_text")), "source")
 	chassis_feedback.call("advance", 0.5)
 	_check(is_zero_approx(float(chassis_feedback.call("get_flash_alpha"))), "damage flash expires")
 	_check(avatar.modulate.is_equal_approx(Color.WHITE), "Cardinal flash resets")

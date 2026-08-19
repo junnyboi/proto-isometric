@@ -1,5 +1,7 @@
 extends Control
 
+const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
+
 const AMBER: Color = Color("f5a62d")
 const TEAL: Color = Color("4eb6aa")
 const BONE: Color = Color("d8d0b5")
@@ -48,7 +50,7 @@ func _draw() -> void:
 	draw_string(
 		ThemeDB.fallback_font,
 		Vector2(10.0, 20.0),
-		"ROUTE %d/3" % completed,
+		LocalizationScript.t(&"radar.route", {"completed": completed}),
 		HORIZONTAL_ALIGNMENT_LEFT,
 		120.0,
 		14,

@@ -1,5 +1,7 @@
 extends Node2D
 
+const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
+
 const EncounterDirectorScript: GDScript = preload("res://scripts/encounter_director.gd")
 const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const LavaContactScript: GDScript = preload("res://scripts/lava_contact.gd")
@@ -155,7 +157,7 @@ func _draw_sanctuary_boundary(outpost_cell: Vector2i) -> void:
 	draw_string(
 		ThemeDB.fallback_font,
 		center + Vector2(-39.0, -54.0),
-		"SAFE ZONE",
+		LocalizationScript.t(&"world.safe_zone"),
 		HORIZONTAL_ALIGNMENT_LEFT,
 		-1.0,
 		14,

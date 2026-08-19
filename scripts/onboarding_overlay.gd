@@ -1,5 +1,7 @@
 extends CanvasLayer
 
+const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
+
 const PlayerPreferencesScript: GDScript = preload("res://scripts/player_preferences.gd")
 
 var _preferences: RefCounted
@@ -8,6 +10,7 @@ var _label: Label
 var _stage: int = 0
 var _elapsed: float = 0.0
 var _completed: bool = false
+var _mobile: bool = false
 
 
 func _ready() -> void:
@@ -17,6 +20,7 @@ func _ready() -> void:
 	var snapshot: Dictionary = _preferences.call("load_preferences") as Dictionary
 	_completed = bool(snapshot.get(&"onboarding_seen", false))
 	_build_interface()
+	add_to_group("localization_listeners")
 	get_viewport().size_changed.connect(_apply_layout)
 	_apply_layout()
 	_panel.visible = not _completed
@@ -33,16 +37,16 @@ func _process(delta: float) -> void:
 func apply_state(state: RefCounted) -> void:
 	if _completed or state == null:
 		return
-	var mobile: bool = bool(state.call("get_value", &"mobile_controls"))
+	_mobile = bool(state.call("get_value", &"mobile_controls"))
 	match _stage:
 		0:
-			_label.text = "MOVE // HOLD JOYSTICK" if mobile else "MOVE // WASD // SHIFT TO RUN"
+			_refresh_stage_text()
 		1:
-			_label.text = "BUILD IMPACT WHILE MOVING // SMASH AT CONTACT"
+			_refresh_stage_text()
 			if float(state.call("get_value", &"impact_charge")) >= 0.4:
 				_advance()
 		2:
-			_label.text = "FOLLOW THE TEAL SIGNAL // HOLD THE RELAY ZONE"
+			_refresh_stage_text()
 			if int(state.call("get_value", &"completed_relays")) > 0:
 				_advance()
 
@@ -58,11 +62,30 @@ func get_stage() -> int:
 func _advance() -> void:
 	_stage += 1
 	if _stage < 3:
+		_refresh_stage_text()
 		return
 	_completed = true
 	_panel.visible = false
 	_preferences.call("set_value", &"onboarding_seen", true)
 	_preferences.call("save_preferences")
+
+
+func _refresh_stage_text() -> void:
+	if _label == null:
+		return
+	match _stage:
+		0:
+			_label.text = LocalizationScript.t(
+				&"onboarding.move_mobile" if _mobile else &"onboarding.move_desktop"
+			)
+		1:
+			_label.text = LocalizationScript.t(&"onboarding.impact")
+		2:
+			_label.text = LocalizationScript.t(&"onboarding.relay")
+
+
+func _on_locale_changed(_locale: StringName) -> void:
+	_refresh_stage_text()
 
 
 func _build_interface() -> void:

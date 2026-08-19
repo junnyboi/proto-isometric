@@ -10,6 +10,7 @@ var _haptics: bool = true
 var _onboarding_seen: bool = false
 var _left_handed: bool = false
 var _sfx_enabled: bool = true
+var _locale: StringName = &"en"
 
 
 func load_preferences() -> Dictionary:
@@ -71,13 +72,18 @@ func set_value(key: StringName, value: Variant) -> bool:
 			valid = value is bool
 			if valid:
 				_sfx_enabled = value
+		&"locale":
+			var locale: StringName = normalize_locale(value)
+			valid = locale != &""
+			if valid:
+				_locale = locale
 		_:
 			valid = false
 	return valid
 
 
 func restore_dictionary(snapshot: Dictionary) -> bool:
-	if snapshot.size() < 4 or snapshot.size() > 7:
+	if snapshot.size() < 4 or snapshot.size() > 8:
 		return false
 	var scale: Variant = snapshot.get(&"ui_scale")
 	var shake: Variant = snapshot.get(&"camera_shake")
@@ -86,6 +92,7 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 	var onboarding: Variant = snapshot.get(&"onboarding_seen", false)
 	var left_handed: Variant = snapshot.get(&"left_handed", false)
 	var sfx_enabled: Variant = snapshot.get(&"sfx_enabled", true)
+	var locale: Variant = snapshot.get(&"locale", "en")
 	if (
 		not scale is float
 		or not shake is bool
@@ -94,6 +101,7 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 		or not onboarding is bool
 		or not left_handed is bool
 		or not sfx_enabled is bool
+		or not (locale is String or locale is StringName)
 	):
 		return false
 	var before: Dictionary = to_dictionary()
@@ -105,6 +113,7 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 		or not set_value(&"onboarding_seen", onboarding)
 		or not set_value(&"left_handed", left_handed)
 		or not set_value(&"sfx_enabled", sfx_enabled)
+		or not set_value(&"locale", locale)
 	):
 		_apply(before)
 		return false
@@ -120,6 +129,7 @@ func to_dictionary() -> Dictionary:
 		&"onboarding_seen": _onboarding_seen,
 		&"left_handed": _left_handed,
 		&"sfx_enabled": _sfx_enabled,
+		&"locale": _locale,
 	}
 
 
@@ -131,3 +141,15 @@ func _apply(snapshot: Dictionary) -> void:
 	_onboarding_seen = bool(snapshot.get(&"onboarding_seen", false))
 	_left_handed = bool(snapshot.get(&"left_handed", false))
 	_sfx_enabled = bool(snapshot.get(&"sfx_enabled", true))
+	_locale = normalize_locale(snapshot.get(&"locale", "en"))
+	if _locale == &"":
+		_locale = &"en"
+
+
+static func normalize_locale(value: Variant) -> StringName:
+	var normalized: String = str(value).strip_edges().replace("_", "-").to_lower()
+	if normalized == "en" or normalized.begins_with("en-"):
+		return &"en"
+	if normalized in ["zh", "zh-cn", "zh-hans", "zh-hans-cn"]:
+		return &"zh-CN"
+	return &""

@@ -5,7 +5,7 @@
 [resource]
 script = ExtResource("1")
 modifier_id = &"modifier.hot_front"
-title = "HOT FRONT"
-description = "Storm pressure cycles sooner. Relay links yield double scrap."
+title = "modifier.hot_front.title"
+description = "modifier.hot_front.description"
 storm_interval_multiplier = 0.72
 relay_scrap_multiplier = 2

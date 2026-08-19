@@ -63,7 +63,7 @@ static func try_ram(map: Node, screen_direction: Vector2i) -> bool:
 	var effects: Node2D = map.get("_effects") as Node2D
 	effects.call("emit_rock_impact", map.call("grid_to_screen", target), target)
 	map.call("_save_world_state")
-	map.call("_update_status", "RAM PLATING // ROCK BREACHED")
+	map.call("_update_status", &"status.ram_breached")
 	return true
 
 

@@ -2,6 +2,7 @@ extends CanvasLayer
 
 signal repair_requested
 
+const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 const OutpostInterfaceScript: GDScript = preload("res://scripts/outpost_interface.gd")
 const AccessibilityPanelScript: GDScript = preload("res://scripts/accessibility_panel.gd")
 const ExpeditionRadarScript: GDScript = preload("res://scripts/expedition_radar.gd")
@@ -29,12 +30,17 @@ var _onboarding: CanvasLayer
 var _radar: Control
 var _radar_coordinator: RefCounted
 var _left_handed: bool = false
+var _panel_title: Label
+var _panel_subtitle: Label
+var _strike_instruction: Label
+var _drive_instruction: Label
 
 
 func _ready() -> void:
 	layer = 5
 	_build_drive_panel()
 	_build_mobile_charge()
+	add_to_group("localization_listeners")
 	_outpost_interface = OutpostInterfaceScript.new() as Control
 	_outpost_interface.name = "OutpostInterface"
 	_outpost_interface.connect("repair_requested", func() -> void: repair_requested.emit())
@@ -152,30 +158,41 @@ func get_outpost_interface() -> Control:
 func _apply_status() -> void:
 	var context: String = str(_state.call("get_value", &"context_event"))
 	var modifier: String = str(_state.call("get_value", &"active_modifier_id"))
+	var modifier_suffix: String = ""
 	if modifier != "modifier.neutral":
-		context += " // " + modifier.trim_prefix("modifier.").replace("_", " ").to_upper()
+		modifier_suffix = LocalizationScript.t(
+			&"hud.modifier", {"name": LocalizationScript.t("%s.title" % modifier)}
+		)
 	var debug: String = ""
 	if bool(_state.call("get_value", &"debug_visible")):
 		var cell: Vector2i = _state.call("get_value", &"debug_cell") as Vector2i
+		var facing: String = str(_state.call("get_value", &"debug_facing"))
 		debug = (
-			" // %s %.2f @ %d,%d"
-			% [
-				_state.call("get_value", &"debug_facing"),
-				float(_state.call("get_value", &"debug_speed_ratio")),
-				cell.x,
-				cell.y,
-			]
+			LocalizationScript
+			. t(
+				&"hud.debug",
+				{
+					"facing": LocalizationScript.t("direction.%s" % facing),
+					"speed": "%.2f" % float(_state.call("get_value", &"debug_speed_ratio")),
+					"x": cell.x,
+					"y": cell.y,
+				}
+			)
 		)
 	_status_label.text = (
-		"%s%s\nCHASSIS %03d/%03d // SCRAP %03d // CORE %03d"
-		% [
-			context,
-			debug,
-			int(_state.call("get_value", &"chassis")),
-			int(_state.call("get_value", &"max_chassis")),
-			int(_state.call("get_value", &"run_scrap")),
-			int(_state.call("get_value", &"worm_cores")),
-		]
+		LocalizationScript
+		. t(
+			&"hud.status",
+			{
+				"context": context,
+				"modifier": modifier_suffix,
+				"debug": debug,
+				"chassis": "%03d" % int(_state.call("get_value", &"chassis")),
+				"max_chassis": "%03d" % int(_state.call("get_value", &"max_chassis")),
+				"scrap": "%03d" % int(_state.call("get_value", &"run_scrap")),
+				"cores": "%03d" % int(_state.call("get_value", &"worm_cores")),
+			}
+		)
 	)
 
 
@@ -185,11 +202,15 @@ func _apply_impact() -> void:
 	_charge_fill.size.x = 300.0 * value
 	_charge_fill.color = color
 	_charge_label.text = (
-		"IMPACT %03d%% // %s // WORN +15%%"
-		% [
-			roundi(value * 100.0),
-			String(_state.call("get_value", &"impact_band")),
-		]
+		LocalizationScript
+		. t(
+			&"hud.impact",
+			{
+				"charge": "%03d" % roundi(value * 100.0),
+				"band": LocalizationScript.t(_state.call("get_value", &"impact_band")),
+				"bonus": LocalizationScript.t(&"module.worn_plates.short_bonus"),
+			}
+		)
 	)
 	var mobile: bool = bool(_state.call("get_value", &"mobile_controls"))
 	_mobile_charge_panel.visible = mobile
@@ -202,18 +223,28 @@ func _apply_objective() -> void:
 	var alert: int = int(_state.call("get_value", &"alert_level"))
 	if state == &"linking":
 		_relay_label.text = (
-			"RELAY LINKING %03d%% // ALERT %d"
-			% [roundi(float(_state.call("get_value", &"relay_progress")) * 100.0), alert]
+			LocalizationScript
+			. t(
+				&"hud.relay_linking",
+				{
+					"progress":
+					"%03d" % roundi(float(_state.call("get_value", &"relay_progress")) * 100.0),
+					"alert": alert,
+				}
+			)
 		)
 	else:
 		_relay_label.text = (
-			"RELAY %d/%d // ALERT %d // %s"
-			% [
-				int(_state.call("get_value", &"completed_relays")),
-				int(_state.call("get_value", &"total_relays")),
-				alert,
-				str(_state.call("get_value", &"objective_guidance")),
-			]
+			LocalizationScript
+			. t(
+				&"hud.relay",
+				{
+					"completed": int(_state.call("get_value", &"completed_relays")),
+					"total": int(_state.call("get_value", &"total_relays")),
+					"alert": alert,
+					"guidance": str(_state.call("get_value", &"objective_guidance")),
+				}
+			)
 		)
 
 
@@ -253,6 +284,14 @@ func _on_viewport_resized() -> void:
 	apply_layout(get_viewport().get_visible_rect().size, mobile)
 
 
+func _on_locale_changed(_locale: StringName) -> void:
+	_refresh_static_text()
+	if _state != null:
+		_apply_status()
+		_apply_impact()
+		_apply_objective()
+
+
 func _apply_control_layout(control: Control, rect: Rect2, scale_value: float) -> void:
 	if control == null:
 		return
@@ -265,14 +304,18 @@ func _build_drive_panel() -> void:
 	_drive_panel.size = Vector2(430.0, 294.0)
 	_drive_panel.color = Color(0.04, 0.055, 0.06, 0.9)
 	add_child(_drive_panel)
-	var title: Label = _make_label("CARDINAL // FIELD DRIVE", Vector2(24.0, 18.0), 30, AMBER)
-	_drive_panel.add_child(title)
-	var subtitle: Label = _make_label(
-		"HEAVY FRAME ONLINE\nSALVAGE. SURVIVE THE WIND.", Vector2(25.0, 66.0), 18, Color("d8d0b5")
+	_panel_title = _make_label(
+		LocalizationScript.t(&"hud.panel_title"), Vector2(24.0, 18.0), 30, AMBER
 	)
-	subtitle.size.y = 54.0
-	_drive_panel.add_child(subtitle)
-	_status_label = _make_label("HEAVY FRAME ONLINE", Vector2(25.0, 124.0), 12, TEAL)
+	_drive_panel.add_child(_panel_title)
+	_panel_subtitle = _make_label(
+		LocalizationScript.t(&"hud.panel_subtitle"), Vector2(25.0, 66.0), 18, Color("d8d0b5")
+	)
+	_panel_subtitle.size.y = 54.0
+	_drive_panel.add_child(_panel_subtitle)
+	_status_label = _make_label(
+		LocalizationScript.t(&"status.heavy_frame_online"), Vector2(25.0, 124.0), 12, TEAL
+	)
 	_status_label.size = Vector2(390.0, 38.0)
 	_drive_panel.add_child(_status_label)
 	var charge_back: ColorRect = ColorRect.new()
@@ -285,19 +328,28 @@ func _build_drive_panel() -> void:
 	_charge_fill.size = Vector2(0.0, 10.0)
 	_charge_fill.color = TEAL
 	charge_back.add_child(_charge_fill)
-	_charge_label = _make_label("IMPACT 000% // CONTACT", Vector2(25.0, 183.0), 13, AMBER)
+	_charge_label = _make_label("", Vector2(25.0, 183.0), 13, AMBER)
 	_drive_panel.add_child(_charge_label)
-	_relay_label = _make_label("RELAY 0/1 // ALERT 0 // SEARCHING", Vector2(25.0, 211.0), 13, TEAL)
+	_relay_label = _make_label("", Vector2(25.0, 211.0), 13, TEAL)
 	_relay_label.size.x = 390.0
 	_drive_panel.add_child(_relay_label)
-	_drive_panel.add_child(
-		_make_label("SPACE / J / K: IMPACT STRIKE", Vector2(25.0, 241.0), 14, AMBER)
+	_strike_instruction = _make_label(
+		LocalizationScript.t(&"hud.strike_instruction"), Vector2(25.0, 241.0), 14, AMBER
 	)
-	_drive_panel.add_child(
-		_make_label(
-			"WASD/ARROWS: 8D  SHIFT: RUN  OUTPOSTS: SERVICE", Vector2(25.0, 271.0), 11, MUTED
-		)
+	_drive_panel.add_child(_strike_instruction)
+	_drive_instruction = _make_label(
+		LocalizationScript.t(&"hud.drive_instruction"), Vector2(25.0, 271.0), 11, MUTED
 	)
+	_drive_panel.add_child(_drive_instruction)
+
+
+func _refresh_static_text() -> void:
+	if _panel_title == null:
+		return
+	_panel_title.text = LocalizationScript.t(&"hud.panel_title")
+	_panel_subtitle.text = LocalizationScript.t(&"hud.panel_subtitle")
+	_strike_instruction.text = LocalizationScript.t(&"hud.strike_instruction")
+	_drive_instruction.text = LocalizationScript.t(&"hud.drive_instruction")
 
 
 func _build_mobile_charge() -> void:

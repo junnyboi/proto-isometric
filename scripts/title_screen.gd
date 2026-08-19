@@ -1,11 +1,14 @@
 extends Node2D
 
+const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
+
 const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const AccessibilityPanelScript: GDScript = preload("res://scripts/accessibility_panel.gd")
 const SaveRepositoryScript: GDScript = preload("res://scripts/save_repository.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const PlayerPreferencesScript: GDScript = preload("res://scripts/player_preferences.gd")
 const ResponsiveViewportScript: GDScript = preload("res://scripts/responsive_viewport.gd")
+const WebSceneStateScript: GDScript = preload("res://scripts/web_scene_state.gd")
 const FIELD_SCENE: PackedScene = preload("res://scenes/isometric_map.tscn")
 const TITLE_DESKTOP: Texture2D = preload("res://assets/title/title_scene_desktop.png")
 const TITLE_MOBILE: Texture2D = preload("res://assets/title/title_scene_mobile.png")
@@ -40,12 +43,13 @@ var _audio_trigger_count: int = 0
 
 func _ready() -> void:
 	_build_interface()
+	add_to_group("localization_listeners")
 	add_child(AccessibilityPanelScript.new())
 	_apply_save_metadata()
 	get_viewport().size_changed.connect(_apply_responsive_layout)
 	_apply_responsive_layout()
 	_begin_button.grab_focus()
-	_set_web_scene_state("title-ready")
+	WebSceneStateScript.set_state("title-ready")
 	print("[PROTO_ISOMETRIC_READY]")
 
 
@@ -105,18 +109,18 @@ func _build_interface() -> void:
 func _build_briefing() -> void:
 	var eyebrow: Label = _make_label(
 		"Eyebrow",
-		"EXPEDITION 01 // CARDINAL",
+		LocalizationScript.t(&"title.eyebrow"),
 		14,
 		AMBER,
 	)
 	_title_panel.add_child(eyebrow)
 
-	_title_label = _make_label("TitleLabel", "WALKER'S WAKE", 56, TEXT)
+	_title_label = _make_label("TitleLabel", LocalizationScript.t(&"title.name"), 56, TEXT)
 	_title_panel.add_child(_title_label)
 
 	_mission_label = _make_label(
 		"Mission",
-		"LINK 3 RELAYS. SURVIVE THE ALERT. EXTRACT AT AN OUTPOST.",
+		LocalizationScript.t(&"title.mission"),
 		15,
 		TEXT,
 	)
@@ -126,13 +130,13 @@ func _build_briefing() -> void:
 	_mission_rail = Control.new()
 	_mission_rail.name = "MissionRail"
 	_title_panel.add_child(_mission_rail)
-	_add_rail_step("LinkStep", "01", "LINK")
-	_add_rail_step("EndureStep", "02", "ENDURE")
-	_add_rail_step("ExtractStep", "03", "EXTRACT")
+	_add_rail_step("LinkStep", &"title.step.link")
+	_add_rail_step("EndureStep", &"title.step.endure")
+	_add_rail_step("ExtractStep", &"title.step.extract")
 
 	_subtitle = _make_label(
 		"RunStatus",
-		"NEW EXPEDITION // NO ACTIVE RECORD",
+		LocalizationScript.t(&"title.no_active_record"),
 		13,
 		MUTED,
 	)
@@ -140,7 +144,7 @@ func _build_briefing() -> void:
 
 	_begin_button = Button.new()
 	_begin_button.name = "BeginButton"
-	_begin_button.text = "DEPLOY CARDINAL"
+	_begin_button.text = LocalizationScript.t(&"title.begin_new")
 	_begin_button.focus_mode = Control.FOCUS_ALL
 	_begin_button.add_theme_font_size_override("font_size", 26)
 	_begin_button.add_theme_color_override("font_color", INK)
@@ -173,22 +177,25 @@ func _build_briefing() -> void:
 	_begin_button.pressed.connect(_on_begin_pressed)
 	_title_panel.add_child(_begin_button)
 
-	_cta_keycap = _make_label("Keycap", "ENTER", 13, INK)
+	_cta_keycap = _make_label("Keycap", LocalizationScript.t(&"title.key_enter"), 13, INK)
 	_cta_keycap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_cta_keycap.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_cta_keycap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_begin_button.add_child(_cta_keycap)
 
 
-func _add_rail_step(node_name: String, number: String, action: String) -> void:
+func _add_rail_step(node_name: String, action_key: StringName) -> void:
 	var step: Control = Control.new()
 	step.name = node_name
+	step.set_meta(&"action_key", action_key)
 	_mission_rail.add_child(step)
-	var number_label: Label = _make_label("Number", number, 22, AMBER)
+	var number_label: Label = _make_label(
+		"Number", LocalizationScript.t("%s.number" % action_key), 22, AMBER
+	)
 	number_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	number_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	step.add_child(number_label)
-	var action_label: Label = _make_label("Action", action, 14, AMBER)
+	var action_label: Label = _make_label("Action", LocalizationScript.t(action_key), 14, AMBER)
 	action_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	step.add_child(action_label)
 
@@ -197,13 +204,13 @@ func _build_controls_strip() -> void:
 	_controls_strip = Control.new()
 	_controls_strip.name = "ControlsStrip"
 	_content_group.add_child(_controls_strip)
-	_add_control_hint("MoveHint", "MOVE", "W A S D")
-	_add_control_hint("RunHint", "RUN", "SHIFT")
-	_add_control_hint("SmashHint", "SMASH", "SPACE")
+	_add_control_hint("MoveHint")
+	_add_control_hint("RunHint")
+	_add_control_hint("SmashHint")
 
 	_field_guide_button = Button.new()
 	_field_guide_button.name = "FieldGuideButton"
-	_field_guide_button.text = "FIELD GUIDE   F1"
+	_field_guide_button.text = LocalizationScript.t(&"title.field_guide_button_desktop")
 	_field_guide_button.focus_mode = Control.FOCUS_ALL
 	_field_guide_button.add_theme_font_size_override("font_size", 14)
 	_field_guide_button.add_theme_color_override("font_color", AMBER)
@@ -234,14 +241,14 @@ func _build_controls_strip() -> void:
 	_controls_strip.add_child(_field_guide_button)
 
 
-func _add_control_hint(node_name: String, action: String, input: String) -> void:
+func _add_control_hint(node_name: String) -> void:
 	var hint: Control = Control.new()
 	hint.name = node_name
 	_controls_strip.add_child(hint)
-	var action_label: Label = _make_label("Action", action, 12, MUTED)
+	var action_label: Label = _make_label("Action", "", 12, MUTED)
 	action_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	hint.add_child(action_label)
-	var input_label: Label = _make_label("Input", input, 12, TEXT)
+	var input_label: Label = _make_label("Input", "", 12, TEXT)
 	input_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	input_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	(
@@ -262,17 +269,13 @@ func _build_field_guide(ui_root: Control) -> void:
 	_field_guide_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	ui_root.add_child(_field_guide_panel)
 
-	var title: Label = _make_label("Title", "FIELD GUIDE // CARDINAL", 24, TEXT)
+	var title: Label = _make_label(
+		"Title", LocalizationScript.t(&"title.field_guide_title"), 24, TEXT
+	)
 	_field_guide_panel.add_child(title)
 	var guide: Label = _make_label(
 		"Guide",
-		(
-			"MOVE     WASD / ARROW KEYS     |     TOUCH: DRAG AND HOLD\n"
-			+ "RUN      HOLD SHIFT — BUILDS IMPACT     |     TOUCH: PUSH OUTER RING\n"
-			+ "SMASH    SPACE / J / K     |     TOUCH: TAP SMASH\n\n"
-			+ "STORMS   AVOID ACTIVE STORM FRONTS\n"
-			+ "HUNTERS  STRIKE ONLY WHILE EXPOSED"
-		),
+		LocalizationScript.t(&"title.field_guide"),
 		15,
 		TEXT,
 	)
@@ -283,7 +286,7 @@ func _build_field_guide(ui_root: Control) -> void:
 
 	_field_guide_close = Button.new()
 	_field_guide_close.name = "CloseButton"
-	_field_guide_close.text = "RETURN TO BRIEFING"
+	_field_guide_close.text = LocalizationScript.t(&"title.return_briefing")
 	_field_guide_close.focus_mode = Control.FOCUS_ALL
 	_field_guide_close.add_theme_font_size_override("font_size", 15)
 	_field_guide_close.add_theme_color_override("font_color", INK)
@@ -449,20 +452,56 @@ func _layout_controls(portrait: bool) -> void:
 	var smash_hint: Control = _controls_strip.get_node("SmashHint") as Control
 	_cta_keycap.visible = not portrait
 	if portrait:
-		_layout_control_hint(move_hint, Vector2(0.0, 0.0), "DRAG\nTO DRIVE", "◉", true)
-		_layout_control_hint(run_hint, Vector2(213.0, 0.0), "PUSH\nTO RUN", "▲", true)
-		_layout_control_hint(smash_hint, Vector2(426.0, 0.0), "TAP\nSMASH", "◆", true)
+		_layout_control_hint(
+			move_hint,
+			Vector2(0.0, 0.0),
+			LocalizationScript.t(&"title.control.move_touch"),
+			LocalizationScript.t(&"title.control.drive_icon"),
+			true,
+		)
+		_layout_control_hint(
+			run_hint,
+			Vector2(213.0, 0.0),
+			LocalizationScript.t(&"title.control.run_touch"),
+			LocalizationScript.t(&"title.control.run_icon"),
+			true,
+		)
+		_layout_control_hint(
+			smash_hint,
+			Vector2(426.0, 0.0),
+			LocalizationScript.t(&"title.control.smash_touch"),
+			LocalizationScript.t(&"title.control.smash_icon"),
+			true,
+		)
 		_field_guide_button.position = Vector2(174.0, 112.0)
 		_field_guide_button.size = Vector2(292.0, 48.0)
-		_field_guide_button.text = "FIELD GUIDE"
+		_field_guide_button.text = LocalizationScript.t(&"title.field_guide_button_mobile")
 		_field_guide_button.add_theme_font_size_override("font_size", 18)
 	else:
-		_layout_control_hint(move_hint, Vector2(0.0, 0.0), "MOVE", "W A S D", false)
-		_layout_control_hint(run_hint, Vector2(214.0, 0.0), "RUN", "SHIFT", false)
-		_layout_control_hint(smash_hint, Vector2(414.0, 0.0), "SMASH", "SPACE", false)
+		_layout_control_hint(
+			move_hint,
+			Vector2(0.0, 0.0),
+			LocalizationScript.t(&"title.control.move"),
+			LocalizationScript.t(&"title.control.move_input"),
+			false,
+		)
+		_layout_control_hint(
+			run_hint,
+			Vector2(214.0, 0.0),
+			LocalizationScript.t(&"title.control.run"),
+			LocalizationScript.t(&"title.control.run_input"),
+			false,
+		)
+		_layout_control_hint(
+			smash_hint,
+			Vector2(414.0, 0.0),
+			LocalizationScript.t(&"title.control.smash"),
+			LocalizationScript.t(&"title.control.smash_input"),
+			false,
+		)
 		_field_guide_button.position = Vector2(1044.0, 5.0)
 		_field_guide_button.size = Vector2(172.0, 42.0)
-		_field_guide_button.text = "FIELD GUIDE   F1"
+		_field_guide_button.text = LocalizationScript.t(&"title.field_guide_button_desktop")
 		_field_guide_button.add_theme_font_size_override("font_size", 14)
 
 
@@ -538,13 +577,17 @@ func _set_field_guide_visible(value: bool) -> void:
 func _on_begin_pressed() -> void:
 	if _field_visible:
 		return
+	_prepare_field_entry()
+	_enter_field()
+	_trigger_begin_audio()
+
+
+func _prepare_field_entry() -> void:
 	_field_visible = true
 	_begin_button.disabled = true
-	_begin_button.text = "DEPLOYING CARDINAL..."
-	_set_web_scene_state("field-loading")
-	_trigger_begin_audio()
+	_begin_button.text = LocalizationScript.t(&"title.deploying")
+	WebSceneStateScript.set_state("field-loading")
 	print("[PROTO_ISOMETRIC_BEGIN]")
-	_enter_field()
 
 
 func _enter_field() -> void:
@@ -560,18 +603,6 @@ func _enter_field() -> void:
 	queue_free()
 
 
-func _set_web_scene_state(value: String) -> void:
-	if not OS.has_feature("web"):
-		return
-	(
-		JavaScriptBridge
-		. eval(
-			"document.body.dataset.godotScene=%s;" % JSON.stringify(value),
-			true,
-		)
-	)
-
-
 func _apply_save_metadata() -> void:
 	var repository: RefCounted = SaveRepositoryScript.new() as RefCounted
 	var world: RefCounted = InfiniteWorldScript.new() as RefCounted
@@ -579,8 +610,8 @@ func _apply_save_metadata() -> void:
 		return
 	var envelope: Dictionary = repository.call("load_state") as Dictionary
 	if envelope.is_empty():
-		_begin_button.text = "DEPLOY CARDINAL"
-		_subtitle.text = "NEW EXPEDITION // NO ACTIVE RECORD"
+		_begin_button.text = LocalizationScript.t(&"title.begin_new")
+		_subtitle.text = LocalizationScript.t(&"title.no_active_record")
 		return
 	var run: Dictionary = envelope.get(&"active_run", {}) as Dictionary
 	var profile: Dictionary = envelope.get(&"profile", {}) as Dictionary
@@ -588,11 +619,15 @@ func _apply_save_metadata() -> void:
 	var terminal: bool = (
 		phase in [RuntimeIdsScript.RUN_PHASE_SUCCEEDED, RuntimeIdsScript.RUN_PHASE_FAILED]
 	)
-	_begin_button.text = "REVIEW SUMMARY" if terminal else "CONTINUE EXPEDITION"
+	_begin_button.text = LocalizationScript.t(
+		&"title.begin_review" if terminal else &"title.begin_continue"
+	)
 	_subtitle.text = (
-		"TERMINAL RECORD // REVIEW REQUIRED"
+		LocalizationScript.t(&"title.terminal_ready")
 		if terminal
-		else "ACTIVE EXPEDITION // RELAY %d/3" % int(run.get(&"completed_relays", 0))
+		else LocalizationScript.t(
+			&"title.active_ready", {&"relay": int(run.get(&"completed_relays", 0))}
+		)
 	)
 	var banked_total: int = (
 		int(profile.get(&"banked_relay_data", 0))
@@ -600,7 +635,38 @@ func _apply_save_metadata() -> void:
 		+ int(profile.get(&"banked_cores", 0))
 	)
 	if banked_total > 0 and not terminal:
-		_subtitle.text += " // BANK %03d" % banked_total
+		_subtitle.text += LocalizationScript.t(
+			&"title.bank_suffix", {&"bank": "%03d" % banked_total}
+		)
+
+
+func _on_locale_changed(_locale: StringName) -> void:
+	_refresh_localized_text()
+	if _field_visible:
+		_begin_button.text = LocalizationScript.t(&"title.deploying")
+	else:
+		_apply_save_metadata()
+
+
+func _refresh_localized_text() -> void:
+	if _title_panel == null:
+		return
+	(_title_panel.get_node("Eyebrow") as Label).text = LocalizationScript.t(&"title.eyebrow")
+	_title_label.text = LocalizationScript.t(&"title.name")
+	_mission_label.text = LocalizationScript.t(&"title.mission")
+	for step: Node in _mission_rail.get_children():
+		var action_key: StringName = step.get_meta(&"action_key", &"") as StringName
+		(step.get_node("Number") as Label).text = LocalizationScript.t("%s.number" % action_key)
+		(step.get_node("Action") as Label).text = LocalizationScript.t(action_key)
+	_cta_keycap.text = LocalizationScript.t(&"title.key_enter")
+	(_field_guide_panel.get_node("Title") as Label).text = LocalizationScript.t(
+		&"title.field_guide_title"
+	)
+	(_field_guide_panel.get_node("GuideText") as Label).text = LocalizationScript.t(
+		&"title.field_guide"
+	)
+	_field_guide_close.text = LocalizationScript.t(&"title.return_briefing")
+	_layout_controls(bool(_layout.get(&"portrait", false)))
 
 
 func is_title_visible() -> bool:

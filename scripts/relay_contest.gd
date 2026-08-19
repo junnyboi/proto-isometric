@@ -3,6 +3,7 @@ extends Node2D
 signal link_started(relay_cell: Vector2i)
 signal completed(relay_cell: Vector2i)
 
+const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 const IsometricControlsScript: GDScript = preload("res://scripts/isometric_controls.gd")
 
 const LINK_RADIUS_CELLS: float = 2.5
@@ -100,7 +101,7 @@ func get_relay_cell() -> Vector2i:
 
 func get_signal_hint() -> String:
 	if is_completed():
-		return "RETURN TO OUTPOST"
+		return LocalizationScript.t(&"relay.return_outpost")
 	var delta: Vector2 = Vector2(_relay_cell) - _player_position
 	var screen_delta: Vector2 = Vector2(delta.x - delta.y, delta.x + delta.y)
 	var screen_direction: Vector2i = Vector2i(
@@ -108,7 +109,16 @@ func get_signal_hint() -> String:
 		0 if absf(screen_delta.y) < 0.25 else (1 if screen_delta.y > 0.0 else -1),
 	)
 	var direction_name: StringName = IsometricControlsScript.direction_name(screen_direction)
-	return "SIGNAL %s %.1fT" % [direction_name, delta.length()]
+	return (
+		LocalizationScript
+		. t(
+			&"relay.signal",
+			{
+				"direction": LocalizationScript.t("direction.%s" % direction_name),
+				"distance": "%.1f" % delta.length(),
+			}
+		)
+	)
 
 
 func _grid_to_screen(position: Vector2) -> Vector2:

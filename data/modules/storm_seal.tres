@@ -6,9 +6,9 @@
 [resource]
 script = ExtResource("1_script")
 module_id = &"module.storm_seal"
-display_name = "STORM SEAL"
+display_name = "module.storm_seal.name"
 category = &"cooling"
-summary = "RUNNING HALVES WEATHER DAMAGE"
+summary = "module.storm_seal.summary"
 core_cost = 1
 scrap_cost = 2
 effect_value = 0.5

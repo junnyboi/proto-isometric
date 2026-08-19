@@ -21,12 +21,14 @@ const RunModifierEffectsScript: GDScript = preload("res://scripts/run_modifier_e
 const RunTerminalFlowScript: GDScript = preload("res://scripts/run_terminal_flow.gd")
 const SandwormsScript: GDScript = preload("res://scripts/sandworms.gd")
 const SaveRepositoryScript: GDScript = preload("res://scripts/save_repository.gd")
+const StatusLocalizerScript: GDScript = preload("res://scripts/status_localizer.gd")
 const TerrainHazeScript: GDScript = preload("res://scripts/terrain_haze.gd")
 const TerrainRendererScript: GDScript = preload("res://scripts/terrain_renderer.gd")
 const SurfaceDriveScript: GDScript = preload("res://scripts/surface_drive.gd")
 const WormTelegraphScript: GDScript = preload("res://scripts/worm_telegraph.gd")
 const WorldObjectsScript: GDScript = preload("res://scripts/world_objects.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
+const WebSceneStateScript: GDScript = preload("res://scripts/web_scene_state.gd")
 const TILE_SIZE: Vector2 = Vector2(90.0, 45.0)
 const MAP_ORIGIN: Vector2 = Vector2(760.0, 70.0)
 const START_CELL: Vector2i = Vector2i(8, 10)
@@ -81,7 +83,7 @@ var _is_moving: bool = false
 var _is_running: bool = false
 var _impact_flash: float = 0.0
 var _status_hold_time: float = 0.0
-var _context_event: String = "HEAVY FRAME ONLINE"
+var _context_status: Dictionary = {&"key": &"status.heavy_frame_online", &"placeholders": {}}
 var _attack_was_pressed: bool = false
 var _pending_impact_cell: Vector2i = INVALID_CELL
 var _pending_impact_band: int = 0
@@ -118,8 +120,8 @@ var _world_objects: Node2D
 
 
 func _ready() -> void:
-	var web: bool = OS.has_feature("web")
-	if web: JavaScriptBridge.eval("document.body.dataset.godotScene='field-building';", true)
+	WebSceneStateScript.set_state("field-building")
+	add_to_group("localization_listeners")
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	_run_coordinator = RunCoordinatorScript.new() as RefCounted
@@ -151,7 +153,7 @@ func _ready() -> void:
 	_sync_avatar()
 	queue_redraw()
 	_run_coordinator.call("record_event", RuntimeIdsScript.EVENT_FIELD_READY)
-	if web: JavaScriptBridge.eval("document.body.dataset.godotScene='field-ready';", true)
+	WebSceneStateScript.set_state("field-ready")
 	print("[ISOMETRIC_MAP_READY]")
 
 
@@ -283,7 +285,7 @@ func _update_drive_vector(screen_direction: Vector2, delta: float, running: bool
 			if not ModuleEffectsScript.try_ram(self, quantized_direction):
 				_velocity = Vector2.ZERO
 				_is_moving = false
-				_update_status("VECTOR %s // BLOCKED // SCRAP %03d" % [_facing, _scrap_count])
+				_update_status(StatusLocalizerScript.vector_blocked(_facing, _scrap_count))
 				_sync_avatar()
 				return false
 		var maximum_speed: float = (
@@ -337,9 +339,9 @@ func attack() -> bool:
 	var band_name: StringName = (
 		_impact_charge.call("get_band_name", _pending_impact_band)
 		if _impact_charge != null
-		else &"CONTACT"
+		else &"impact.band.contact"
 	)
-	_update_status("IMPACT // %s WINDUP // SCRAP %03d" % [band_name, _scrap_count])
+	_update_status(StatusLocalizerScript.impact_windup(band_name, _scrap_count))
 	_avatar.call("play_attack")
 	return not _pending_impact_rock_cells.is_empty() or not _pending_impact_worm_ids.is_empty()
 
@@ -386,18 +388,18 @@ func _on_avatar_impact_frame() -> void:
 	if rocks_broken > 0 and _collect_scrap_near(_robot_grid) <= 0:
 		_save_world_state()
 	if worm_hits > 0:
-		var result: String = "DESTROYED" if worms_destroyed > 0 else "HIT"
-		var health_text: String = "" if worm_hits > 1 else " // HP %d/4" % last_worm_health
-		var enemy_label: String = str(_sandworms.call("_get_enemy_label", worm_ids[0]))
+		var enemy_label: StringName = _sandworms.call("_get_enemy_label", worm_ids[0])
 		var band_name: StringName = _impact_charge.call("get_band_name", impact_band)
 		_update_status(
-			"%s // %s %s x%d%s" % [band_name, enemy_label, result, worm_hits, health_text]
+			StatusLocalizerScript.enemy_result(
+				band_name, enemy_label, worms_destroyed > 0, worm_hits, last_worm_health
+			)
 		)
 		return
 	if rocks_broken > 0:
-		_update_status("IMPACT // ROCK SALVAGED x%d // SCRAP %03d" % [rocks_broken, _scrap_count])
+		_update_status(StatusLocalizerScript.rock_salvaged(rocks_broken, _scrap_count))
 		return
-	_update_status("IMPACT // CLEAR // SCRAP %03d" % _scrap_count)
+	_update_status(&"status.impact_clear", {"scrap": "%03d" % _scrap_count})
 
 
 func place_destructible_rock(cell: Vector2i) -> bool:
@@ -456,12 +458,7 @@ func _apply_chassis_damage(amount: int, source: StringName = &"hazard") -> int:
 			"show_damage", damage, source, lethal, 0.6 if adjusted < amount else 1.0
 		)
 	_status_hold_time = 0.7
-	_update_status(
-		(
-			"%s CONTACT -%02d // CHASSIS %03d/%03d"
-			% [String(source).to_upper(), damage, _chassis, MAX_CHASSIS]
-		)
-	)
+	_update_status(StatusLocalizerScript.damage(source, damage, _chassis, MAX_CHASSIS))
 	_refresh_outpost_interface()
 	if lethal:
 		_enter_shutdown(source)
@@ -494,7 +491,7 @@ func _apply_shutdown_presentation(source: StringName) -> void:
 		_hazards.call("set_player_cell", INVALID_CELL)
 	if _chassis_feedback != null:
 		_chassis_feedback.call("enter_shutdown", source)
-	_update_status("CARDINAL SHUTDOWN // CHASSIS 000 // ESC: RETURN")
+	_update_status(&"status.shutdown")
 	_refresh_outpost_interface()
 
 
@@ -517,7 +514,7 @@ func _repair_chassis() -> bool:
 		_chassis = chassis_before
 		return false
 	_status_hold_time = 1.0
-	_update_status("OUTPOST REPAIR // CHASSIS %03d // SCRAP %03d" % [_chassis, _scrap_count])
+	_update_status(StatusLocalizerScript.repair(_chassis, _scrap_count))
 	_refresh_outpost_interface()
 	return true
 
@@ -716,7 +713,7 @@ func _collect_scrap_near(cell: Vector2i, radius_cells: int = RESOURCE_MAGNET_RAD
 	_status_hold_time = 0.9
 	_refresh_outpost_interface()
 	_save_world_state()
-	_update_status("RESOURCE MAGNET +%d // TOTAL %03d" % [total, _scrap_count])
+	_update_status(StatusLocalizerScript.resource_magnet(total, _scrap_count))
 	queue_redraw()
 	return total
 
@@ -888,7 +885,7 @@ func _build_relay_contest() -> void:
 
 func _on_relay_link_started(relay_cell: Vector2i) -> void:
 	_status_hold_time = 1.0
-	_update_status("RELAY CONTEST // SIGNAL LOCK %d,%d" % [relay_cell.x, relay_cell.y])
+	_update_status(&"status.relay_contest", {"x": relay_cell.x, "y": relay_cell.y})
 
 
 func _on_relay_completed(_relay_cell: Vector2i) -> void:
@@ -896,7 +893,7 @@ func _on_relay_completed(_relay_cell: Vector2i) -> void:
 	if _sandworms != null:
 		_sandworms.call("disperse_all")
 	_status_hold_time = 1.4
-	_update_status("RELAY LINKED // ALERT %d // NEXT SIGNAL" % _get_completed_relays())
+	_update_status(&"status.relay_linked", {"alert": _get_completed_relays()})
 	_save_world_state()
 
 
@@ -973,10 +970,10 @@ func _refresh_outpost_interface() -> void:
 			_relay_contest,
 			_impact_charge,
 			_mobile_controls,
-			_chassis,
-			MAX_CHASSIS,
-			_scrap_count,
-			_context_event,
+				_chassis,
+				MAX_CHASSIS,
+				_scrap_count,
+				StatusLocalizerScript.render(_context_status),
 			_shutdown,
 			_is_at_outpost(),
 			_facing,
@@ -991,9 +988,13 @@ func _refresh_outpost_interface() -> void:
 func _update_drive_status() -> void:
 	if _status_hold_time > 0.0:
 		return
-	_update_status("DRIVE %s // SPEED %03d%%" % [_facing, roundi(get_speed_ratio() * 100.0)])
+	_update_status(StatusLocalizerScript.drive(_facing, get_speed_ratio()))
 
 
-func _update_status(text: String) -> void:
-	_context_event = text.left(96)
+func _update_status(status: Variant, placeholders: Dictionary = {}) -> void:
+	_context_status = StatusLocalizerScript.coerce(status, placeholders)
+	_refresh_outpost_interface()
+
+
+func _on_locale_changed(_locale: StringName) -> void:
 	_refresh_outpost_interface()

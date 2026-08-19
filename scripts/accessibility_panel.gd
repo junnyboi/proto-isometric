@@ -2,12 +2,14 @@ extends CanvasLayer
 
 signal preferences_changed(snapshot: Dictionary)
 
+const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 const PlayerPreferencesScript: GDScript = preload("res://scripts/player_preferences.gd")
 
 var _preferences: RefCounted
 var _panel: ColorRect
 var _buttons: Dictionary = {}
 var _access_button: Button
+var _title_label: Label
 
 
 func _ready() -> void:
@@ -17,6 +19,7 @@ func _ready() -> void:
 	_preferences = PlayerPreferencesScript.new() as RefCounted
 	_preferences.call("load_preferences")
 	_build_interface()
+	add_to_group("localization_listeners")
 	get_viewport().size_changed.connect(_apply_layout)
 	_apply_layout()
 	_refresh()
@@ -50,6 +53,15 @@ func _cycle_scale() -> void:
 	_commit()
 
 
+func _cycle_locale() -> void:
+	var current: StringName = StringName(str(get_preferences().get(&"locale", &"en")))
+	var next_locale: StringName = &"zh-CN" if current == &"en" else &"en"
+	if not bool(_preferences.call("set_value", &"locale", next_locale)):
+		return
+	LocalizationScript.set_locale(next_locale)
+	_commit()
+
+
 func _reset_training() -> void:
 	_preferences.call("set_value", &"onboarding_seen", false)
 	_commit()
@@ -62,33 +74,53 @@ func _commit() -> void:
 
 
 func _refresh() -> void:
+	if _access_button == null or _title_label == null:
+		return
 	var snapshot: Dictionary = get_preferences()
-	(_buttons[&"ui_scale"] as Button).text = (
-		"UI SCALE  %d%%" % roundi(float(snapshot[&"ui_scale"]) * 100.0)
+	_access_button.text = LocalizationScript.t(&"access.button")
+	_title_label.text = LocalizationScript.t(&"access.title")
+	(_buttons[&"ui_scale"] as Button).text = LocalizationScript.t(
+		&"access.ui_scale", {"percent": roundi(float(snapshot[&"ui_scale"]) * 100.0)}
 	)
-	(_buttons[&"camera_shake"] as Button).text = (
-		"CAMERA SHAKE  %s" % _on_off(snapshot, &"camera_shake")
+	(_buttons[&"camera_shake"] as Button).text = LocalizationScript.t(
+		&"access.camera_shake", {"state": _on_off(snapshot, &"camera_shake")}
 	)
-	(_buttons[&"reduced_flash"] as Button).text = (
-		"REDUCED FLASH  %s" % _on_off(snapshot, &"reduced_flash")
+	(_buttons[&"reduced_flash"] as Button).text = LocalizationScript.t(
+		&"access.reduced_flash", {"state": _on_off(snapshot, &"reduced_flash")}
 	)
-	(_buttons[&"haptics"] as Button).text = "HAPTICS  %s" % _on_off(snapshot, &"haptics")
-	(_buttons[&"left_handed"] as Button).text = (
-		"LEFT-HANDED  %s" % _on_off(snapshot, &"left_handed")
+	(_buttons[&"haptics"] as Button).text = LocalizationScript.t(
+		&"access.haptics", {"state": _on_off(snapshot, &"haptics")}
 	)
-	(_buttons[&"sfx_enabled"] as Button).text = "SFX  %s" % _on_off(snapshot, &"sfx_enabled")
-	(_buttons[&"onboarding_seen"] as Button).text = "RESET TRAINING"
+	(_buttons[&"left_handed"] as Button).text = LocalizationScript.t(
+		&"access.left_handed", {"state": _on_off(snapshot, &"left_handed")}
+	)
+	(_buttons[&"sfx_enabled"] as Button).text = LocalizationScript.t(
+		&"access.sfx", {"state": _on_off(snapshot, &"sfx_enabled")}
+	)
+	var locale: String = str(snapshot.get(&"locale", "en"))
+	(_buttons[&"locale"] as Button).text = LocalizationScript.t(
+		&"access.language", {"language": LocalizationScript.t("common.locale.%s" % locale)}
+	)
+	(_buttons[&"onboarding_seen"] as Button).text = LocalizationScript.t(&"access.reset_training")
 
 
 func _on_off(snapshot: Dictionary, key: StringName) -> String:
-	return "ON" if bool(snapshot[key]) else "OFF"
+	return (
+		LocalizationScript.t(&"common.on")
+		if bool(snapshot[key])
+		else LocalizationScript.t(&"common.off")
+	)
+
+
+func _on_locale_changed(_locale: StringName) -> void:
+	_refresh()
 
 
 func _build_interface() -> void:
 	var access: Button = Button.new()
 	_access_button = access
 	access.name = "AccessibilityButton"
-	access.text = "ACCESSIBILITY"
+	access.text = LocalizationScript.t(&"access.button")
 	access.position = Vector2(1072.0, 18.0)
 	access.size = Vector2(190.0, 42.0)
 	access.add_theme_font_size_override("font_size", 14)
@@ -121,23 +153,24 @@ func _build_interface() -> void:
 	_panel = ColorRect.new()
 	_panel.name = "AccessibilityPanel"
 	_panel.position = Vector2(820.0, 78.0)
-	_panel.size = Vector2(442.0, 540.0)
+	_panel.size = Vector2(442.0, 548.0)
 	_panel.color = Color(0.025, 0.035, 0.04, 0.97)
 	_panel.visible = false
 	add_child(_panel)
-	var title: Label = Label.new()
-	title.text = "ACCESSIBILITY"
-	title.position = Vector2(28.0, 20.0)
-	title.size = Vector2(380.0, 44.0)
-	title.add_theme_font_size_override("font_size", 26)
-	_panel.add_child(title)
+	_title_label = Label.new()
+	_title_label.name = "AccessibilityTitle"
+	_title_label.position = Vector2(28.0, 20.0)
+	_title_label.size = Vector2(380.0, 44.0)
+	_title_label.add_theme_font_size_override("font_size", 26)
+	_panel.add_child(_title_label)
 	_add_button(&"ui_scale", 78.0, _cycle_scale)
-	_add_button(&"camera_shake", 138.0, _toggle_boolean.bind(&"camera_shake"))
-	_add_button(&"reduced_flash", 198.0, _toggle_boolean.bind(&"reduced_flash"))
-	_add_button(&"haptics", 258.0, _toggle_boolean.bind(&"haptics"))
-	_add_button(&"left_handed", 318.0, _toggle_boolean.bind(&"left_handed"))
-	_add_button(&"sfx_enabled", 378.0, _toggle_boolean.bind(&"sfx_enabled"))
-	_add_button(&"onboarding_seen", 438.0, _reset_training)
+	_add_button(&"camera_shake", 134.0, _toggle_boolean.bind(&"camera_shake"))
+	_add_button(&"reduced_flash", 190.0, _toggle_boolean.bind(&"reduced_flash"))
+	_add_button(&"haptics", 246.0, _toggle_boolean.bind(&"haptics"))
+	_add_button(&"left_handed", 302.0, _toggle_boolean.bind(&"left_handed"))
+	_add_button(&"sfx_enabled", 358.0, _toggle_boolean.bind(&"sfx_enabled"))
+	_add_button(&"locale", 414.0, _cycle_locale)
+	_add_button(&"onboarding_seen", 470.0, _reset_training)
 
 
 func _add_button(key: StringName, y: float, callback: Callable) -> void:
@@ -154,7 +187,7 @@ func _apply_layout() -> void:
 	if _panel == null:
 		return
 	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
-	var scale_factor: float = minf(1.0, minf(viewport_size.x / 470.0, viewport_size.y / 580.0))
+	var scale_factor: float = minf(1.0, minf(viewport_size.x / 470.0, viewport_size.y / 590.0))
 	_panel.scale = Vector2.ONE * scale_factor
 	_panel.position = Vector2(viewport_size.x - _panel.size.x * scale_factor - 18.0, 72.0)
 	_access_button.position = Vector2(viewport_size.x - _access_button.size.x - 18.0, 18.0)
