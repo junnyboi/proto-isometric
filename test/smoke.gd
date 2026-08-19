@@ -521,7 +521,7 @@ func _test_isometric_map() -> void:
 	)
 	var encounter_director: Node = map.get_node("WorldObjectLayer/WorldObjects/EncounterDirector")
 	encounter_director.call("_process", 4.1)
-	_check(int(sandworms.call("get_worm_count")) == 1, "Alert I rearm deploys one hunter")
+	_check(int(sandworms.call("get_worm_count")) == 2, "Alert I adds one hunter over ambient")
 	map.call("_refresh_outpost_interface")
 	_check("ALERT 1" in str(field_hud.call("get_relay_text")), "HUD reports completed relay alert")
 	sandworms.call("clear_worms")

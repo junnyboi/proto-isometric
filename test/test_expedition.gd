@@ -65,6 +65,7 @@ static func evaluate() -> Array[Dictionary]:
 		"Alert director validates all three profiles",
 		bool(director.call("configure", coordinator, world, worms, hazards))
 	)
+	director.call("set_ambient_enabled", false)
 	director.call("_process", 4.1)
 	_add(
 		cases,
@@ -112,7 +113,81 @@ static func evaluate() -> Array[Dictionary]:
 	worms.free()
 	hazards.free()
 	director.free()
+	_test_ambient_pressure(cases, world)
 	return cases
+
+
+static func _test_ambient_pressure(cases: Array[Dictionary], world: RefCounted) -> void:
+	var coordinator: RefCounted = RunCoordinatorScript.new() as RefCounted
+	coordinator.call("configure_default")
+	coordinator.call("set_run_value", &"player_cell", Vector2i(22, 22))
+	var worms: Node2D = SandwormsScript.new() as Node2D
+	worms.call("configure", Vector2(90.0, 45.0), Vector2.ZERO)
+	var hazards: Node2D = DesertHazardsScript.new() as Node2D
+	hazards.call("configure", Vector2(90.0, 45.0), Vector2.ZERO, Vector2i(14, 11))
+	var director: Node = EncounterDirectorScript.new() as Node
+	_add(
+		cases,
+		"ambient director configures independently of relay alerts",
+		bool(director.call("configure", coordinator, world, worms, hazards)),
+	)
+	director.call("_process", 2.9)
+	_add(
+		cases,
+		"ambient threats preserve a short departure grace period",
+		int(worms.call("get_worm_count")) == 0 and int(hazards.call("get_hazard_count")) == 0,
+	)
+	director.call("_process", 0.2)
+	_add(
+		cases, "ambient hunter arrives within four seconds", int(worms.call("get_worm_count")) == 1
+	)
+	director.call("_process", 1.0)
+	_add(
+		cases,
+		"ambient tornado arrives within five seconds",
+		int(hazards.call("get_hazard_count", &"tornado")) == 1,
+	)
+	director.call("_process", 4.0)
+	_add(
+		cases,
+		"ambient broad storm arrives within nine seconds",
+		int(hazards.call("get_hazard_count", &"sandstorm")) == 1,
+	)
+	director.call("_process", 40.0)
+	_add(
+		cases,
+		"ambient population remains bounded",
+		(
+			int(worms.call("get_worm_count")) <= EncounterDirectorScript.AMBIENT_WORM_SOFT_CAP
+			and (
+				int(hazards.call("get_hazard_count", &"tornado"))
+				<= EncounterDirectorScript.AMBIENT_TORNADO_SOFT_CAP
+			)
+			and (
+				int(hazards.call("get_hazard_count", &"sandstorm"))
+				<= EncounterDirectorScript.AMBIENT_SANDSTORM_SOFT_CAP
+			)
+		),
+	)
+	worms.call("clear_worms")
+	hazards.call("clear_hazards")
+	coordinator.call("set_run_value", &"player_cell", Vector2i(8, 4))
+	director.call("_process", 100.0)
+	_add(
+		cases,
+		"outpost sanctuary suppresses ambient threats",
+		int(worms.call("get_worm_count")) == 0 and int(hazards.call("get_hazard_count")) == 0,
+	)
+	coordinator.call("set_run_value", &"player_cell", Vector2i(22, 22))
+	director.call("_process", 2.9)
+	_add(
+		cases,
+		"leaving sanctuary restores the departure grace period",
+		int(worms.call("get_worm_count")) == 0 and int(hazards.call("get_hazard_count")) == 0,
+	)
+	worms.free()
+	hazards.free()
+	director.free()
 
 
 static func _layout_is_valid(objectives: Array[Dictionary], world: RefCounted) -> bool:

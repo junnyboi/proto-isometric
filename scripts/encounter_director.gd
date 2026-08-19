@@ -8,6 +8,18 @@ const PROFILES: Array[Resource] = [
 	preload("res://data/alerts/alert_iii.tres"),
 ]
 const INVALID_POSITION: Vector2 = Vector2(-9999.0, -9999.0)
+const AMBIENT_WORM_INITIAL_SECONDS: float = 3.0
+const AMBIENT_WORM_INTERVAL_MIN: float = 8.0
+const AMBIENT_WORM_INTERVAL_MAX: float = 12.0
+const AMBIENT_WORM_SOFT_CAP: int = 2
+const AMBIENT_TORNADO_INITIAL_SECONDS: float = 4.0
+const AMBIENT_TORNADO_INTERVAL_MIN: float = 5.0
+const AMBIENT_TORNADO_INTERVAL_MAX: float = 8.0
+const AMBIENT_TORNADO_SOFT_CAP: int = 3
+const AMBIENT_SANDSTORM_INITIAL_SECONDS: float = 8.0
+const AMBIENT_SANDSTORM_INTERVAL_MIN: float = 10.0
+const AMBIENT_SANDSTORM_INTERVAL_MAX: float = 14.0
+const AMBIENT_SANDSTORM_SOFT_CAP: int = 1
 
 var _coordinator: RefCounted
 var _world: RefCounted
@@ -17,6 +29,15 @@ var _armed_alert: int = 0
 var _spawned_alert: int = 0
 var _rearm_remaining: float = 0.0
 var _sanctuary: bool = false
+var _ambient_enabled: bool = true
+var _ambient_worm_remaining: float = AMBIENT_WORM_INITIAL_SECONDS
+var _ambient_tornado_remaining: float = AMBIENT_TORNADO_INITIAL_SECONDS
+var _ambient_sandstorm_remaining: float = AMBIENT_SANDSTORM_INITIAL_SECONDS
+var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+
+
+func _ready() -> void:
+	_rng.seed = 0xA6B1E47
 
 
 func configure(
@@ -30,6 +51,7 @@ func configure(
 	for profile: Resource in PROFILES:
 		if not bool(profile.call("validate")):
 			return false
+	_rng.seed = 0xA6B1E47
 	_coordinator = coordinator
 	_world = world
 	_worms = worms
@@ -40,18 +62,26 @@ func configure(
 	return true
 
 
+func set_ambient_enabled(enabled: bool) -> void:
+	_ambient_enabled = enabled
+
+
 func _process(delta: float) -> void:
 	if _coordinator == null:
 		return
+	var step: float = maxf(delta, 0.0)
 	var player: Vector2 = Vector2(_coordinator.call("get_run_value", &"player_cell"))
 	var sanctuary_now: bool = bool(_world.call("_is_in_sanctuary", player))
 	if sanctuary_now and not _sanctuary:
 		_worms.call("disperse_all")
+		_reset_ambient_grace()
 	_sanctuary = sanctuary_now
 	_sync_alert()
+	if _ambient_enabled and not _sanctuary:
+		_advance_ambient(step, player)
 	if _armed_alert <= 0 or _spawned_alert >= _armed_alert or _sanctuary:
 		return
-	_rearm_remaining = maxf(_rearm_remaining - maxf(delta, 0.0), 0.0)
+	_rearm_remaining = maxf(_rearm_remaining - step, 0.0)
 	if _rearm_remaining <= 0.0:
 		_spawn_composition(_armed_alert, player)
 		_spawned_alert = _armed_alert
@@ -69,6 +99,62 @@ func is_sanctuary_active() -> bool:
 
 func get_spawned_alert() -> int:
 	return _spawned_alert
+
+
+func _advance_ambient(delta: float, player: Vector2) -> void:
+	_ambient_worm_remaining -= delta
+	if _ambient_worm_remaining <= 0.0:
+		if int(_worms.call("get_worm_count")) < AMBIENT_WORM_SOFT_CAP:
+			_spawn_ambient_worm(player)
+		_ambient_worm_remaining = _rng.randf_range(
+			AMBIENT_WORM_INTERVAL_MIN, AMBIENT_WORM_INTERVAL_MAX
+		)
+	_ambient_tornado_remaining -= delta
+	if _ambient_tornado_remaining <= 0.0:
+		if int(_hazards.call("get_hazard_count", &"tornado")) < AMBIENT_TORNADO_SOFT_CAP:
+			_spawn_ambient_tornado(player)
+		_ambient_tornado_remaining = _rng.randf_range(
+			AMBIENT_TORNADO_INTERVAL_MIN, AMBIENT_TORNADO_INTERVAL_MAX
+		)
+	_ambient_sandstorm_remaining -= delta
+	if _ambient_sandstorm_remaining <= 0.0:
+		if int(_hazards.call("get_hazard_count", &"sandstorm")) < AMBIENT_SANDSTORM_SOFT_CAP:
+			_spawn_ambient_sandstorm(player)
+		_ambient_sandstorm_remaining = _rng.randf_range(
+			AMBIENT_SANDSTORM_INTERVAL_MIN, AMBIENT_SANDSTORM_INTERVAL_MAX
+		)
+
+
+func _reset_ambient_grace() -> void:
+	_ambient_worm_remaining = AMBIENT_WORM_INITIAL_SECONDS
+	_ambient_tornado_remaining = AMBIENT_TORNADO_INITIAL_SECONDS
+	_ambient_sandstorm_remaining = AMBIENT_SANDSTORM_INITIAL_SECONDS
+
+
+func _spawn_ambient_worm(player: Vector2) -> void:
+	var angle: float = _rng.randf_range(0.0, TAU)
+	var radius: float = _rng.randf_range(5.25, 7.25)
+	_worms.call("spawn_worm", player + Vector2.from_angle(angle) * radius)
+
+
+func _spawn_ambient_tornado(player: Vector2) -> void:
+	var angle: float = _rng.randf_range(0.0, TAU)
+	var radius: float = _rng.randf_range(3.5, 7.0)
+	_hazards.call("spawn_tornado", Vector2i((player + Vector2.from_angle(angle) * radius).round()))
+
+
+func _spawn_ambient_sandstorm(player: Vector2) -> void:
+	var center: Vector2i = Vector2i(player.round())
+	var lateral: int = _rng.randi_range(-2, 0)
+	match _rng.randi_range(0, 3):
+		0:
+			_hazards.call("spawn_sandstorm", center + Vector2i(-12, lateral), Vector2i.RIGHT)
+		1:
+			_hazards.call("spawn_sandstorm", center + Vector2i(12, lateral), Vector2i.LEFT)
+		2:
+			_hazards.call("spawn_sandstorm", center + Vector2i(lateral, -12), Vector2i.DOWN)
+		_:
+			_hazards.call("spawn_sandstorm", center + Vector2i(lateral, 12), Vector2i.UP)
 
 
 func _sync_alert() -> void:
