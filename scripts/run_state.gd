@@ -196,29 +196,45 @@ func set_value(key: StringName, value: Variant) -> bool:
 
 
 func get_value(key: StringName) -> Variant:
-	return (
-		{
-			&"run_id": _run_id,
-			&"seed": _seed,
-			&"phase": _phase,
-			&"player_cell": _player_cell,
-			&"facing": _facing,
-			&"chassis": _chassis,
-			&"max_chassis": _max_chassis,
-			&"scrap": _unbanked_scrap,
-			&"worm_cores": _worm_cores,
-			&"first_worm_defeated": _first_worm_defeated,
-			&"starter_relay_completed": _starter_relay_completed,
-			&"completed_relays": _completed_objective_ids.size(),
-			&"relay_objectives": _relay_objectives.duplicate(true),
-			&"completed_objective_ids": _completed_objective_ids.duplicate(),
-			&"shutdown": _shutdown,
-			&"active_module_ids": _active_module_ids.duplicate(),
-			&"refit_purchase_used": _refit_purchase_used,
-			&"active_modifier_id": _active_modifier_id,
-		}
-		. get(key)
-	)
+	var value: Variant = null
+	match key:
+		&"run_id":
+			value = _run_id
+		&"seed":
+			value = _seed
+		&"phase":
+			value = _phase
+		&"player_cell":
+			value = _player_cell
+		&"facing":
+			value = _facing
+		&"chassis":
+			value = _chassis
+		&"max_chassis":
+			value = _max_chassis
+		&"scrap":
+			value = _unbanked_scrap
+		&"worm_cores":
+			value = _worm_cores
+		&"first_worm_defeated":
+			value = _first_worm_defeated
+		&"starter_relay_completed":
+			value = _starter_relay_completed
+		&"completed_relays":
+			value = _completed_objective_ids.size()
+		&"relay_objectives":
+			value = _relay_objectives.duplicate(true)
+		&"completed_objective_ids":
+			value = _completed_objective_ids.duplicate()
+		&"shutdown":
+			value = _shutdown
+		&"active_module_ids":
+			value = _active_module_ids.duplicate()
+		&"refit_purchase_used":
+			value = _refit_purchase_used
+		&"active_modifier_id":
+			value = _active_modifier_id
+	return value
 
 
 func to_dictionary() -> Dictionary:

@@ -2,6 +2,7 @@ extends SceneTree
 
 const ContractTestsScript: GDScript = preload("res://test/test_contracts.gd")
 const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
+const SmokeHelpersScript: GDScript = preload("res://test/smoke_helpers.gd")
 
 var _checks: int = 0
 var _failures: int = 0
@@ -14,8 +15,10 @@ func _initialize() -> void:
 func _run() -> void:
 	LocalizationScript.set_locale(&"en", false)
 	_check(
-		ProjectSettings.get_setting("application/run/main_scene")
-		== "res://scenes/title_screen.tscn",
+		(
+			ProjectSettings.get_setting("application/run/main_scene")
+			== "res://scenes/title_screen.tscn"
+		),
 		"main scene",
 	)
 	await _test_title()
@@ -55,9 +58,9 @@ func _test_isometric_map() -> void:
 	var save_path: String = "/tmp/proto-isometric-smoke-world.json"
 	var malformed_path: String = "/tmp/proto-isometric-smoke-malformed.json"
 	var incompatible_path: String = "/tmp/proto-isometric-smoke-incompatible.json"
-	_clear_test_save(save_path)
-	_clear_test_save(malformed_path)
-	_clear_test_save(incompatible_path)
+	SmokeHelpersScript.clear_test_save(save_path)
+	SmokeHelpersScript.clear_test_save(malformed_path)
+	SmokeHelpersScript.clear_test_save(incompatible_path)
 	var map: Node = packed_map.instantiate()
 	map.set("save_path", save_path)
 	get_root().add_child(map)
@@ -72,7 +75,7 @@ func _test_isometric_map() -> void:
 	_check(map.call("get_grid_size") == Vector2i(145, 145), "world reports compact grid")
 	var world: RefCounted = map.get("_world") as RefCounted
 	_check(world != null, "lazy world stream exists")
-	for test_case: Dictionary in ContractTestsScript.evaluate(run_coordinator, world):
+	for test_case: Dictionary in ContractTestsScript.evaluate(run_coordinator, world, map):
 		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
 	_check(
 		int(world.call("get_loaded_chunk_count")) == 25, "stream keeps five by five chunks active"
@@ -436,7 +439,7 @@ func _test_isometric_map() -> void:
 	_check(bool(map.call("place_robot", Vector2i(6, 6))), "place Cardinal for worm melee")
 	map.set("_facing", &"E")
 	var melee_worm: int = int(sandworms.call("spawn_worm", Vector2(7.0, 5.0), 0.0))
-	_advance_worm_to_expose(sandworms, melee_worm)
+	SmokeHelpersScript.advance_worm_to_expose(sandworms, melee_worm)
 	for hit: int in range(1, 5):
 		_check(bool(map.call("attack")), "melee strike %d targets sandworm" % hit)
 		avatar.call("_process", float(avatar.call("get_attack_contact_time")) + 0.01)
@@ -457,7 +460,7 @@ func _test_isometric_map() -> void:
 	map.set("_facing", &"E")
 	map.call("_set_impact_charge", 0.5)
 	var line_worm: int = int(sandworms.call("spawn_worm", Vector2(8.0, 4.0), 0.0))
-	_advance_worm_to_expose(sandworms, line_worm)
+	SmokeHelpersScript.advance_worm_to_expose(sandworms, line_worm)
 	_check(bool(map.call("attack")), "mid charge reaches a worm two cells ahead")
 	avatar.call("_process", float(avatar.call("get_attack_contact_time")) + 0.01)
 	_check(
@@ -467,7 +470,7 @@ func _test_isometric_map() -> void:
 	sandworms.call("clear_worms")
 	map.call("_set_impact_charge", 0.9)
 	var fan_worm: int = int(sandworms.call("spawn_worm", Vector2(7.0, 6.0), 0.0))
-	_advance_worm_to_expose(sandworms, fan_worm)
+	SmokeHelpersScript.advance_worm_to_expose(sandworms, fan_worm)
 	var charge_effects: Node2D = map.get_node("WorldEffectsLayer/ImpactEffects") as Node2D
 	var charged_emissions: int = int(charge_effects.call("get_aftershock_emission_count"))
 	_check(bool(map.call("attack")), "high charge catches a worm on the fan flank")
@@ -486,7 +489,7 @@ func _test_isometric_map() -> void:
 	charge_effects.call("advance", 1.0)
 	sandworms.call("clear_worms")
 	var relay: Node2D = map.get_node("WorldObjectLayer/RelayContest") as Node2D
-	var relay_cell: Vector2i = map.call("_get_relay_cell") as Vector2i
+	var relay_cell: Vector2i = relay.call("get_relay_cell") as Vector2i
 	_check(relay != null, "contested relay controller exists")
 	_check(relay_cell == Vector2i(12, 6), "starter relay placement is deterministic")
 	_check(world.call("terrain_at", relay_cell) == &"ruin", "relay occupies reserved ruin terrain")
@@ -659,7 +662,7 @@ func _test_isometric_map() -> void:
 	effects.call("advance", 1.0)
 	_check(int(effects.call("get_particle_count")) == 0, "debris particles expire")
 	_check(effects.call("get_camera_offset") == Vector2.ZERO, "camera shake resets cleanly")
-	var live_envelope: Dictionary = _read_test_json(save_path)
+	var live_envelope: Dictionary = SmokeHelpersScript.read_test_json(save_path)
 	_check(
 		(
 			int(live_envelope.get("save_format_version", -1)) == 3
@@ -742,7 +745,9 @@ func _test_isometric_map() -> void:
 	var repaired_chassis: int = mini(chassis_before_repair + 35, 100)
 	_check(bool(map.call("_repair_chassis")), "outpost repairs Cardinal")
 	_check(int(map.call("_get_chassis")) == repaired_chassis, "repair restores thirty-five chassis")
-	_check(int(map.call("get_scrap_count")) == scrap_before_repair - 5, "repair consumes five scrap")
+	_check(
+		int(map.call("get_scrap_count")) == scrap_before_repair - 5, "repair consumes five scrap"
+	)
 	run_coordinator = map.get("_run_coordinator") as RefCounted
 	run_coordinator.call("set_run_value", &"worm_cores", 1)
 	map.call("_refresh_outpost_interface")
@@ -824,7 +829,9 @@ func _test_isometric_map() -> void:
 		(effects.call("get_camera_offset") as Vector2).length() <= 6.01,
 		"damage camera kick is bounded",
 	)
-	_check(LocalizationScript.t(&"source.test_impact") in str(map.call("get_status_text")), "source")
+	_check(
+		LocalizationScript.t(&"source.test_impact") in str(map.call("get_status_text")), "source"
+	)
 	chassis_feedback.call("advance", 0.5)
 	_check(is_zero_approx(float(chassis_feedback.call("get_flash_alpha"))), "damage flash expires")
 	_check(avatar.modulate.is_equal_approx(Color.WHITE), "Cardinal flash resets")
@@ -952,34 +959,9 @@ func _test_isometric_map() -> void:
 	)
 	map.free()
 	await process_frame
-	_clear_test_save(save_path)
-	_clear_test_save(malformed_path)
-	_clear_test_save(incompatible_path)
-
-
-func _advance_worm_to_expose(worms: Node2D, worm_id: int) -> void:
-	worms.call("advance", 0.001)
-	var snapshot: Dictionary = worms.call("get_combat_snapshot", worm_id) as Dictionary
-	worms.call("advance", float(snapshot[&"state_remaining"]))
-
-
-func _clear_test_save(path: String) -> void:
-	var directory: DirAccess = DirAccess.open(path.get_base_dir())
-	if directory == null:
-		return
-	var prefix: String = path.get_file()
-	for file_name: String in directory.get_files():
-		if file_name == prefix or file_name.begins_with(prefix + "."):
-			directory.remove(file_name)
-
-
-func _read_test_json(path: String) -> Dictionary:
-	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
-	if file == null:
-		return {}
-	var parsed: Variant = JSON.parse_string(file.get_as_text())
-	file.close()
-	return parsed as Dictionary if parsed is Dictionary else {}
+	SmokeHelpersScript.clear_test_save(save_path)
+	SmokeHelpersScript.clear_test_save(malformed_path)
+	SmokeHelpersScript.clear_test_save(incompatible_path)
 
 
 func _check(condition: bool, label: String) -> void:

@@ -7,6 +7,10 @@ const TEAL: Color = Color("4eb6aa")
 const BONE: Color = Color("d8d0b5")
 
 var _coordinator: RefCounted
+var _objectives: Array = []
+var _player_cell: Vector2i = Vector2i.ZERO
+var _completed_relays: int = 0
+var _redraw_request_count: int = 0
 
 
 func _ready() -> void:
@@ -19,15 +23,33 @@ func _ready() -> void:
 
 func configure(coordinator: RefCounted) -> bool:
 	_coordinator = coordinator
-	return coordinator != null
+	if coordinator == null:
+		_objectives.clear()
+		return false
+	_objectives = coordinator.call("get_run_value", &"relay_objectives") as Array
+	return sync_state(
+		coordinator.call("get_run_value", &"player_cell") as Vector2i,
+		int(coordinator.call("get_run_value", &"completed_relays")),
+		true,
+	)
 
 
-func _process(_delta: float) -> void:
-	queue_redraw()
+func sync_state(player_cell: Vector2i, completed_relays: int, force: bool = false) -> bool:
+	var bounded_completed: int = clampi(completed_relays, 0, _objectives.size())
+	if not force and player_cell == _player_cell and bounded_completed == _completed_relays:
+		return false
+	_player_cell = player_cell
+	_completed_relays = bounded_completed
+	_request_redraw()
+	return true
 
 
 func get_objective_count() -> int:
-	return _objectives().size()
+	return _objectives.size()
+
+
+func get_redraw_request_count() -> int:
+	return _redraw_request_count
 
 
 func _draw() -> void:
@@ -37,32 +59,23 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(TEAL, 0.42), false, 2.0)
 	var center: Vector2 = size * 0.5
 	draw_circle(center, 4.5, BONE)
-	var player: Vector2 = Vector2(_coordinator.call("get_run_value", &"player_cell"))
-	var completed: int = int(_coordinator.call("get_run_value", &"completed_relays"))
-	var objectives: Array = _objectives()
-	for index: int in range(objectives.size()):
-		var cell_value: Array = (objectives[index] as Dictionary)[&"cell"] as Array
-		var offset: Vector2 = Vector2(float(cell_value[0]), float(cell_value[1])) - player
+	for index: int in range(_objectives.size()):
+		var cell_value: Array = (_objectives[index] as Dictionary)[&"cell"] as Array
+		var offset: Vector2 = (
+			Vector2(float(cell_value[0]), float(cell_value[1])) - Vector2(_player_cell)
+		)
 		var point: Vector2 = center + offset.limit_length(78.0)
-		var color: Color = TEAL if index < completed else AMBER
+		var color: Color = TEAL if index < _completed_relays else AMBER
 		draw_line(center, point, Color(color, 0.18), 1.0)
-		draw_circle(point, 5.0 if index == completed else 3.5, color)
+		draw_circle(point, 5.0 if index == _completed_relays else 3.5, color)
 	draw_string(
 		ThemeDB.fallback_font,
 		Vector2(10.0, 20.0),
-		LocalizationScript.t(&"radar.route", {"completed": completed}),
+		LocalizationScript.t(&"radar.route", {"completed": _completed_relays}),
 		HORIZONTAL_ALIGNMENT_LEFT,
 		120.0,
 		14,
 		BONE,
-	)
-
-
-func _objectives() -> Array:
-	return (
-		_coordinator.call("get_run_value", &"relay_objectives") as Array
-		if _coordinator != null
-		else []
 	)
 
 
@@ -75,3 +88,8 @@ func _apply_layout() -> void:
 		viewport.x - size.x * scale_value - 18.0,
 		viewport.y * 0.38 if portrait else 76.0,
 	)
+
+
+func _request_redraw() -> void:
+	_redraw_request_count += 1
+	queue_redraw()

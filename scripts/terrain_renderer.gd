@@ -15,6 +15,7 @@ const LAVA_BASALT: Color = Color("252326")
 const VOLCANIC_ASH: Color = Color("8c8a86")
 const LAVA: Color = Color("ff5a12")
 const TEAL: Color = Color("4eb6aa")
+const AMBER: Color = Color("f5a62d")
 const GRID_LINE: Color = Color(0.18, 0.12, 0.08, 0.32)
 const TEXTURES: Dictionary = {
 	&"sand": preload("res://assets/textures/terrain/desert_sand.png"),
@@ -147,6 +148,25 @@ func draw_tile(canvas: Node2D, cell: Vector2i) -> void:
 		var closed: PackedVector2Array = points.duplicate()
 		closed.append(points[0])
 		canvas.draw_polyline(closed, Color(1.0, 0.76, 0.18, 0.58), 2.0)
+
+
+func draw_world_backdrop(canvas: Node2D, robot_position: Vector2) -> void:
+	var backdrop_origin: Vector2 = robot_position - Vector2(2000.0, 1500.0)
+	canvas.draw_rect(Rect2(backdrop_origin, Vector2(4000.0, 3000.0)), Color("24170f"))
+
+
+func draw_drive_vector(
+	canvas: Node2D,
+	robot_position: Vector2,
+	screen_direction: Vector2i,
+	velocity: Vector2,
+	running: bool,
+) -> void:
+	var vector: Vector2 = Vector2(screen_direction).normalized()
+	var start: Vector2 = robot_position + Vector2(0.0, 15.0)
+	var finish: Vector2 = start + vector * (36.0 + minf(velocity.length() * 0.12, 30.0))
+	canvas.draw_line(start, finish, TEAL, 4.0)
+	canvas.draw_circle(finish, 5.0, AMBER if running else TEAL)
 
 
 func terrain_uvs(cell: Vector2i) -> PackedVector2Array:

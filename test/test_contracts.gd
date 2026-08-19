@@ -24,7 +24,9 @@ const WormCounterplayTestsScript: GDScript = preload("res://test/test_worm_count
 const WormTelegraphTestsScript: GDScript = preload("res://test/test_worm_telegraph.gd")
 
 
-static func evaluate(coordinator: RefCounted, world: RefCounted) -> Array[Dictionary]:
+static func evaluate(
+	coordinator: RefCounted, world: RefCounted, runtime: Node = null
+) -> Array[Dictionary]:
 	var cases: Array[Dictionary] = []
 	cases.append_array(AttackAOETestsScript.evaluate())
 	cases.append_array(BalanceTestsScript.evaluate(coordinator))
@@ -35,6 +37,8 @@ static func evaluate(coordinator: RefCounted, world: RefCounted) -> Array[Dictio
 	cases.append_array(LocalizationTestsScript.evaluate())
 	cases.append_array(PreferenceTestsScript.evaluate())
 	cases.append_array(PerformanceTestsScript.evaluate())
+	if runtime != null:
+		cases.append_array(PerformanceTestsScript.evaluate_live(runtime, world))
 	cases.append_array(ResponsiveViewportTestsScript.evaluate())
 	cases.append_array(TitleBriefingTestsScript.evaluate())
 	cases.append_array(OasisWetlandsTestsScript.evaluate())

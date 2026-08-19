@@ -22,6 +22,7 @@ var _speed_ratio: float = 0.0
 var _attack_time: float = 0.0
 var _impact_emitted: bool = false
 var _using_proxy: bool = true
+var _redraw_request_count: int = 0
 
 
 func _ready() -> void:
@@ -39,7 +40,8 @@ func _ready() -> void:
 	_sprite.visible = not _using_proxy
 	add_child(_sprite)
 	_apply_animation()
-	queue_redraw()
+	if _using_proxy:
+		_request_redraw()
 
 
 func _process(delta: float) -> void:
@@ -53,7 +55,6 @@ func _process(delta: float) -> void:
 			impact_frame.emit()
 		if _attack_time == 0.0:
 			_apply_animation()
-	queue_redraw()
 
 
 func set_motion(facing: StringName, moving: bool, speed_ratio: float) -> void:
@@ -69,13 +70,11 @@ func play_attack() -> void:
 	_attack_time = ATTACK_DURATION
 	_impact_emitted = false
 	var animation: StringName = get_animation_name(&"attack", _facing)
-	_using_proxy = not _frames.has_animation(animation)
-	_sprite.visible = not _using_proxy
+	_set_proxy_usage(not _frames.has_animation(animation))
 	if not _using_proxy:
 		_sprite.speed_scale = 1.0
 		_sprite.play(animation)
 		_sprite.frame = 0
-	queue_redraw()
 
 
 func get_animation_name(state: StringName, facing: StringName) -> StringName:
@@ -137,6 +136,10 @@ func get_active_frame() -> int:
 	return _sprite.frame if _sprite != null else -1
 
 
+func get_redraw_request_count() -> int:
+	return _redraw_request_count
+
+
 func _atlas_contract_is_valid() -> bool:
 	for state: StringName in STATES:
 		for direction: StringName in DIRECTIONS:
@@ -154,8 +157,7 @@ func _atlas_contract_is_valid() -> bool:
 func _apply_animation() -> void:
 	var state: StringName = &"attack" if _attack_time > 0.0 else &"walk"
 	var animation: StringName = get_animation_name(state, _facing)
-	_using_proxy = not _frames.has_animation(animation)
-	_sprite.visible = not _using_proxy
+	_set_proxy_usage(not _frames.has_animation(animation))
 	if _using_proxy:
 		_sprite.stop()
 		return
@@ -166,6 +168,20 @@ func _apply_animation() -> void:
 		_sprite.play()
 	if state == &"walk" and not _moving:
 		_sprite.pause()
+
+
+func _set_proxy_usage(value: bool) -> void:
+	var changed: bool = value != _using_proxy
+	_using_proxy = value
+	if _sprite != null:
+		_sprite.visible = not _using_proxy
+	if changed:
+		_request_redraw()
+
+
+func _request_redraw() -> void:
+	_redraw_request_count += 1
+	queue_redraw()
 
 
 func _draw() -> void:

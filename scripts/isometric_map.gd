@@ -9,6 +9,7 @@ const FieldUIBuilderScript: GDScript = preload("res://scripts/field_ui_builder.g
 const ImpactChargeScript: GDScript = preload("res://scripts/impact_charge.gd")
 const ImpactEffectsScript: GDScript = preload("res://scripts/impact_effects.gd")
 const ImpactTargetingScript: GDScript = preload("res://scripts/impact_targeting.gd")
+const PerformanceSamplerScript: GDScript = preload("res://scripts/performance_sampler.gd")
 const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const IsometricControlsScript: GDScript = preload("res://scripts/isometric_controls.gd")
 const MobileControlsScript: GDScript = preload("res://scripts/mobile_controls.gd")
@@ -46,7 +47,6 @@ const MAX_CHASSIS: int = 100
 const REPAIR_COST: int = 5
 const REPAIR_AMOUNT: int = 35
 const RESOURCE_MAGNET_RADIUS_CELLS: int = 2
-const TEAL: Color = Color("4eb6aa")
 const AMBER: Color = Color("f5a62d")
 @export var save_path: String = DEFAULT_SAVE_PATH
 var _terrain: Dictionary = {}
@@ -106,6 +106,7 @@ var _hud: CanvasLayer
 var _impact_charge: Node2D
 var _mobile_controls: CanvasLayer
 var _object_layer: CanvasLayer
+var _performance_sampler: Node
 var _relay_contest: Node2D
 var _run_coordinator: RefCounted
 var _terminal_flow: CanvasLayer
@@ -127,6 +128,9 @@ func _ready() -> void:
 	_run_coordinator = RunCoordinatorScript.new() as RefCounted
 	if not bool(_run_coordinator.call("configure_default", START_CELL, &"SE")):
 		push_error("WW-02 typed state contracts failed validation.")
+	_performance_sampler = PerformanceSamplerScript.new() as Node
+	_performance_sampler.name = "PerformanceSampler"
+	add_child(_performance_sampler)
 	_build_world_stream()
 	_build_save_repository(save_path)
 	_load_world_state()
@@ -154,6 +158,7 @@ func _ready() -> void:
 	queue_redraw()
 	_run_coordinator.call("record_event", RuntimeIdsScript.EVENT_FIELD_READY)
 	WebSceneStateScript.set_state("field-ready")
+	_performance_sampler.call("set_phase", &"field_ready")
 	print("[ISOMETRIC_MAP_READY]")
 
 
@@ -217,12 +222,9 @@ func _process(delta: float) -> void:
 	if _relay_contest != null:
 		_relay_contest.call("set_player_position", player_grid_position)
 		_relay_contest.call("advance", delta)
-	if _world_objects != null:
-		_world_objects.queue_redraw()
 	if _terminal_flow != null:
 		_terminal_flow.call("update_context", not _shutdown and _is_at_outpost())
 	_refresh_outpost_interface()
-	_sync_avatar()
 	queue_redraw()
 
 
@@ -232,10 +234,17 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _draw() -> void:
-	_draw_world_backdrop()
+	_terrain_renderer.call("draw_world_backdrop", self, _robot_visual_position)
 	for cell: Vector2i in _visible_cells:
-		_draw_tile(cell)
-	_draw_drive_vector()
+		_terrain_renderer.call("draw_tile", self, cell)
+	_terrain_renderer.call(
+		"draw_drive_vector",
+		self,
+		_robot_visual_position,
+		_last_screen_direction,
+		_velocity,
+		_is_running
+	)
 	if _impact_flash > 0.0:
 		draw_arc(_robot_visual_position, 74.0, 0.0, TAU, 40, AMBER, 5.0 * _impact_flash / 0.36)
 
@@ -406,6 +415,7 @@ func place_destructible_rock(cell: Vector2i) -> bool:
 	if _world == null or not bool(_world.call("place_rock", cell, _robot_grid)):
 		return false
 	_refresh_haze_mask()
+	_world_objects.call("invalidate_static_objects")
 	_save_world_state()
 	queue_redraw()
 	return true
@@ -415,6 +425,7 @@ func _break_rock(cell: Vector2i) -> bool:
 	if _world == null or not bool(_world.call("break_rock", cell)):
 		return false
 	_refresh_haze_mask()
+	_world_objects.call("invalidate_static_objects")
 	queue_redraw()
 	return true
 
@@ -422,6 +433,7 @@ func _break_rock(cell: Vector2i) -> bool:
 func _place_scrap(cell: Vector2i, amount: int = 1) -> bool:
 	if _world == null or not bool(_world.call("place_scrap", cell, amount)):
 		return false
+	_world_objects.call("invalidate_static_objects")
 	queue_redraw()
 	return true
 
@@ -573,11 +585,6 @@ func _get_completed_relays() -> int:
 	return int(_run_value(&"completed_relays", 0))
 
 
-func _get_relay_cell() -> Vector2i:
-	var relay: Node2D = _relay_contest
-	return relay.call("get_relay_cell") as Vector2i if relay != null else INVALID_CELL
-
-
 func get_facing() -> StringName:
 	return _facing
 
@@ -644,6 +651,7 @@ func _save_world_state() -> bool:
 		return false
 	if bool(_state_store.call("is_write_blocked")):
 		return false
+	var started_usec: int = _performance_sampler.call("begin_scope") as int
 	var saved: bool = bool(
 		(
 			_state_store
@@ -657,6 +665,7 @@ func _save_world_state() -> bool:
 	)
 	if not saved:
 		push_warning("World save failed: %s" % str(_state_store.call("get_last_error")))
+	_performance_sampler.call("capture_save", saved, started_usec)
 	return saved
 
 
@@ -699,17 +708,21 @@ func _can_transition(from: Vector2i, target: Vector2i) -> bool:
 func _collect_scrap_near(cell: Vector2i, radius_cells: int = RESOURCE_MAGNET_RADIUS_CELLS) -> int:
 	if _shutdown:
 		return 0
-	var total: int = ResourceMagnetScript.collect_and_emit(
-		_world,
-		_effects,
-		Callable(self, "grid_to_screen"),
-		_robot_visual_position,
-		cell,
-		radius_cells,
+	var total: int = (
+		ResourceMagnetScript
+		. collect_and_emit(
+			_world,
+			_effects,
+			Callable(self, "grid_to_screen"),
+			_robot_visual_position,
+			cell,
+			radius_cells,
+		)
 	)
 	if total <= 0:
 		return 0
 	_scrap_count += total
+	_world_objects.call("invalidate_static_objects")
 	_status_hold_time = 0.9
 	_refresh_outpost_interface()
 	_save_world_state()
@@ -741,6 +754,7 @@ func _build_world_stream() -> void:
 func _stream_world() -> void:
 	if _world == null:
 		return
+	var started_usec: int = _performance_sampler.call("begin_scope") as int
 	_world.call("stream_around", _robot_grid)
 	_visible_cells = _world.call("visible_cells", _robot_grid) as Array[Vector2i]
 	if _world_objects != null:
@@ -748,6 +762,9 @@ func _stream_world() -> void:
 	if _terrain_haze != null:
 		_terrain_haze.call("set_visible_cells", _visible_cells)
 	_refresh_haze_mask()
+	if _hud != null:
+		_hud.call("sync_radar", _robot_grid, _get_completed_relays())
+	_performance_sampler.call("capture_stream", _world, _visible_cells.size(), started_usec)
 	queue_redraw()
 
 
@@ -788,7 +805,7 @@ func _build_world_layers() -> void:
 			Callable(self, "_save_world_state"),
 		)
 	)
-	_world_objects.call("bind_world", _world, Callable(self, "_on_hazard_damage"))
+	_world_objects.call("bind_world", _world, Callable(self, "_apply_chassis_damage"))
 	_world_objects.call("set_visible_cells", _visible_cells)
 
 
@@ -846,12 +863,8 @@ func _build_hazards() -> void:
 	_hazards.z_index = 40
 	_hazards.call("configure", TILE_SIZE, MAP_ORIGIN, _world.call("get_cull_radius"))
 	_hazards.call("set_player_cell", _robot_grid)
-	_hazards.connect("damage_tick", Callable(self, "_on_hazard_damage"))
+	_hazards.connect("damage_tick", Callable(self, "_apply_chassis_damage"))
 	_effects_layer.add_child(_hazards)
-
-
-func _on_hazard_damage(amount: int, source: StringName) -> void:
-	_apply_chassis_damage(amount, source)
 
 
 func _build_sandworms() -> void:
@@ -861,7 +874,7 @@ func _build_sandworms() -> void:
 	_sandworms.call("configure", TILE_SIZE, MAP_ORIGIN, null, _world)
 	_sandworms.call("set_player_position", Vector2(_robot_grid))
 	_sandworms.call("set_outpost_linked", _is_at_outpost())
-	_sandworms.connect("damage_tick", Callable(self, "_on_hazard_damage"))
+	_sandworms.connect("damage_tick", Callable(self, "_apply_chassis_damage"))
 	_object_layer.add_child(_sandworms)
 	_world_objects.call("build_run_pickups", _world, _run_coordinator, _sandworms)
 	_world_objects.call("build_encounter_director", _world, _run_coordinator, _sandworms, _hazards)
@@ -919,29 +932,13 @@ func _sync_avatar() -> void:
 		_impact_charge.call("set_visual_position", _robot_visual_position)
 
 
-func _draw_world_backdrop() -> void:
-	var backdrop_origin: Vector2 = _robot_visual_position - Vector2(2000.0, 1500.0)
-	draw_rect(Rect2(backdrop_origin, Vector2(4000.0, 3000.0)), Color("24170f"))
-
-
-func _draw_tile(cell: Vector2i) -> void:
-	_terrain_renderer.call("draw_tile", self, cell)
-
-
-func _draw_drive_vector() -> void:
-	var vector: Vector2 = Vector2(_last_screen_direction).normalized()
-	var start: Vector2 = _robot_visual_position + Vector2(0.0, 15.0)
-	var finish: Vector2 = start + vector * (36.0 + minf(_velocity.length() * 0.12, 30.0))
-	draw_line(start, finish, TEAL, 4.0)
-	draw_circle(finish, 5.0, AMBER if _is_running else TEAL)
-
-
 func _build_interface() -> void:
 	_hud = FieldHudScript.new() as CanvasLayer
 	_hud.name = "FieldHUD"
 	_hud.connect("repair_requested", Callable(self, "_repair_chassis"))
 	_hud.call("configure_refit", _run_coordinator, Callable(self, "_save_world_state"))
 	add_child(_hud)
+	_hud.call("set_performance_sampler", _performance_sampler)
 	_terminal_flow = RunTerminalFlowScript.new() as CanvasLayer
 	add_child(_terminal_flow)
 	_terminal_flow.call(
@@ -970,10 +967,10 @@ func _refresh_outpost_interface() -> void:
 			_relay_contest,
 			_impact_charge,
 			_mobile_controls,
-				_chassis,
-				MAX_CHASSIS,
-				_scrap_count,
-				StatusLocalizerScript.render(_context_status),
+			_chassis,
+			MAX_CHASSIS,
+			_scrap_count,
+			StatusLocalizerScript.render(_context_status),
 			_shutdown,
 			_is_at_outpost(),
 			_facing,

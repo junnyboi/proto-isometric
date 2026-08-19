@@ -6,8 +6,8 @@ const LocalizationScript: GDScript = preload("res://scripts/localization_service
 const OutpostInterfaceScript: GDScript = preload("res://scripts/outpost_interface.gd")
 const AccessibilityPanelScript: GDScript = preload("res://scripts/accessibility_panel.gd")
 const ExpeditionRadarScript: GDScript = preload("res://scripts/expedition_radar.gd")
+const FieldUIBuilderScript: GDScript = preload("res://scripts/field_ui_builder.gd")
 const OnboardingOverlayScript: GDScript = preload("res://scripts/onboarding_overlay.gd")
-const PerformanceSamplerScript: GDScript = preload("res://scripts/performance_sampler.gd")
 const RefitServiceScript: GDScript = preload("res://scripts/refit_service.gd")
 const FIELD_THEME: Resource = preload("res://data/field_hud_theme.tres")
 const AMBER: Color = Color("f5a62d")
@@ -15,7 +15,9 @@ const TEAL: Color = Color("4eb6aa")
 const MUTED: Color = Color("9f9787")
 
 var _state: RefCounted
+var _state_snapshot: Dictionary = {}
 var _layout: Dictionary = {}
+var _layout_signature: Array = []
 var _drive_panel: ColorRect
 var _status_label: Label
 var _charge_fill: ColorRect
@@ -29,11 +31,15 @@ var _ui_scale: float = 1.0
 var _onboarding: CanvasLayer
 var _radar: Control
 var _radar_coordinator: RefCounted
+var _performance_sampler: Node
 var _left_handed: bool = false
 var _panel_title: Label
 var _panel_subtitle: Label
 var _strike_instruction: Label
 var _drive_instruction: Label
+var _state_apply_count: int = 0
+var _state_skip_count: int = 0
+var _layout_apply_count: int = 0
 
 
 func _ready() -> void:
@@ -54,11 +60,10 @@ func _ready() -> void:
 	add_child(_onboarding)
 	_radar = ExpeditionRadarScript.new() as Control
 	add_child(_radar)
-	add_child(PerformanceSamplerScript.new())
 	if _radar_coordinator != null:
 		_radar.call("configure", _radar_coordinator)
 	get_viewport().size_changed.connect(_on_viewport_resized)
-	apply_layout(get_viewport().get_visible_rect().size, false)
+	apply_layout(get_viewport().get_visible_rect().size, false, true)
 
 
 func configure_refit(coordinator: RefCounted, save_callback: Callable) -> bool:
@@ -69,22 +74,111 @@ func configure_refit(coordinator: RefCounted, save_callback: Callable) -> bool:
 	return bool(_refit_service.call("configure", coordinator, save_callback))
 
 
+func set_performance_sampler(sampler: Node) -> void:
+	_performance_sampler = sampler
+	FieldUIBuilderScript.configure_performance(sampler)
+
+
 func apply_state(state: RefCounted) -> bool:
 	if state == null or not state.has_method("is_sealed") or not bool(state.call("is_sealed")):
 		return false
+	var candidate: Dictionary = state.call("to_dictionary") as Dictionary
+	if candidate == _state_snapshot:
+		_state_skip_count += 1
+		_record_counter(&"hud.state_skips")
+		return true
+	var previous: Dictionary = _state_snapshot
 	_state = state
-	_onboarding.call("apply_state", state)
-	_apply_status()
-	_apply_impact()
-	_apply_objective()
-	_apply_outpost()
+	_state_snapshot = candidate.duplicate(true)
+	_state_apply_count += 1
+	_record_counter(&"hud.state_applies")
+	if _section_changed(
+		previous,
+		candidate,
+		[
+			&"context_event",
+			&"active_modifier_id",
+			&"debug_visible",
+			&"debug_cell",
+			&"debug_facing",
+			&"debug_speed_ratio",
+			&"chassis",
+			&"max_chassis",
+			&"run_scrap",
+			&"worm_cores",
+		]
+	):
+		_apply_status()
+	if _section_changed(
+		previous,
+		candidate,
+		[
+			&"impact_charge",
+			&"impact_band",
+			&"mobile_controls",
+		]
+	):
+		_apply_impact()
+	if _section_changed(
+		previous,
+		candidate,
+		[
+			&"relay_state",
+			&"relay_progress",
+			&"completed_relays",
+			&"total_relays",
+			&"alert_level",
+			&"objective_guidance",
+		]
+	):
+		_apply_objective()
+	if _section_changed(
+		previous,
+		candidate,
+		[
+			&"outpost_linked",
+			&"run_scrap",
+			&"worm_cores",
+			&"chassis",
+			&"max_chassis",
+			&"active_module_ids",
+			&"refit_purchase_used",
+			&"active_modifier_id",
+		]
+	):
+		_apply_outpost()
+	if (
+		_onboarding != null
+		and _section_changed(
+			previous,
+			candidate,
+			[
+				&"mobile_controls",
+				&"impact_charge",
+				&"completed_relays",
+			]
+		)
+	):
+		_onboarding.call("apply_state", state)
+	if _radar != null:
+		(
+			_radar
+			. call(
+				"sync_state",
+				candidate[&"debug_cell"] as Vector2i,
+				int(candidate[&"completed_relays"]),
+			)
+		)
 	return apply_layout(
 		get_viewport().get_visible_rect().size,
-		bool(_state.call("get_value", &"mobile_controls")),
+		bool(candidate[&"mobile_controls"]),
 	)
 
 
-func apply_layout(viewport_size: Vector2, mobile: bool) -> bool:
+func apply_layout(viewport_size: Vector2, mobile: bool, force: bool = false) -> bool:
+	var signature: Array = [viewport_size, mobile, _left_handed, _ui_scale]
+	if not force and signature == _layout_signature:
+		return true
 	var candidate: Dictionary = FIELD_THEME.call("make_layout", viewport_size, mobile) as Dictionary
 	if mobile and _left_handed:
 		var charge: Rect2 = candidate[&"mobile_charge"] as Rect2
@@ -93,7 +187,10 @@ func apply_layout(viewport_size: Vector2, mobile: bool) -> bool:
 		)
 	if not bool(FIELD_THEME.call("validate_layout", candidate, mobile)):
 		return false
+	_layout_signature = signature
 	_layout = candidate.duplicate(true)
+	_layout_apply_count += 1
+	_record_counter(&"hud.layout_applies")
 	_apply_control_layout(
 		_drive_panel,
 		_layout[&"drive_panel"] as Rect2,
@@ -122,7 +219,7 @@ func _on_preferences_changed(snapshot: Dictionary) -> void:
 	if _drive_panel != null:
 		apply_layout(
 			get_viewport().get_visible_rect().size,
-			_state != null and bool(_state.call("get_value", &"mobile_controls"))
+			_state != null and bool(_state.call("get_value", &"mobile_controls")),
 		)
 
 
@@ -136,7 +233,7 @@ func get_touch_exclusions() -> Array[Rect2]:
 
 
 func get_field_state_snapshot() -> Dictionary:
-	return _state.call("to_dictionary") as Dictionary if _state != null else {}
+	return _state_snapshot.duplicate(true)
 
 
 func get_status_text() -> String:
@@ -153,6 +250,30 @@ func get_relay_text() -> String:
 
 func get_outpost_interface() -> Control:
 	return _outpost_interface
+
+
+func sync_radar(player_cell: Vector2i, completed_relays: int) -> bool:
+	return (
+		bool(_radar.call("sync_state", player_cell, completed_relays)) if _radar != null else false
+	)
+
+
+func get_performance_snapshot() -> Dictionary:
+	return (
+		_performance_sampler.call("get_snapshot") as Dictionary
+		if _performance_sampler != null
+		else {}
+	)
+
+
+func get_work_metrics() -> Dictionary:
+	return {
+		&"state_applies": _state_apply_count,
+		&"state_skips": _state_skip_count,
+		&"layout_applies": _layout_apply_count,
+		&"radar_redraw_requests":
+		int(_radar.call("get_redraw_request_count")) if _radar != null else 0,
+	}
 
 
 func _apply_status() -> void:
@@ -290,6 +411,20 @@ func _on_locale_changed(_locale: StringName) -> void:
 		_apply_status()
 		_apply_impact()
 		_apply_objective()
+
+
+func _section_changed(previous: Dictionary, candidate: Dictionary, keys: Array) -> bool:
+	if previous.is_empty():
+		return true
+	for key: StringName in keys:
+		if previous.get(key) != candidate.get(key):
+			return true
+	return false
+
+
+func _record_counter(counter: StringName) -> void:
+	if _performance_sampler != null:
+		_performance_sampler.call("increment_counter", counter)
 
 
 func _apply_control_layout(control: Control, rect: Rect2, scale_value: float) -> void:

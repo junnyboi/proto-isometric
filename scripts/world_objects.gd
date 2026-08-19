@@ -26,6 +26,7 @@ var _tile_size: Vector2 = Vector2(90.0, 45.0)
 var _sanctuary_radius: float = InfiniteWorldScript.SANCTUARY_RADIUS
 var _lava_contact: RefCounted
 var _damage_callback: Callable
+var _redraw_request_count: int = 0
 
 
 func configure(
@@ -44,7 +45,7 @@ func configure(
 	_save_callback = save_callback
 	_tile_size = tile_size
 	_sanctuary_radius = maxf(sanctuary_radius, 0.0)
-	queue_redraw()
+	invalidate_static_objects()
 
 
 func bind_world(world: RefCounted, damage_callback: Callable) -> bool:
@@ -63,11 +64,20 @@ func advance_lava(position: Vector2, delta: float) -> void:
 
 func set_visible_cells(cells: Array[Vector2i]) -> void:
 	_visible_cells = cells
-	queue_redraw()
+	invalidate_static_objects()
 
 
 func get_visible_cell_count() -> int:
 	return _visible_cells.size()
+
+
+func invalidate_static_objects() -> void:
+	_redraw_request_count += 1
+	queue_redraw()
+
+
+func get_redraw_request_count() -> int:
+	return _redraw_request_count
 
 
 func get_sanctuary_radius() -> float:

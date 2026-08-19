@@ -16,6 +16,7 @@ var _emission_count: int = 0
 var _damage_emission_count: int = 0
 var _aftershock_emission_count: int = 0
 var _shake_enabled: bool = true
+var _redraw_request_count: int = 0
 
 
 func _ready() -> void:
@@ -64,7 +65,7 @@ func emit_rock_impact(position: Vector2, cell: Vector2i) -> void:
 				}
 			)
 		)
-	queue_redraw()
+	_request_redraw()
 
 
 func emit_scrap_pickup(
@@ -97,7 +98,7 @@ func emit_scrap_pickup(
 				}
 			)
 		)
-	queue_redraw()
+	_request_redraw()
 
 
 func emit_chassis_damage(position: Vector2, amount: int) -> void:
@@ -120,7 +121,7 @@ func emit_chassis_damage(position: Vector2, amount: int) -> void:
 				}
 			)
 		)
-	queue_redraw()
+	_request_redraw()
 
 
 func emit_aftershock(position: Vector2, cell: Vector2i, band: int) -> void:
@@ -146,11 +147,12 @@ func emit_aftershock(position: Vector2, cell: Vector2i, band: int) -> void:
 				}
 			)
 		)
-	queue_redraw()
+	_request_redraw()
 
 
 func advance(delta: float) -> void:
 	var step: float = maxf(delta, 0.0)
+	var had_particles: bool = not _particles.is_empty()
 	if _shake_time > 0.0:
 		_shake_time = maxf(_shake_time - step, 0.0)
 		_apply_camera_offset()
@@ -168,7 +170,8 @@ func advance(delta: float) -> void:
 			_particles.remove_at(index)
 		else:
 			_particles[index] = particle
-	queue_redraw()
+	if had_particles:
+		_request_redraw()
 
 
 func get_particle_count() -> int:
@@ -185,6 +188,10 @@ func get_damage_emission_count() -> int:
 
 func get_aftershock_emission_count() -> int:
 	return _aftershock_emission_count
+
+
+func get_redraw_request_count() -> int:
+	return _redraw_request_count
 
 
 func get_shake_remaining() -> float:
@@ -227,6 +234,11 @@ func _apply_camera_offset() -> void:
 	var phase: float = float(_shake_seed) * 0.017 + (_shake_duration - _shake_time) * 53.0
 	var direction: Vector2 = Vector2(sin(phase * 1.7), cos(phase * 2.3)).normalized()
 	_camera.offset = direction * _shake_strength * normalized
+
+
+func _request_redraw() -> void:
+	_redraw_request_count += 1
+	queue_redraw()
 
 
 func _draw() -> void:

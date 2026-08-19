@@ -36,6 +36,13 @@ static func evaluate() -> Array[Dictionary]:
 		"Cardinal uses the validated combined atlas",
 		not bool(cardinal.call("is_using_proxy"))
 	)
+	var idle_redraws: int = int(cardinal.call("get_redraw_request_count"))
+	cardinal.call("_process", 0.016)
+	_add(
+		cases,
+		"validated Cardinal atlas requests no idle proxy redraw",
+		int(cardinal.call("get_redraw_request_count")) == idle_redraws,
+	)
 	_add(
 		cases,
 		"all eight walk directions are available",
