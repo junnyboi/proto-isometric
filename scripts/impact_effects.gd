@@ -2,12 +2,14 @@ extends Node2D
 
 const BiomeDestructiblesScript: GDScript = preload("res://scripts/biome_destructibles.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
+const IMPACT_CONTACT_TEXTURE: Texture2D = preload("res://assets/vfx/juice/impact_contact.png")
 
 const SCRAP: Color = Color("4eb6aa")
 const CHASSIS_SPARK: Color = Color("ffb12d")
 const DEBRIS_LIFETIME_SECONDS: float = 1.0
 const MAX_POOL_SIZE: int = 128
 const MAX_ACTIVE_PARTICLES: int = 128
+const MAX_ACTIVE_BURSTS: int = 16
 
 var _camera: Camera2D
 var _camera_mixer: RefCounted
@@ -18,6 +20,8 @@ var _shake_strength: float = 0.0
 var _shake_seed: int = 0
 var _particles: Array[Dictionary] = []
 var _particle_pool: Array[Dictionary] = []
+var _bursts: Array[Dictionary] = []
+var _burst_pool: Array[Dictionary] = []
 var _emission_count: int = 0
 var _damage_emission_count: int = 0
 var _aftershock_emission_count: int = 0
@@ -25,14 +29,19 @@ var _created_particle_count: int = 0
 var _reused_particle_count: int = 0
 var _reclaimed_particle_count: int = 0
 var _peak_particle_count: int = 0
+var _created_burst_count: int = 0
+var _reclaimed_burst_count: int = 0
+var _peak_burst_count: int = 0
 var _last_debris_kind: StringName = BiomeDestructiblesScript.KIND_DESERT_ROCK
 var _last_debris_palette: Array[Color] = []
 var _shake_enabled: bool = true
+var _reduced_flash: bool = false
 var _redraw_request_count: int = 0
 
 
 func _init() -> void:
 	_prewarm_particle_pool()
+	_prewarm_burst_pool()
 
 
 func _ready() -> void:
@@ -173,6 +182,7 @@ func emit_feedback(event: Dictionary, profile: Dictionary) -> void:
 	if event_id == RuntimeIdsScript.EVENT_SMASH_WHIFF:
 		return
 	var position: Vector2 = event.get(&"position", Vector2.ZERO) as Vector2
+	_emit_contact_burst(event_id, position, int(event.get(&"strength", 0)))
 	var count: int = int(profile.get(&"particle_count", 0))
 	var metadata: Dictionary = event.get(&"metadata", {}) as Dictionary
 	if str(event_id).begins_with("event.locomotion.") or str(event_id).begins_with("event.charge."):
@@ -201,7 +211,7 @@ func emit_feedback(event: Dictionary, profile: Dictionary) -> void:
 
 func advance(delta: float) -> void:
 	var step: float = maxf(delta, 0.0)
-	var had_particles: bool = not _particles.is_empty()
+	var had_visuals: bool = not _particles.is_empty() or not _bursts.is_empty()
 	var recycled: bool = false
 	if _camera_mixer != null:
 		_camera_mixer.call("advance", step)
@@ -227,9 +237,21 @@ func advance(delta: float) -> void:
 			recycled = true
 		else:
 			_particles[index] = particle
+	for index: int in range(_bursts.size() - 1, -1, -1):
+		var burst: Dictionary = _bursts[index]
+		burst[&"life"] = float(burst[&"life"]) - step
+		if float(burst[&"life"]) <= 0.0:
+			var last_burst_index: int = _bursts.size() - 1
+			if index != last_burst_index:
+				_bursts[index] = _bursts[last_burst_index]
+			_bursts.pop_back()
+			_recycle_burst(burst)
+			recycled = true
+		else:
+			_bursts[index] = burst
 	if recycled:
 		_sync_metrics()
-	if had_particles:
+	if had_visuals:
 		_request_redraw()
 
 
@@ -279,6 +301,18 @@ func _get_last_debris_palette() -> Array[Color]:
 
 func get_redraw_request_count() -> int:
 	return _redraw_request_count
+
+
+func _get_burst_count() -> int:
+	return _bursts.size()
+
+
+func _get_created_burst_count() -> int:
+	return _created_burst_count
+
+
+func _get_reclaimed_burst_count() -> int:
+	return _reclaimed_burst_count
 
 
 func get_shake_remaining() -> float:
@@ -394,6 +428,44 @@ func _recycle_particle(particle: Dictionary) -> void:
 	_particle_pool.append(particle)
 
 
+func _emit_contact_burst(event_id: StringName, position: Vector2, strength: int) -> void:
+	var burst: Dictionary
+	if _burst_pool.is_empty():
+		burst = _bursts.pop_front()
+		_reclaimed_burst_count += 1
+		_record_counter(&"bursts.reclaimed")
+	else:
+		burst = _burst_pool.pop_back()
+	var tier: int = clampi(strength, 0, 2)
+	var duration: float = 0.26 + float(tier) * 0.06
+	if event_id == RuntimeIdsScript.EVENT_SMASH_DEFEAT:
+		duration = 0.48
+	burst[&"position"] = position
+	burst[&"life"] = duration
+	burst[&"maximum_life"] = duration
+	burst[&"size"] = Vector2(118.0, 72.0) * (1.0 + float(tier) * 0.2)
+	burst[&"event_id"] = event_id
+	_bursts.append(burst)
+	_peak_burst_count = maxi(_peak_burst_count, _bursts.size())
+	assert(_bursts.size() <= MAX_ACTIVE_BURSTS)
+	_request_redraw()
+
+
+func _prewarm_burst_pool() -> void:
+	if not _burst_pool.is_empty() or not _bursts.is_empty():
+		return
+	for _index: int in range(MAX_ACTIVE_BURSTS):
+		_burst_pool.append({})
+		_created_burst_count += 1
+
+
+func _recycle_burst(burst: Dictionary) -> void:
+	if _burst_pool.size() >= MAX_ACTIVE_BURSTS:
+		return
+	burst.clear()
+	_burst_pool.append(burst)
+
+
 func _start_shake(duration: float, strength: float, seed: int) -> void:
 	if not _shake_enabled:
 		_shake_time = 0.0
@@ -420,6 +492,7 @@ func _bind_accessibility() -> void:
 
 func _apply_preferences(snapshot: Dictionary) -> void:
 	_shake_enabled = bool(snapshot.get(&"camera_shake", true))
+	_reduced_flash = bool(snapshot.get(&"reduced_flash", false))
 	if _camera_mixer != null:
 		_camera_mixer.call("set_enabled", _shake_enabled)
 
@@ -453,6 +526,10 @@ func _sync_metrics() -> void:
 		"set_gauge", &"particles.reclaimed_total", float(_reclaimed_particle_count)
 	)
 	_performance_sampler.call("set_gauge", &"particles.peak_active", float(_peak_particle_count))
+	_performance_sampler.call("set_gauge", &"bursts.active", float(_bursts.size()))
+	_performance_sampler.call("set_gauge", &"bursts.pool_available", float(_burst_pool.size()))
+	_performance_sampler.call("set_gauge", &"bursts.reclaimed_total", float(_reclaimed_burst_count))
+	_performance_sampler.call("set_gauge", &"bursts.peak_active", float(_peak_burst_count))
 
 
 func _request_redraw() -> void:
@@ -461,6 +538,21 @@ func _request_redraw() -> void:
 
 
 func _draw() -> void:
+	for burst: Dictionary in _bursts:
+		var maximum_life: float = maxf(float(burst[&"maximum_life"]), 0.001)
+		var ratio: float = clampf(float(burst[&"life"]) / maximum_life, 0.0, 1.0)
+		var progress: float = 1.0 - ratio
+		var size: Vector2 = burst[&"size"] as Vector2
+		var scale_factor: float = 1.0 if _reduced_flash else lerpf(0.82, 1.08, progress)
+		var color: Color = Color.WHITE
+		color.a = ratio * (0.46 if _reduced_flash else 0.92)
+		var draw_size: Vector2 = size * scale_factor
+		draw_texture_rect(
+			IMPACT_CONTACT_TEXTURE,
+			Rect2((burst[&"position"] as Vector2) - draw_size * 0.5, draw_size),
+			false,
+			color,
+		)
 	for particle: Dictionary in _particles:
 		var life_ratio: float = clampf(
 			float(particle["life"]) / float(particle["maximum_life"]), 0.0, 1.0

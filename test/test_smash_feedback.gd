@@ -105,9 +105,10 @@ static func _test_router_channels(cases: Array[Dictionary]) -> void:
 		"whiff emits no false contact-only feedback",
 		(
 			int((whiff_metrics[&"camera"] as Dictionary)[&"active"]) == 0
-			and int(whiff_metrics[&"reactions"]) == 0
-			and int(effects.call("get_particle_count")) == 0
-			and int((whiff_metrics[&"haptics"] as Dictionary)[&"requests"]) == 0
+				and int(whiff_metrics[&"reactions"]) == 0
+				and int(effects.call("get_particle_count")) == 0
+				and int(effects.call("_get_burst_count")) == 0
+				and int((whiff_metrics[&"haptics"] as Dictionary)[&"requests"]) == 0
 		),
 	)
 	_add(cases, "duplicate semantic sequences are rejected", not bool(router.call("submit", whiff)))
@@ -132,9 +133,10 @@ static func _test_router_channels(cases: Array[Dictionary]) -> void:
 			and int(hit_metrics[&"reactions"]) == 1
 			and avatar.presentations == 1
 			and enemies.presentations == 1
-			and enemies.last_target == 77
-			and int(effects.call("get_particle_count")) > 0
-			and int((hit_metrics[&"audio"] as Dictionary)[&"requests"]) == 2
+				and enemies.last_target == 77
+				and int(effects.call("get_particle_count")) > 0
+				and int(effects.call("_get_burst_count")) == 1
+				and int((hit_metrics[&"audio"] as Dictionary)[&"requests"]) == 2
 			and int((hit_metrics[&"haptics"] as Dictionary)[&"requests"]) == 1
 		),
 	)
@@ -202,9 +204,21 @@ static func _test_router_channels(cases: Array[Dictionary]) -> void:
 				int((stress_metrics[&"camera"] as Dictionary)[&"peak"])
 				<= CameraImpulseMixerScript.MAX_IMPULSES
 			)
-			and int(effects.call("get_particle_count")) <= ImpactEffectsScript.MAX_ACTIVE_PARTICLES
-			and int(effects.call("get_created_particle_count")) == ImpactEffectsScript.MAX_POOL_SIZE
-		),
+				and int(effects.call("get_particle_count")) <= ImpactEffectsScript.MAX_ACTIVE_PARTICLES
+				and int(effects.call("get_created_particle_count")) == ImpactEffectsScript.MAX_POOL_SIZE
+				and int(effects.call("_get_burst_count")) <= ImpactEffectsScript.MAX_ACTIVE_BURSTS
+				and (
+					int(effects.call("_get_created_burst_count"))
+					== ImpactEffectsScript.MAX_ACTIVE_BURSTS
+				)
+				and int(effects.call("_get_reclaimed_burst_count")) > 0
+			),
+		)
+	effects.call("advance", 1.01)
+	_add(
+		cases,
+		"generated Smash contact bursts cull and return to idle",
+		int(effects.call("_get_burst_count")) == 0,
 	)
 	router.free()
 	camera.free()
