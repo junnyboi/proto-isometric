@@ -14,6 +14,7 @@ const LONG_PRESS_SECONDS: float = 0.55
 const LONG_PRESS_DRAG_TOLERANCE: float = 18.0
 const FADE_IN_SECONDS: float = 0.18
 const FADE_OUT_SECONDS: float = 0.12
+const TRANSITION_MIN_SCALE: float = 0.975
 
 var _avatar: Node2D
 var _enemies: Node2D
@@ -122,6 +123,10 @@ func get_current_profile() -> Dictionary:
 
 func get_card_alpha() -> float:
 	return _panel.modulate.a if _panel != null else 0.0
+
+
+func get_card_scale() -> float:
+	return _panel.scale.x if _panel != null else 1.0
 
 
 func is_fade_in_active() -> bool:
@@ -302,6 +307,7 @@ func _build_card() -> void:
 	_panel.visible = false
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_panel.custom_minimum_size = CARD_SIZE
+	_panel.pivot_offset = CARD_SIZE * 0.5
 	var panel_style: StyleBoxFlat = StyleBoxFlat.new()
 	panel_style.bg_color = PANEL
 	panel_style.border_color = Color(AMBER, 0.86)
@@ -495,17 +501,21 @@ func _clear_candidate() -> void:
 
 func _play_fade_in() -> void:
 	var start_alpha: float = _panel.modulate.a if is_fade_out_active() else 0.0
+	var start_scale: Vector2 = (
+		_panel.scale if is_fade_out_active() else Vector2.ONE * TRANSITION_MIN_SCALE
+	)
 	_kill_fade_transition()
 	_panel.modulate.a = start_alpha
+	_panel.scale = start_scale
 	_panel.visible = true
 	_fade_tween = create_tween()
 	_fade_direction = &"in"
 	_fade_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	_fade_tween.set_trans(Tween.TRANS_CUBIC)
 	_fade_tween.set_ease(Tween.EASE_OUT)
-	_fade_tween.tween_property(
-		_panel, "modulate:a", 1.0, FADE_IN_SECONDS * (1.0 - start_alpha)
-	)
+	var duration: float = FADE_IN_SECONDS * (1.0 - start_alpha)
+	_fade_tween.tween_property(_panel, "modulate:a", 1.0, duration)
+	_fade_tween.parallel().tween_property(_panel, "scale", Vector2.ONE, duration)
 	_fade_tween.tween_callback(func() -> void: _fade_direction = &"")
 
 
@@ -520,7 +530,11 @@ func _play_fade_out() -> void:
 	_fade_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	_fade_tween.set_trans(Tween.TRANS_CUBIC)
 	_fade_tween.set_ease(Tween.EASE_OUT)
-	_fade_tween.tween_property(_panel, "modulate:a", 0.0, FADE_OUT_SECONDS * start_alpha)
+	var duration: float = FADE_OUT_SECONDS * start_alpha
+	_fade_tween.tween_property(_panel, "modulate:a", 0.0, duration)
+	_fade_tween.parallel().tween_property(
+		_panel, "scale", Vector2.ONE * TRANSITION_MIN_SCALE, duration
+	)
 	_fade_tween.tween_callback(_finish_fade_out)
 
 
@@ -528,6 +542,7 @@ func _hide_immediately() -> void:
 	_kill_fade_transition()
 	_panel.visible = false
 	_panel.modulate.a = 1.0
+	_panel.scale = Vector2.ONE
 
 
 func _finish_fade_out() -> void:
@@ -535,6 +550,7 @@ func _finish_fade_out() -> void:
 	_fade_direction = &""
 	_panel.visible = false
 	_panel.modulate.a = 1.0
+	_panel.scale = Vector2.ONE
 
 
 func _kill_fade_transition() -> void:

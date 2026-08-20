@@ -131,12 +131,17 @@ static func _add_touch_cases(cases: Array[Dictionary]) -> void:
 			bool(card.call("is_card_visible"))
 			and bool(card.call("is_fade_in_active"))
 			and float(card.call("get_card_alpha")) <= 0.01
+			and is_equal_approx(
+				float(card.call("get_card_scale")),
+				CharacterHoverCardScript.TRANSITION_MIN_SCALE,
+			)
 			and CharacterHoverCardScript.FADE_IN_SECONDS < 0.3
 		),
 	)
 	var dossier_panel: PanelContainer = card.get_node("DossierPanel") as PanelContainer
 	card.call("_kill_fade_transition")
 	dossier_panel.modulate.a = 1.0
+	dossier_panel.scale = Vector2.ONE
 	card.call("_clear_candidate")
 	_add(
 		cases,
@@ -145,10 +150,19 @@ static func _add_touch_cases(cases: Array[Dictionary]) -> void:
 			bool(card.call("is_card_visible"))
 			and bool(card.call("is_fade_out_active"))
 			and float(card.call("get_card_alpha")) >= 0.99
-			and CharacterHoverCardScript.FADE_OUT_SECONDS < CharacterHoverCardScript.FADE_IN_SECONDS
+			and is_equal_approx(float(card.call("get_card_scale")), 1.0)
+			and (
+				CharacterHoverCardScript.FADE_OUT_SECONDS
+				< CharacterHoverCardScript.FADE_IN_SECONDS
+			)
 		),
 	)
 	card.call("_hide_immediately")
+	_add(
+		cases,
+		"completed transition restores dossier scale exactly",
+		is_equal_approx(float(card.call("get_card_scale")), 1.0),
+	)
 	var controls: CanvasLayer = MobileControlsScript.new() as CanvasLayer
 	scene_tree.root.add_child(controls)
 	controls.call("force_mobile", true)
@@ -170,11 +184,17 @@ static func _add_touch_cases(cases: Array[Dictionary]) -> void:
 	_add(
 		cases,
 		"completed hold pins a live Walker dossier",
-		bool(card.call("advance_long_press", 0.02))
-		and bool(card.call("is_touch_pinned"))
-		and bool(card.call("is_card_visible"))
-		and bool(card.call("is_fade_in_active"))
-		and float(card.call("get_card_alpha")) <= 0.01,
+		(
+			bool(card.call("advance_long_press", 0.02))
+			and bool(card.call("is_touch_pinned"))
+			and bool(card.call("is_card_visible"))
+			and bool(card.call("is_fade_in_active"))
+			and float(card.call("get_card_alpha")) <= 0.01
+			and is_equal_approx(
+				float(card.call("get_card_scale")),
+				CharacterHoverCardScript.TRANSITION_MIN_SCALE,
+			)
+		),
 	)
 	_add(
 		cases,
@@ -208,6 +228,7 @@ static func _add_touch_cases(cases: Array[Dictionary]) -> void:
 	)
 	card.call("_kill_fade_transition")
 	dossier_panel.modulate.a = 1.0
+	dossier_panel.scale = Vector2.ONE
 	controls.call("set_controls_enabled", false)
 	_add(
 		cases,
