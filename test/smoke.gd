@@ -176,6 +176,7 @@ func _test_isometric_map() -> void:
 		"mobile drive stays locked through attack recovery",
 	)
 	touch_avatar.call("_process", float(touch_avatar.call("get_attack_duration")))
+	_check(bool(map.call("_update_drive_vector", Vector2.ZERO, 0.05)), "mobile buffer releases")
 	mobile_controls.call("force_mobile", false)
 	_check(not smash_button.visible, "desktop mode removes touch affordances")
 	_check(heat_haze.z_index == 1, "sand ripple occupies terrain-only depth")
@@ -675,8 +676,8 @@ func _test_isometric_map() -> void:
 	avatar.call("_process", float(avatar.call("get_attack_duration")))
 	_check(int(effects.call("get_emission_count")) == 1, "attack contact cannot fire twice")
 	_check(
-		bool(map.call("update_drive", Vector2i(1, 1), 0.05, false)),
-		"Walker movement resumes after attack animation",
+		bool(map.call("update_drive", Vector2i.ZERO, 0.05, false)),
+		"buffered movement releases after attack animation",
 	)
 	effects.call("advance", 1.0)
 	_check(int(effects.call("get_particle_count")) == 0, "debris particles expire")

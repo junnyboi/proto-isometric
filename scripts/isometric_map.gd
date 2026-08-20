@@ -4,6 +4,7 @@ const WalkerAvatarScript: GDScript = preload("res://scripts/walker_avatar.gd")
 const ChassisFeedbackScript: GDScript = preload("res://scripts/chassis_feedback.gd")
 const DesertAtmosphereScript: GDScript = preload("res://scripts/desert_atmosphere.gd")
 const DesertHazardsScript: GDScript = preload("res://scripts/desert_hazards.gd")
+const DriveInputBufferScript: GDScript = preload("res://scripts/drive_input_buffer.gd")
 const FieldHudScript: GDScript = preload("res://scripts/field_hud.gd")
 const FieldUIBuilderScript: GDScript = preload("res://scripts/field_ui_builder.gd")
 const ImpactChargeScript: GDScript = preload("res://scripts/impact_charge.gd")
@@ -74,6 +75,7 @@ var _robot_grid: Vector2i:
 		_set_run_value(&"player_cell", value)
 var _robot_visual_position: Vector2
 var _velocity: Vector2 = Vector2.ZERO
+var _drive_input_buffer: RefCounted = DriveInputBufferScript.new() as RefCounted
 var _last_screen_direction: Vector2i = Vector2i(1, 1)
 var _facing: StringName:
 	get:
@@ -173,15 +175,12 @@ func _process(delta: float) -> void:
 	if attack_pressed and not _attack_was_pressed:
 		attack()
 	_attack_was_pressed = attack_pressed
-	var drive_direction: Vector2i = (
-		Vector2i.ZERO if _avatar != null and bool(_avatar.call("is_attacking")) else screen_direction
-	)
 	if _mobile_controls != null and bool(_mobile_controls.call("is_joystick_visible")):
 		var mobile_drive: Vector2 = _mobile_controls.call("get_drive_vector") as Vector2
 		var mobile_run: bool = bool(_mobile_controls.call("is_run_intended"))
 		_update_drive_vector(mobile_drive, delta, mobile_run)
 	else:
-		update_drive(drive_direction, delta, IsometricControlsScript.is_run_pressed())
+		update_drive(screen_direction, delta, IsometricControlsScript.is_run_pressed())
 	_update_camera_follow(delta)
 	_impact_flash = maxf(_impact_flash - delta, 0.0)
 	_status_hold_time = maxf(_status_hold_time - delta, 0.0)
@@ -275,17 +274,17 @@ func _update_drive_vector(screen_direction: Vector2, delta: float, running: bool
 		return false
 	var step_delta: float = minf(maxf(delta, 0.0), 0.05)
 	var analog_direction: Vector2 = screen_direction.limit_length(1.0)
+	analog_direction = _drive_input_buffer.call(
+		"resolve", analog_direction, running, _avatar != null and bool(_avatar.call("is_attacking"))
+	) as Vector2
+	running = bool(_drive_input_buffer.call("is_running"))
 	var quantized_direction: Vector2i = Vector2i(
 		0 if absf(analog_direction.x) < 0.28 else (1 if analog_direction.x > 0.0 else -1),
 		0 if absf(analog_direction.y) < 0.28 else (1 if analog_direction.y > 0.0 else -1),
 	)
-	if _avatar != null and bool(_avatar.call("is_attacking")):
-		analog_direction = Vector2.ZERO
-		quantized_direction = Vector2i.ZERO
 	var has_input: bool = analog_direction.length() >= 0.05 and quantized_direction != Vector2i.ZERO
 	_is_running = running and has_input
 	var desired_velocity: Vector2 = Vector2.ZERO
-
 	if has_input:
 		_last_screen_direction = quantized_direction
 		_facing = IsometricControlsScript.direction_name(quantized_direction)
@@ -331,6 +330,7 @@ func attack() -> bool:
 	if _shutdown or _avatar == null or bool(_avatar.call("is_attacking")):
 		return false
 	_velocity = Vector2.ZERO
+	_drive_input_buffer.call("clear")
 	var screen_direction: Vector2i = IsometricControlsScript.facing_to_screen_direction(_facing)
 	_pending_impact_band = int(_impact_charge.call("get_band")) if _impact_charge != null else 0
 	var footprint: Array[Vector2i] = (
