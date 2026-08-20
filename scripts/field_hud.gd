@@ -14,6 +14,7 @@ const FIELD_THEME: Resource = preload("res://data/field_hud_theme.tres")
 const AMBER: Color = Color("f5a62d")
 const TEAL: Color = Color("4eb6aa")
 const MUTED: Color = Color("9f9787")
+const HUD_PULSE_SECONDS: float = 0.18
 
 var _state: RefCounted
 var _state_snapshot: Dictionary = {}
@@ -43,6 +44,9 @@ var _state_apply_count: int = 0
 var _state_skip_count: int = 0
 var _layout_apply_count: int = 0
 var _character_hover_card: Control
+var _charge_pulse_phase: float = 0.0
+var _feedback_pulse_count: int = 0
+var _reward_pulse_count: int = 0
 
 
 func _ready() -> void:
@@ -80,9 +84,10 @@ func configure_refit(
 	return bool(_refit_service.call("configure", coordinator, save_callback))
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if _radar != null and _radar_contacts_source != null:
 		_radar.call("sync_contacts", _radar_contacts_source.call("get_combat_snapshots"))
+	_advance_charge_pulse(delta)
 
 
 func set_performance_sampler(sampler: Node) -> void:
@@ -123,6 +128,7 @@ func apply_state(state: RefCounted) -> bool:
 	var previous: Dictionary = _state_snapshot
 	_state = state
 	_state_snapshot = candidate.duplicate(true)
+	_present_state_deltas(previous, candidate)
 	_state_apply_count += 1
 	_record_counter(&"hud.state_applies")
 	if _section_changed(
@@ -310,9 +316,81 @@ func get_work_metrics() -> Dictionary:
 		&"state_applies": _state_apply_count,
 		&"state_skips": _state_skip_count,
 		&"layout_applies": _layout_apply_count,
+		&"feedback_pulses": _feedback_pulse_count,
+		&"reward_pulses": _reward_pulse_count,
 		&"radar_redraw_requests":
 		int(_radar.call("get_redraw_request_count")) if _radar != null else 0,
 	}
+
+
+func present_feedback(event: Dictionary, _profile: Dictionary) -> bool:
+	var target_name: StringName = feedback_target_for(event.get(&"event_id", &"") as StringName)
+	var target: Control
+	if target_name == &"charge":
+		target = _charge_label
+	elif target_name == &"objective":
+		target = _relay_label
+	if target == null:
+		return false
+	_feedback_pulse_count += 1
+	_pulse_control(target, 1.12 if target_name == &"charge" else 1.06, AMBER)
+	return true
+
+
+static func feedback_target_for(event_id: StringName) -> StringName:
+	if event_id in [&"event.charge.low", &"event.charge.high"]:
+		return &"charge"
+	if event_id == &"event.reward.relay":
+		return &"objective"
+	return &""
+
+
+static func state_reward_deltas(previous: Dictionary, candidate: Dictionary) -> Dictionary:
+	return {
+		&"scrap": maxi(int(candidate.get(&"run_scrap", 0)) - int(previous.get(&"run_scrap", 0)), 0),
+		&"cores":
+		maxi(int(candidate.get(&"worm_cores", 0)) - int(previous.get(&"worm_cores", 0)), 0),
+		&"relays":
+		maxi(
+			int(candidate.get(&"completed_relays", 0)) - int(previous.get(&"completed_relays", 0)),
+			0,
+		),
+	}
+
+
+func _present_state_deltas(previous: Dictionary, candidate: Dictionary) -> void:
+	if previous.is_empty():
+		return
+	var deltas: Dictionary = state_reward_deltas(previous, candidate)
+	if int(deltas[&"scrap"]) > 0 or int(deltas[&"cores"]) > 0:
+		_reward_pulse_count += 1
+		_pulse_control(_status_label, 1.025, TEAL)
+	if int(deltas[&"relays"]) > 0:
+		_reward_pulse_count += 1
+		_pulse_control(_relay_label, 1.06, TEAL)
+
+
+func _advance_charge_pulse(delta: float) -> void:
+	if _charge_label == null:
+		return
+	var charge: float = float(_state_snapshot.get(&"impact_charge", 0.0))
+	if charge < 0.4:
+		_charge_label.modulate.a = 1.0
+		return
+	_charge_pulse_phase = fmod(_charge_pulse_phase + maxf(delta, 0.0) * 2.4, TAU)
+	_charge_label.modulate.a = 0.88 + sin(_charge_pulse_phase) * 0.12
+
+
+func _pulse_control(control: Control, scale_peak: float, color: Color) -> void:
+	if control == null or not control.is_inside_tree():
+		return
+	control.pivot_offset = control.size * 0.5
+	control.scale = Vector2.ONE * scale_peak
+	control.modulate = color
+	var tween: Tween = create_tween().set_parallel(true)
+	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_property(control, "scale", Vector2.ONE, HUD_PULSE_SECONDS)
+	tween.tween_property(control, "modulate", Color.WHITE, HUD_PULSE_SECONDS)
 
 
 func _apply_status() -> void:

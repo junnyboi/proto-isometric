@@ -176,6 +176,10 @@ func _dispatch(event: Dictionary, profile: Dictionary) -> void:
 	)
 	if _effects != null:
 		_effects.call("emit_feedback", event, profile)
+	var parent: Node = get_parent()
+	var hud: Node = parent.get_node_or_null("FieldHUD") if parent != null else null
+	if hud != null:
+		hud.call("present_feedback", event, profile)
 	_reactions.call("present", event, profile)
 	_ensure_audio()
 	if _audio != null:
