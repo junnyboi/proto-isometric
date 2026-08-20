@@ -31,6 +31,9 @@ const WalkerLocomotionFeedbackTestsScript: GDScript = preload(
 	"res://test/test_walker_locomotion_feedback.gd"
 )
 const HUDFeedbackTestsScript: GDScript = preload("res://test/test_hud_feedback.gd")
+const EnvironmentRewardFeedbackTestsScript: GDScript = preload(
+	"res://test/test_environment_reward_feedback.gd"
+)
 
 
 static func evaluate(
@@ -65,6 +68,7 @@ static func evaluate(
 	cases.append_array(WormTelegraphTestsScript.evaluate())
 	cases.append_array(WalkerLocomotionFeedbackTestsScript.evaluate())
 	cases.append_array(HUDFeedbackTestsScript.evaluate())
+	cases.append_array(EnvironmentRewardFeedbackTestsScript.evaluate())
 	cases.append_array(SanctuaryBoundaryTestsScript.evaluate(world))
 	cases.append_array(SaveMigrationTestsScript.evaluate(world))
 	(

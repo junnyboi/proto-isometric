@@ -16,6 +16,7 @@ const TEAL: Color = Color("4eb6aa")
 const MUTED: Color = Color("9f9787")
 const REPAIR_COST: int = 5
 const DESIGN_SIZE: Vector2 = Vector2(386.0, 252.0)
+const INTERACTION_PULSE_SECONDS: float = 0.16
 
 var _title_label: Label
 var _status: Label
@@ -188,7 +189,7 @@ func _build_panel() -> void:
 	background.add_child(_inventory)
 	_repair_button = _make_button("", Vector2(22.0, 112.0))
 	_repair_button.size = Vector2(340.0, 34.0)
-	_repair_button.pressed.connect(func() -> void: repair_requested.emit())
+	_repair_button.pressed.connect(_on_repair_pressed)
 	background.add_child(_repair_button)
 	for index: int in range(DEFINITIONS.size()):
 		_build_module_button(background, DEFINITIONS[index], index)
@@ -208,7 +209,7 @@ func _build_module_button(parent: Control, definition: Resource, index: int) -> 
 	button.expand_icon = true
 	button.add_theme_font_size_override("font_size", 10)
 	var module_id: StringName = definition.get("module_id") as StringName
-	button.pressed.connect(func() -> void: refit_requested.emit(module_id))
+	button.pressed.connect(_on_refit_pressed.bind(button, module_id))
 	_module_buttons.append(button)
 	parent.add_child(button)
 
@@ -231,3 +232,21 @@ func _make_button(text: String, button_position: Vector2) -> Button:
 	button.focus_mode = Control.FOCUS_ALL
 	button.add_theme_font_size_override("font_size", 13)
 	return button
+
+
+func _on_repair_pressed() -> void:
+	_pulse_button(_repair_button)
+	repair_requested.emit()
+
+
+func _on_refit_pressed(button: Button, module_id: StringName) -> void:
+	_pulse_button(button)
+	refit_requested.emit(module_id)
+
+
+func _pulse_button(button: Button) -> void:
+	button.pivot_offset = button.size * 0.5
+	button.scale = Vector2(0.97, 0.97)
+	var tween: Tween = create_tween()
+	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_property(button, "scale", Vector2.ONE, INTERACTION_PULSE_SECONDS)

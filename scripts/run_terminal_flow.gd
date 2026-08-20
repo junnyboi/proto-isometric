@@ -9,6 +9,7 @@ const PlayerPreferencesScript: GDScript = preload("res://scripts/player_preferen
 const CONFIRM_CUE: AudioStream = preload("res://assets/audio/ui_begin.wav")
 const AMBER: Color = Color("f5a62d")
 const TEAL: Color = Color("4eb6aa")
+const SUMMARY_REVEAL_SECONDS: float = 0.24
 
 var _coordinator: RefCounted
 var _save_callback: Callable
@@ -22,6 +23,7 @@ var _summary: Dictionary = {}
 var _selected_modifier_id: StringName = &""
 var _audio: AudioStreamPlayer
 var _mobile_controls: CanvasLayer
+var _summary_reveal_count: int = 0
 
 
 func _ready() -> void:
@@ -95,6 +97,7 @@ func _show_summary(summary: Dictionary) -> void:
 	_selected_modifier_id = &""
 	_refresh_summary_text()
 	_panel.visible = true
+	_present_summary_reveal()
 	if _mobile_controls != null:
 		_mobile_controls.call("set_controls_enabled", false)
 	_play_cue(1.04 if bool(summary.get(&"succeeded", false)) else 0.72)
@@ -177,6 +180,32 @@ func _on_retry_pressed() -> void:
 func _on_locale_changed(_locale: StringName) -> void:
 	if _panel != null and _panel.visible:
 		_refresh_summary_text()
+
+
+func get_presentation_metrics() -> Dictionary:
+	return {&"summary_reveals": _summary_reveal_count, &"duration": SUMMARY_REVEAL_SECONDS}
+
+
+func _present_summary_reveal() -> void:
+	if not _panel.is_inside_tree():
+		return
+	_summary_reveal_count += 1
+	_title.modulate.a = 0.0
+	_title.scale = Vector2(0.97, 0.97)
+	_details.modulate.a = 0.0
+	for button: Button in _choice_buttons:
+		button.modulate.a = 0.0
+	_retry_button.modulate.a = 0.0
+	var tween: Tween = create_tween().set_parallel(true)
+	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_property(_title, "modulate:a", 1.0, 0.16)
+	tween.tween_property(_title, "scale", Vector2.ONE, 0.18)
+	tween.tween_property(_details, "modulate:a", 1.0, 0.2).set_delay(0.03)
+	for index: int in range(_choice_buttons.size()):
+		tween.tween_property(_choice_buttons[index], "modulate:a", 1.0, 0.16).set_delay(
+			0.05 + float(index) * 0.03
+		)
+	tween.tween_property(_retry_button, "modulate:a", 1.0, 0.16).set_delay(0.08)
 
 
 func _build_interface() -> void:
