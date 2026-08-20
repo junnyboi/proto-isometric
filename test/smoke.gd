@@ -492,6 +492,10 @@ func _test_isometric_map() -> void:
 	_check(relay != null, "contested relay controller exists")
 	_check(relay_cell == Vector2i(12, 6), "starter relay placement is deterministic")
 	_check(world.call("terrain_at", relay_cell) == &"ruin", "relay occupies reserved ruin terrain")
+	var elevation: Dictionary = map.get("_elevation") as Dictionary
+	_check(
+		int(elevation.get(relay_cell, -1)) == 0, "reserved ruin terrain stays flush with the map"
+	)
 	_check(bool(map.call("place_robot", relay_cell)), "Walker enters the relay zone")
 	relay.call("advance", 0.5)
 	_check(relay.call("get_state") == &"linking", "entering relay zone starts linking")

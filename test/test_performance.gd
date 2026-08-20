@@ -184,6 +184,18 @@ static func _test_particle_pool(cases: Array[Dictionary]) -> void:
 static func _test_terrain_cache(cases: Array[Dictionary]) -> void:
 	var surface: Node2D = TerrainSurfaceScript.new() as Node2D
 	var renderer: RefCounted = TerrainRendererScript.new() as RefCounted
+	var terrain: Dictionary = {
+		Vector2i.ZERO: &"ruin",
+		Vector2i.LEFT: &"snow",
+		Vector2i.RIGHT: &"snow",
+		Vector2i.UP: &"blue_ice",
+	}
+	renderer.call("configure", terrain, {}, {}, Vector2(90.0, 45.0), Vector2.ZERO)
+	_add(
+		cases,
+		"semantic ruin terrain blends into its surrounding biome",
+		renderer.call("display_terrain_at", Vector2i.ZERO) == &"snow",
+	)
 	_add(cases, "terrain cache accepts its renderer", bool(surface.call("configure", renderer)))
 	var cells: Array[Vector2i] = [Vector2i.ZERO, Vector2i.ONE]
 	_add(
