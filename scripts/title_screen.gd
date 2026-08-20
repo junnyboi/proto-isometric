@@ -35,6 +35,7 @@ var _controls_strip: Control
 var _field_guide_button: Button
 var _field_guide_panel: ColorRect
 var _field_guide_close: Button
+var _language_toggle: Button
 var _audio_player: AudioStreamPlayer
 var _layout: Dictionary = {}
 var _field_visible: bool = false
@@ -98,6 +99,7 @@ func _build_interface() -> void:
 	_build_briefing()
 	_build_controls_strip()
 	_build_field_guide(ui_root)
+	_build_language_toggle(ui_root)
 
 	_audio_player = AudioStreamPlayer.new()
 	_audio_player.name = "BeginAudio"
@@ -309,6 +311,35 @@ func _build_field_guide(ui_root: Control) -> void:
 	_field_guide_panel.add_child(_field_guide_close)
 
 
+func _build_language_toggle(ui_root: Control) -> void:
+	_language_toggle = Button.new()
+	_language_toggle.name = "LanguageToggle"
+	_language_toggle.focus_mode = Control.FOCUS_ALL
+	_language_toggle.clip_text = true
+	_language_toggle.add_theme_font_size_override("font_size", 14)
+	_language_toggle.add_theme_color_override("font_color", TEXT)
+	_language_toggle.add_theme_color_override("font_hover_color", AMBER)
+	_language_toggle.add_theme_color_override("font_focus_color", AMBER)
+	_language_toggle.add_theme_stylebox_override(
+		"normal", _make_compact_button_style(Color(0.02, 0.035, 0.05, 0.82), TEAL, 1)
+	)
+	_language_toggle.add_theme_stylebox_override(
+		"hover", _make_compact_button_style(PANEL_SOFT, AMBER, 1)
+	)
+	_language_toggle.add_theme_stylebox_override(
+		"focus", _make_compact_button_style(PANEL_SOFT, AMBER, 2)
+	)
+	_language_toggle.add_theme_stylebox_override(
+		"pressed", _make_compact_button_style(Color(0.04, 0.055, 0.06, 0.96), AMBER, 1)
+	)
+	_language_toggle.add_theme_stylebox_override(
+		"disabled", _make_compact_button_style(Color(0.02, 0.035, 0.05, 0.72), TEAL, 1)
+	)
+	_language_toggle.pressed.connect(_cycle_locale)
+	ui_root.add_child(_language_toggle)
+	_refresh_language_toggle()
+
+
 func _make_label(node_name: String, value: String, font_size: int, color: Color) -> Label:
 	var label: Label = Label.new()
 	label.name = node_name
@@ -326,6 +357,15 @@ func _make_button_style(color: Color, border_color: Color, border_width: int) ->
 	style.corner_radius_bottom_right = 2
 	style.content_margin_left = 22.0
 	style.content_margin_right = 22.0
+	return style
+
+
+func _make_compact_button_style(
+	color: Color, border_color: Color, border_width: int
+) -> StyleBoxFlat:
+	var style: StyleBoxFlat = _make_button_style(color, border_color, border_width)
+	style.content_margin_left = 8.0
+	style.content_margin_right = 8.0
 	return style
 
 
@@ -353,6 +393,7 @@ func _apply_responsive_layout() -> void:
 	else:
 		_apply_landscape_layout()
 	_layout_field_guide()
+	_layout_language_toggle()
 
 
 func _apply_landscape_layout() -> void:
@@ -556,6 +597,17 @@ func _layout_field_guide() -> void:
 	_field_guide_close.size = Vector2(panel_size.x - 56.0, 44.0)
 
 
+func _layout_language_toggle() -> void:
+	var viewport: Vector2 = _layout[&"viewport"] as Vector2
+	var portrait: bool = bool(_layout[&"portrait"])
+	_language_toggle.size = Vector2(166.0 if portrait else 250.0, 42.0)
+	_language_toggle.add_theme_font_size_override("font_size", 12 if portrait else 14)
+	_language_toggle.position = Vector2(
+		viewport.x - 190.0 - _language_toggle.size.x - 34.0,
+		18.0,
+	)
+
+
 func _toggle_field_guide() -> void:
 	_set_field_guide_visible(not _field_guide_panel.visible)
 
@@ -572,6 +624,17 @@ func _set_field_guide_visible(value: bool) -> void:
 		_field_guide_close.grab_focus()
 	else:
 		_field_guide_button.grab_focus()
+
+
+func _cycle_locale() -> void:
+	var current: StringName = LocalizationScript.get_locale()
+	var next_locale: StringName = &"zh-CN" if current == &"en" else &"en"
+	var preferences: RefCounted = PlayerPreferencesScript.new() as RefCounted
+	preferences.call("load_preferences")
+	if not bool(preferences.call("set_value", &"locale", next_locale)):
+		return
+	preferences.call("save_preferences")
+	LocalizationScript.set_locale(next_locale)
 
 
 func _on_begin_pressed() -> void:
@@ -666,7 +729,22 @@ func _refresh_localized_text() -> void:
 		&"title.field_guide"
 	)
 	_field_guide_close.text = LocalizationScript.t(&"title.return_briefing")
+	_refresh_language_toggle()
 	_layout_controls(bool(_layout.get(&"portrait", false)))
+
+
+func _refresh_language_toggle() -> void:
+	if _language_toggle == null:
+		return
+	var locale: String = str(LocalizationScript.get_locale())
+	_language_toggle.text = (
+		LocalizationScript
+		. t(
+			&"title.language_toggle",
+			{"language": LocalizationScript.t("common.locale_short.%s" % locale)},
+		)
+	)
+	_language_toggle.tooltip_text = LocalizationScript.t(&"title.language_toggle_tooltip")
 
 
 func is_title_visible() -> bool:
@@ -691,6 +769,10 @@ func is_field_guide_visible() -> bool:
 
 func get_field_guide_button() -> Button:
 	return _field_guide_button
+
+
+func get_language_toggle() -> Button:
+	return _language_toggle
 
 
 func is_audio_ready() -> bool:
