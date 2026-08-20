@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/feedback_profile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+profile_id = &"feedback.locomotion_reverse"
+local_hold_seconds = 0.0
+camera_duration_seconds = 0.04
+camera_strength = 1.0
+particle_count = 3
+haptic_weak = 0.08
+haptic_strong = 0.1
+haptic_duration_seconds = 0.025
+priority = 32

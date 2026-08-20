@@ -287,6 +287,7 @@ func _update_drive_vector(screen_direction: Vector2, delta: float, running: bool
 			if not ModuleEffectsScript.try_ram(self, quantized_direction):
 				_velocity = Vector2.ZERO
 				_is_moving = false
+				_feedback_router.call("notify_blocked")
 				_update_status(StatusLocalizerScript.vector_blocked(_facing, _scrap_count))
 				_sync_avatar()
 				return false
@@ -872,7 +873,7 @@ func _build_sandworms() -> void:
 	_object_layer.add_child(_sandworms)
 	_feedback_router = FeedbackRouterScript.install(
 		self, _camera, _effects, _avatar, _sandworms, _performance_sampler,
-		Callable(self, "grid_to_screen")
+		Callable(self, "grid_to_screen"), _impact_charge, _world
 	)
 	_world_objects.call("build_run_pickups", _world, _run_coordinator, _sandworms)
 	_world_objects.call("build_encounter_director", _world, _run_coordinator, _sandworms, _hazards)

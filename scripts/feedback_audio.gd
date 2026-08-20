@@ -9,6 +9,24 @@ const HEAVY_CONTACT: AudioStream = preload("res://assets/audio/heavy_contact.wav
 const STONE_BREAK: AudioStream = preload("res://assets/audio/stone_break.wav")
 const WET_WOOD_BREAK: AudioStream = preload("res://assets/audio/wet_wood_break.wav")
 const FAUNA_DEFEAT: AudioStream = preload("res://assets/audio/fauna_defeat.wav")
+const SERVO_ENGAGE: AudioStream = preload("res://assets/audio/servo_engage.wav")
+const HEAVY_GAIT: AudioStream = preload("res://assets/audio/heavy_gait.wav")
+const SURFACE_STEP: AudioStream = preload("res://assets/audio/surface_step.wav")
+const CHARGE_DETENT: AudioStream = preload("res://assets/audio/charge_detent.wav")
+const BLOCKED_CLANK: AudioStream = preload("res://assets/audio/blocked_clank.wav")
+const SERVO_EVENTS: Array[StringName] = [
+	RuntimeIdsScript.EVENT_LOCOMOTION_START,
+	RuntimeIdsScript.EVENT_LOCOMOTION_STOP,
+	RuntimeIdsScript.EVENT_LOCOMOTION_REVERSE,
+]
+const RUN_EVENTS: Array[StringName] = [
+	RuntimeIdsScript.EVENT_LOCOMOTION_RUN,
+	RuntimeIdsScript.EVENT_LOCOMOTION_RUN_CONTACT,
+]
+const CHARGE_EVENTS: Array[StringName] = [
+	RuntimeIdsScript.EVENT_CHARGE_LOW,
+	RuntimeIdsScript.EVENT_CHARGE_HIGH,
+]
 
 var _players: Array[AudioStreamPlayer] = []
 var _enabled: bool = true
@@ -70,17 +88,32 @@ func get_metrics() -> Dictionary:
 
 func _stream_for(event: Dictionary) -> AudioStream:
 	var event_id: StringName = event.get(&"event_id", &"") as StringName
-	if event_id == RuntimeIdsScript.EVENT_SMASH_WHIFF:
-		return SWING
-	if event_id == RuntimeIdsScript.EVENT_SMASH_DEFEAT:
-		return FAUNA_DEFEAT
-	if event_id == RuntimeIdsScript.EVENT_SMASH_BREAK:
-		return WET_WOOD_BREAK if event.get(&"material", &"") == &"wet_wood" else STONE_BREAK
-	if event_id == RuntimeIdsScript.EVENT_SMASH_HEAVY_HIT:
-		return HEAVY_CONTACT
-	if event_id == RuntimeIdsScript.EVENT_SMASH_HIT:
-		return FAUNA_CONTACT
-	return null
+	var stream: AudioStream
+	if event_id in SERVO_EVENTS:
+		stream = SERVO_ENGAGE
+	elif event_id in RUN_EVENTS:
+		stream = HEAVY_GAIT
+	elif event_id in CHARGE_EVENTS:
+		stream = CHARGE_DETENT
+	else:
+		match event_id:
+			RuntimeIdsScript.EVENT_SMASH_WHIFF:
+				stream = SWING
+			RuntimeIdsScript.EVENT_SMASH_DEFEAT:
+				stream = FAUNA_DEFEAT
+			RuntimeIdsScript.EVENT_SMASH_BREAK:
+				stream = (
+					WET_WOOD_BREAK if event.get(&"material", &"") == &"wet_wood" else STONE_BREAK
+				)
+			RuntimeIdsScript.EVENT_SMASH_HEAVY_HIT:
+				stream = HEAVY_CONTACT
+			RuntimeIdsScript.EVENT_SMASH_HIT:
+				stream = FAUNA_CONTACT
+			RuntimeIdsScript.EVENT_LOCOMOTION_WALK_CONTACT:
+				stream = SURFACE_STEP
+			RuntimeIdsScript.EVENT_LOCOMOTION_BLOCKED:
+				stream = BLOCKED_CLANK
+	return stream
 
 
 func _pitch_for(event: Dictionary) -> float:

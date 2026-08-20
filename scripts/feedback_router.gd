@@ -7,6 +7,9 @@ const FeedbackProfilesScript: GDScript = preload("res://scripts/feedback_profile
 const HapticRouterScript: GDScript = preload("res://scripts/haptic_router.gd")
 const ImpactReactionAdapterScript: GDScript = preload("res://scripts/impact_reaction_adapter.gd")
 const SmashFeedbackResolverScript: GDScript = preload("res://scripts/smash_feedback_resolver.gd")
+const WalkerLocomotionFeedbackScript: GDScript = preload(
+	"res://scripts/walker_locomotion_feedback.gd"
+)
 
 const MAX_HISTORY: int = 64
 
@@ -17,6 +20,7 @@ var _camera_mixer: RefCounted = CameraImpulseMixerScript.new() as RefCounted
 var _reactions: RefCounted = ImpactReactionAdapterScript.new() as RefCounted
 var _haptics: RefCounted = HapticRouterScript.new() as RefCounted
 var _audio: Node
+var _locomotion_feedback: Node
 var _seen_sequences: Dictionary = {}
 var _history: Array[Dictionary] = []
 var _submitted_count: int = 0
@@ -32,11 +36,16 @@ static func install(
 	enemies: Node2D,
 	performance_sampler: Node,
 	grid_to_screen: Callable,
+	charge: Node2D,
+	world: RefCounted,
 ) -> Node:
 	var script: GDScript = load("res://scripts/feedback_router.gd") as GDScript
 	var router: Node = script.new() as Node
 	parent.add_child(router)
 	router.call("configure", camera, effects, avatar, enemies, performance_sampler, grid_to_screen)
+	router._locomotion_feedback = WalkerLocomotionFeedbackScript.new() as Node
+	router.add_child(router._locomotion_feedback)
+	router._locomotion_feedback.call("configure", parent, avatar, router, charge, world)
 	return router
 
 
@@ -137,6 +146,12 @@ func get_metrics() -> Dictionary:
 
 func get_camera_mixer() -> RefCounted:
 	return _camera_mixer
+
+
+func notify_blocked() -> bool:
+	return (
+		bool(_locomotion_feedback.call("notify_blocked")) if _locomotion_feedback != null else false
+	)
 
 
 func apply_preferences(snapshot: Dictionary) -> void:

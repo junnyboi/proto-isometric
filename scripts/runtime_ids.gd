@@ -1,6 +1,6 @@
 extends RefCounted
 
-const REGISTRY_VERSION: int = 5
+const REGISTRY_VERSION: int = 6
 
 const DOMAIN_FIELD_COMPOSITION: StringName = &"domain.field_composition"
 const DOMAIN_MOVEMENT: StringName = &"domain.movement"
@@ -56,6 +56,15 @@ const EVENT_SMASH_HIT: StringName = &"event.smash.hit"
 const EVENT_SMASH_HEAVY_HIT: StringName = &"event.smash.heavy_hit"
 const EVENT_SMASH_DEFEAT: StringName = &"event.smash.defeat"
 const EVENT_SMASH_BREAK: StringName = &"event.smash.break"
+const EVENT_LOCOMOTION_START: StringName = &"event.locomotion.start"
+const EVENT_LOCOMOTION_WALK_CONTACT: StringName = &"event.locomotion.walk_contact"
+const EVENT_LOCOMOTION_RUN: StringName = &"event.locomotion.run"
+const EVENT_LOCOMOTION_RUN_CONTACT: StringName = &"event.locomotion.run_contact"
+const EVENT_LOCOMOTION_REVERSE: StringName = &"event.locomotion.reverse"
+const EVENT_LOCOMOTION_BLOCKED: StringName = &"event.locomotion.blocked"
+const EVENT_LOCOMOTION_STOP: StringName = &"event.locomotion.stop"
+const EVENT_CHARGE_LOW: StringName = &"event.charge.low"
+const EVENT_CHARGE_HIGH: StringName = &"event.charge.high"
 
 const OBJECTIVE_STARTER_RELAY: StringName = &"objective.relay.starter.v1"
 const OBJECTIVE_RELAY_TWO: StringName = &"objective.relay.second.v1"
@@ -127,14 +136,23 @@ static func catalog() -> Dictionary:
 			EVENT_WORM_DEFEATED,
 			EVENT_MODULE_PURCHASED,
 			EVENT_RUN_EXTRACTED,
-				EVENT_RUN_FAILED,
-				EVENT_MODIFIER_SELECTED,
-				EVENT_SMASH_WHIFF,
-				EVENT_SMASH_HIT,
-				EVENT_SMASH_HEAVY_HIT,
-				EVENT_SMASH_DEFEAT,
-				EVENT_SMASH_BREAK,
-			],
+			EVENT_RUN_FAILED,
+			EVENT_MODIFIER_SELECTED,
+			EVENT_SMASH_WHIFF,
+			EVENT_SMASH_HIT,
+			EVENT_SMASH_HEAVY_HIT,
+			EVENT_SMASH_DEFEAT,
+			EVENT_SMASH_BREAK,
+			EVENT_LOCOMOTION_START,
+			EVENT_LOCOMOTION_WALK_CONTACT,
+			EVENT_LOCOMOTION_RUN,
+			EVENT_LOCOMOTION_RUN_CONTACT,
+			EVENT_LOCOMOTION_REVERSE,
+			EVENT_LOCOMOTION_BLOCKED,
+			EVENT_LOCOMOTION_STOP,
+			EVENT_CHARGE_LOW,
+			EVENT_CHARGE_HIGH,
+		],
 		&"objectives": [OBJECTIVE_STARTER_RELAY, OBJECTIVE_RELAY_TWO, OBJECTIVE_RELAY_THREE],
 		&"modules": [MODULE_WORN_PLATES, MODULE_RAM_PLATING, MODULE_AFTERSHOCK, MODULE_STORM_SEAL],
 		&"modifiers":

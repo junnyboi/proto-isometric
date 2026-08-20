@@ -16,3 +16,7 @@ The J1 clips below are accepted mono PCM runtime derivatives prepared on 2026-08
 | `stone_break.wav` | Dry/frozen/volcanic stone break family |
 | `wet_wood_break.wav` | Wet wood/foliage break family |
 | `fauna_defeat.wav` | Restrained fauna defeat confirmation |
+
+## J2 locomotion and charge feedback
+
+`servo_engage.wav`, `heavy_gait.wav`, `surface_step.wav`, `charge_detent.wav`, and `blocked_clank.wav` are compact mono PCM derivatives made from the accepted J1 generated/runtime sources. They use deterministic trimming, resampling, filtering, dynamics, pitch treatment, and fades; no new generation master was retained.

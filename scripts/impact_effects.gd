@@ -175,6 +175,9 @@ func emit_feedback(event: Dictionary, profile: Dictionary) -> void:
 	var position: Vector2 = event.get(&"position", Vector2.ZERO) as Vector2
 	var count: int = int(profile.get(&"particle_count", 0))
 	var metadata: Dictionary = event.get(&"metadata", {}) as Dictionary
+	if str(event_id).begins_with("event.locomotion.") or str(event_id).begins_with("event.charge."):
+		_emit_surface_wake(event, count)
+		return
 	if event_id == RuntimeIdsScript.EVENT_SMASH_BREAK:
 		emit_rock_impact(
 			position,
@@ -340,6 +343,35 @@ func _emit_directional_contact(event: Dictionary, count: int) -> void:
 			0.38,
 			rng.randf_range(1.6, 3.8),
 			CHASSIS_SPARK if index % 3 != 0 else SCRAP,
+		)
+	_sync_metrics()
+	_request_redraw()
+
+
+func _emit_surface_wake(event: Dictionary, count: int) -> void:
+	var position: Vector2 = event.get(&"position", Vector2.ZERO) as Vector2
+	var material: StringName = event.get(&"material", &"sand") as StringName
+	var color: Color = Color("d8ba78")
+	match material:
+		&"mud":
+			color = Color("537b6a")
+		&"snow":
+			color = Color("c8e8ed")
+		&"volcanic":
+			color = Color("d96632")
+		&"energy":
+			color = CHASSIS_SPARK
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = int(event.get(&"sequence_id", 0)) * 16127
+	for index: int in range(clampi(count, 0, 8)):
+		_spawn_particle(
+			position + Vector2(rng.randf_range(-12.0, 12.0), rng.randf_range(6.0, 14.0)),
+			Vector2(rng.randf_range(-28.0, 28.0), rng.randf_range(-34.0, -12.0)),
+			rng.randf_range(0.16, 0.3),
+			0.3,
+			rng.randf_range(1.4, 3.0),
+			color,
+			90.0,
 		)
 	_sync_metrics()
 	_request_redraw()

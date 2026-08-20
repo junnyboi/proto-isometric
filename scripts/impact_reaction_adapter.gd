@@ -15,7 +15,15 @@ func bind_sources(avatar: Node2D, enemies: Node2D) -> bool:
 
 func present(event: Dictionary, profile: Dictionary) -> bool:
 	var event_id: StringName = event.get(&"event_id", &"") as StringName
-	if event_id == RuntimeIdsScript.EVENT_SMASH_WHIFF:
+	if (
+		event_id
+		not in [
+			RuntimeIdsScript.EVENT_SMASH_HIT,
+			RuntimeIdsScript.EVENT_SMASH_HEAVY_HIT,
+			RuntimeIdsScript.EVENT_SMASH_DEFEAT,
+			RuntimeIdsScript.EVENT_SMASH_BREAK,
+		]
+	):
 		return false
 	var direction: Vector2 = event.get(&"direction", Vector2.RIGHT) as Vector2
 	var strength: int = int(event.get(&"strength", 0))

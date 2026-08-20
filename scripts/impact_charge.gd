@@ -1,5 +1,7 @@
 extends Node2D
 
+signal band_crossed(band: int)
+
 const IsometricControlsScript: GDScript = preload("res://scripts/isometric_controls.gd")
 
 const LOW_BAND_MAX: float = 0.4
@@ -52,8 +54,12 @@ func advance(delta: float) -> void:
 
 
 func set_charge(value: float) -> void:
+	var previous_band: int = _band
 	_charge = clampf(value, 0.0, 1.0)
 	_band = charge_band(_charge)
+	if _band > previous_band:
+		for crossed_band: int in range(previous_band + 1, _band + 1):
+			band_crossed.emit(crossed_band)
 	queue_redraw()
 
 

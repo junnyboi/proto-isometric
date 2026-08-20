@@ -8,6 +8,7 @@ const AtlasTextureResource: Texture2D = preload("res://assets/walker/grunt_sprit
 const GruntSpriteFramesBuilderScript: GDScript = preload(
 	"res://assets/walker/grunt_sprite_frames_builder.gd"
 )
+const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const TARGET_RUNTIME_HEIGHT: float = 148.0
 const ATTACK_EVENT_FRAME: int = 11
 const ATTACK_FPS: float = 12.0
@@ -28,6 +29,9 @@ var _hovered: bool = false
 var _impact_hold_time: float = 0.0
 var _presentation_offset: Vector2 = Vector2.ZERO
 var _presentation_recovery: float = 0.0
+var _locomotion_offset: Vector2 = Vector2.ZERO
+var _locomotion_tilt: float = 0.0
+var _locomotion_recovery: float = 0.0
 
 
 func _ready() -> void:
@@ -51,6 +55,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_advance_impact_presentation(delta)
+	_advance_locomotion_presentation(delta)
 	if _impact_hold_time > 0.0:
 		return
 	if _attack_time > 0.0:
@@ -176,6 +181,34 @@ func _get_impact_presentation() -> Dictionary:
 	return {&"hold": _impact_hold_time, &"offset": _presentation_offset}
 
 
+func _apply_locomotion_presentation(event_id: StringName, strong: bool) -> void:
+	_locomotion_recovery = 0.1 if strong else 0.075
+	match event_id:
+		RuntimeIdsScript.EVENT_LOCOMOTION_START:
+			_locomotion_offset = Vector2(0.0, 1.5)
+		RuntimeIdsScript.EVENT_LOCOMOTION_STOP:
+			_locomotion_offset = Vector2(0.0, 2.5)
+		RuntimeIdsScript.EVENT_LOCOMOTION_REVERSE:
+			_locomotion_offset = Vector2(-2.0, 1.0)
+			_locomotion_tilt = -0.018
+		RuntimeIdsScript.EVENT_LOCOMOTION_BLOCKED:
+			_locomotion_offset = Vector2(0.0, 3.5)
+			_locomotion_tilt = 0.024
+		RuntimeIdsScript.EVENT_LOCOMOTION_RUN, RuntimeIdsScript.EVENT_LOCOMOTION_RUN_CONTACT:
+			_locomotion_offset = Vector2(0.0, 2.0)
+		_:
+			_locomotion_offset = Vector2(0.0, 1.0)
+	_apply_presentation_offset()
+
+
+func _get_locomotion_presentation() -> Dictionary:
+	return {
+		&"offset": _locomotion_offset,
+		&"tilt": _locomotion_tilt,
+		&"recovery": _locomotion_recovery,
+	}
+
+
 func _atlas_contract_is_valid() -> bool:
 	for state: StringName in STATES:
 		for direction: StringName in DIRECTIONS:
@@ -232,9 +265,24 @@ func _advance_impact_presentation(delta: float) -> void:
 
 func _apply_presentation_offset() -> void:
 	if _sprite != null:
-		_sprite.position = SPRITE_BASE_POSITION + _presentation_offset
+		_sprite.position = SPRITE_BASE_POSITION + _presentation_offset + _locomotion_offset
+	rotation = _locomotion_tilt
 	if _using_proxy:
 		_request_redraw()
+
+
+func _advance_locomotion_presentation(delta: float) -> void:
+	if _locomotion_recovery <= 0.0:
+		return
+	var step: float = maxf(delta, 0.0)
+	_locomotion_recovery = maxf(_locomotion_recovery - step, 0.0)
+	var blend: float = 1.0 - exp(-32.0 * step)
+	_locomotion_offset = _locomotion_offset.lerp(Vector2.ZERO, blend)
+	_locomotion_tilt = lerpf(_locomotion_tilt, 0.0, blend)
+	if _locomotion_recovery <= 0.0:
+		_locomotion_offset = Vector2.ZERO
+		_locomotion_tilt = 0.0
+	_apply_presentation_offset()
 
 
 func _request_redraw() -> void:

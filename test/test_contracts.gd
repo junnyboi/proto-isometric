@@ -27,6 +27,9 @@ const TitleBriefingTestsScript: GDScript = preload("res://test/test_title_briefi
 const VisualCatalogTestsScript: GDScript = preload("res://test/test_visual_catalog.gd")
 const WormCounterplayTestsScript: GDScript = preload("res://test/test_worm_counterplay.gd")
 const WormTelegraphTestsScript: GDScript = preload("res://test/test_worm_telegraph.gd")
+const WalkerLocomotionFeedbackTestsScript: GDScript = preload(
+	"res://test/test_walker_locomotion_feedback.gd"
+)
 
 
 static func evaluate(
@@ -59,6 +62,7 @@ static func evaluate(
 	cases.append_array(WormCounterplayTestsScript.evaluate())
 	cases.append_array(RunPickupTestsScript.evaluate())
 	cases.append_array(WormTelegraphTestsScript.evaluate())
+	cases.append_array(WalkerLocomotionFeedbackTestsScript.evaluate())
 	cases.append_array(SanctuaryBoundaryTestsScript.evaluate(world))
 	cases.append_array(SaveMigrationTestsScript.evaluate(world))
 	(
