@@ -23,6 +23,7 @@ var _attack_time: float = 0.0
 var _impact_emitted: bool = false
 var _using_proxy: bool = true
 var _redraw_request_count: int = 0
+var _hovered: bool = false
 
 
 func _ready() -> void:
@@ -138,6 +139,18 @@ func get_active_frame() -> int:
 
 func get_redraw_request_count() -> int:
 	return _redraw_request_count
+
+
+func set_hovered(value: bool) -> void:
+	if value == _hovered:
+		return
+	_hovered = value
+	self_modulate = Color("ffe0a3") if value else Color.WHITE
+	scale = Vector2.ONE * (1.04 if value else 1.0)
+
+
+func is_hovered() -> bool:
+	return _hovered
 
 
 func _atlas_contract_is_valid() -> bool:

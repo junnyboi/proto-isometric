@@ -57,6 +57,7 @@ var _profile: Resource = DEFAULT_PROFILE
 var _world: RefCounted
 var _active_biome: StringName = &"desert"
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+var _hovered_enemy_id: int = -1
 
 
 func _ready() -> void:
@@ -182,6 +183,7 @@ func spawn_worm(position: Vector2, emerge_seconds: float = -1.0) -> int:
 
 func clear_worms() -> void:
 	_worms.clear()
+	_hovered_enemy_id = -1
 	queue_redraw()
 
 
@@ -226,6 +228,44 @@ func get_state(worm_id: int) -> StringName:
 
 func get_last_attack_count() -> int:
 	return _last_attack_count
+
+
+func _set_hovered_enemy(worm_id: int) -> void:
+	if worm_id == _hovered_enemy_id:
+		return
+	_hovered_enemy_id = worm_id
+	queue_redraw()
+
+
+func _get_hovered_enemy() -> int:
+	return _hovered_enemy_id
+
+
+func _get_character_hover_targets() -> Array[Dictionary]:
+	var targets: Array[Dictionary] = []
+	for worm: Dictionary in _worms:
+		var state: StringName = worm[&"state"] as StringName
+		if state in [STATE_DISPERSING, STATE_DEFEATED]:
+			continue
+		var center: Vector2 = _grid_to_screen(worm[&"position"] as Vector2)
+		(
+			targets
+			. append(
+				{
+					&"id": int(worm[&"id"]),
+					&"kind": worm.get(&"kind", WORM_KIND),
+					&"name_key": _get_enemy_label(int(worm[&"id"])),
+					&"state": state,
+					&"screen_position": center + Vector2(0.0, -24.0),
+					&"hover_radius": 56.0,
+					&"health": int(worm[&"health"]),
+					&"max_health": _p_int(&"max_health"),
+					&"attack_damage": _p_int(&"attack_damage"),
+					&"attack_range": _p_float(&"attack_range"),
+				}
+			)
+		)
+	return targets
 
 
 func get_combat_snapshot(worm_id: int) -> Dictionary:
@@ -523,11 +563,13 @@ func _draw_skimmer(
 	if state == STATE_INTERCEPT:
 		alpha *= 0.78
 	var size: Vector2 = MUD_SKIMMER_TEXTURE.get_size() * 0.23
+	var tint: Color = Color("ffd27a") if int(worm[&"id"]) == _hovered_enemy_id else Color.WHITE
+	tint.a = alpha
 	draw_texture_rect(
 		MUD_SKIMMER_TEXTURE,
 		Rect2(center - size * Vector2(0.5, 0.66), size),
 		false,
-		Color(1.0, 1.0, 1.0, alpha),
+		tint,
 	)
 	if state in [STATE_EXPOSE, STATE_STAGGERED]:
 		_draw_health_bar(center + Vector2(0.0, -69.0), int(worm[&"health"]), alpha)
@@ -557,9 +599,9 @@ func _draw_native_enemy(
 	if state == STATE_INTERCEPT:
 		alpha *= 0.78
 	var size: Vector2 = texture.get_size() * 0.23
-	draw_texture_rect(
-		texture, Rect2(center - size * Vector2(0.5, 0.66), size), false, Color(1.0, 1.0, 1.0, alpha)
-	)
+	var tint: Color = Color("ffd27a") if int(worm[&"id"]) == _hovered_enemy_id else Color.WHITE
+	tint.a = alpha
+	draw_texture_rect(texture, Rect2(center - size * Vector2(0.5, 0.66), size), false, tint)
 	if state in [STATE_EXPOSE, STATE_STAGGERED]:
 		_draw_health_bar(center + Vector2(0.0, -69.0), int(worm[&"health"]), alpha)
 
@@ -588,7 +630,11 @@ func _draw_exposed_body(center: Vector2, worm: Dictionary, alpha: float) -> void
 		shell.a = alpha
 		draw_circle(segment_center, 15.0 - float(segment) * 1.3, shell)
 		draw_arc(segment_center, 11.0, PI, TAU, 12, Color(SHELL_DARK, alpha), 3.0)
-	var head_color: Color = Color.WHITE if float(worm[&"hit_flash"]) > 0.0 else SHELL
+	var head_color: Color = (
+		Color("ffd27a")
+		if int(worm[&"id"]) == _hovered_enemy_id
+		else (Color.WHITE if float(worm[&"hit_flash"]) > 0.0 else SHELL)
+	)
 	head_color.a = alpha
 	draw_circle(head, 19.0, head_color)
 	draw_arc(head, 20.0, 0.0, TAU, 24, Color(SHELL_DARK, alpha), 4.0)

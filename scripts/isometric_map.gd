@@ -939,6 +939,9 @@ func _build_interface() -> void:
 	_hud.call("configure_refit", _run_coordinator, Callable(self, "_save_world_state"))
 	add_child(_hud)
 	_hud.call("set_performance_sampler", _performance_sampler)
+	_hud.call(
+		"configure_character_hover", _avatar, _sandworms, WALK_SPEED, WALK_SPEED * RUN_MULTIPLIER
+	)
 	_terminal_flow = RunTerminalFlowScript.new() as CanvasLayer
 	add_child(_terminal_flow)
 	_terminal_flow.call(

@@ -200,6 +200,7 @@ func _test_isometric_map() -> void:
 	var field_hud: CanvasLayer = map.get_node("FieldHUD") as CanvasLayer
 	_check(field_hud.has_node("ExpeditionRadar"), "expedition radar exists")
 	_check(field_hud.has_node("OnboardingOverlay"), "signal-first onboarding exists")
+	_check(field_hud.has_node("CharacterHoverCard"), "character hover dossiers exist")
 	_check(field_hud.layer > world_effects_layer.layer, "HUD renders above world effects")
 	var field_snapshot: Dictionary = field_hud.call("get_field_state_snapshot") as Dictionary
 	_check(not field_snapshot.is_empty(), "HUD reads one sealed semantic field snapshot")

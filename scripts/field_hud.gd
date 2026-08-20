@@ -5,6 +5,7 @@ signal repair_requested
 const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 const OutpostInterfaceScript: GDScript = preload("res://scripts/outpost_interface.gd")
 const AccessibilityPanelScript: GDScript = preload("res://scripts/accessibility_panel.gd")
+const CharacterHoverCardScript: GDScript = preload("res://scripts/character_hover_card.gd")
 const ExpeditionRadarScript: GDScript = preload("res://scripts/expedition_radar.gd")
 const FieldUIBuilderScript: GDScript = preload("res://scripts/field_ui_builder.gd")
 const OnboardingOverlayScript: GDScript = preload("res://scripts/onboarding_overlay.gd")
@@ -40,6 +41,7 @@ var _drive_instruction: Label
 var _state_apply_count: int = 0
 var _state_skip_count: int = 0
 var _layout_apply_count: int = 0
+var _character_hover_card: Control
 
 
 func _ready() -> void:
@@ -77,6 +79,28 @@ func configure_refit(coordinator: RefCounted, save_callback: Callable) -> bool:
 func set_performance_sampler(sampler: Node) -> void:
 	_performance_sampler = sampler
 	FieldUIBuilderScript.configure_performance(sampler)
+
+
+func configure_character_hover(
+	avatar: Node2D, enemies: Node2D, walk_speed: float, run_speed: float
+) -> bool:
+	if _character_hover_card != null:
+		_character_hover_card.queue_free()
+	_character_hover_card = CharacterHoverCardScript.new() as Control
+	add_child(_character_hover_card)
+	return bool(
+		(
+			_character_hover_card
+			. call(
+				"bind_sources",
+				avatar,
+				enemies,
+				Callable(self, "get_field_state_snapshot"),
+				walk_speed,
+				run_speed,
+			)
+		)
+	)
 
 
 func apply_state(state: RefCounted) -> bool:
@@ -234,6 +258,10 @@ func get_touch_exclusions() -> Array[Rect2]:
 
 func get_field_state_snapshot() -> Dictionary:
 	return _state_snapshot.duplicate(true)
+
+
+func get_character_hover_card() -> Control:
+	return _character_hover_card
 
 
 func get_status_text() -> String:
