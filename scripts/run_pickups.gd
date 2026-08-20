@@ -34,6 +34,7 @@ var _coordinator: RefCounted
 var _save_callback: Callable
 var _drops: Array[Dictionary] = []
 var _handled_worm_ids: Dictionary = {}
+var _handled_peaceful_ids: Dictionary = {}
 var _next_drop_sequence: int = 1
 var _pulse_time: float = 0.0
 var _visible_drop_count: int = 0
@@ -57,11 +58,14 @@ func configure(
 
 
 func bind_worms(worms: Node2D) -> bool:
-	if worms == null or not worms.has_signal("defeated"):
+	if worms == null or not worms.has_signal("defeated") or not worms.has_signal("peaceful_defeated"):
 		return false
 	var callback: Callable = Callable(self, "_on_worm_defeated")
 	if not worms.is_connected("defeated", callback):
 		worms.connect("defeated", callback)
+	var peaceful_callback: Callable = Callable(self, "_on_peaceful_defeated")
+	if not worms.is_connected("peaceful_defeated", peaceful_callback):
+		worms.connect("peaceful_defeated", peaceful_callback)
 	return true
 
 
@@ -79,6 +83,7 @@ func _process(delta: float) -> void:
 func clear() -> void:
 	_drops.clear()
 	_handled_worm_ids.clear()
+	_handled_peaceful_ids.clear()
 	_next_drop_sequence = 1
 	queue_redraw()
 
@@ -137,6 +142,23 @@ func _on_worm_defeated(worm_id: int, position: Vector2) -> void:
 	queue_redraw()
 
 
+func _on_peaceful_defeated(creature_id: int, position: Vector2, scrap: int) -> void:
+	if _handled_peaceful_ids.has(creature_id) or _drops.size() >= MAX_ACTIVE_DROPS:
+		return
+	_handled_peaceful_ids[creature_id] = true
+	var player_cell: Vector2i = _get_player_cell()
+	var cell: Vector2i = _find_drop_cell(Vector2i(position.round()), player_cell)
+	if not bool(_world.call("is_walkable", cell)) or cell == player_cell:
+		return
+	var drop: Dictionary = _place_drop(cell, creature_id, 1, maxi(scrap, 1), false)
+	if drop.is_empty():
+		return
+	_sync_drops()
+	_commit_save()
+	drop_placed.emit(StringName(str(drop[&"drop_id"])), cell)
+	queue_redraw()
+
+
 func _record_first_worm_defeat() -> bool:
 	return (
 		bool(_coordinator.call("set_run_value", &"first_worm_defeated", true))
@@ -145,21 +167,31 @@ func _record_first_worm_defeat() -> bool:
 	)
 
 
-func _place_drop(cell: Vector2i, worm_id: int) -> Dictionary:
+func _place_drop(
+	cell: Vector2i,
+	source_id: int,
+	base_cores: int = CORE_PER_WORM,
+	scrap: int = SCRAP_PER_WORM,
+	apply_modifier: bool = true,
+) -> Dictionary:
 	if _coordinator != null:
 		var modifier: StringName = (
 			_coordinator.call("get_run_value", &"active_modifier_id") as StringName
 		)
-		var cores: int = RunModifierEffectsScript.core_reward(CORE_PER_WORM, worm_id, modifier)
+		var cores: int = (
+			RunModifierEffectsScript.core_reward(base_cores, source_id, modifier)
+			if apply_modifier
+			else base_cores
+		)
 		return (
-			_coordinator.call("_place_run_drop", cell, cores, SCRAP_PER_WORM, worm_id) as Dictionary
+			_coordinator.call("_place_run_drop", cell, cores, scrap, source_id) as Dictionary
 		)
 	var drop: Dictionary = {
 		&"drop_id": "drop.worm.%06d" % _next_drop_sequence,
-		&"source_worm_id": worm_id,
+		&"source_worm_id": source_id,
 		&"cell": [cell.x, cell.y],
-		&"cores": CORE_PER_WORM,
-		&"scrap": SCRAP_PER_WORM,
+		&"cores": base_cores,
+		&"scrap": scrap,
 	}
 	_next_drop_sequence += 1
 	_drops.append(drop)

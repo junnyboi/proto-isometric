@@ -16,6 +16,7 @@ const LocalizationTestsScript: GDScript = preload("res://test/test_localization.
 const OasisWetlandsTestsScript: GDScript = preload("res://test/test_oasis_wetlands.gd")
 const PreferenceTestsScript: GDScript = preload("res://test/test_preferences.gd")
 const PerformanceTestsScript: GDScript = preload("res://test/test_performance.gd")
+const PeacefulHerdTestsScript: GDScript = preload("res://test/test_peaceful_herds.gd")
 const RefitTestsScript: GDScript = preload("res://test/test_refit.gd")
 const RewardFeedbackTestsScript: GDScript = preload("res://test/test_reward_feedback.gd")
 const ResponsiveViewportTestsScript: GDScript = preload("res://test/test_responsive_viewport.gd")
@@ -62,6 +63,7 @@ static func evaluate(
 	cases.append_array(PreferenceTestsScript.evaluate())
 	cases.append_array(PerformanceTestsScript.evaluate())
 	cases.append_array(SmashFeedbackTestsScript.evaluate())
+	cases.append_array(PeacefulHerdTestsScript.evaluate())
 	if runtime != null:
 		cases.append_array(PerformanceTestsScript.evaluate_live(runtime, world))
 	cases.append_array(ResponsiveViewportTestsScript.evaluate())

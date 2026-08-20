@@ -3,9 +3,11 @@ extends Node2D
 signal damage_tick(amount: int, source: StringName)
 signal defeated(worm_id: int, position: Vector2)
 signal telegraph_started(kind: StringName, worm_id: int, attack_serial: int)
+signal peaceful_defeated(creature_id: int, position: Vector2, resource_amount: int)
 
 const FaunaCombatScript: GDScript = preload("res://scripts/fauna_combat_catalog.gd")
 const FaunaTelegraphAudioScript: GDScript = preload("res://scripts/fauna_telegraph_audio.gd")
+const PeacefulHerdsScript: GDScript = preload("res://scripts/peaceful_herds.gd")
 const DEFAULT_PROFILE: Resource = preload("res://data/combat/sandworm_default.tres")
 const MUD_SKIMMER_TEXTURE: Texture2D = preload("res://assets/enemies/mud_skimmer.png")
 const RIME_STALKER_TEXTURE: Texture2D = preload("res://assets/enemies/rime_stalker.png")
@@ -72,6 +74,8 @@ var _active_biome: StringName = &"desert"
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _hovered_enemy_id: int = -1
 var _telegraph_audio: Node
+var _peaceful_herds: Node2D
+var _defeated_peaceful_kinds: Dictionary = {}
 
 
 func _ready() -> void:
@@ -104,6 +108,13 @@ func configure(
 	_map_origin = map_origin
 	_profile = profile
 	_world = world
+	if _world != null and _peaceful_herds == null:
+		_peaceful_herds = PeacefulHerdsScript.new() as Node2D
+		_peaceful_herds.name = "PeacefulHerds"
+		_peaceful_herds.z_index = -1
+		_peaceful_herds.call("configure", _tile_size, _map_origin, _world)
+		_peaceful_herds.connect("defeated", Callable(self, "_on_peaceful_defeated"))
+		add_child(_peaceful_herds)
 	return true
 
 
@@ -114,13 +125,17 @@ func set_auto_spawn(enabled: bool) -> void:
 func _set_active_biome(biome: StringName) -> void:
 	if biome != _active_biome:
 		clear_worms()
-	_active_biome = biome
+		_active_biome = biome
+		if _peaceful_herds != null:
+			_peaceful_herds.call("set_active_biome", biome)
 
 
 func set_player_position(position: Vector2, velocity: Vector2 = Vector2.ZERO) -> void:
 	_sync_biome(position)
 	_player_position = position
 	_player_velocity = velocity
+	if _peaceful_herds != null:
+		_peaceful_herds.call("set_player_position", position)
 
 
 func set_outpost_linked(linked: bool) -> void:
@@ -150,6 +165,8 @@ func advance(delta: float) -> void:
 		_advance_worm(worm, step)
 		if _state_expired(worm) and worm[&"state"] in [STATE_DISPERSING, STATE_DEFEATED]:
 			_worms.remove_at(index)
+	if _peaceful_herds != null:
+		_peaceful_herds.call("advance", step)
 	queue_redraw()
 
 
@@ -215,7 +232,22 @@ func get_worm_count() -> int:
 	return _worms.size()
 
 
+func _get_peaceful_count() -> int:
+	return int(_peaceful_herds.call("get_creature_count")) if _peaceful_herds != null else 0
+
+
+func _get_peaceful_herds() -> Node2D:
+	return _peaceful_herds
+
+
 func get_health(worm_id: int) -> int:
+	if worm_id >= PeacefulHerdsScript.CREATURE_ID_BASE:
+		return (
+			1
+			if _peaceful_herds != null
+			and not (_peaceful_herds.call("get_snapshot", worm_id) as Dictionary).is_empty()
+			else 0
+		)
 	var worm: Dictionary = _find_worm(worm_id)
 	return int(worm.get(&"health", 0))
 
@@ -226,12 +258,19 @@ func get_worm_position(worm_id: int) -> Vector2:
 
 
 func _get_enemy_kind(worm_id: int) -> StringName:
+	if worm_id >= PeacefulHerdsScript.CREATURE_ID_BASE:
+		var snapshot: Dictionary = _peaceful_herds.call("get_snapshot", worm_id) as Dictionary
+		return snapshot.get(
+			&"kind", _defeated_peaceful_kinds.get(worm_id, &"dune_grazer")
+		) as StringName
 	var worm: Dictionary = _find_worm(worm_id)
 	return worm.get(&"kind", WORM_KIND) as StringName
 
 
 func _get_enemy_label(worm_id: int) -> StringName:
 	var kind: StringName = _get_enemy_kind(worm_id)
+	if worm_id >= PeacefulHerdsScript.CREATURE_ID_BASE:
+		return PeacefulHerdsScript.name_key(kind)
 	if kind == SKIMMER_KIND:
 		return &"enemy.mud_skimmer.name"
 	if kind == RIME_KIND:
@@ -293,6 +332,12 @@ func _get_character_hover_targets() -> Array[Dictionary]:
 	return targets
 
 
+func _on_peaceful_defeated(
+	creature_id: int, position: Vector2, resource_amount: int
+) -> void:
+	peaceful_defeated.emit(creature_id, position, resource_amount)
+
+
 func get_combat_snapshot(worm_id: int) -> Dictionary:
 	var worm: Dictionary = _find_worm(worm_id)
 	if worm.is_empty():
@@ -336,10 +381,18 @@ func find_target(target_cell: Vector2i) -> int:
 		if distance <= best_distance:
 			best_distance = distance
 			best_id = int(worm[&"id"])
-	return best_id
+	if best_id >= 0 or _peaceful_herds == null:
+		return best_id
+	return int(_peaceful_herds.call("find_target", target_cell))
 
 
 func hit_worm(worm_id: int, damage: int = 1) -> bool:
+	if worm_id >= PeacefulHerdsScript.CREATURE_ID_BASE:
+		var snapshot: Dictionary = _peaceful_herds.call("get_snapshot", worm_id) as Dictionary
+		var accepted: bool = bool(_peaceful_herds.call("hit_creature", worm_id, damage))
+		if accepted:
+			_defeated_peaceful_kinds[worm_id] = snapshot.get(&"kind", &"dune_grazer")
+		return accepted
 	var worm: Dictionary = _find_worm(worm_id)
 	var kind: StringName = worm.get(&"kind", WORM_KIND) as StringName
 	if (

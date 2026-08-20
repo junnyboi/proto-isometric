@@ -399,7 +399,6 @@ func _test_isometric_map() -> void:
 	)
 	hazards.call("set_auto_spawn", false)
 	hazards.call("clear_hazards")
-
 	var avatar: Node2D = map.call("get_avatar") as Node2D
 	_check(avatar != null, "Walker avatar exists")
 	_check(avatar.get_parent() == world_object_layer, "Walker renders above sand ripple")
@@ -407,6 +406,7 @@ func _test_isometric_map() -> void:
 	_check(not bool(avatar.call("is_using_proxy")), "Walker uses approved combined atlas")
 	var sandworms: Node2D = map.get_node("WorldObjectLayer/Sandworms") as Node2D
 	_check(sandworms != null, "sandworm controller exists")
+	_check(sandworms.call("_get_peaceful_herds") != null, "peaceful biome herds spawn live")
 	var run_pickups: Node2D = map.get_node("WorldObjectLayer/WorldObjects/RunPickups") as Node2D
 	_check(run_pickups != null, "run-only pickup controller exists")
 	var worm_telegraph: Node2D = map.get_node("WorldObjectLayer/WormTelegraph") as Node2D
