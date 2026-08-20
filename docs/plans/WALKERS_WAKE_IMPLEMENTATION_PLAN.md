@@ -1,6 +1,6 @@
 # Walker's Wake Implementation Plan
 
-**Plan status:** Complete; packages `WW-01` through `WW-39` are implemented in the Walker's Wake 1.0 release. Post-release combat tuning extends the 150-degree melee damage arc to two cells while preserving the charge-tier 1/2/3 footprint contract.
+**Plan status:** Complete; packages `WW-01` through `WW-39` are implemented in the Walker's Wake 1.0 release. Post-release combat tuning extends the 150-degree melee damage arc to two cells while preserving the charge-tier 1/2/3 footprint contract, and locks Walker translation until each Smash animation finishes.
 
 **Pinned baseline:** `a30db57ca5d8b43771b9bc1363368e4d397057f6` (`a30db57`)
 

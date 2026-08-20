@@ -169,6 +169,13 @@ func _test_isometric_map() -> void:
 	)
 	var touch_avatar: Node2D = map.call("get_avatar") as Node2D
 	touch_avatar.call("_process", float(touch_avatar.call("get_attack_contact_time")) + 0.01)
+	var touch_recovery_position: Vector2 = map.call("get_robot_position") as Vector2
+	_check(
+		not bool(map.call("_update_drive_vector", touch_drive, 0.05, false))
+		and map.call("get_robot_position") == touch_recovery_position,
+		"mobile drive stays locked through attack recovery",
+	)
+	touch_avatar.call("_process", float(touch_avatar.call("get_attack_duration")))
 	mobile_controls.call("force_mobile", false)
 	_check(not smash_button.visible, "desktop mode removes touch affordances")
 	_check(heat_haze.z_index == 1, "sand ripple occupies terrain-only depth")
@@ -659,8 +666,18 @@ func _test_isometric_map() -> void:
 	_check(
 		(effects.call("get_camera_offset") as Vector2).length() <= 11.01, "camera shake is bounded"
 	)
+	var recovery_position: Vector2 = map.call("get_robot_position") as Vector2
+	_check(
+		not bool(map.call("update_drive", Vector2i(1, 1), 0.05, false))
+		and map.call("get_robot_position") == recovery_position,
+		"Walker stays braced through attack recovery",
+	)
 	avatar.call("_process", float(avatar.call("get_attack_duration")))
 	_check(int(effects.call("get_emission_count")) == 1, "attack contact cannot fire twice")
+	_check(
+		bool(map.call("update_drive", Vector2i(1, 1), 0.05, false)),
+		"Walker movement resumes after attack animation",
+	)
 	effects.call("advance", 1.0)
 	_check(int(effects.call("get_particle_count")) == 0, "debris particles expire")
 	_check(effects.call("get_camera_offset") == Vector2.ZERO, "camera shake resets cleanly")

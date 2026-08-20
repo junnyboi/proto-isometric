@@ -174,7 +174,7 @@ func _process(delta: float) -> void:
 		attack()
 	_attack_was_pressed = attack_pressed
 	var drive_direction: Vector2i = (
-		Vector2i.ZERO if _pending_impact_cell != INVALID_CELL else screen_direction
+		Vector2i.ZERO if _avatar != null and bool(_avatar.call("is_attacking")) else screen_direction
 	)
 	if _mobile_controls != null and bool(_mobile_controls.call("is_joystick_visible")):
 		var mobile_drive: Vector2 = _mobile_controls.call("get_drive_vector") as Vector2
@@ -279,7 +279,7 @@ func _update_drive_vector(screen_direction: Vector2, delta: float, running: bool
 		0 if absf(analog_direction.x) < 0.28 else (1 if analog_direction.x > 0.0 else -1),
 		0 if absf(analog_direction.y) < 0.28 else (1 if analog_direction.y > 0.0 else -1),
 	)
-	if _pending_impact_cell != INVALID_CELL:
+	if _avatar != null and bool(_avatar.call("is_attacking")):
 		analog_direction = Vector2.ZERO
 		quantized_direction = Vector2i.ZERO
 	var has_input: bool = analog_direction.length() >= 0.05 and quantized_direction != Vector2i.ZERO
@@ -328,7 +328,7 @@ func _can_move_screen_direction(screen_direction: Vector2i) -> bool:
 
 
 func attack() -> bool:
-	if _shutdown or _avatar == null or _pending_impact_cell != INVALID_CELL:
+	if _shutdown or _avatar == null or bool(_avatar.call("is_attacking")):
 		return false
 	_velocity = Vector2.ZERO
 	var screen_direction: Vector2i = IsometricControlsScript.facing_to_screen_direction(_facing)
