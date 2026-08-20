@@ -72,8 +72,8 @@ func _test_isometric_map() -> void:
 		"live RunState owns Walker position",
 	)
 
-	_check(map.call("get_grid_size") == Vector2i(145, 145), "world reports compact grid")
 	var world: RefCounted = map.get("_world") as RefCounted
+	_check(world.call("_get_playable_size") == Vector2i(145, 145), "world reports compact grid")
 	_check(world != null, "lazy world stream exists")
 	for test_case: Dictionary in ContractTestsScript.evaluate(run_coordinator, world, map):
 		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
@@ -147,8 +147,7 @@ func _test_isometric_map() -> void:
 	_check(bool(map.call("place_robot", Vector2i(8, 8))), "place Walker for touch drive")
 	var touch_start: Vector2 = map.call("get_robot_position") as Vector2
 	_check(
-		bool(map.call("_update_drive_vector", touch_drive, 0.05, false)),
-		"touch drive moves Walker"
+		bool(map.call("_update_drive_vector", touch_drive, 0.05, false)), "touch drive moves Walker"
 	)
 	_check(
 		(map.call("get_robot_position") as Vector2).distance_to(touch_start) > 0.0,
@@ -170,6 +169,13 @@ func _test_isometric_map() -> void:
 	)
 	var touch_avatar: Node2D = map.call("get_avatar") as Node2D
 	touch_avatar.call("_process", float(touch_avatar.call("get_attack_contact_time")) + 0.01)
+	var touch_recovery_position: Vector2 = map.call("get_robot_position") as Vector2
+	_check(
+		not bool(map.call("_update_drive_vector", touch_drive, 0.05, false))
+		and map.call("get_robot_position") == touch_recovery_position,
+		"mobile drive stays locked through attack recovery",
+	)
+	touch_avatar.call("_process", float(touch_avatar.call("get_attack_duration")))
 	mobile_controls.call("force_mobile", false)
 	_check(not smash_button.visible, "desktop mode removes touch affordances")
 	_check(heat_haze.z_index == 1, "sand ripple occupies terrain-only depth")
@@ -201,6 +207,7 @@ func _test_isometric_map() -> void:
 	var field_hud: CanvasLayer = map.get_node("FieldHUD") as CanvasLayer
 	_check(field_hud.has_node("ExpeditionRadar"), "expedition radar exists")
 	_check(field_hud.has_node("OnboardingOverlay"), "signal-first onboarding exists")
+	_check(field_hud.has_node("CharacterHoverCard"), "character hover dossiers exist")
 	_check(field_hud.layer > world_effects_layer.layer, "HUD renders above world effects")
 	var field_snapshot: Dictionary = field_hud.call("get_field_state_snapshot") as Dictionary
 	_check(not field_snapshot.is_empty(), "HUD reads one sealed semantic field snapshot")
@@ -493,6 +500,10 @@ func _test_isometric_map() -> void:
 	_check(relay != null, "contested relay controller exists")
 	_check(relay_cell == Vector2i(12, 6), "starter relay placement is deterministic")
 	_check(world.call("terrain_at", relay_cell) == &"ruin", "relay occupies reserved ruin terrain")
+	var elevation: Dictionary = map.get("_elevation") as Dictionary
+	_check(
+		int(elevation.get(relay_cell, -1)) == 0, "reserved ruin terrain stays flush with the map"
+	)
 	_check(bool(map.call("place_robot", relay_cell)), "Walker enters the relay zone")
 	relay.call("advance", 0.5)
 	_check(relay.call("get_state") == &"linking", "entering relay zone starts linking")
@@ -641,9 +652,7 @@ func _test_isometric_map() -> void:
 	_check(int(effects.call("get_emission_count")) == 0, "windup emits no premature debris")
 	var windup_position: Vector2 = map.call("get_robot_position") as Vector2
 	map.call("update_drive", Vector2i(1, 1), 0.05, false)
-	_check(
-		map.call("get_robot_position") == windup_position, "Walker braces through strike windup"
-	)
+	_check(map.call("get_robot_position") == windup_position, "Walker braces through strike windup")
 	avatar.call("_process", float(avatar.call("get_attack_contact_time")) + 0.01)
 	var magnet_scrap_total: int = int(map.call("get_scrap_count"))
 	_check("ROCK SALVAGED" in str(map.call("get_status_text")), "impact feedback remains readable")
@@ -657,8 +666,18 @@ func _test_isometric_map() -> void:
 	_check(
 		(effects.call("get_camera_offset") as Vector2).length() <= 11.01, "camera shake is bounded"
 	)
+	var recovery_position: Vector2 = map.call("get_robot_position") as Vector2
+	_check(
+		not bool(map.call("update_drive", Vector2i(1, 1), 0.05, false))
+		and map.call("get_robot_position") == recovery_position,
+		"Walker stays braced through attack recovery",
+	)
 	avatar.call("_process", float(avatar.call("get_attack_duration")))
 	_check(int(effects.call("get_emission_count")) == 1, "attack contact cannot fire twice")
+	_check(
+		bool(map.call("update_drive", Vector2i(1, 1), 0.05, false)),
+		"Walker movement resumes after attack animation",
+	)
 	effects.call("advance", 1.0)
 	_check(int(effects.call("get_particle_count")) == 0, "debris particles expire")
 	_check(effects.call("get_camera_offset") == Vector2.ZERO, "camera shake resets cleanly")
@@ -795,9 +814,7 @@ func _test_isometric_map() -> void:
 	_check(
 		bool(map.call("place_destructible_rock", far_cell + Vector2i.RIGHT)), "far mutation saves"
 	)
-	_check(
-		bool(map.call("place_robot", Vector2i(0, 0))), "Walker returns across chunk boundaries"
-	)
+	_check(bool(map.call("place_robot", Vector2i(0, 0))), "Walker returns across chunk boundaries")
 	_check(bool(map.call("place_robot", far_cell)), "Walker revisits generated terrain")
 	_check(world.call("terrain_at", far_cell) == far_terrain, "procedural terrain is deterministic")
 	var follow_zoom: Vector2 = (map.get_node("FollowCamera") as Camera2D).zoom

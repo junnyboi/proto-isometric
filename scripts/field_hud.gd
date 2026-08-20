@@ -5,6 +5,7 @@ signal repair_requested
 const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 const OutpostInterfaceScript: GDScript = preload("res://scripts/outpost_interface.gd")
 const AccessibilityPanelScript: GDScript = preload("res://scripts/accessibility_panel.gd")
+const CharacterHoverCardScript: GDScript = preload("res://scripts/character_hover_card.gd")
 const ExpeditionRadarScript: GDScript = preload("res://scripts/expedition_radar.gd")
 const FieldUIBuilderScript: GDScript = preload("res://scripts/field_ui_builder.gd")
 const OnboardingOverlayScript: GDScript = preload("res://scripts/onboarding_overlay.gd")
@@ -31,6 +32,7 @@ var _ui_scale: float = 1.0
 var _onboarding: CanvasLayer
 var _radar: Control
 var _radar_coordinator: RefCounted
+var _radar_contacts_source: Node
 var _performance_sampler: Node
 var _left_handed: bool = false
 var _panel_title: Label
@@ -40,6 +42,7 @@ var _drive_instruction: Label
 var _state_apply_count: int = 0
 var _state_skip_count: int = 0
 var _layout_apply_count: int = 0
+var _character_hover_card: Control
 
 
 func _ready() -> void:
@@ -66,17 +69,47 @@ func _ready() -> void:
 	apply_layout(get_viewport().get_visible_rect().size, false, true)
 
 
-func configure_refit(coordinator: RefCounted, save_callback: Callable) -> bool:
+func configure_refit(
+	coordinator: RefCounted, save_callback: Callable, contacts_source: Node = null
+) -> bool:
 	_radar_coordinator = coordinator
+	_radar_contacts_source = contacts_source
 	_refit_service = RefitServiceScript.new() as RefCounted
 	if _radar != null:
 		_radar.call("configure", coordinator)
 	return bool(_refit_service.call("configure", coordinator, save_callback))
 
 
+func _process(_delta: float) -> void:
+	if _radar != null and _radar_contacts_source != null:
+		_radar.call("sync_contacts", _radar_contacts_source.call("get_combat_snapshots"))
+
+
 func set_performance_sampler(sampler: Node) -> void:
 	_performance_sampler = sampler
 	FieldUIBuilderScript.configure_performance(sampler)
+
+
+func configure_character_hover(
+	avatar: Node2D, enemies: Node2D, walk_speed: float, run_speed: float
+) -> bool:
+	if _character_hover_card != null:
+		_character_hover_card.queue_free()
+	_character_hover_card = CharacterHoverCardScript.new() as Control
+	add_child(_character_hover_card)
+	return bool(
+		(
+			_character_hover_card
+			. call(
+				"bind_sources",
+				avatar,
+				enemies,
+				Callable(self, "get_field_state_snapshot"),
+				walk_speed,
+				run_speed,
+			)
+		)
+	)
 
 
 func apply_state(state: RefCounted) -> bool:
@@ -236,6 +269,10 @@ func get_field_state_snapshot() -> Dictionary:
 	return _state_snapshot.duplicate(true)
 
 
+func get_character_hover_card() -> Control:
+	return _character_hover_card
+
+
 func get_status_text() -> String:
 	return _status_label.text if _status_label != null else ""
 
@@ -252,10 +289,12 @@ func get_outpost_interface() -> Control:
 	return _outpost_interface
 
 
-func sync_radar(player_cell: Vector2i, completed_relays: int) -> bool:
-	return (
-		bool(_radar.call("sync_state", player_cell, completed_relays)) if _radar != null else false
-	)
+func sync_radar(player_cell: Vector2i, completed_relays: int, contacts: Variant = null) -> bool:
+	if _radar == null:
+		return false
+	var state_changed: bool = bool(_radar.call("sync_state", player_cell, completed_relays))
+	var contacts_changed: bool = contacts is Array and bool(_radar.call("sync_contacts", contacts))
+	return contacts_changed or state_changed
 
 
 func get_performance_snapshot() -> Dictionary:

@@ -1,6 +1,7 @@
 extends RefCounted
 
 const ModifierServiceScript: GDScript = preload("res://scripts/modifier_service.gd")
+const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const ProfileStateScript: GDScript = preload("res://scripts/profile_state.gd")
 const RunStateScript: GDScript = preload("res://scripts/run_state.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
@@ -65,7 +66,7 @@ static func launch_next(coordinator: RefCounted, save_callback: Callable) -> boo
 					StringName("run.%08d" % sequence),
 					int(run_before.get(&"seed", 0)) + 1,
 					int(run_before.get(&"max_chassis", 100)),
-					Vector2i(8, 10),
+					InfiniteWorldScript.DEPLOYMENT_CELL,
 					&"SE",
 				)
 			)

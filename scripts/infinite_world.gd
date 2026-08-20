@@ -10,6 +10,7 @@ const CULL_RADIUS: Vector2i = Vector2i(14, 14)
 const COORDINATE_LIMIT: int = 1_000_000
 const PLAYABLE_HALF_EXTENT: int = 72
 const PLAYABLE_SIZE: Vector2i = Vector2i(145, 145)
+const DEPLOYMENT_CELL: Vector2i = Vector2i(8, 10)
 const STARTER_SIZE: Vector2i = Vector2i(18, 18)
 const STARTER_RELAY: Vector2i = Vector2i(12, 6)
 const SANCTUARY_RADIUS: float = 2.5
@@ -347,14 +348,14 @@ func _generate_cell(cell: Vector2i) -> void:
 	if _placed_rocks.has(cell):
 		terrain_id = &"rock"
 	_terrain[cell] = terrain_id
-	_elevation[cell] = 2 if terrain_id == &"rock" else (1 if terrain_id == &"ruin" else 0)
+	_elevation[cell] = 2 if terrain_id == &"rock" else 0
 	if terrain_id == &"rock":
 		_rocks[cell] = true
 		_blocked[cell] = true
 	if _is_outpost(cell):
 		_outposts[cell] = true
 		_terrain[cell] = &"ruin"
-		_elevation[cell] = 1
+		_elevation[cell] = 0
 		_rocks.erase(cell)
 		_blocked.erase(cell)
 	var amount: int = int(_dropped_scrap.get(cell, 0))

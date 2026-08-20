@@ -1,6 +1,7 @@
 extends RefCounted
 
 const AccessibilityPanelScript: GDScript = preload("res://scripts/accessibility_panel.gd")
+const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 const PlayerPreferencesScript: GDScript = preload("res://scripts/player_preferences.gd")
 const PATH: String = "user://walkers-wake-preferences.json"
 
@@ -62,8 +63,36 @@ static func evaluate() -> Array[Dictionary]:
 		),
 	)
 	var panel: CanvasLayer = AccessibilityPanelScript.new() as CanvasLayer
-	_add(cases, "accessibility panel script instantiates", panel != null)
+	LocalizationScript.set_locale(&"en", false)
+	panel.set("_preferences", PlayerPreferencesScript.new() as RefCounted)
+	panel.call("_build_interface")
+	panel.call("_refresh")
+	var language: Button = panel.call("get_language_button") as Button
+	_add(
+		cases,
+		"settings menu exposes the bilingual language toggle",
+		(
+			language != null
+			and "EN / 简体中文" in language.text
+			and "[EN]" in language.text
+			and language.get_theme_font_size("font_size") == 18
+		),
+	)
+	panel.call("_cycle_locale")
+	var toggled: Dictionary = (
+		(PlayerPreferencesScript.new() as RefCounted).call("load_preferences") as Dictionary
+	)
+	_add(
+		cases,
+		"settings toggle switches and persists Simplified Chinese",
+		(
+			LocalizationScript.get_locale() == &"zh-CN"
+			and toggled[&"locale"] == &"zh-CN"
+			and "[简体中文]" in language.text
+		),
+	)
 	panel.free()
+	LocalizationScript.set_locale(&"en", false)
 	_clear()
 	return cases
 

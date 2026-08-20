@@ -54,12 +54,15 @@ func _cycle_scale() -> void:
 
 
 func _cycle_locale() -> void:
-	var current: StringName = StringName(str(get_preferences().get(&"locale", &"en")))
+	_preferences.call("load_preferences")
+	var current: StringName = LocalizationScript.get_locale()
 	var next_locale: StringName = &"zh-CN" if current == &"en" else &"en"
 	if not bool(_preferences.call("set_value", &"locale", next_locale)):
 		return
+	_preferences.call("save_preferences")
 	LocalizationScript.set_locale(next_locale)
-	_commit()
+	_refresh()
+	preferences_changed.emit(get_preferences())
 
 
 func _reset_training() -> void:
@@ -97,9 +100,13 @@ func _refresh() -> void:
 	(_buttons[&"sfx_enabled"] as Button).text = LocalizationScript.t(
 		&"access.sfx", {"state": _on_off(snapshot, &"sfx_enabled")}
 	)
-	var locale: String = str(snapshot.get(&"locale", "en"))
-	(_buttons[&"locale"] as Button).text = LocalizationScript.t(
-		&"access.language", {"language": LocalizationScript.t("common.locale.%s" % locale)}
+	var locale: String = str(LocalizationScript.get_locale())
+	(_buttons[&"locale"] as Button).text = (
+		LocalizationScript
+		. t(
+			&"access.language",
+			{"language": LocalizationScript.t("common.locale_short.%s" % locale)},
+		)
 	)
 	(_buttons[&"onboarding_seen"] as Button).text = LocalizationScript.t(&"access.reset_training")
 
@@ -113,7 +120,12 @@ func _on_off(snapshot: Dictionary, key: StringName) -> String:
 
 
 func _on_locale_changed(_locale: StringName) -> void:
+	_preferences.call("load_preferences")
 	_refresh()
+
+
+func get_language_button() -> Button:
+	return _buttons.get(&"locale") as Button
 
 
 func _build_interface() -> void:
@@ -178,6 +190,8 @@ func _add_button(key: StringName, y: float, callback: Callable) -> void:
 	button.name = String(key).to_pascal_case()
 	button.position = Vector2(28.0, y)
 	button.size = Vector2(386.0, 46.0)
+	if key == &"locale":
+		button.add_theme_font_size_override("font_size", 18)
 	button.pressed.connect(callback)
 	_panel.add_child(button)
 	_buttons[key] = button

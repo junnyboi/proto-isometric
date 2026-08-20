@@ -6,7 +6,6 @@ const SAND: Color = Color("d79a45")
 const SAND_LIGHT: Color = Color("e8b861")
 const SALT: Color = Color("d8d0b5")
 const ROCK: Color = Color("934d35")
-const RUIN: Color = Color("39454a")
 const WETLAND: Color = Color("879b55")
 const MUD: Color = Color("2d281f")
 const SNOW: Color = Color("dce8ed")
@@ -21,7 +20,6 @@ const TEXTURES: Dictionary = {
 	&"sand": preload("res://assets/textures/terrain/desert_sand.png"),
 	&"salt": preload("res://assets/textures/terrain/salt_crust.png"),
 	&"rock": preload("res://assets/textures/terrain/iron_rock.png"),
-	&"ruin": preload("res://assets/textures/terrain/ancient_ruin.png"),
 	&"wetland": preload("res://assets/textures/terrain/oasis_wetland.png"),
 	&"mud": preload("res://assets/textures/terrain/dark_mud.png"),
 	&"snow": preload("res://assets/textures/terrain/tundra_snow.png"),
@@ -75,14 +73,12 @@ func draw_tile(canvas: Node2D, cell: Vector2i) -> void:
 			center + Vector2(-half.x, 0.0),
 		]
 	)
-	var terrain_id: StringName = _terrain.get(cell, &"sand") as StringName
+	var terrain_id: StringName = display_terrain_at(cell)
 	var color: Color = SAND if (cell.x + cell.y) % 2 == 0 else SAND_LIGHT
 	if terrain_id == &"salt":
 		color = SALT
 	elif terrain_id == &"rock":
 		color = ROCK
-	elif terrain_id == &"ruin":
-		color = RUIN
 	elif terrain_id == &"wetland":
 		color = WETLAND
 	elif terrain_id == &"mud":
@@ -134,10 +130,7 @@ func draw_tile(canvas: Node2D, cell: Vector2i) -> void:
 		canvas.draw_polygon(points, terrain_tints(cell), terrain_uvs(cell), terrain_texture)
 	for edge: int in range(4):
 		canvas.draw_line(points[edge], points[(edge + 1) % 4], GRID_LINE, 1.2)
-	if terrain_id == &"ruin":
-		canvas.draw_circle(center, 6.0, TEAL.darkened(0.15))
-		canvas.draw_arc(center, 13.0, 0.0, TAU, 20, TEAL, 2.0)
-	elif terrain_id == &"blue_ice":
+	if terrain_id == &"blue_ice":
 		canvas.draw_line(
 			center + Vector2(-23.0, 4.0),
 			center + Vector2(19.0, -6.0),
@@ -148,6 +141,36 @@ func draw_tile(canvas: Node2D, cell: Vector2i) -> void:
 		var closed: PackedVector2Array = points.duplicate()
 		closed.append(points[0])
 		canvas.draw_polyline(closed, Color(1.0, 0.76, 0.18, 0.58), 2.0)
+
+
+func display_terrain_at(cell: Vector2i) -> StringName:
+	var terrain_id: StringName = _terrain.get(cell, &"sand") as StringName
+	if terrain_id != &"ruin":
+		return terrain_id
+	var counts: Dictionary = {}
+	for offset: Vector2i in [
+		Vector2i.LEFT,
+		Vector2i.RIGHT,
+		Vector2i.UP,
+		Vector2i.DOWN,
+		Vector2i(-1, -1),
+		Vector2i(1, -1),
+		Vector2i(-1, 1),
+		Vector2i(1, 1),
+	]:
+		var neighbor: StringName = _terrain.get(cell + offset, &"") as StringName
+		if neighbor in [&"", &"ruin", &"rock"]:
+			continue
+		counts[neighbor] = int(counts.get(neighbor, 0)) + 1
+	var display_id: StringName = &"sand"
+	var best_count: int = 0
+	for value: Variant in counts:
+		var candidate: StringName = value as StringName
+		var candidate_count: int = int(counts[candidate])
+		if candidate_count > best_count:
+			display_id = candidate
+			best_count = candidate_count
+	return display_id
 
 
 func draw_world_backdrop(canvas: Node2D, robot_position: Vector2) -> void:

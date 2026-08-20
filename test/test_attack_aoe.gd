@@ -34,22 +34,33 @@ static func evaluate() -> Array[Dictionary]:
 	) as Array[Vector2i]
 	_add(
 		cases,
-		"contact attack covers a 150-degree forward arc",
+		"contact attack covers a two-cell 150-degree forward arc",
 		ImpactChargeScript.ATTACK_ARC_DEGREES == 150.0
-		and arc.size() == 3
+		and ImpactChargeScript.ATTACK_ARC_RADIUS_CELLS == 2
+		and arc.size() == 6
 		and Vector2i(6, 5) in arc
 		and Vector2i(7, 5) in arc
-		and Vector2i(7, 6) in arc,
+		and Vector2i(7, 6) in arc
+		and Vector2i(6, 4) in arc
+		and Vector2i(8, 4) in arc
+		and Vector2i(8, 6) in arc,
 	)
-	_add(cases, "forward attack arc excludes rear cells", Vector2i(5, 7) not in arc)
+	_add(
+		cases,
+		"extended forward attack arc excludes rear cells",
+		Vector2i(5, 7) not in arc and Vector2i(4, 8) not in arc,
+	)
 	var worms: FakeSandworms = FakeSandworms.new()
 	worms.targets = {
 		Vector2i(6, 5): 11,
 		Vector2i(7, 5): 12,
 		Vector2i(7, 6): 13,
 		Vector2i(5, 7): 14,
+		Vector2i(6, 4): 15,
+		Vector2i(8, 4): 16,
+		Vector2i(8, 6): 17,
 	}
-	worms.health = {11: 4, 12: 4, 13: 4, 14: 4}
+	worms.health = {11: 4, 12: 4, 13: 4, 14: 4, 15: 4, 16: 4, 17: 4}
 	var targets: Dictionary = ImpactTargetingScript.scan(
 		arc, worms, {Vector2i(7, 6): true}
 	)
@@ -57,20 +68,26 @@ static func evaluate() -> Array[Dictionary]:
 	_add(
 		cases,
 		"AOE scanner acquires every forward target once",
-		worm_ids.size() == 3
+		worm_ids.size() == 6
 		and 11 in worm_ids
 		and 12 in worm_ids
 		and 13 in worm_ids
+		and 15 in worm_ids
+		and 16 in worm_ids
+		and 17 in worm_ids
 		and (targets[&"rock_cells"] as Array).size() == 1,
 	)
 	var result: Dictionary = ImpactTargetingScript.hit_worms(worms, worm_ids, 0, null)
 	_add(
 		cases,
 		"one AOE strike damages all forward targets",
-		int(result[&"hits"]) == 3
+		int(result[&"hits"]) == 6
 		and int(worms.health[11]) == 3
 		and int(worms.health[12]) == 3
-		and int(worms.health[13]) == 3,
+		and int(worms.health[13]) == 3
+		and int(worms.health[15]) == 3
+		and int(worms.health[16]) == 3
+		and int(worms.health[17]) == 3,
 	)
 	_add(cases, "AOE strike leaves rear targets intact", int(worms.health[14]) == 4)
 	impact_charge.free()

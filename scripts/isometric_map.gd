@@ -25,6 +25,7 @@ const SaveRepositoryScript: GDScript = preload("res://scripts/save_repository.gd
 const StatusLocalizerScript: GDScript = preload("res://scripts/status_localizer.gd")
 const TerrainHazeScript: GDScript = preload("res://scripts/terrain_haze.gd")
 const TerrainRendererScript: GDScript = preload("res://scripts/terrain_renderer.gd")
+const TerrainSurfaceScript: GDScript = preload("res://scripts/terrain_surface.gd")
 const SurfaceDriveScript: GDScript = preload("res://scripts/surface_drive.gd")
 const WormTelegraphScript: GDScript = preload("res://scripts/worm_telegraph.gd")
 const WorldObjectsScript: GDScript = preload("res://scripts/world_objects.gd")
@@ -32,7 +33,7 @@ const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const WebSceneStateScript: GDScript = preload("res://scripts/web_scene_state.gd")
 const TILE_SIZE: Vector2 = Vector2(90.0, 45.0)
 const MAP_ORIGIN: Vector2 = Vector2(760.0, 70.0)
-const START_CELL: Vector2i = Vector2i(8, 10)
+const START_CELL: Vector2i = InfiniteWorldScript.DEPLOYMENT_CELL
 const SAVE_SCHEMA: int = SaveRepositoryScript.FORMAT_VERSION
 const DEFAULT_SAVE_PATH: String = "user://walkers-wake-world.json"
 const INVALID_CELL: Vector2i = Vector2i(-9999, -9999)
@@ -114,6 +115,7 @@ var _sandworms: Node2D
 var _state_store: RefCounted
 var _terrain_haze: Node2D
 var _terrain_renderer: RefCounted
+var _terrain_surface: Node2D
 var _visible_cells: Array[Vector2i] = []
 var _worm_telegraph: Node2D
 var _world: RefCounted
@@ -172,7 +174,7 @@ func _process(delta: float) -> void:
 		attack()
 	_attack_was_pressed = attack_pressed
 	var drive_direction: Vector2i = (
-		Vector2i.ZERO if _pending_impact_cell != INVALID_CELL else screen_direction
+		Vector2i.ZERO if _avatar != null and bool(_avatar.call("is_attacking")) else screen_direction
 	)
 	if _mobile_controls != null and bool(_mobile_controls.call("is_joystick_visible")):
 		var mobile_drive: Vector2 = _mobile_controls.call("get_drive_vector") as Vector2
@@ -234,9 +236,6 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _draw() -> void:
-	_terrain_renderer.call("draw_world_backdrop", self, _robot_visual_position)
-	for cell: Vector2i in _visible_cells:
-		_terrain_renderer.call("draw_tile", self, cell)
 	_terrain_renderer.call(
 		"draw_drive_vector",
 		self,
@@ -280,7 +279,7 @@ func _update_drive_vector(screen_direction: Vector2, delta: float, running: bool
 		0 if absf(analog_direction.x) < 0.28 else (1 if analog_direction.x > 0.0 else -1),
 		0 if absf(analog_direction.y) < 0.28 else (1 if analog_direction.y > 0.0 else -1),
 	)
-	if _pending_impact_cell != INVALID_CELL:
+	if _avatar != null and bool(_avatar.call("is_attacking")):
 		analog_direction = Vector2.ZERO
 		quantized_direction = Vector2i.ZERO
 	var has_input: bool = analog_direction.length() >= 0.05 and quantized_direction != Vector2i.ZERO
@@ -329,7 +328,7 @@ func _can_move_screen_direction(screen_direction: Vector2i) -> bool:
 
 
 func attack() -> bool:
-	if _shutdown or _avatar == null or _pending_impact_cell != INVALID_CELL:
+	if _shutdown or _avatar == null or bool(_avatar.call("is_attacking")):
 		return false
 	_velocity = Vector2.ZERO
 	var screen_direction: Vector2i = IsometricControlsScript.facing_to_screen_direction(_facing)
@@ -589,10 +588,6 @@ func get_facing() -> StringName:
 	return _facing
 
 
-func get_grid_size() -> Vector2i:
-	return InfiniteWorldScript.PLAYABLE_SIZE
-
-
 func get_avatar() -> Node2D:
 	return _avatar
 
@@ -737,6 +732,9 @@ func _build_world_stream() -> void:
 	_terrain_renderer.call(
 		"configure", _terrain, _elevation, _terrain_textures, TILE_SIZE, MAP_ORIGIN
 	)
+	_terrain_surface = TerrainSurfaceScript.new() as Node2D
+	_terrain_surface.call("configure", _terrain_renderer, _performance_sampler)
+	add_child(_terrain_surface)
 	(
 		_world
 		. call(
@@ -757,6 +755,7 @@ func _stream_world() -> void:
 	var started_usec: int = _performance_sampler.call("begin_scope") as int
 	_world.call("stream_around", _robot_grid)
 	_visible_cells = _world.call("visible_cells", _robot_grid) as Array[Vector2i]
+	_terrain_surface.call("set_visible_cells", _visible_cells)
 	if _world_objects != null:
 		_world_objects.call("set_visible_cells", _visible_cells)
 	if _terrain_haze != null:
@@ -832,6 +831,7 @@ func _build_impact_effects() -> void:
 	_effects.name = "ImpactEffects"
 	_effects.z_index = 30
 	_effects.call("bind_camera", _camera)
+	_effects.call("bind_performance", _performance_sampler)
 	_effects_layer.add_child(_effects)
 
 
@@ -936,9 +936,12 @@ func _build_interface() -> void:
 	_hud = FieldHudScript.new() as CanvasLayer
 	_hud.name = "FieldHUD"
 	_hud.connect("repair_requested", Callable(self, "_repair_chassis"))
-	_hud.call("configure_refit", _run_coordinator, Callable(self, "_save_world_state"))
+	_hud.call("configure_refit", _run_coordinator, Callable(self, "_save_world_state"), _sandworms)
 	add_child(_hud)
 	_hud.call("set_performance_sampler", _performance_sampler)
+	_hud.call(
+		"configure_character_hover", _avatar, _sandworms, WALK_SPEED, WALK_SPEED * RUN_MULTIPLIER)
+	_mobile_controls.call("set_character_dossier", _hud.call("get_character_hover_card"))
 	_terminal_flow = RunTerminalFlowScript.new() as CanvasLayer
 	add_child(_terminal_flow)
 	_terminal_flow.call(

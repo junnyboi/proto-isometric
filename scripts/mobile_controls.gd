@@ -28,6 +28,7 @@ var _smash_button: Button
 var _run_intent: bool = false
 var _left_handed: bool = false
 var _haptics: bool = true
+var _character_dossier: Control
 
 
 func _ready() -> void:
@@ -96,7 +97,7 @@ func apply_layout(viewport_size: Vector2) -> bool:
 	if _smash_button != null:
 		_smash_button.position = smash.position
 		_smash_button.size = smash.size
-	_cancel_joystick()
+	_cancel_touch_interactions()
 	return true
 
 
@@ -108,16 +109,20 @@ func get_touch_exclusions() -> Array[Rect2]:
 	return _touch_exclusions.duplicate()
 
 
+func set_character_dossier(dossier: Control) -> void:
+	_character_dossier = dossier
+
+
 func set_controls_enabled(enabled: bool) -> void:
 	_controls_enabled = enabled
 	if not enabled:
-		_cancel_joystick()
+		_cancel_touch_interactions()
 	_apply_visibility()
 
 
 func force_mobile(enabled: bool) -> void:
 	_mobile_device = enabled
-	_cancel_joystick()
+	_cancel_touch_interactions()
 	_apply_visibility()
 
 
@@ -125,6 +130,12 @@ func begin_touch(index: int, position: Vector2) -> bool:
 	if not _mobile_device or not _controls_enabled or _touch_index >= 0:
 		return false
 	if _point_is_excluded(position):
+		if _character_dossier != null:
+			_character_dossier.call("dismiss_pinned")
+		return false
+	if _character_dossier != null and bool(
+		_character_dossier.call("begin_long_press", index, position)
+	):
 		return false
 	_touch_index = index
 	_touch_origin = _clamp_origin(position)
@@ -137,6 +148,11 @@ func begin_touch(index: int, position: Vector2) -> bool:
 
 
 func drag_touch(index: int, position: Vector2) -> Vector2:
+	if _character_dossier != null and bool(
+		_character_dossier.call("is_long_press_active", index)
+	):
+		_character_dossier.call("drag_long_press", index, position)
+		return Vector2.ZERO
 	if index != _touch_index:
 		return _drive_vector
 	_touch_position = position
@@ -146,6 +162,10 @@ func drag_touch(index: int, position: Vector2) -> Vector2:
 
 
 func end_touch(index: int) -> bool:
+	if _character_dossier != null and bool(
+		_character_dossier.call("end_long_press", index)
+	):
+		return true
 	if index != _touch_index:
 		return false
 	_cancel_joystick()
@@ -265,6 +285,12 @@ func _cancel_joystick() -> void:
 	if _joystick != null:
 		_joystick.visible = false
 		_joystick.queue_redraw()
+
+
+func _cancel_touch_interactions() -> void:
+	_cancel_joystick()
+	if _character_dossier != null:
+		_character_dossier.call("dismiss_pinned")
 
 
 func _bind_accessibility() -> void:
