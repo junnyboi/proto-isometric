@@ -7,8 +7,11 @@ const BREACH_TEXTURE: Texture2D = preload("res://assets/vfx/worm/breach_plume.pn
 const STATE_BURROW: StringName = &"burrow"
 const STATE_INTERCEPT: StringName = &"intercept"
 const STATE_EXPOSE: StringName = &"expose"
+const STATE_WAKE_WARNING: StringName = &"wake_warning"
 const STATE_WAKE_SWEEP: StringName = &"wake_sweep"
+const STATE_POUNCE_WARNING: StringName = &"pounce_warning"
 const STATE_POUNCE: StringName = &"pounce"
+const STATE_SALVO_WARNING: StringName = &"salvo_warning"
 const STATE_EMBER_SALVO: StringName = &"ember_salvo"
 const STATE_RECOVER: StringName = &"recover"
 const ACTIVE_STATES: Array[StringName] = [
@@ -17,10 +20,13 @@ const ACTIVE_STATES: Array[StringName] = [
 	&"expose",
 	&"dive",
 	&"skim",
+	&"wake_warning",
 	&"wake_sweep",
 	&"stalk",
+	&"pounce_warning",
 	&"pounce",
 	&"brace",
+	&"salvo_warning",
 	&"ember_salvo",
 	&"recover",
 	&"staggered",
@@ -110,6 +116,10 @@ func get_telegraph_snapshot(worm_id: int) -> Dictionary:
 	if snapshot.is_empty():
 		return {}
 	var duration: float = maxf(float(snapshot.get(&"state_duration", 0.0)), 0.001)
+	var state: StringName = snapshot[&"state"] as StringName
+	var kind: StringName = snapshot.get(&"kind", &"sandworm") as StringName
+	var warning_active: bool = FaunaCombatScript.warning(kind, state)
+	var countdown: float = clampf(float(snapshot.get(&"state_remaining", 0.0)) / duration, 0.0, 1.0)
 	return {
 		&"id": worm_id,
 		&"kind": snapshot.get(&"kind", &"sandworm"),
@@ -118,7 +128,9 @@ func get_telegraph_snapshot(worm_id: int) -> Dictionary:
 		&"attack_origin": snapshot.get(&"attack_origin", snapshot[&"position"]),
 		&"target_grid": snapshot[&"committed_target"],
 		&"target_screen": _grid_to_screen(snapshot[&"committed_target"] as Vector2),
-		&"countdown": clampf(float(snapshot.get(&"state_remaining", 0.0)) / duration, 0.0, 1.0),
+		&"countdown": countdown,
+		&"warning_active": warning_active,
+		&"warning_countdown": countdown if warning_active else 0.0,
 		&"target_radius": TARGET_RADIUS,
 		&"safe_radius": SAFE_RADIUS,
 		&"trail_points": get_trail_point_count(worm_id),
@@ -197,13 +209,13 @@ func _draw_trail(worm_id: int, snapshot: Dictionary) -> void:
 
 func _draw_target(snapshot: Dictionary) -> void:
 	var state: StringName = snapshot[&"state"] as StringName
-	if state == STATE_WAKE_SWEEP:
+	if state in [STATE_WAKE_WARNING, STATE_WAKE_SWEEP]:
 		_draw_wake_sweep(snapshot)
 		return
-	if state == STATE_POUNCE:
+	if state in [STATE_POUNCE_WARNING, STATE_POUNCE]:
 		_draw_frost_pounce(snapshot)
 		return
-	if state == STATE_EMBER_SALVO:
+	if state in [STATE_SALVO_WARNING, STATE_EMBER_SALVO]:
 		_draw_ember_salvo(snapshot)
 		return
 	if state != STATE_INTERCEPT:
@@ -233,38 +245,111 @@ func _draw_wake_sweep(snapshot: Dictionary) -> void:
 	var start: Vector2 = _grid_to_screen(snapshot[&"attack_origin"] as Vector2)
 	var target: Vector2 = _grid_to_screen(snapshot[&"committed_target"] as Vector2)
 	var direction: Vector2 = target - start
+	var warning: bool = snapshot[&"state"] == STATE_WAKE_WARNING
+	var countdown: float = _remaining_ratio(snapshot)
+	var pulse: float = _warning_pulse(countdown)
 	var side: Vector2 = (
 		direction.normalized().orthogonal() if not direction.is_zero_approx() else Vector2.UP
 	)
-	draw_line(start, target, Color(WETLAND, 0.22), 22.0, true)
-	draw_dashed_line(start, target, WETLAND, 4.0, 12.0, true)
+	var danger: Color = AMBER if warning else WETLAND
+	draw_line(start, target, Color(danger, 0.16 + pulse * 0.18), 26.0, true)
+	draw_dashed_line(start, target, Color(danger, 0.72 + pulse * 0.28), 5.0, 12.0, true)
 	for lane_side: float in [-1.0, 1.0]:
-		draw_line(start + side * 27.0 * lane_side, target + side * 27.0 * lane_side, TEAL, 2.0)
-	draw_arc(target, TARGET_RADIUS, 0.0, TAU, 28, WETLAND, 4.0)
+		draw_line(start + side * 29.0 * lane_side, target + side * 29.0 * lane_side, TEAL, 3.0)
+	draw_arc(target, TARGET_RADIUS, 0.0, TAU, 28, danger, 4.0 + pulse * 2.0)
+	if warning:
+		_draw_countdown_ring(target, TARGET_RADIUS + 10.0, countdown, danger)
+		_draw_warning_marker(start, danger, pulse)
+		_draw_lane_chevrons(start, target, side, danger)
 
 
 func _draw_frost_pounce(snapshot: Dictionary) -> void:
 	var start: Vector2 = _grid_to_screen(snapshot[&"attack_origin"] as Vector2)
 	var target: Vector2 = _grid_to_screen(snapshot[&"committed_target"] as Vector2)
-	draw_dashed_line(start, target, Color(ICE, 0.86), 3.0, 8.0, true)
-	draw_circle(target, TARGET_RADIUS, Color(ICE_DARK, 0.22))
-	draw_arc(target, TARGET_RADIUS, 0.0, TAU, 32, ICE, 5.0)
+	var warning: bool = snapshot[&"state"] == STATE_POUNCE_WARNING
+	var countdown: float = _remaining_ratio(snapshot)
+	var pulse: float = _warning_pulse(countdown)
+	var danger: Color = AMBER if warning else ICE
+	draw_dashed_line(start, target, Color(danger, 0.82 + pulse * 0.18), 4.0, 8.0, true)
+	draw_circle(target, TARGET_RADIUS, Color(ICE_DARK, 0.18 + pulse * 0.18))
+	draw_arc(target, TARGET_RADIUS, 0.0, TAU, 32, danger, 5.0 + pulse * 2.0)
 	draw_arc(target, SAFE_RADIUS, PI * 0.12, PI * 0.88, 20, TEAL, 4.0)
 	draw_arc(target, SAFE_RADIUS, PI * 1.12, PI * 1.88, 20, TEAL, 4.0)
+	if warning:
+		_draw_countdown_ring(target, TARGET_RADIUS + 11.0, countdown, danger)
+		_draw_warning_marker(start, danger, pulse)
+		_draw_pounce_arrow(start, target, danger)
 
 
 func _draw_ember_salvo(snapshot: Dictionary) -> void:
 	var targets: Array = snapshot.get(&"strike_targets", []) as Array
 	var resolved: int = int(snapshot.get(&"resolved_pulses", 0))
+	var warning: bool = snapshot[&"state"] == STATE_SALVO_WARNING
+	var countdown: float = _remaining_ratio(snapshot)
+	var pulse: float = _warning_pulse(countdown)
 	for index: int in range(targets.size()):
 		var center: Vector2 = _grid_to_screen(targets[index] as Vector2)
 		var spent: bool = index < resolved
-		var fill: Color = Color(CINDER_DARK, 0.08 if spent else 0.28 + float(index) * 0.06)
-		var edge: Color = Color(CINDER, 0.3 if spent else 0.95)
+		var fill_alpha: float = 0.08 if spent else 0.24 + float(index) * 0.06 + pulse * 0.12
+		var fill: Color = Color(CINDER_DARK, fill_alpha)
+		var edge: Color = Color(AMBER if warning else CINDER, 0.3 if spent else 0.95)
 		draw_circle(center, TARGET_RADIUS + 5.0, fill)
-		draw_arc(center, TARGET_RADIUS + 5.0, 0.0, TAU, 32, edge, 4.0)
+		draw_arc(center, TARGET_RADIUS + 5.0, 0.0, TAU, 32, edge, 4.0 + pulse * 2.0)
+		for tick: int in range(index + 1):
+			draw_circle(center + Vector2(float(tick - index / 2.0) * 8.0, -38.0), 2.5, edge)
+		if warning:
+			_draw_countdown_ring(center, TARGET_RADIUS + 12.0, countdown, edge)
 		if index + 1 == resolved + 1:
 			draw_arc(center, SAFE_RADIUS, 0.0, TAU, 36, Color(TEAL, 0.66), 3.0)
+	if warning:
+		_draw_warning_marker(_grid_to_screen(snapshot[&"attack_origin"] as Vector2), AMBER, pulse)
+
+
+func _remaining_ratio(snapshot: Dictionary) -> float:
+	var duration: float = maxf(float(snapshot.get(&"state_duration", 0.0)), 0.001)
+	return clampf(float(snapshot.get(&"state_remaining", 0.0)) / duration, 0.0, 1.0)
+
+
+func _warning_pulse(countdown: float) -> float:
+	return 0.5 + 0.5 * sin((1.0 - countdown) * PI * 8.0)
+
+
+func _draw_countdown_ring(center: Vector2, radius: float, countdown: float, color: Color) -> void:
+	draw_arc(center, radius, -PI * 0.5, -PI * 0.5 + TAU * countdown, 40, color, 6.0)
+
+
+func _draw_warning_marker(center: Vector2, color: Color, pulse: float) -> void:
+	var offset: float = 48.0 + pulse * 5.0
+	var marker: Vector2 = center + Vector2(0.0, -offset)
+	var size: float = 8.0 + pulse * 3.0
+	draw_colored_polygon(
+		PackedVector2Array(
+			[
+				marker + Vector2(0.0, -size),
+				marker + Vector2(size, 0.0),
+				marker + Vector2(0.0, size),
+				marker + Vector2(-size, 0.0),
+			]
+		),
+		Color(color, 0.82),
+	)
+	draw_circle(marker, 2.5, Color.WHITE)
+
+
+func _draw_lane_chevrons(start: Vector2, target: Vector2, side: Vector2, color: Color) -> void:
+	var direction: Vector2 = (target - start).normalized()
+	for progress: float in [0.3, 0.55, 0.8]:
+		var center: Vector2 = start.lerp(target, progress)
+		draw_line(center - direction * 8.0 + side * 7.0, center, color, 3.0)
+		draw_line(center - direction * 8.0 - side * 7.0, center, color, 3.0)
+
+
+func _draw_pounce_arrow(start: Vector2, target: Vector2, color: Color) -> void:
+	var direction: Vector2 = (target - start).normalized()
+	var side: Vector2 = direction.orthogonal()
+	var tip: Vector2 = target - direction * (TARGET_RADIUS + 3.0)
+	draw_line(tip - direction * 18.0 + side * 10.0, tip, color, 4.0)
+	draw_line(tip - direction * 18.0 - side * 10.0, tip, color, 4.0)
 
 
 func _draw_expose(worm_id: int, snapshot: Dictionary) -> void:

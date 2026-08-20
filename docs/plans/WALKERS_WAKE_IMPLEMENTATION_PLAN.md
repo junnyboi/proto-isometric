@@ -1,6 +1,6 @@
 # Walker's Wake Implementation Plan
 
-**Plan status:** Complete; packages `WW-01` through `WW-39` are implemented in the Walker's Wake 1.0 release. Post-release work extends the 150-degree melee arc to two cells, locks Walker translation through each Smash animation, gives biome fauna distinct combat patterns, and adds bilingual live character dossiers with pointer hover plus a 550 ms mobile long-press that preserves joystick and Smash ownership.
+**Plan status:** Complete; packages `WW-01` through `WW-39` are implemented in the Walker's Wake 1.0 release. Post-release work extends the 150-degree melee arc to two cells, locks Walker translation through each Smash animation, gives biome fauna distinct combat patterns, adds bilingual live character dossiers with pointer hover plus a 550 ms mobile long-press that preserves joystick and Smash ownership, and inserts explicit 0.62–1.10 second shape-coded countdown warnings before native fauna attacks while tuning their cycle damage below three chassis per second.
 
 **Pinned baseline:** `a30db57ca5d8b43771b9bc1363368e4d397057f6` (`a30db57`)
 

@@ -24,10 +24,13 @@ const STATE_INTERCEPT: StringName = &"intercept"
 const STATE_EXPOSE: StringName = &"expose"
 const STATE_DIVE: StringName = &"dive"
 const STATE_SKIM: StringName = &"skim"
+const STATE_WAKE_WARNING: StringName = &"wake_warning"
 const STATE_WAKE_SWEEP: StringName = &"wake_sweep"
 const STATE_STALK: StringName = &"stalk"
+const STATE_POUNCE_WARNING: StringName = &"pounce_warning"
 const STATE_POUNCE: StringName = &"pounce"
 const STATE_BRACE: StringName = &"brace"
+const STATE_SALVO_WARNING: StringName = &"salvo_warning"
 const STATE_EMBER_SALVO: StringName = &"ember_salvo"
 const STATE_RECOVER: StringName = &"recover"
 const STATE_STAGGERED: StringName = &"staggered"
@@ -449,7 +452,10 @@ func _transition_state(worm: Dictionary, may_attack: bool) -> bool:
 func _transition_native_state(worm: Dictionary, state: StringName, may_attack: bool) -> bool:
 	var kind: StringName = worm.get(&"kind", WORM_KIND) as StringName
 	if state == FaunaCombatScript.initial_state(kind):
-		_commit_native_attack(worm)
+		_commit_native_warning(worm)
+		return false
+	if state == FaunaCombatScript.warning_state(kind):
+		_begin_native_attack(worm)
 		return false
 	if state == FaunaCombatScript.attack_state(kind):
 		var attacked: bool = false
@@ -479,7 +485,7 @@ func _commit_intercept(worm: Dictionary) -> void:
 	_set_state(worm, STATE_INTERCEPT, _p_float(&"intercept_seconds"))
 
 
-func _commit_native_attack(worm: Dictionary) -> void:
+func _commit_native_warning(worm: Dictionary) -> void:
 	var kind: StringName = worm.get(&"kind", WORM_KIND) as StringName
 	var position: Vector2 = worm[&"position"] as Vector2
 	var lead_seconds: float = FaunaCombatScript.value(kind, &"lead_seconds")
@@ -498,6 +504,13 @@ func _commit_native_attack(worm: Dictionary) -> void:
 	worm[&"resolved_pulses"] = 0
 	worm[&"strike_targets"] = _salvo_targets(target, direction) if kind == CINDER_KIND else [target]
 	worm[&"strike_pulses"] = 3 if kind == CINDER_KIND else 1
+	var warning_state: StringName = FaunaCombatScript.warning_state(kind)
+	_set_state(worm, warning_state, _state_duration(kind, warning_state))
+
+
+func _begin_native_attack(worm: Dictionary) -> void:
+	var kind: StringName = worm.get(&"kind", WORM_KIND) as StringName
+	worm[&"intercept_start"] = worm[&"position"]
 	var attack_state: StringName = FaunaCombatScript.attack_state(kind)
 	_set_state(worm, attack_state, _state_duration(kind, attack_state))
 
