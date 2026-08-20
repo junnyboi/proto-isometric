@@ -11,6 +11,7 @@ var _onboarding_seen: bool = false
 var _left_handed: bool = false
 var _sfx_enabled: bool = true
 var _locale: StringName = &"en"
+var _camera_zoom: float = 1.0
 
 
 func load_preferences() -> Dictionary:
@@ -77,13 +78,17 @@ func set_value(key: StringName, value: Variant) -> bool:
 			valid = locale != &""
 			if valid:
 				_locale = locale
+		&"camera_zoom":
+			valid = value is float and is_finite(value) and value >= 0.7 and value <= 1.3
+			if valid:
+				_camera_zoom = snappedf(value, 0.1)
 		_:
 			valid = false
 	return valid
 
 
 func restore_dictionary(snapshot: Dictionary) -> bool:
-	if snapshot.size() < 4 or snapshot.size() > 8:
+	if snapshot.size() < 4 or snapshot.size() > 9:
 		return false
 	var scale: Variant = snapshot.get(&"ui_scale")
 	var shake: Variant = snapshot.get(&"camera_shake")
@@ -93,6 +98,7 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 	var left_handed: Variant = snapshot.get(&"left_handed", false)
 	var sfx_enabled: Variant = snapshot.get(&"sfx_enabled", true)
 	var locale: Variant = snapshot.get(&"locale", "en")
+	var camera_zoom: Variant = snapshot.get(&"camera_zoom", 1.0)
 	if (
 		not scale is float
 		or not shake is bool
@@ -102,6 +108,7 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 		or not left_handed is bool
 		or not sfx_enabled is bool
 		or not (locale is String or locale is StringName)
+		or not camera_zoom is float
 	):
 		return false
 	var before: Dictionary = to_dictionary()
@@ -114,6 +121,7 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 		or not set_value(&"left_handed", left_handed)
 		or not set_value(&"sfx_enabled", sfx_enabled)
 		or not set_value(&"locale", locale)
+		or not set_value(&"camera_zoom", camera_zoom)
 	):
 		_apply(before)
 		return false
@@ -130,6 +138,7 @@ func to_dictionary() -> Dictionary:
 		&"left_handed": _left_handed,
 		&"sfx_enabled": _sfx_enabled,
 		&"locale": _locale,
+		&"camera_zoom": _camera_zoom,
 	}
 
 
@@ -142,6 +151,7 @@ func _apply(snapshot: Dictionary) -> void:
 	_left_handed = bool(snapshot.get(&"left_handed", false))
 	_sfx_enabled = bool(snapshot.get(&"sfx_enabled", true))
 	_locale = normalize_locale(snapshot.get(&"locale", "en"))
+	_camera_zoom = float(snapshot.get(&"camera_zoom", 1.0))
 	if _locale == &"":
 		_locale = &"en"
 

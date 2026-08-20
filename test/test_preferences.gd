@@ -16,6 +16,11 @@ static func evaluate() -> Array[Dictionary]:
 	_add(cases, "preferences default locale is English", defaults[&"locale"] == &"en")
 	_add(
 		cases,
+		"preferences default camera zoom is one hundred percent",
+		is_equal_approx(float(defaults[&"camera_zoom"]), 1.0)
+	)
+	_add(
+		cases,
 		"preferences reject unsafe UI scale",
 		not bool(preferences.call("set_value", &"ui_scale", 1.5)),
 	)
@@ -24,6 +29,11 @@ static func evaluate() -> Array[Dictionary]:
 		"preferences reject unsupported locales",
 		not bool(preferences.call("set_value", &"locale", "fr-FR")),
 	)
+	_add(
+		cases,
+		"preferences reject unsafe camera zoom",
+		not bool(preferences.call("set_value", &"camera_zoom", 1.4))
+	)
 	preferences.call("set_value", &"ui_scale", 1.15)
 	preferences.call("set_value", &"camera_shake", false)
 	preferences.call("set_value", &"reduced_flash", true)
@@ -31,6 +41,7 @@ static func evaluate() -> Array[Dictionary]:
 	preferences.call("set_value", &"left_handed", true)
 	preferences.call("set_value", &"sfx_enabled", false)
 	preferences.call("set_value", &"locale", "zh_CN")
+	preferences.call("set_value", &"camera_zoom", 1.2)
 	_add(cases, "preferences save atomically", bool(preferences.call("save_preferences")))
 	var restored: RefCounted = PlayerPreferencesScript.new() as RefCounted
 	var snapshot: Dictionary = restored.call("load_preferences") as Dictionary
@@ -45,7 +56,21 @@ static func evaluate() -> Array[Dictionary]:
 			and bool(snapshot[&"left_handed"])
 			and not bool(snapshot[&"sfx_enabled"])
 			and snapshot[&"locale"] == &"zh-CN"
+			and is_equal_approx(float(snapshot[&"camera_zoom"]), 1.2)
 		),
+	)
+	var legacy: Dictionary = snapshot.duplicate(true)
+	legacy.erase(&"camera_zoom")
+	var legacy_preferences: RefCounted = PlayerPreferencesScript.new() as RefCounted
+	_add(
+		cases,
+		"legacy preferences restore default camera zoom",
+		(
+			bool(legacy_preferences.call("restore_dictionary", legacy))
+			and is_equal_approx(
+				float((legacy_preferences.call("to_dictionary") as Dictionary)[&"camera_zoom"]), 1.0
+			)
+		)
 	)
 	var malformed: FileAccess = FileAccess.open(PATH, FileAccess.WRITE)
 	malformed.store_string("{malformed")
@@ -60,6 +85,7 @@ static func evaluate() -> Array[Dictionary]:
 			bool(recovered[&"camera_shake"])
 			and not bool(recovered[&"reduced_flash"])
 			and recovered[&"locale"] == &"en"
+			and is_equal_approx(float(recovered[&"camera_zoom"]), 1.0)
 		),
 	)
 	var panel: CanvasLayer = AccessibilityPanelScript.new() as CanvasLayer
