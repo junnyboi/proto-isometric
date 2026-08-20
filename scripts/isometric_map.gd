@@ -353,7 +353,6 @@ func attack() -> bool:
 	_avatar.call("play_attack")
 	return not _pending_impact_rock_cells.is_empty() or not _pending_impact_worm_ids.is_empty()
 
-
 func _on_avatar_impact_frame() -> void:
 	if _pending_impact_cell == INVALID_CELL:
 		return
@@ -392,7 +391,8 @@ func _on_avatar_impact_frame() -> void:
 			continue
 		rocks_broken += 1
 		if _effects != null:
-			_effects.call("emit_rock_impact", grid_to_screen(rock_cell), rock_cell)
+			var kind: StringName = _world_objects.call("get_destructible_kind", rock_cell)
+			_effects.call("emit_rock_impact", grid_to_screen(rock_cell), rock_cell, kind)
 	if rocks_broken > 0 and _collect_scrap_near(_robot_grid) <= 0:
 		_save_world_state()
 	if worm_hits > 0:

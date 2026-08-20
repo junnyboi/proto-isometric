@@ -8,6 +8,7 @@ const WorldObjectsScript: GDScript = preload("res://scripts/world_objects.gd")
 static func evaluate() -> Array[Dictionary]:
 	var cases: Array[Dictionary] = []
 	_test_variant_contract(cases)
+	_test_debris_palettes(cases)
 	_test_runtime_assets(cases)
 	_test_world_binding(cases)
 	_test_break_and_save_compatibility(cases)
@@ -51,8 +52,42 @@ static func _test_variant_contract(cases: Array[Dictionary]) -> void:
 		_add(
 			cases,
 			"%s exposes both biome-native destructible variants" % biome,
-			found.size() == 2 and found.has(expected_kinds[0]) and found.has(expected_kinds[1]),
-		)
+				found.size() == 2 and found.has(expected_kinds[0]) and found.has(expected_kinds[1]),
+			)
+
+
+static func _test_debris_palettes(cases: Array[Dictionary]) -> void:
+	var desert: Array[Color] = BiomeDestructiblesScript.debris_palette_for(&"desert_rock")
+	var wetland: Array[Color] = BiomeDestructiblesScript.debris_palette_for(&"wetland_stump")
+	var frozen_rock: Array[Color] = (
+		BiomeDestructiblesScript.debris_palette_for(&"frozen_snow_rock")
+	)
+	var frozen_pine: Array[Color] = BiomeDestructiblesScript.debris_palette_for(&"frozen_pine")
+	var lava: Array[Color] = (
+		BiomeDestructiblesScript.debris_palette_for(&"lava_obsidian_cluster")
+	)
+	_add(cases, "every biome debris palette has at least three colors", (
+		desert.size() >= 3
+		and wetland.size() >= 3
+		and frozen_rock.size() >= 3
+		and frozen_pine.size() >= 3
+		and lava.size() >= 3
+	))
+	_add(
+		cases,
+		"wetland debris differs from desert rock debris",
+		wetland != desert,
+	)
+	_add(
+		cases,
+		"frozen tree debris differs from frozen stone debris",
+		frozen_pine != frozen_rock,
+	)
+	_add(
+		cases,
+		"lava debris differs from every cold palette",
+		lava != frozen_rock and lava != frozen_pine,
+	)
 
 
 static func _test_runtime_assets(cases: Array[Dictionary]) -> void:

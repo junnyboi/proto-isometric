@@ -1,5 +1,6 @@
 extends RefCounted
 
+const BiomeDestructiblesScript: GDScript = preload("res://scripts/biome_destructibles.gd")
 const ImpactEffectsScript: GDScript = preload("res://scripts/impact_effects.gd")
 const PerformanceSamplerScript: GDScript = preload("res://scripts/performance_sampler.gd")
 const TerrainRendererScript: GDScript = preload("res://scripts/terrain_renderer.gd")
@@ -156,27 +157,91 @@ static func _test_idle_effect_redraws(cases: Array[Dictionary]) -> void:
 
 static func _test_particle_pool(cases: Array[Dictionary]) -> void:
 	var effects: Node2D = ImpactEffectsScript.new() as Node2D
+	var prewarmed: int = int(effects.call("get_created_particle_count"))
+	_add(
+		cases,
+		"impact particles prewarm one fixed dictionary pool",
+		(
+			prewarmed == ImpactEffectsScript.MAX_POOL_SIZE
+			and int(effects.call("get_particle_pool_size")) == prewarmed
+		),
+	)
 	effects.call("emit_scrap_pickup", Vector2.ZERO, 1)
-	var created: int = int(effects.call("get_created_particle_count"))
+	var first_reuse_count: int = int(effects.call("get_reused_particle_count"))
+	_add(
+		cases,
+		"first emission allocates no particle dictionaries",
+		int(effects.call("get_created_particle_count")) == prewarmed,
+	)
 	effects.call("advance", 1.0)
 	_add(
 		cases,
 		"expired impact particles return to the bounded pool",
-		int(effects.call("get_particle_pool_size")) == created,
+		int(effects.call("get_particle_pool_size")) == prewarmed,
 	)
 	effects.call("emit_scrap_pickup", Vector2.ZERO, 1)
 	_add(
 		cases,
 		"second impact emission reuses pooled particle dictionaries",
 		(
-			int(effects.call("get_created_particle_count")) == created
-			and int(effects.call("get_reused_particle_count")) == created
+			int(effects.call("get_created_particle_count")) == prewarmed
+			and int(effects.call("get_reused_particle_count")) > first_reuse_count
+		),
+	)
+	effects.call("advance", 1.0)
+	for index: int in range(6):
+		effects.call(
+			"emit_rock_impact",
+			Vector2.ZERO,
+			Vector2i(index, -index),
+			&"lava_obsidian_cluster",
+		)
+	_add(
+		cases,
+		"impact effects retain the emitted destructible kind",
+		effects.call("_get_last_debris_kind") == &"lava_obsidian_cluster",
+	)
+	_add(
+		cases,
+		"impact effects use the authoritative lava debris palette",
+		(
+			effects.call("_get_last_debris_palette")
+			== BiomeDestructiblesScript.debris_palette_for(&"lava_obsidian_cluster")
 		),
 	)
 	_add(
 		cases,
-		"impact particle pool never exceeds its fixed capacity",
-		int(effects.call("get_particle_pool_size")) <= ImpactEffectsScript.MAX_POOL_SIZE,
+		"impact particle activity never exceeds its fixed capacity",
+		(
+			int(effects.call("get_particle_count")) <= ImpactEffectsScript.MAX_ACTIVE_PARTICLES
+			and int(effects.call("get_peak_particle_count"))
+			<= ImpactEffectsScript.MAX_ACTIVE_PARTICLES
+		),
+	)
+	_add(
+		cases,
+		"saturated impact bursts reclaim an active slot instead of allocating",
+		(
+			int(effects.call("_get_reclaimed_particle_count")) > 0
+			and int(effects.call("get_created_particle_count")) == prewarmed
+		),
+	)
+	effects.call("advance", ImpactEffectsScript.DEBRIS_LIFETIME_SECONDS - 0.001)
+	_add(
+		cases,
+		"biome debris remains alive before the one-second boundary",
+		int(effects.call("get_particle_count")) > 0,
+	)
+	effects.call("advance", 0.002)
+	_add(
+		cases,
+		"biome debris is fully culled at one second",
+		int(effects.call("get_particle_count")) == 0,
+	)
+	_add(
+		cases,
+		"particle pool returns to its fixed prewarmed capacity after culling",
+		int(effects.call("get_particle_pool_size")) == prewarmed,
 	)
 	effects.free()
 

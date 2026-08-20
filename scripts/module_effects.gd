@@ -57,11 +57,15 @@ static func try_ram(map: Node, screen_direction: Vector2i) -> bool:
 	var rocks: Dictionary = map.get("_destructible_rocks") as Dictionary
 	if not bool(rocks.get(target, false)) or not _ram_corners_clear(map, origin, delta):
 		return false
+	var objects: Node2D = map.get("_world_objects") as Node2D
+	var destructible_kind: StringName = objects.call("get_destructible_kind", target) as StringName
 	impact.call("consume_attack")
 	if not bool(map.call("_break_rock", target)):
 		return false
 	var effects: Node2D = map.get("_effects") as Node2D
-	effects.call("emit_rock_impact", map.call("grid_to_screen", target), target)
+	effects.call(
+		"emit_rock_impact", map.call("grid_to_screen", target), target, destructible_kind
+	)
 	map.call("_save_world_state")
 	map.call("_update_status", &"status.ram_breached")
 	return true

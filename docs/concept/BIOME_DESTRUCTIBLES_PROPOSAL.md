@@ -64,7 +64,9 @@ A procedural rock fallback remains available for missing optional textures, but 
 
 The existing Smash effect can remain geometrically unchanged, but the status line should use the semantic object name: **WOOD SALVAGED**, **FROZEN OBSTACLE SALVAGED**, or **VOLCANIC OBSTACLE SALVAGED** rather than always reporting a rock. This is presentation copy only; scrap arithmetic remains authoritative in `InfiniteWorld`.
 
-Impact debris can remain the current generic particles for the first increment. Biome-colored debris is a reversible polish follow-up, not a blocker. The desert has survived without a forestry department; it can wait one release.
+The post-release debris increment now routes each broken object kind into a biome-owned palette. Wetland wood throws dark bark, pale splinters, and olive moss; frozen stone throws snow, granite, and blue ice; frozen pine adds deep evergreen; lava objects throw basalt, ash, and restrained orange cooling fragments. Desert objects retain the original warm rock family.
+
+`ImpactEffects` owns one prewarmed pool of 128 particle dictionaries. Emission reuses those records, active particles never exceed 128, saturation reclaims the oldest active slot instead of allocating, and every destructible fragment is culled at the one-second boundary. Smash and Ram Plating share this path; particle state remains transient and unsaved.
 
 ## Lean implementation
 

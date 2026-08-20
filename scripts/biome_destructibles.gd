@@ -17,6 +17,22 @@ const GENERATED_KINDS: Array[StringName] = [
 	KIND_LAVA_OBSIDIAN_CLUSTER,
 ]
 
+const DESERT_DEBRIS: Array[Color] = [
+	Color("934d35"), Color("bd7152"), Color("e8b861")
+]
+const WETLAND_DEBRIS: Array[Color] = [
+	Color("4a3427"), Color("9b7047"), Color("68733f"), Color("2d281f")
+]
+const FROZEN_ROCK_DEBRIS: Array[Color] = [
+	Color("dce8ed"), Color("9fc6d4"), Color("52616b"), Color("36a8c8")
+]
+const FROZEN_PINE_DEBRIS: Array[Color] = [
+	Color("dce8ed"), Color("244844"), Color("52616b"), Color("8eb6c2")
+]
+const LAVA_DEBRIS: Array[Color] = [
+	Color("252326"), Color("575253"), Color("8c8a86"), Color("ff5a12")
+]
+
 const TEXTURES: Dictionary = {
 	KIND_WETLAND_MANGROVE: preload("res://assets/destructibles/wetland_mangrove.png"),
 	KIND_WETLAND_STUMP: preload("res://assets/destructibles/wetland_stump.png"),
@@ -59,6 +75,20 @@ static func display_size_for(kind: StringName) -> Vector2:
 
 static func is_generated_kind(kind: StringName) -> bool:
 	return kind in GENERATED_KINDS
+
+
+static func debris_palette_for(kind: StringName) -> Array[Color]:
+	match kind:
+		KIND_WETLAND_MANGROVE, KIND_WETLAND_STUMP:
+			return WETLAND_DEBRIS
+		KIND_FROZEN_SNOW_ROCK:
+			return FROZEN_ROCK_DEBRIS
+		KIND_FROZEN_PINE:
+			return FROZEN_PINE_DEBRIS
+		KIND_LAVA_BASALT_CHIMNEY, KIND_LAVA_OBSIDIAN_CLUSTER:
+			return LAVA_DEBRIS
+		_:
+			return DESERT_DEBRIS
 
 
 static func get_required_paths() -> Array[String]:

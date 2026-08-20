@@ -1,11 +1,12 @@
 extends Node2D
 
-const ROCK: Color = Color("934d35")
-const ROCK_LIGHT: Color = Color("bd7152")
-const DUST: Color = Color("e8b861")
+const BiomeDestructiblesScript: GDScript = preload("res://scripts/biome_destructibles.gd")
+
 const SCRAP: Color = Color("4eb6aa")
 const CHASSIS_SPARK: Color = Color("ffb12d")
+const DEBRIS_LIFETIME_SECONDS: float = 1.0
 const MAX_POOL_SIZE: int = 128
+const MAX_ACTIVE_PARTICLES: int = 128
 
 var _camera: Camera2D
 var _performance_sampler: Node
@@ -20,9 +21,16 @@ var _damage_emission_count: int = 0
 var _aftershock_emission_count: int = 0
 var _created_particle_count: int = 0
 var _reused_particle_count: int = 0
+var _reclaimed_particle_count: int = 0
 var _peak_particle_count: int = 0
+var _last_debris_kind: StringName = BiomeDestructiblesScript.KIND_DESERT_ROCK
+var _last_debris_palette: Array[Color] = []
 var _shake_enabled: bool = true
 var _redraw_request_count: int = 0
+
+
+func _init() -> void:
+	_prewarm_particle_pool()
 
 
 func _ready() -> void:
@@ -38,8 +46,14 @@ func bind_performance(performance_sampler: Node) -> void:
 	_sync_metrics()
 
 
-func emit_rock_impact(position: Vector2, cell: Vector2i) -> void:
+func emit_rock_impact(
+	position: Vector2,
+	cell: Vector2i,
+	destructible_kind: StringName = BiomeDestructiblesScript.KIND_DESERT_ROCK,
+) -> void:
 	_emission_count += 1
+	_last_debris_kind = destructible_kind
+	_last_debris_palette = BiomeDestructiblesScript.debris_palette_for(destructible_kind).duplicate()
 	_start_shake(0.24, 11.0, cell.x * 92821 + cell.y * 68917 + _emission_count * 31)
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = cell.x * 73856093 ^ cell.y * 19349663 ^ _emission_count * 83492791
@@ -49,19 +63,19 @@ func emit_rock_impact(position: Vector2, cell: Vector2i) -> void:
 		_spawn_particle(
 			position + Vector2(rng.randf_range(-12.0, 12.0), rng.randf_range(-8.0, 6.0)),
 			Vector2(cos(angle), sin(angle)) * speed,
-			rng.randf_range(0.38, 0.72),
-			0.72,
+			DEBRIS_LIFETIME_SECONDS,
+			DEBRIS_LIFETIME_SECONDS,
 			rng.randf_range(2.5, 6.5),
-			ROCK_LIGHT if index % 3 == 0 else ROCK,
+			_last_debris_palette[index % _last_debris_palette.size()],
 		)
 	for index: int in range(10):
 		_spawn_particle(
 			position + Vector2(rng.randf_range(-18.0, 18.0), rng.randf_range(-2.0, 10.0)),
 			Vector2(rng.randf_range(-65.0, 65.0), rng.randf_range(-95.0, -30.0)),
-			rng.randf_range(0.42, 0.8),
-			0.8,
+			DEBRIS_LIFETIME_SECONDS,
+			DEBRIS_LIFETIME_SECONDS,
 			rng.randf_range(3.0, 8.0),
-			DUST,
+			_last_debris_palette[(index + 2) % _last_debris_palette.size()],
 		)
 	_sync_metrics()
 	_request_redraw()
@@ -184,6 +198,10 @@ func get_reused_particle_count() -> int:
 	return _reused_particle_count
 
 
+func _get_reclaimed_particle_count() -> int:
+	return _reclaimed_particle_count
+
+
 func get_peak_particle_count() -> int:
 	return _peak_particle_count
 
@@ -198,6 +216,14 @@ func get_damage_emission_count() -> int:
 
 func get_aftershock_emission_count() -> int:
 	return _aftershock_emission_count
+
+
+func _get_last_debris_kind() -> StringName:
+	return _last_debris_kind
+
+
+func _get_last_debris_palette() -> Array[Color]:
+	return _last_debris_palette.duplicate()
 
 
 func get_redraw_request_count() -> int:
@@ -221,11 +247,16 @@ func _spawn_particle(
 	color: Color,
 	gravity: float = 480.0,
 ) -> void:
+	if _particle_pool.is_empty() and _particles.is_empty():
+		_prewarm_particle_pool()
 	var particle: Dictionary
 	if _particle_pool.is_empty():
-		particle = {}
-		_created_particle_count += 1
-		_record_counter(&"particles.created")
+		var oldest_index: int = 0
+		particle = _particles[oldest_index]
+		_particles[oldest_index] = _particles[_particles.size() - 1]
+		_particles.pop_back()
+		_reclaimed_particle_count += 1
+		_record_counter(&"particles.reclaimed")
 	else:
 		particle = _particle_pool.pop_back()
 		_reused_particle_count += 1
@@ -239,6 +270,17 @@ func _spawn_particle(
 	particle["gravity"] = gravity
 	_particles.append(particle)
 	_peak_particle_count = maxi(_peak_particle_count, _particles.size())
+	assert(_particles.size() <= MAX_ACTIVE_PARTICLES)
+
+
+func _prewarm_particle_pool() -> void:
+	if not _particle_pool.is_empty() or not _particles.is_empty():
+		return
+	for _index: int in range(MAX_POOL_SIZE):
+		_particle_pool.append({})
+		_created_particle_count += 1
+		_record_counter(&"particles.created")
+	_sync_metrics()
 
 
 func _recycle_particle(particle: Dictionary) -> void:
@@ -298,6 +340,9 @@ func _sync_metrics() -> void:
 		"set_gauge", &"particles.created_total", float(_created_particle_count)
 	)
 	_performance_sampler.call("set_gauge", &"particles.reused_total", float(_reused_particle_count))
+	_performance_sampler.call(
+		"set_gauge", &"particles.reclaimed_total", float(_reclaimed_particle_count)
+	)
 	_performance_sampler.call("set_gauge", &"particles.peak_active", float(_peak_particle_count))
 
 
