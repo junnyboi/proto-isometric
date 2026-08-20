@@ -940,8 +940,8 @@ func _build_interface() -> void:
 	add_child(_hud)
 	_hud.call("set_performance_sampler", _performance_sampler)
 	_hud.call(
-		"configure_character_hover", _avatar, _sandworms, WALK_SPEED, WALK_SPEED * RUN_MULTIPLIER
-	)
+		"configure_character_hover", _avatar, _sandworms, WALK_SPEED, WALK_SPEED * RUN_MULTIPLIER)
+	_mobile_controls.call("set_character_dossier", _hud.call("get_character_hover_card"))
 	_terminal_flow = RunTerminalFlowScript.new() as CanvasLayer
 	add_child(_terminal_flow)
 	_terminal_flow.call(

@@ -17,7 +17,7 @@
   "title.mission_heading": "任务 // 行者",
   "title.story": "行者在死寂沙漠中苏醒。\n连接失落的中继站，回收一切残存资源。\n在风暴吞噬这台行者前返回。",
   "title.field_guide_heading": "战地指南",
-  "title.field_guide": "移动     WASD / 方向键     |     触控：拖动并按住\n奔跑     按住 SHIFT — 积蓄冲击     |     触控：推至外环\n粉碎     SPACE / J / K     |     触控：点按粉碎\n\n风暴     躲避活动风暴锋面\n猎手     躲避预警 // 在恢复或暴露时攻击",
+  "title.field_guide": "移动     WASD / 方向键     |     触控：拖动并按住\n奔跑     按住 SHIFT — 积蓄冲击     |     触控：推至外环\n粉碎     SPACE / J / K     |     触控：点按粉碎\n档案     悬停角色     |     触控：长按角色\n\n风暴     躲避活动风暴锋面\n猎手     躲避预警 // 在恢复或暴露时攻击",
   "title.field_guide_title": "战地指南 // 行者",
   "title.field_guide_button_desktop": "战地指南   F1",
   "title.field_guide_button_mobile": "战地指南",

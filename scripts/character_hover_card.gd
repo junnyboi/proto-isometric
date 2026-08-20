@@ -10,6 +10,8 @@ const WALKER_HIT_SIZE: Vector2 = Vector2(58.0, 82.0)
 const CARD_SIZE: Vector2 = Vector2(342.0, 256.0)
 const CARD_MARGIN: float = 16.0
 const POINTER_OFFSET: Vector2 = Vector2(18.0, 18.0)
+const LONG_PRESS_SECONDS: float = 0.55
+const LONG_PRESS_DRAG_TOLERANCE: float = 18.0
 
 var _avatar: Node2D
 var _enemies: Node2D
@@ -24,6 +26,13 @@ var _stats_label: Label
 var _lore_label: Label
 var _current_candidate: Dictionary = {}
 var _last_signature: String = ""
+var _touch_candidate: Dictionary = {}
+var _touch_index: int = -1
+var _touch_origin: Vector2 = Vector2.ZERO
+var _touch_position: Vector2 = Vector2.ZERO
+var _touch_elapsed: float = 0.0
+var _touch_pinned: bool = false
+var _touch_mode: bool = false
 
 
 func _ready() -> void:
@@ -51,9 +60,33 @@ func bind_sources(
 	return true
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if _panel == null or _avatar == null or _enemies == null:
 		return
+	if _process_touch(delta):
+		return
+	_process_pointer()
+
+
+func _process_touch(delta: float) -> bool:
+	if _touch_index >= 0 and not _touch_pinned:
+		advance_long_press(delta)
+		return true
+	if _touch_pinned:
+		var refreshed: Dictionary = _refresh_candidate(_current_candidate)
+		if refreshed.is_empty():
+			dismiss_pinned()
+		else:
+			_apply_candidate(refreshed)
+			_position_card(_touch_position)
+		return true
+	if _touch_mode:
+		_clear_candidate()
+		return true
+	return false
+
+
+func _process_pointer() -> void:
 	var hovered_control: Control = get_viewport().gui_get_hovered_control()
 	if hovered_control != null:
 		_clear_candidate()
@@ -81,6 +114,90 @@ func get_displayed_stats() -> String:
 
 func get_current_profile() -> Dictionary:
 	return _profile_for(_current_candidate).duplicate(true)
+
+
+func begin_long_press(index: int, position: Vector2) -> bool:
+	_touch_mode = true
+	var candidate: Dictionary = _resolve_candidate(position)
+	if _touch_index >= 0:
+		return (
+			index == _touch_index
+			and candidate.get(&"key", &"") == _touch_candidate.get(&"key", &"")
+		)
+	if candidate.is_empty():
+		dismiss_pinned()
+		return false
+	if _touch_pinned:
+		dismiss_pinned()
+	_touch_index = index
+	_touch_origin = position
+	_touch_position = position
+	_touch_elapsed = 0.0
+	_touch_candidate = candidate.duplicate(true)
+	_clear_highlight()
+	_current_candidate = candidate.duplicate(true)
+	_apply_highlight()
+	_panel.visible = false
+	return true
+
+
+func drag_long_press(index: int, position: Vector2) -> bool:
+	if index != _touch_index:
+		return false
+	_touch_position = position
+	if _touch_origin.distance_to(position) > LONG_PRESS_DRAG_TOLERANCE:
+		_reset_touch_tracking()
+		_clear_candidate()
+		return false
+	return true
+
+
+func advance_long_press(delta: float) -> bool:
+	if _touch_index < 0 or _touch_candidate.is_empty() or _touch_pinned:
+		return false
+	_touch_elapsed += maxf(delta, 0.0)
+	if _touch_elapsed < LONG_PRESS_SECONDS:
+		return false
+	var candidate: Dictionary = _refresh_candidate(_touch_candidate)
+	if candidate.is_empty():
+		_reset_touch_tracking()
+		return false
+	_touch_pinned = true
+	_apply_candidate(candidate)
+	_position_card(_touch_position)
+	Input.vibrate_handheld(18)
+	return true
+
+
+func end_long_press(index: int) -> bool:
+	if index != _touch_index:
+		return false
+	_reset_touch_tracking()
+	if not _touch_pinned:
+		_clear_candidate()
+	return true
+
+
+func dismiss_pinned() -> void:
+	_touch_pinned = false
+	_reset_touch_tracking()
+	_clear_candidate()
+
+
+func is_long_press_active(index: int = -1) -> bool:
+	return _touch_index >= 0 and (index < 0 or index == _touch_index)
+
+
+func is_touch_pinned() -> bool:
+	return _touch_pinned
+
+
+func get_long_press_progress() -> float:
+	return clampf(_touch_elapsed / LONG_PRESS_SECONDS, 0.0, 1.0)
+
+
+static func long_press_is_within_drag_tolerance(origin: Vector2, position: Vector2) -> bool:
+	return origin.distance_to(position) <= LONG_PRESS_DRAG_TOLERANCE
 
 
 static func walker_profile(snapshot: Dictionary, walk_speed: float, run_speed: float) -> Dictionary:
@@ -246,6 +363,19 @@ func _resolve_candidate(pointer: Vector2) -> Dictionary:
 	return best
 
 
+func _refresh_candidate(candidate: Dictionary) -> Dictionary:
+	var key: StringName = candidate.get(&"key", &"") as StringName
+	if key == &"walker" and _avatar != null:
+		return {&"type": &"walker", &"key": &"walker"}
+	if candidate.get(&"type", &"") != &"enemy" or _enemies == null:
+		return {}
+	for raw_target: Variant in _enemies.call("_get_character_hover_targets") as Array:
+		var target: Dictionary = raw_target as Dictionary
+		if StringName("enemy_%d" % int(target.get(&"id", -1))) == key:
+			return {&"type": &"enemy", &"key": key, &"target": target}
+	return {}
+
+
 func _apply_candidate(candidate: Dictionary) -> void:
 	var changed: bool = candidate.get(&"key", &"") != _current_candidate.get(&"key", &"")
 	if changed:
@@ -341,6 +471,14 @@ func _clear_candidate() -> void:
 	_last_signature = ""
 	if _panel != null:
 		_panel.visible = false
+
+
+func _reset_touch_tracking() -> void:
+	_touch_index = -1
+	_touch_origin = Vector2.ZERO
+	_touch_position = Vector2.ZERO
+	_touch_elapsed = 0.0
+	_touch_candidate.clear()
 
 
 func _on_locale_changed(_locale: StringName) -> void:
