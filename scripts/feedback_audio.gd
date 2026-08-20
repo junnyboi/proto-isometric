@@ -14,6 +14,8 @@ const HEAVY_GAIT: AudioStream = preload("res://assets/audio/heavy_gait.wav")
 const SURFACE_STEP: AudioStream = preload("res://assets/audio/surface_step.wav")
 const CHARGE_DETENT: AudioStream = preload("res://assets/audio/charge_detent.wav")
 const BLOCKED_CLANK: AudioStream = preload("res://assets/audio/blocked_clank.wav")
+const PICKUP: AudioStream = preload("res://assets/audio/charge_ready.wav")
+const RELAY_COMPLETE: AudioStream = preload("res://assets/audio/relay_complete.wav")
 const SERVO_EVENTS: Array[StringName] = [
 	RuntimeIdsScript.EVENT_LOCOMOTION_START,
 	RuntimeIdsScript.EVENT_LOCOMOTION_STOP,
@@ -113,10 +115,18 @@ func _stream_for(event: Dictionary) -> AudioStream:
 				stream = SURFACE_STEP
 			RuntimeIdsScript.EVENT_LOCOMOTION_BLOCKED:
 				stream = BLOCKED_CLANK
+			RuntimeIdsScript.EVENT_SCRAP_COLLECTED:
+				stream = PICKUP
+			RuntimeIdsScript.EVENT_RELAY_COMPLETED:
+				stream = RELAY_COMPLETE
 	return stream
 
 
 func _pitch_for(event: Dictionary) -> float:
+	var event_id: StringName = event.get(&"event_id", &"") as StringName
+	if event_id == RuntimeIdsScript.EVENT_SCRAP_COLLECTED:
+		var metadata: Dictionary = event.get(&"metadata", {}) as Dictionary
+		return clampf(1.2 + float(int(metadata.get(&"amount", 1))) * 0.02, 1.2, 1.42)
 	var sequence_id: int = int(event.get(&"sequence_id", 0))
 	return 0.97 + float(posmod(sequence_id * 17, 7)) * 0.01
 

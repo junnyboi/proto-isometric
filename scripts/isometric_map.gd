@@ -698,20 +698,13 @@ func _can_transition(from: Vector2i, target: Vector2i) -> bool:
 func _collect_scrap_near(cell: Vector2i, radius_cells: int = RESOURCE_MAGNET_RADIUS_CELLS) -> int:
 	if _shutdown:
 		return 0
-	var total: int = (
-		ResourceMagnetScript
-		. collect_and_emit(
-			_world,
-			_effects,
-			Callable(self, "grid_to_screen"),
-			_robot_visual_position,
-			cell,
-			radius_cells,
-		)
+	var total: int = ResourceMagnetScript.collect_and_emit(
+		_world, _effects, Callable(self, "grid_to_screen"), _robot_visual_position, cell, radius_cells
 	)
 	if total <= 0:
 		return 0
 	_scrap_count += total
+	_feedback_router.call("present_pickup", _robot_visual_position, total)
 	_world_objects.call("invalidate_static_objects")
 	_status_hold_time = 0.9
 	_refresh_outpost_interface()
@@ -900,8 +893,9 @@ func _on_relay_link_started(relay_cell: Vector2i) -> void:
 	_update_status(&"status.relay_contest", {"x": relay_cell.x, "y": relay_cell.y})
 
 
-func _on_relay_completed(_relay_cell: Vector2i) -> void:
+func _on_relay_completed(relay_cell: Vector2i) -> void:
 	_run_coordinator.call("apply_run_event", RuntimeIdsScript.EVENT_RELAY_COMPLETED)
+	_feedback_router.call("present_relay", grid_to_screen(relay_cell), _get_completed_relays())
 	if _sandworms != null:
 		_sandworms.call("disperse_all")
 	_status_hold_time = 1.4

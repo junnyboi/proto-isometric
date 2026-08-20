@@ -3,6 +3,10 @@ extends Node2D
 const BiomeDestructiblesScript: GDScript = preload("res://scripts/biome_destructibles.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const IMPACT_CONTACT_TEXTURE: Texture2D = preload("res://assets/vfx/juice/impact_contact.png")
+const FOOTSTEP_TEXTURE: Texture2D = preload("res://assets/vfx/juice/footstep_dust.png")
+const CHARGE_TEXTURE: Texture2D = preload("res://assets/vfx/juice/charge_ready.png")
+const PICKUP_TEXTURE: Texture2D = preload("res://assets/vfx/juice/pickup_spark.png")
+const RELAY_TEXTURE: Texture2D = preload("res://assets/vfx/juice/relay_flare.png")
 
 const SCRAP: Color = Color("4eb6aa")
 const CHASSIS_SPARK: Color = Color("ffb12d")
@@ -182,11 +186,13 @@ func emit_feedback(event: Dictionary, profile: Dictionary) -> void:
 	if event_id == RuntimeIdsScript.EVENT_SMASH_WHIFF:
 		return
 	var position: Vector2 = event.get(&"position", Vector2.ZERO) as Vector2
-	_emit_contact_burst(event_id, position, int(event.get(&"strength", 0)))
+	_emit_semantic_burst(event, profile)
 	var count: int = int(profile.get(&"particle_count", 0))
 	var metadata: Dictionary = event.get(&"metadata", {}) as Dictionary
 	if str(event_id).begins_with("event.locomotion.") or str(event_id).begins_with("event.charge."):
 		_emit_surface_wake(event, count)
+		return
+	if event_id in [RuntimeIdsScript.EVENT_SCRAP_COLLECTED, RuntimeIdsScript.EVENT_RELAY_COMPLETED]:
 		return
 	if event_id == RuntimeIdsScript.EVENT_SMASH_BREAK:
 		emit_rock_impact(
@@ -315,6 +321,18 @@ func _get_reclaimed_burst_count() -> int:
 	return _reclaimed_burst_count
 
 
+func _get_last_burst_snapshot() -> Dictionary:
+	return _bursts.back().duplicate() if not _bursts.is_empty() else {}
+
+
+func _get_burst_event_counts() -> Dictionary:
+	var counts: Dictionary = {}
+	for burst: Dictionary in _bursts:
+		var event_id: StringName = burst.get(&"event_id", &"") as StringName
+		counts[event_id] = int(counts.get(event_id, 0)) + 1
+	return counts
+
+
 func get_shake_remaining() -> float:
 	return float(_camera_mixer.call("get_remaining")) if _camera_mixer != null else _shake_time
 
@@ -385,16 +403,7 @@ func _emit_directional_contact(event: Dictionary, count: int) -> void:
 func _emit_surface_wake(event: Dictionary, count: int) -> void:
 	var position: Vector2 = event.get(&"position", Vector2.ZERO) as Vector2
 	var material: StringName = event.get(&"material", &"sand") as StringName
-	var color: Color = Color("d8ba78")
-	match material:
-		&"mud":
-			color = Color("537b6a")
-		&"snow":
-			color = Color("c8e8ed")
-		&"volcanic":
-			color = Color("d96632")
-		&"energy":
-			color = CHASSIS_SPARK
+	var color: Color = _surface_color(material)
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = int(event.get(&"sequence_id", 0)) * 16127
 	for index: int in range(clampi(count, 0, 8)):
@@ -409,6 +418,19 @@ func _emit_surface_wake(event: Dictionary, count: int) -> void:
 		)
 	_sync_metrics()
 	_request_redraw()
+
+
+func _surface_color(material: StringName) -> Color:
+	match material:
+		&"mud":
+			return Color("537b6a")
+		&"snow":
+			return Color("c8e8ed")
+		&"volcanic":
+			return Color("d96632")
+		&"energy":
+			return CHASSIS_SPARK
+	return Color("d8ba78")
 
 
 func _prewarm_particle_pool() -> void:
@@ -428,27 +450,98 @@ func _recycle_particle(particle: Dictionary) -> void:
 	_particle_pool.append(particle)
 
 
-func _emit_contact_burst(event_id: StringName, position: Vector2, strength: int) -> void:
-	var burst: Dictionary
-	if _burst_pool.is_empty():
-		burst = _bursts.pop_front()
-		_reclaimed_burst_count += 1
-		_record_counter(&"bursts.reclaimed")
-	else:
-		burst = _burst_pool.pop_back()
-	var tier: int = clampi(strength, 0, 2)
-	var duration: float = 0.26 + float(tier) * 0.06
-	if event_id == RuntimeIdsScript.EVENT_SMASH_DEFEAT:
-		duration = 0.48
-	burst[&"position"] = position
+func _emit_semantic_burst(event: Dictionary, profile: Dictionary) -> void:
+	var spec: Dictionary = _burst_spec(event)
+	if spec.is_empty():
+		return
+	var priority: int = int(profile.get(&"priority", 0))
+	var acquired: Variant = _acquire_burst(priority)
+	if acquired == null:
+		return
+	var burst: Dictionary = acquired as Dictionary
+	var duration: float = float(spec[&"duration"])
+	burst[&"position"] = event.get(&"position", Vector2.ZERO) as Vector2
 	burst[&"life"] = duration
 	burst[&"maximum_life"] = duration
-	burst[&"size"] = Vector2(118.0, 72.0) * (1.0 + float(tier) * 0.2)
-	burst[&"event_id"] = event_id
+	burst[&"size"] = spec[&"size"] as Vector2
+	burst[&"texture"] = spec[&"texture"] as Texture2D
+	burst[&"color"] = spec.get(&"color", Color.WHITE) as Color
+	burst[&"event_id"] = event.get(&"event_id", &"") as StringName
+	burst[&"priority"] = priority
 	_bursts.append(burst)
 	_peak_burst_count = maxi(_peak_burst_count, _bursts.size())
 	assert(_bursts.size() <= MAX_ACTIVE_BURSTS)
 	_request_redraw()
+
+
+func _burst_spec(event: Dictionary) -> Dictionary:
+	var event_id: StringName = event.get(&"event_id", &"") as StringName
+	var tier: int = clampi(int(event.get(&"strength", 0)), 0, 2)
+	if str(event_id).begins_with("event.smash."):
+		var impact_duration: float = 0.26 + float(tier) * 0.06
+		if event_id == RuntimeIdsScript.EVENT_SMASH_DEFEAT:
+			impact_duration = 0.48
+		return {
+			&"texture": IMPACT_CONTACT_TEXTURE,
+			&"duration": impact_duration,
+			&"size": Vector2(118.0, 72.0) * (1.0 + float(tier) * 0.2),
+		}
+	if event_id in [
+		RuntimeIdsScript.EVENT_LOCOMOTION_WALK_CONTACT,
+		RuntimeIdsScript.EVENT_LOCOMOTION_RUN_CONTACT,
+	]:
+		var running: bool = event_id == RuntimeIdsScript.EVENT_LOCOMOTION_RUN_CONTACT
+		return {
+			&"texture": FOOTSTEP_TEXTURE,
+			&"duration": 0.38 if running else 0.32,
+			&"size": Vector2(100.0, 56.0) if running else Vector2(78.0, 44.0),
+			&"color": _surface_color(event.get(&"material", &"sand") as StringName),
+		}
+	if event_id in [RuntimeIdsScript.EVENT_CHARGE_LOW, RuntimeIdsScript.EVENT_CHARGE_HIGH]:
+		var high: bool = event_id == RuntimeIdsScript.EVENT_CHARGE_HIGH
+		return {
+			&"texture": CHARGE_TEXTURE,
+			&"duration": 0.58 if high else 0.46,
+			&"size": Vector2(112.0, 112.0) if high else Vector2(88.0, 88.0),
+		}
+	if event_id == RuntimeIdsScript.EVENT_SCRAP_COLLECTED:
+		var metadata: Dictionary = event.get(&"metadata", {}) as Dictionary
+		var amount: int = clampi(int(metadata.get(&"amount", 1)), 1, 6)
+		var pickup_size: float = 64.0 + float(amount) * 5.0
+		return {
+			&"texture": PICKUP_TEXTURE,
+			&"duration": 0.48,
+			&"size": Vector2(pickup_size, pickup_size),
+		}
+	if event_id == RuntimeIdsScript.EVENT_RELAY_COMPLETED:
+		return {
+			&"texture": RELAY_TEXTURE,
+			&"duration": 0.9,
+			&"size": Vector2(210.0, 210.0),
+		}
+	return {}
+
+
+func _acquire_burst(priority: int) -> Variant:
+	if not _burst_pool.is_empty():
+		return _burst_pool.pop_back()
+	var candidate_index: int = -1
+	var candidate_priority: int = 101
+	for index: int in range(_bursts.size()):
+		var active_priority: int = int(_bursts[index].get(&"priority", 0))
+		if active_priority < candidate_priority:
+			candidate_priority = active_priority
+			candidate_index = index
+	if candidate_index < 0 or candidate_priority > priority:
+		return null
+	var burst: Dictionary = _bursts[candidate_index]
+	var last_index: int = _bursts.size() - 1
+	if candidate_index != last_index:
+		_bursts[candidate_index] = _bursts[last_index]
+	_bursts.pop_back()
+	_reclaimed_burst_count += 1
+	_record_counter(&"bursts.reclaimed")
+	return burst
 
 
 func _prewarm_burst_pool() -> void:
@@ -544,11 +637,11 @@ func _draw() -> void:
 		var progress: float = 1.0 - ratio
 		var size: Vector2 = burst[&"size"] as Vector2
 		var scale_factor: float = 1.0 if _reduced_flash else lerpf(0.82, 1.08, progress)
-		var color: Color = Color.WHITE
-		color.a = ratio * (0.46 if _reduced_flash else 0.92)
+		var color: Color = burst.get(&"color", Color.WHITE) as Color
+		color.a *= ratio * (0.46 if _reduced_flash else 0.92)
 		var draw_size: Vector2 = size * scale_factor
 		draw_texture_rect(
-			IMPACT_CONTACT_TEXTURE,
+			burst[&"texture"] as Texture2D,
 			Rect2((burst[&"position"] as Vector2) - draw_size * 0.5, draw_size),
 			false,
 			color,

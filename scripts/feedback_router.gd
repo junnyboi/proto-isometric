@@ -6,6 +6,7 @@ const FeedbackEventScript: GDScript = preload("res://scripts/feedback_event.gd")
 const FeedbackProfilesScript: GDScript = preload("res://scripts/feedback_profiles.gd")
 const HapticRouterScript: GDScript = preload("res://scripts/haptic_router.gd")
 const ImpactReactionAdapterScript: GDScript = preload("res://scripts/impact_reaction_adapter.gd")
+const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const SmashFeedbackResolverScript: GDScript = preload("res://scripts/smash_feedback_resolver.gd")
 const WalkerLocomotionFeedbackScript: GDScript = preload(
 	"res://scripts/walker_locomotion_feedback.gd"
@@ -98,6 +99,26 @@ func present_smash(
 	)
 
 
+func present_pickup(position: Vector2, amount: int) -> bool:
+	return _present_outcome(
+		RuntimeIdsScript.EVENT_SCRAP_COLLECTED,
+		position,
+		clampi(amount - 1, 0, 2),
+		&"scrap",
+		{&"amount": maxi(amount, 1)},
+	)
+
+
+func present_relay(position: Vector2, alert: int) -> bool:
+	return _present_outcome(
+		RuntimeIdsScript.EVENT_RELAY_COMPLETED,
+		position,
+		2,
+		&"energy",
+		{&"alert": maxi(alert, 1)},
+	)
+
+
 func submit(event: Dictionary) -> bool:
 	if not FeedbackEventScript.validate(event):
 		_rejected_count += 1
@@ -160,6 +181,19 @@ func apply_preferences(snapshot: Dictionary) -> void:
 	_ensure_audio()
 	if _audio != null:
 		_audio.call("set_enabled", bool(snapshot.get(&"sfx_enabled", true)))
+
+
+func _present_outcome(
+	event_id: StringName,
+	position: Vector2,
+	strength: int,
+	material: StringName,
+	metadata: Dictionary,
+) -> bool:
+	var event: Dictionary = FeedbackEventScript.create(
+		event_id, position, Vector2.UP, strength, material, -1, metadata
+	)
+	return submit(event)
 
 
 func _dispatch(event: Dictionary, profile: Dictionary) -> void:

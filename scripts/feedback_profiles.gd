@@ -16,6 +16,8 @@ const BLOCKED: Resource = preload("res://data/feedback/locomotion_blocked.tres")
 const STOP: Resource = preload("res://data/feedback/locomotion_stop.tres")
 const CHARGE_LOW: Resource = preload("res://data/feedback/charge_low.tres")
 const CHARGE_HIGH: Resource = preload("res://data/feedback/charge_high.tres")
+const PICKUP_COLLECTED: Resource = preload("res://data/feedback/pickup_collected.tres")
+const RELAY_COMPLETED: Resource = preload("res://data/feedback/relay_completed.tres")
 
 
 static func resolve(event_id: StringName) -> Dictionary:
@@ -53,6 +55,10 @@ static func profile_resource(event_id: StringName) -> Resource:
 			return CHARGE_LOW
 		RuntimeIdsScript.EVENT_CHARGE_HIGH:
 			return CHARGE_HIGH
+		RuntimeIdsScript.EVENT_SCRAP_COLLECTED:
+			return PICKUP_COLLECTED
+		RuntimeIdsScript.EVENT_RELAY_COMPLETED:
+			return RELAY_COMPLETED
 	return null
 
 
@@ -72,6 +78,8 @@ static func validate() -> bool:
 		STOP,
 		CHARGE_LOW,
 		CHARGE_HIGH,
+		PICKUP_COLLECTED,
+		RELAY_COMPLETED,
 	]:
 		if profile == null or not bool(profile.call("validate")):
 			return false
