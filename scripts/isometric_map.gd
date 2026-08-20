@@ -33,7 +33,7 @@ const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const WebSceneStateScript: GDScript = preload("res://scripts/web_scene_state.gd")
 const TILE_SIZE: Vector2 = Vector2(90.0, 45.0)
 const MAP_ORIGIN: Vector2 = Vector2(760.0, 70.0)
-const START_CELL: Vector2i = Vector2i(8, 10)
+const START_CELL: Vector2i = InfiniteWorldScript.DEPLOYMENT_CELL
 const SAVE_SCHEMA: int = SaveRepositoryScript.FORMAT_VERSION
 const DEFAULT_SAVE_PATH: String = "user://walkers-wake-world.json"
 const INVALID_CELL: Vector2i = Vector2i(-9999, -9999)
@@ -936,7 +936,7 @@ func _build_interface() -> void:
 	_hud = FieldHudScript.new() as CanvasLayer
 	_hud.name = "FieldHUD"
 	_hud.connect("repair_requested", Callable(self, "_repair_chassis"))
-	_hud.call("configure_refit", _run_coordinator, Callable(self, "_save_world_state"))
+	_hud.call("configure_refit", _run_coordinator, Callable(self, "_save_world_state"), _sandworms)
 	add_child(_hud)
 	_hud.call("set_performance_sampler", _performance_sampler)
 	_hud.call(

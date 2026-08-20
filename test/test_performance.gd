@@ -300,12 +300,50 @@ static func evaluate_live(map: Node, world: RefCounted) -> Array[Dictionary]:
 		int(metrics_after[&"layout_applies"]) == int(metrics_before[&"layout_applies"]),
 	)
 	var radar: Control = hud.get_node("ExpeditionRadar") as Control
+	var enemies: Node2D = map.get_node("WorldObjectLayer/Sandworms") as Node2D
+	_add(
+		cases,
+		"live radar binds the biome-enemy controller",
+		hud.get("_radar_contacts_source") == enemies
+	)
 	var radar_redraws: int = int(radar.call("get_redraw_request_count"))
 	hud.call("sync_radar", map.call("get_robot_grid"), map.call("_get_completed_relays"))
 	_add(
 		cases,
 		"unchanged expedition radar requests no redraw",
 		int(radar.call("get_redraw_request_count")) == radar_redraws,
+	)
+	var nearby_enemy: Array[Dictionary] = [
+		{
+			&"id": 77,
+			&"kind": &"sandworm",
+			&"state": &"intercept",
+			&"position": Vector2(map.call("get_robot_grid")) + Vector2(2.0, 1.0)
+		}
+	]
+	radar.call("sync_contacts", nearby_enemy)
+	var contact_redraws: int = int(radar.call("get_redraw_request_count"))
+	radar.call("sync_contacts", nearby_enemy)
+	_add(
+		cases,
+		"unchanged enemy radar contacts request no redraw",
+		int(radar.call("get_redraw_request_count")) == contact_redraws,
+	)
+	enemies.call("clear_worms")
+	enemies.call("set_player_position", Vector2(map.call("get_robot_grid")))
+	enemies.call("spawn_worm", Vector2(map.call("get_robot_grid")) + Vector2(2.0, 1.0), 0.0)
+	hud.call("_process", 0.0)
+	_add(
+		cases,
+		"live nearby biome enemy reaches the radar",
+		int(radar.call("get_contact_count")) == 1
+	)
+	enemies.call("clear_worms")
+	hud.call("_process", 0.0)
+	_add(
+		cases,
+		"cleared biome enemies leave no stale radar dots",
+		int(radar.call("get_contact_count")) == 0
 	)
 	var object_redraws: int = int(objects.call("get_redraw_request_count"))
 	var terrain_draws: int = int(terrain_surface.call("get_batch_draw_count"))

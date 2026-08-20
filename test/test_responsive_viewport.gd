@@ -15,16 +15,32 @@ static func evaluate() -> Array[Dictionary]:
 	_add(
 		cases, "portrait camera zooms out for horizontal play space", portrait_zoom < landscape_zoom
 	)
-	_add(cases, "portrait camera zoom stays readable", portrait_zoom >= 0.649)
+	_add(
+		cases,
+		"portrait camera is exactly twice the previous minimum",
+		is_equal_approx(portrait_zoom, 1.3)
+	)
 	_add(
 		cases,
 		"compact landscape preserves mobile overview",
-		is_equal_approx(compact_landscape_zoom, ResponsiveViewportScript.MIN_CAMERA_ZOOM),
+		is_equal_approx(
+			compact_landscape_zoom,
+			(
+				ResponsiveViewportScript.MIN_CAMERA_ZOOM
+				* ResponsiveViewportScript.GAMEPLAY_CAMERA_SCALE
+			),
+		),
 	)
 	_add(
 		cases,
 		"reference desktop landscape tightens framing",
-		is_equal_approx(landscape_zoom, ResponsiveViewportScript.DESKTOP_LANDSCAPE_CAMERA_ZOOM),
+		is_equal_approx(
+			landscape_zoom,
+			(
+				ResponsiveViewportScript.DESKTOP_LANDSCAPE_CAMERA_ZOOM
+				* ResponsiveViewportScript.GAMEPLAY_CAMERA_SCALE
+			),
+		),
 	)
 	_add(
 		cases,

@@ -10,6 +10,7 @@ const CULL_RADIUS: Vector2i = Vector2i(14, 14)
 const COORDINATE_LIMIT: int = 1_000_000
 const PLAYABLE_HALF_EXTENT: int = 72
 const PLAYABLE_SIZE: Vector2i = Vector2i(145, 145)
+const DEPLOYMENT_CELL: Vector2i = Vector2i(8, 10)
 const STARTER_SIZE: Vector2i = Vector2i(18, 18)
 const STARTER_RELAY: Vector2i = Vector2i(12, 6)
 const SANCTUARY_RADIUS: float = 2.5

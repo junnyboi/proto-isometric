@@ -32,6 +32,7 @@ var _ui_scale: float = 1.0
 var _onboarding: CanvasLayer
 var _radar: Control
 var _radar_coordinator: RefCounted
+var _radar_contacts_source: Node
 var _performance_sampler: Node
 var _left_handed: bool = false
 var _panel_title: Label
@@ -68,12 +69,20 @@ func _ready() -> void:
 	apply_layout(get_viewport().get_visible_rect().size, false, true)
 
 
-func configure_refit(coordinator: RefCounted, save_callback: Callable) -> bool:
+func configure_refit(
+	coordinator: RefCounted, save_callback: Callable, contacts_source: Node = null
+) -> bool:
 	_radar_coordinator = coordinator
+	_radar_contacts_source = contacts_source
 	_refit_service = RefitServiceScript.new() as RefCounted
 	if _radar != null:
 		_radar.call("configure", coordinator)
 	return bool(_refit_service.call("configure", coordinator, save_callback))
+
+
+func _process(_delta: float) -> void:
+	if _radar != null and _radar_contacts_source != null:
+		_radar.call("sync_contacts", _radar_contacts_source.call("get_combat_snapshots"))
 
 
 func set_performance_sampler(sampler: Node) -> void:
@@ -280,10 +289,12 @@ func get_outpost_interface() -> Control:
 	return _outpost_interface
 
 
-func sync_radar(player_cell: Vector2i, completed_relays: int) -> bool:
-	return (
-		bool(_radar.call("sync_state", player_cell, completed_relays)) if _radar != null else false
-	)
+func sync_radar(player_cell: Vector2i, completed_relays: int, contacts: Variant = null) -> bool:
+	if _radar == null:
+		return false
+	var state_changed: bool = bool(_radar.call("sync_state", player_cell, completed_relays))
+	var contacts_changed: bool = contacts is Array and bool(_radar.call("sync_contacts", contacts))
+	return contacts_changed or state_changed
 
 
 func get_performance_snapshot() -> Dictionary:

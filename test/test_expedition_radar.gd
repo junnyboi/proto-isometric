@@ -41,10 +41,58 @@ static func evaluate() -> Array[Dictionary]:
 		Vector2i(-15, 8), LavaFieldsScript.BIOME_LAVA
 	)
 	_add(cases, "radar reports Lava Fields when Walker is inside them", bool(in_lava[&"inside"]))
+	_test_enemy_contacts(cases)
 	_test_layout(cases, Vector2(1280.0, 720.0), "desktop")
 	_test_layout(cases, Vector2(844.0, 390.0), "short landscape")
 	_test_layout(cases, Vector2(390.0, 844.0), "portrait")
 	return cases
+
+
+static func _test_enemy_contacts(cases: Array[Dictionary]) -> void:
+	var contacts: Array[Dictionary] = (
+		ExpeditionRadarScript
+		. nearby_contacts(
+			Vector2i(8, 10),
+			[
+				{
+					&"id": 4,
+					&"kind": &"mud_skimmer",
+					&"state": &"intercept",
+					&"position": Vector2(10.0, 11.0)
+				},
+				{
+					&"id": 2,
+					&"kind": &"sandworm",
+					&"state": &"expose",
+					&"position": Vector2(7.0, 8.0)
+				},
+				{
+					&"id": 6,
+					&"kind": &"rime_stalker",
+					&"state": &"defeated",
+					&"position": Vector2(9.0, 10.0)
+				},
+				{
+					&"id": 8,
+					&"kind": &"cinder_crawler",
+					&"state": &"burrow",
+					&"position": Vector2(30.0, 30.0)
+				},
+			]
+		)
+	)
+	_add(cases, "radar shows only nearby active enemies", contacts.size() == 2)
+	_add(cases, "enemy radar contacts sort by stable runtime ID", int(contacts[0][&"id"]) == 2)
+	_add(
+		cases,
+		"enemy radar contacts preserve biome-native species",
+		contacts[1][&"kind"] == &"mud_skimmer"
+	)
+	_add(
+		cases,
+		"enemy radar contact offsets remain Walker-relative",
+		contacts[0][&"offset"] == Vector2(-1.0, -2.0)
+	)
 
 
 static func _test_layout(cases: Array[Dictionary], viewport: Vector2, name: String) -> void:

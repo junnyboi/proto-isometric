@@ -4,6 +4,7 @@ const RunCoordinatorScript: GDScript = preload("res://scripts/run_coordinator.gd
 const RunModifierEffectsScript: GDScript = preload("res://scripts/run_modifier_effects.gd")
 const RunSettlementScript: GDScript = preload("res://scripts/run_settlement.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
+const OasisWetlandsScript: GDScript = preload("res://scripts/oasis_wetlands.gd")
 
 
 class SaveGate:
@@ -77,6 +78,16 @@ static func _test_success(cases: Array[Dictionary]) -> void:
 				(coordinator.call("get_profile_value", &"last_run_summary") as Dictionary)
 				. is_empty()
 			)
+		),
+	)
+	_add(
+		cases,
+		"every new expedition deploys Walker in desert",
+		(
+			OasisWetlandsScript.biome_at(
+				coordinator.call("get_run_value", &"player_cell") as Vector2i
+			)
+			== &"desert"
 		),
 	)
 

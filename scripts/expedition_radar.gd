@@ -10,15 +10,22 @@ const TEAL: Color = Color("4eb6aa")
 const BONE: Color = Color("d8d0b5")
 const ICE: Color = Color("63d5ee")
 const LAVA: Color = Color("ff6b2c")
+const HOSTILE: Color = Color("ff3b30")
 const RADAR_CENTER: Vector2 = Vector2(119.0, 80.0)
 const RADAR_RADIUS: float = 58.0
 const RADAR_SIZE: Vector2 = Vector2(238.0, 188.0)
+const CONTACT_RANGE_CELLS: float = 12.0
+const CONTACT_QUANTIZATION: float = 0.25
+const ACTIVE_CONTACT_STATES: Array[StringName] = [
+	&"burrow", &"intercept", &"expose", &"dive", &"staggered"
+]
 const DIRECTION_NAMES: Array[StringName] = [&"E", &"SE", &"S", &"SW", &"W", &"NW", &"N", &"NE"]
 
 var _coordinator: RefCounted
 var _objectives: Array = []
 var _player_cell: Vector2i = Vector2i.ZERO
 var _completed_relays: int = 0
+var _contacts: Array[Dictionary] = []
 var _redraw_request_count: int = 0
 
 
@@ -54,6 +61,15 @@ func sync_state(player_cell: Vector2i, completed_relays: int, force: bool = fals
 	return true
 
 
+func sync_contacts(snapshots: Array, force: bool = false) -> bool:
+	var contacts: Array[Dictionary] = nearby_contacts(_player_cell, snapshots)
+	if not force and contacts == _contacts:
+		return false
+	_contacts = contacts
+	_request_redraw()
+	return true
+
+
 func get_objective_count() -> int:
 	return _objectives.size()
 
@@ -64,6 +80,10 @@ func get_redraw_request_count() -> int:
 
 func get_biome_marker_count() -> int:
 	return 2
+
+
+func get_contact_count() -> int:
+	return _contacts.size()
 
 
 func get_biome_navigation(player: Vector2i, biome: StringName) -> Dictionary:
@@ -94,6 +114,35 @@ static func biome_navigation(player: Vector2i, biome: StringName) -> Dictionary:
 	}
 
 
+static func nearby_contacts(player: Vector2i, snapshots: Array) -> Array[Dictionary]:
+	var contacts: Array[Dictionary] = []
+	for value: Variant in snapshots:
+		if not value is Dictionary:
+			continue
+		var snapshot: Dictionary = value as Dictionary
+		if snapshot.get(&"state", &"missing") not in ACTIVE_CONTACT_STATES:
+			continue
+		var offset: Vector2 = (
+			snapshot.get(&"position", Vector2(player)) as Vector2 - Vector2(player)
+		)
+		if offset.length() > CONTACT_RANGE_CELLS:
+			continue
+		(
+			contacts
+			. append(
+				{
+					&"id": int(snapshot.get(&"id", -1)),
+					&"kind": snapshot.get(&"kind", &"unknown"),
+					&"offset": (offset / CONTACT_QUANTIZATION).round() * CONTACT_QUANTIZATION,
+				}
+			)
+		)
+	contacts.sort_custom(
+		func(a: Dictionary, b: Dictionary) -> bool: return int(a[&"id"]) < int(b[&"id"])
+	)
+	return contacts
+
+
 func _draw() -> void:
 	if _coordinator == null:
 		return
@@ -103,6 +152,7 @@ func _draw() -> void:
 	draw_arc(RADAR_CENTER, RADAR_RADIUS, 0.0, TAU, 48, Color(TEAL, 0.34), 1.0)
 	draw_circle(RADAR_CENTER, 4.5, BONE)
 	_draw_objectives()
+	_draw_contacts()
 	_draw_biome_marker(FrozenTundraScript.BIOME_FROZEN, ICE, 154.0)
 	_draw_biome_marker(LavaFieldsScript.BIOME_LAVA, LAVA, 174.0)
 	draw_string(
@@ -129,6 +179,17 @@ func _draw_objectives() -> void:
 		var color: Color = TEAL if index < _completed_relays else AMBER
 		draw_line(RADAR_CENTER, point, Color(color, 0.18), 1.0)
 		draw_circle(point, 5.0 if index == _completed_relays else 3.5, color)
+
+
+func _draw_contacts() -> void:
+	for contact: Dictionary in _contacts:
+		var offset: Vector2 = contact[&"offset"] as Vector2
+		var projected: Vector2 = (
+			_project_grid_offset(offset) * ((RADAR_RADIUS - 8.0) / CONTACT_RANGE_CELLS)
+		)
+		var point: Vector2 = RADAR_CENTER + projected.limit_length(RADAR_RADIUS - 8.0)
+		draw_circle(point, 3.25, Color(0.10, 0.0, 0.0, 0.85))
+		draw_circle(point, 2.25, HOSTILE)
 
 
 func _draw_biome_marker(biome: StringName, color: Color, row_y: float) -> void:
@@ -172,7 +233,11 @@ func _draw_arrow(point: Vector2, angle: float, color: Color) -> void:
 
 
 static func _project_grid_delta(delta: Vector2i) -> Vector2:
-	return Vector2(float(delta.x - delta.y), float(delta.x + delta.y) * 0.5)
+	return _project_grid_offset(Vector2(delta))
+
+
+static func _project_grid_offset(delta: Vector2) -> Vector2:
+	return Vector2(delta.x - delta.y, (delta.x + delta.y) * 0.5)
 
 
 static func _direction_name(screen_delta: Vector2) -> StringName:
