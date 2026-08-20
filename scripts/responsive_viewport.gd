@@ -7,6 +7,7 @@ const PORTRAIT_TITLE_PANEL_SIZE: Vector2 = Vector2(640.0, 1010.0)
 const STATUS_DESIGN_SIZE: Vector2 = Vector2(1216.0, 56.0)
 const BASE_CAMERA_ZOOM: float = 1.2
 const DESKTOP_LANDSCAPE_CAMERA_ZOOM: float = 1.4
+const DESKTOP_LANDSCAPE_MAX_ZOOM: float = 2.2
 const MIN_CAMERA_ZOOM: float = 0.65
 const GAMEPLAY_CAMERA_SCALE: float = 2.0
 const DESKTOP_LANDSCAPE_MIN_SIZE: Vector2 = Vector2(1000.0, 600.0)
@@ -68,7 +69,10 @@ static func camera_zoom(raw_size: Vector2) -> float:
 		and viewport.x >= viewport.y
 	):
 		var desktop_scale: float = maxf(viewport.x / DESIGN_SIZE.x, viewport.y / DESIGN_SIZE.y)
-		return DESKTOP_LANDSCAPE_CAMERA_ZOOM * desktop_scale * GAMEPLAY_CAMERA_SCALE
+		return minf(
+			DESKTOP_LANDSCAPE_CAMERA_ZOOM * desktop_scale * GAMEPLAY_CAMERA_SCALE,
+			DESKTOP_LANDSCAPE_MAX_ZOOM,
+		)
 	var shortest_side: float = minf(viewport.x, viewport.y)
 	return (
 		GAMEPLAY_CAMERA_SCALE

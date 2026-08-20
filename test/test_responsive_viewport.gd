@@ -12,6 +12,7 @@ static func evaluate() -> Array[Dictionary]:
 	var compact_landscape_zoom: float = ResponsiveViewportScript.camera_zoom(Vector2(844.0, 390.0))
 	var landscape_zoom: float = ResponsiveViewportScript.camera_zoom(Vector2(1280.0, 720.0))
 	var large_landscape_zoom: float = ResponsiveViewportScript.camera_zoom(Vector2(1920.0, 1080.0))
+	var full_desktop_zoom: float = ResponsiveViewportScript.camera_zoom(Vector2(2048.0, 1155.0))
 	_add(
 		cases, "portrait camera zooms out for horizontal play space", portrait_zoom < landscape_zoom
 	)
@@ -33,19 +34,18 @@ static func evaluate() -> Array[Dictionary]:
 	)
 	_add(
 		cases,
-		"reference desktop landscape tightens framing",
-		is_equal_approx(
-			landscape_zoom,
-			(
-				ResponsiveViewportScript.DESKTOP_LANDSCAPE_CAMERA_ZOOM
-				* ResponsiveViewportScript.GAMEPLAY_CAMERA_SCALE
-			),
-		),
+		"reference desktop keeps the full Walker visible",
+		is_equal_approx(landscape_zoom, ResponsiveViewportScript.DESKTOP_LANDSCAPE_MAX_ZOOM),
 	)
 	_add(
 		cases,
-		"large desktop keeps the same bounded world envelope",
-		is_equal_approx(large_landscape_zoom, landscape_zoom * 1.5),
+		"large desktop cannot magnify beyond the full-Walker cap",
+		is_equal_approx(large_landscape_zoom, landscape_zoom),
+	)
+	_add(
+		cases,
+		"2048 by 1155 desktop keeps the full Walker visible",
+		is_equal_approx(full_desktop_zoom, ResponsiveViewportScript.DESKTOP_LANDSCAPE_MAX_ZOOM),
 	)
 	return cases
 
