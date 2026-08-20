@@ -2,6 +2,7 @@ extends Node2D
 
 const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 
+const BiomeDestructiblesScript: GDScript = preload("res://scripts/biome_destructibles.gd")
 const EncounterDirectorScript: GDScript = preload("res://scripts/encounter_director.gd")
 const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const LavaContactScript: GDScript = preload("res://scripts/lava_contact.gd")
@@ -24,6 +25,7 @@ var _grid_to_screen: Callable
 var _save_callback: Callable
 var _tile_size: Vector2 = Vector2(90.0, 45.0)
 var _sanctuary_radius: float = InfiniteWorldScript.SANCTUARY_RADIUS
+var _world: RefCounted
 var _lava_contact: RefCounted
 var _damage_callback: Callable
 var _redraw_request_count: int = 0
@@ -49,6 +51,9 @@ func configure(
 
 
 func bind_world(world: RefCounted, damage_callback: Callable) -> bool:
+	if world == null:
+		return false
+	_world = world
 	_lava_contact = LavaContactScript.new() as RefCounted
 	_damage_callback = damage_callback
 	return bool(_lava_contact.call("configure", world))
@@ -69,6 +74,13 @@ func set_visible_cells(cells: Array[Vector2i]) -> void:
 
 func get_visible_cell_count() -> int:
 	return _visible_cells.size()
+
+
+func get_destructible_kind(cell: Vector2i) -> StringName:
+	if _world == null:
+		return BiomeDestructiblesScript.KIND_DESERT_ROCK
+	var biome: StringName = _world.call("_biome_at", cell) as StringName
+	return BiomeDestructiblesScript.kind_for(biome, cell)
 
 
 func invalidate_static_objects() -> void:
@@ -180,9 +192,21 @@ func _draw_cell_objects(cell: Vector2i) -> void:
 	if bool(_outposts.get(cell, false)):
 		_draw_outpost(center)
 	if bool(_destructible_rocks.get(cell, false)):
-		_draw_rock(center)
+		_draw_destructible(cell, center)
 	if int(_scrap.get(cell, 0)) > 0:
 		_draw_scrap(center, int(_scrap[cell]))
+
+
+func _draw_destructible(cell: Vector2i, center: Vector2) -> void:
+	var kind: StringName = get_destructible_kind(cell)
+	var texture: Texture2D = BiomeDestructiblesScript.texture_for(kind)
+	var size: Vector2 = BiomeDestructiblesScript.display_size_for(kind)
+	if texture == null or size.x <= 0.0 or size.y <= 0.0:
+		_draw_rock(center)
+		return
+	var bottom_center: Vector2 = center + Vector2(0.0, 12.0)
+	var rect: Rect2 = Rect2(bottom_center - Vector2(size.x * 0.5, size.y), size)
+	draw_texture_rect(texture, rect, false)
 
 
 func _draw_rock(center: Vector2) -> void:

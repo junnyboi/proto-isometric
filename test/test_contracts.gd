@@ -2,6 +2,7 @@ extends RefCounted
 
 const AttackAOETestsScript: GDScript = preload("res://test/test_attack_aoe.gd")
 const BalanceTestsScript: GDScript = preload("res://test/test_balance.gd")
+const BiomeDestructibleTestsScript: GDScript = preload("res://test/test_biome_destructibles.gd")
 const ExpeditionTestsScript: GDScript = preload("res://test/test_expedition.gd")
 const FieldUITestsScript: GDScript = preload("res://test/test_field_ui.gd")
 const FrozenTundraTestsScript: GDScript = preload("res://test/test_frozen_tundra.gd")
@@ -30,6 +31,7 @@ static func evaluate(
 	var cases: Array[Dictionary] = []
 	cases.append_array(AttackAOETestsScript.evaluate())
 	cases.append_array(BalanceTestsScript.evaluate(coordinator))
+	cases.append_array(BiomeDestructibleTestsScript.evaluate())
 	cases.append_array(StateTestsScript.evaluate(coordinator))
 	cases.append_array(TerminalFlowTestsScript.evaluate())
 	cases.append_array(VisualCatalogTestsScript.evaluate())

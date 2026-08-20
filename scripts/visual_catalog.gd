@@ -20,6 +20,12 @@ const REQUIRED_PATHS: Array[String] = [
 	"res://assets/textures/terrain/volcanic_ash.png",
 	"res://assets/textures/terrain/lava_flow.png",
 	"res://assets/enemies/cinder_crawler.png",
+	"res://assets/destructibles/wetland_mangrove.png",
+	"res://assets/destructibles/wetland_stump.png",
+	"res://assets/destructibles/frozen_snow_rock.png",
+	"res://assets/destructibles/frozen_pine.png",
+	"res://assets/destructibles/lava_basalt_chimney.png",
+	"res://assets/destructibles/lava_obsidian_cluster.png",
 ]
 
 
