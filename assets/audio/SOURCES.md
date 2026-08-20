@@ -31,3 +31,7 @@ The four cues below are accepted mono 48 kHz PCM runtime derivatives generated w
 | `fauna_telegraph_mud.wav` | Wet suction and wake-sweep warning | 0.60 s |
 | `fauna_telegraph_rime.wav` | Crystalline frost-pounce warning | 0.86 s |
 | `fauna_telegraph_cinder.wav` | Three-beat ember-salvo warning | 1.05 s |
+
+## Generated movement and objective cues
+
+`impact_contact.wav`, `charge_ready.wav`, and `relay_complete.wav` were generated with Manus `generate_video(generate_audio:true)` after Mirelo was unavailable, extracted from audio-bearing carriers, silence-trimmed, peak-limited, and stored as 48 kHz mono PCM runtime WAVs on 2026-08-20. The impact sample can supply a lower-pitched weight layer; the charge sample supplies the pickup voice. Generation carriers remain outside Git.

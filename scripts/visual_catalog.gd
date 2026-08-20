@@ -26,6 +26,11 @@ const REQUIRED_PATHS: Array[String] = [
 	"res://assets/destructibles/frozen_pine.png",
 	"res://assets/destructibles/lava_basalt_chimney.png",
 	"res://assets/destructibles/lava_obsidian_cluster.png",
+	"res://assets/vfx/juice/impact_contact.png",
+	"res://assets/vfx/juice/footstep_dust.png",
+	"res://assets/vfx/juice/charge_ready.png",
+	"res://assets/vfx/juice/relay_flare.png",
+	"res://assets/vfx/juice/pickup_spark.png",
 ]
 
 
