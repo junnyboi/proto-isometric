@@ -40,7 +40,7 @@ static func evaluate(
 	cases.append_array(AttackAOETestsScript.evaluate())
 	cases.append_array(BalanceTestsScript.evaluate(coordinator))
 	cases.append_array(BiomeDestructibleTestsScript.evaluate())
-	cases.append_array(BiomeFaunaTestsScript.evaluate())
+	cases.append_array(BiomeFaunaTestsScript.evaluate(runtime))
 	cases.append_array(StateTestsScript.evaluate(coordinator))
 	cases.append_array(TerminalFlowTestsScript.evaluate())
 	cases.append_array(VisualCatalogTestsScript.evaluate())

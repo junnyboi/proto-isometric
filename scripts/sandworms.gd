@@ -2,8 +2,10 @@ extends Node2D
 
 signal damage_tick(amount: int, source: StringName)
 signal defeated(worm_id: int, position: Vector2)
+signal telegraph_started(kind: StringName, worm_id: int, attack_serial: int)
 
 const FaunaCombatScript: GDScript = preload("res://scripts/fauna_combat_catalog.gd")
+const FaunaTelegraphAudioScript: GDScript = preload("res://scripts/fauna_telegraph_audio.gd")
 const DEFAULT_PROFILE: Resource = preload("res://data/combat/sandworm_default.tres")
 const MUD_SKIMMER_TEXTURE: Texture2D = preload("res://assets/enemies/mud_skimmer.png")
 const RIME_STALKER_TEXTURE: Texture2D = preload("res://assets/enemies/rime_stalker.png")
@@ -69,10 +71,15 @@ var _world: RefCounted
 var _active_biome: StringName = &"desert"
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _hovered_enemy_id: int = -1
+var _telegraph_audio: Node
 
 
 func _ready() -> void:
 	_rng.seed = 0x5A6D701
+	_telegraph_audio = FaunaTelegraphAudioScript.new() as Node
+	_telegraph_audio.name = "FaunaTelegraphAudio"
+	add_child(_telegraph_audio)
+	telegraph_started.connect(Callable(_telegraph_audio, "play_warning"))
 
 
 func configure(
@@ -508,6 +515,7 @@ func _commit_intercept(worm: Dictionary) -> void:
 	worm[&"committed_target"] = target
 	worm[&"attack_serial"] = int(worm[&"attack_serial"]) + 1
 	_set_state(worm, STATE_INTERCEPT, _p_float(&"intercept_seconds"))
+	telegraph_started.emit(WORM_KIND, int(worm[&"id"]), int(worm[&"attack_serial"]))
 
 
 func _commit_native_warning(worm: Dictionary) -> void:
@@ -531,6 +539,7 @@ func _commit_native_warning(worm: Dictionary) -> void:
 	worm[&"strike_pulses"] = 3 if kind == CINDER_KIND else 1
 	var warning_state: StringName = FaunaCombatScript.warning_state(kind)
 	_set_state(worm, warning_state, _state_duration(kind, warning_state))
+	telegraph_started.emit(kind, int(worm[&"id"]), int(worm[&"attack_serial"]))
 
 
 func _begin_native_attack(worm: Dictionary) -> void:

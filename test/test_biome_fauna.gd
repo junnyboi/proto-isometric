@@ -1,6 +1,7 @@
 extends RefCounted
 
 const FaunaCombatScript: GDScript = preload("res://scripts/fauna_combat_catalog.gd")
+const FaunaTelegraphAudioScript: GDScript = preload("res://scripts/fauna_telegraph_audio.gd")
 const SandwormsScript: GDScript = preload("res://scripts/sandworms.gd")
 const WormTelegraphScript: GDScript = preload("res://scripts/worm_telegraph.gd")
 const DEFAULT_PROFILE: Resource = preload("res://data/combat/sandworm_default.tres")
@@ -8,10 +9,12 @@ const TILE_SIZE: Vector2 = Vector2(90.0, 45.0)
 const MAP_ORIGIN: Vector2 = Vector2(760.0, 70.0)
 
 
-static func evaluate() -> Array[Dictionary]:
+static func evaluate(runtime: Node = null) -> Array[Dictionary]:
 	var cases: Array[Dictionary] = []
 	_test_catalog(cases)
 	_test_balance_budget(cases)
+	_test_telegraph_audio(cases)
+	_test_sandworm_audio_signal(cases)
 	_test_native_cycle(cases, &"oasis", &"mud_skimmer", &"skim", &"wake_warning", &"wake_sweep", 6)
 	_test_native_cycle(
 		cases, &"frozen", &"rime_stalker", &"stalk", &"pounce_warning", &"pounce", 10
@@ -21,6 +24,8 @@ static func evaluate() -> Array[Dictionary]:
 	)
 	_test_unique_telegraphs(cases)
 	_test_large_delta_salvo_bound(cases)
+	if runtime != null:
+		_test_live_audio(cases, runtime)
 	return cases
 
 
@@ -88,10 +93,16 @@ static func _test_native_cycle(
 ) -> void:
 	var enemies: Node2D = _make_enemies(biome)
 	var hits: Array[Dictionary] = []
+	var warnings: Array[Dictionary] = []
 	enemies.connect(
 		"damage_tick",
 		func(amount: int, source: StringName) -> void:
 			hits.append({&"amount": amount, &"source": source})
+	)
+	enemies.connect(
+		"telegraph_started",
+		func(source: StringName, source_id: int, serial: int) -> void:
+			warnings.append({&"kind": source, &"id": source_id, &"serial": serial})
 	)
 	enemies.call("set_player_position", Vector2.ZERO)
 	var enemy_id: int = int(enemies.call("spawn_worm", Vector2(2.0, 0.0), 0.0))
@@ -111,6 +122,16 @@ static func _test_native_cycle(
 		cases,
 		"%s commits a visible %s before attacking" % [kind, warning_state],
 		enemies.call("get_state", enemy_id) == warning_state,
+	)
+	_add(
+		cases,
+		"%s emits one synchronized warning cue request" % kind,
+		(
+			warnings.size() == 1
+			and warnings[0][&"kind"] == kind
+			and int(warnings[0][&"id"]) == enemy_id
+			and int(warnings[0][&"serial"]) == 1
+		),
 	)
 	var committed: Dictionary = enemies.call("get_combat_snapshot", enemy_id) as Dictionary
 	_add(
@@ -253,6 +274,99 @@ static func _test_large_delta_salvo_bound(cases: Array[Dictionary]) -> void:
 	enemies.call("advance", 0.0)
 	_add(cases, "zero delta cannot replay Ember Salvo damage", hit_count[0] <= 1)
 	enemies.free()
+
+
+static func _test_telegraph_audio(cases: Array[Dictionary]) -> void:
+	var audio: Node = FaunaTelegraphAudioScript.new() as Node
+	var expected: Dictionary = {
+		&"sandworm": {&"suffix": "sandworm.wav", &"maximum": 0.65},
+		&"mud_skimmer": {&"suffix": "mud.wav", &"maximum": 0.62},
+		&"rime_stalker": {&"suffix": "rime.wav", &"maximum": 0.9},
+		&"cinder_crawler": {&"suffix": "cinder.wav", &"maximum": 1.1},
+	}
+	var paths: Dictionary = {}
+	for kind: StringName in expected:
+		var stream: AudioStream = audio.call("stream_for", kind) as AudioStream
+		var facts: Dictionary = expected[kind] as Dictionary
+		paths[stream.resource_path] = true
+		_add(cases, "%s warning cue loads" % kind, stream != null)
+		_add(
+			cases,
+			"%s warning cue has a distinct runtime path" % kind,
+			stream.resource_path.ends_with(str(facts[&"suffix"])),
+		)
+		_add(
+			cases,
+			"%s warning cue resolves before attack onset" % kind,
+			stream.get_length() <= float(facts[&"maximum"]) + 0.001,
+		)
+	_add(cases, "all enemy warning cues are distinct", paths.size() == expected.size())
+	audio.call("set_enabled", false)
+	_add(
+		cases,
+		"muted telegraph audio performs zero playback work",
+		not bool(audio.call("play_warning", &"sandworm", 7, 1)),
+	)
+	var muted: Dictionary = audio.call("get_metrics") as Dictionary
+	_add(
+		cases,
+		"muted warning is tracked without an audio request",
+		int(muted[&"muted"]) == 1 and int(muted[&"requests"]) == 0,
+	)
+	audio.call("set_enabled", true)
+	_add(
+		cases,
+		"same enemy attack cannot replay after mute changes",
+		not bool(audio.call("play_warning", &"sandworm", 7, 1)),
+	)
+	for index: int in range(64):
+		audio.call("play_warning", &"mud_skimmer", 100 + index, 1)
+	var stressed: Dictionary = audio.call("get_metrics") as Dictionary
+	_add(
+		cases,
+		"telegraph audio remains voice and history bounded under stress",
+		(
+			int(stressed[&"capacity"]) == FaunaTelegraphAudioScript.MAX_VOICES
+			and int(stressed[&"history"]) == FaunaTelegraphAudioScript.MAX_HISTORY
+		),
+	)
+	audio.free()
+
+
+static func _test_sandworm_audio_signal(cases: Array[Dictionary]) -> void:
+	var enemies: Node2D = _make_enemies(&"desert")
+	var warnings: Array[Dictionary] = []
+	enemies.connect(
+		"telegraph_started",
+		func(kind: StringName, enemy_id: int, serial: int) -> void:
+			warnings.append({&"kind": kind, &"id": enemy_id, &"serial": serial})
+	)
+	enemies.call("set_player_position", Vector2.ZERO)
+	var enemy_id: int = int(enemies.call("spawn_worm", Vector2(2.0, 0.0), 0.0))
+	enemies.call("advance", 0.001)
+	_add(
+		cases,
+		"Sandworm intercept emits its own warning cue request",
+		(
+			warnings.size() == 1
+			and warnings[0][&"kind"] == &"sandworm"
+			and int(warnings[0][&"id"]) == enemy_id
+			and int(warnings[0][&"serial"]) == 1
+		),
+	)
+	enemies.free()
+
+
+static func _test_live_audio(cases: Array[Dictionary], runtime: Node) -> void:
+	var audio: Node = runtime.find_child("FaunaTelegraphAudio", true, false)
+	_add(cases, "live field owns one fauna telegraph audio controller", audio != null)
+	if audio != null:
+		var metrics: Dictionary = audio.call("get_metrics") as Dictionary
+		_add(
+			cases,
+			"live telegraph controller creates a bounded voice pool",
+			int(metrics[&"capacity"]) == FaunaTelegraphAudioScript.MAX_VOICES,
+		)
 
 
 static func _make_enemies(biome: StringName) -> Node2D:

@@ -20,3 +20,14 @@ The J1 clips below are accepted mono PCM runtime derivatives prepared on 2026-08
 ## J2 locomotion and charge feedback
 
 `servo_engage.wav`, `heavy_gait.wav`, `surface_step.wav`, `charge_detent.wav`, and `blocked_clank.wav` are compact mono PCM derivatives made from the accepted J1 generated/runtime sources. They use deterministic trimming, resampling, filtering, dynamics, pitch treatment, and fades; no new generation master was retained.
+
+## Enemy telegraph warnings
+
+The four cues below are accepted mono 48 kHz PCM runtime derivatives generated with built-in Mirelo on 2026-08-20. Each was prompted as an isolated, nonverbal pre-attack warning with no impact, music, ambience, or speech, then deterministically trimmed, filtered, peak-controlled, faded, and fitted inside its gameplay warning window. The Cinder Crawler derivative sequences three source transients to match its three marked salvo cells. Generation masters were deleted after runtime validation.
+
+| Runtime file | Role | Duration |
+|---|---|---:|
+| `fauna_telegraph_sandworm.wav` | Granular seismic intercept warning | 0.62 s |
+| `fauna_telegraph_mud.wav` | Wet suction and wake-sweep warning | 0.60 s |
+| `fauna_telegraph_rime.wav` | Crystalline frost-pounce warning | 0.86 s |
+| `fauna_telegraph_cinder.wav` | Three-beat ember-salvo warning | 1.05 s |
