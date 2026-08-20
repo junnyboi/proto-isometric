@@ -13,6 +13,7 @@ const POINTER_OFFSET: Vector2 = Vector2(18.0, 18.0)
 const LONG_PRESS_SECONDS: float = 0.55
 const LONG_PRESS_DRAG_TOLERANCE: float = 18.0
 const FADE_IN_SECONDS: float = 0.18
+const FADE_OUT_SECONDS: float = 0.12
 
 var _avatar: Node2D
 var _enemies: Node2D
@@ -35,6 +36,7 @@ var _touch_elapsed: float = 0.0
 var _touch_pinned: bool = false
 var _touch_mode: bool = false
 var _fade_tween: Tween
+var _fade_direction: StringName = &""
 
 
 func _ready() -> void:
@@ -123,7 +125,11 @@ func get_card_alpha() -> float:
 
 
 func is_fade_in_active() -> bool:
-	return _fade_tween != null and _fade_tween.is_running()
+	return _fade_direction == &"in" and _fade_tween != null and _fade_tween.is_running()
+
+
+func is_fade_out_active() -> bool:
+	return _fade_direction == &"out" and _fade_tween != null and _fade_tween.is_running()
 
 
 func begin_long_press(index: int, position: Vector2) -> bool:
@@ -147,7 +153,7 @@ func begin_long_press(index: int, position: Vector2) -> bool:
 	_clear_highlight()
 	_current_candidate = candidate.duplicate(true)
 	_apply_highlight()
-	_panel.visible = false
+	_hide_immediately()
 	return true
 
 
@@ -475,32 +481,67 @@ func _clear_highlight() -> void:
 
 
 func _clear_candidate() -> void:
-	if _current_candidate.is_empty() and (_panel == null or not _panel.visible):
+	if (
+		_current_candidate.is_empty()
+		and (_panel == null or not _panel.visible or is_fade_out_active())
+	):
 		return
 	_clear_highlight()
 	_current_candidate.clear()
 	_last_signature = ""
-	if _panel != null:
-		_kill_fade_in()
-		_panel.visible = false
-		_panel.modulate.a = 1.0
+	if _panel != null and _panel.visible:
+		_play_fade_out()
 
 
 func _play_fade_in() -> void:
-	_kill_fade_in()
-	_panel.modulate.a = 0.0
+	var start_alpha: float = _panel.modulate.a if is_fade_out_active() else 0.0
+	_kill_fade_transition()
+	_panel.modulate.a = start_alpha
 	_panel.visible = true
 	_fade_tween = create_tween()
+	_fade_direction = &"in"
 	_fade_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	_fade_tween.set_trans(Tween.TRANS_CUBIC)
 	_fade_tween.set_ease(Tween.EASE_OUT)
-	_fade_tween.tween_property(_panel, "modulate:a", 1.0, FADE_IN_SECONDS)
+	_fade_tween.tween_property(
+		_panel, "modulate:a", 1.0, FADE_IN_SECONDS * (1.0 - start_alpha)
+	)
+	_fade_tween.tween_callback(func() -> void: _fade_direction = &"")
 
 
-func _kill_fade_in() -> void:
+func _play_fade_out() -> void:
+	var start_alpha: float = clampf(_panel.modulate.a, 0.0, 1.0)
+	_kill_fade_transition()
+	if start_alpha <= 0.001:
+		_hide_immediately()
+		return
+	_fade_tween = create_tween()
+	_fade_direction = &"out"
+	_fade_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	_fade_tween.set_trans(Tween.TRANS_CUBIC)
+	_fade_tween.set_ease(Tween.EASE_OUT)
+	_fade_tween.tween_property(_panel, "modulate:a", 0.0, FADE_OUT_SECONDS * start_alpha)
+	_fade_tween.tween_callback(_finish_fade_out)
+
+
+func _hide_immediately() -> void:
+	_kill_fade_transition()
+	_panel.visible = false
+	_panel.modulate.a = 1.0
+
+
+func _finish_fade_out() -> void:
+	_fade_tween = null
+	_fade_direction = &""
+	_panel.visible = false
+	_panel.modulate.a = 1.0
+
+
+func _kill_fade_transition() -> void:
 	if _fade_tween != null and _fade_tween.is_valid():
 		_fade_tween.kill()
 	_fade_tween = null
+	_fade_direction = &""
 
 
 func _reset_touch_tracking() -> void:

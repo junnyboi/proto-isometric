@@ -134,7 +134,21 @@ static func _add_touch_cases(cases: Array[Dictionary]) -> void:
 			and CharacterHoverCardScript.FADE_IN_SECONDS < 0.3
 		),
 	)
+	var dossier_panel: PanelContainer = card.get_node("DossierPanel") as PanelContainer
+	card.call("_kill_fade_transition")
+	dossier_panel.modulate.a = 1.0
 	card.call("_clear_candidate")
+	_add(
+		cases,
+		"pointer exit starts a quick interruptible dossier fade-out",
+		(
+			bool(card.call("is_card_visible"))
+			and bool(card.call("is_fade_out_active"))
+			and float(card.call("get_card_alpha")) >= 0.99
+			and CharacterHoverCardScript.FADE_OUT_SECONDS < CharacterHoverCardScript.FADE_IN_SECONDS
+		),
+	)
+	card.call("_hide_immediately")
 	var controls: CanvasLayer = MobileControlsScript.new() as CanvasLayer
 	scene_tree.root.add_child(controls)
 	controls.call("force_mobile", true)
@@ -192,11 +206,17 @@ static func _add_touch_cases(cases: Array[Dictionary]) -> void:
 		bool(card.call("is_touch_pinned"))
 		and String(card.call("get_displayed_name")) == "SANDWORM",
 	)
+	card.call("_kill_fade_transition")
+	dossier_panel.modulate.a = 1.0
 	controls.call("set_controls_enabled", false)
 	_add(
 		cases,
-		"input suspension dismisses pinned touch dossiers",
-		not bool(card.call("is_touch_pinned")) and not bool(card.call("is_card_visible")),
+		"input suspension fades out pinned touch dossiers",
+		(
+			not bool(card.call("is_touch_pinned"))
+			and bool(card.call("is_card_visible"))
+			and bool(card.call("is_fade_out_active"))
+		),
 	)
 	controls.free()
 	presentation.free()
