@@ -123,6 +123,18 @@ static func _add_touch_cases(cases: Array[Dictionary]) -> void:
 		150.0,
 		225.0,
 	)
+	card.call("_apply_candidate", {&"type": &"walker", &"key": &"walker"})
+	_add(
+		cases,
+		"pointer hover starts a bounded smooth dossier fade",
+		(
+			bool(card.call("is_card_visible"))
+			and bool(card.call("is_fade_in_active"))
+			and float(card.call("get_card_alpha")) <= 0.01
+			and CharacterHoverCardScript.FADE_IN_SECONDS < 0.3
+		),
+	)
+	card.call("_clear_candidate")
 	var controls: CanvasLayer = MobileControlsScript.new() as CanvasLayer
 	scene_tree.root.add_child(controls)
 	controls.call("force_mobile", true)
@@ -146,7 +158,9 @@ static func _add_touch_cases(cases: Array[Dictionary]) -> void:
 		"completed hold pins a live Walker dossier",
 		bool(card.call("advance_long_press", 0.02))
 		and bool(card.call("is_touch_pinned"))
-		and bool(card.call("is_card_visible")),
+		and bool(card.call("is_card_visible"))
+		and bool(card.call("is_fade_in_active"))
+		and float(card.call("get_card_alpha")) <= 0.01,
 	)
 	_add(
 		cases,

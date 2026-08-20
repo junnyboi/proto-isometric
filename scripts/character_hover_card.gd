@@ -12,6 +12,7 @@ const CARD_MARGIN: float = 16.0
 const POINTER_OFFSET: Vector2 = Vector2(18.0, 18.0)
 const LONG_PRESS_SECONDS: float = 0.55
 const LONG_PRESS_DRAG_TOLERANCE: float = 18.0
+const FADE_IN_SECONDS: float = 0.18
 
 var _avatar: Node2D
 var _enemies: Node2D
@@ -33,6 +34,7 @@ var _touch_position: Vector2 = Vector2.ZERO
 var _touch_elapsed: float = 0.0
 var _touch_pinned: bool = false
 var _touch_mode: bool = false
+var _fade_tween: Tween
 
 
 func _ready() -> void:
@@ -114,6 +116,14 @@ func get_displayed_stats() -> String:
 
 func get_current_profile() -> Dictionary:
 	return _profile_for(_current_candidate).duplicate(true)
+
+
+func get_card_alpha() -> float:
+	return _panel.modulate.a if _panel != null else 0.0
+
+
+func is_fade_in_active() -> bool:
+	return _fade_tween != null and _fade_tween.is_running()
 
 
 func begin_long_press(index: int, position: Vector2) -> bool:
@@ -388,7 +398,8 @@ func _apply_candidate(candidate: Dictionary) -> void:
 	if signature != _last_signature:
 		_update_card(profile)
 		_last_signature = signature
-	_panel.visible = true
+	if changed or not _panel.visible:
+		_play_fade_in()
 
 
 func _profile_for(candidate: Dictionary) -> Dictionary:
@@ -470,7 +481,26 @@ func _clear_candidate() -> void:
 	_current_candidate.clear()
 	_last_signature = ""
 	if _panel != null:
+		_kill_fade_in()
 		_panel.visible = false
+		_panel.modulate.a = 1.0
+
+
+func _play_fade_in() -> void:
+	_kill_fade_in()
+	_panel.modulate.a = 0.0
+	_panel.visible = true
+	_fade_tween = create_tween()
+	_fade_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	_fade_tween.set_trans(Tween.TRANS_CUBIC)
+	_fade_tween.set_ease(Tween.EASE_OUT)
+	_fade_tween.tween_property(_panel, "modulate:a", 1.0, FADE_IN_SECONDS)
+
+
+func _kill_fade_in() -> void:
+	if _fade_tween != null and _fade_tween.is_valid():
+		_fade_tween.kill()
+	_fade_tween = null
 
 
 func _reset_touch_tracking() -> void:
