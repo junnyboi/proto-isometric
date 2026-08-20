@@ -176,8 +176,26 @@ func notify_blocked() -> bool:
 
 
 func apply_preferences(snapshot: Dictionary) -> void:
-	_camera_mixer.call("set_enabled", bool(snapshot.get(&"camera_shake", true)))
-	_haptics.call("set_enabled", bool(snapshot.get(&"haptics", true)))
+	(
+		_camera_mixer
+		. call(
+			"set_intensity",
+			float(
+				snapshot.get(
+					&"camera_shake_intensity", 1.0 if snapshot.get(&"camera_shake", true) else 0.0
+				)
+			),
+		)
+	)
+	(
+		_haptics
+		. call(
+			"set_intensity",
+			float(
+				snapshot.get(&"haptic_intensity", 1.0 if snapshot.get(&"haptics", true) else 0.0)
+			),
+		)
+	)
 	_ensure_audio()
 	if _audio != null:
 		_audio.call("set_enabled", bool(snapshot.get(&"sfx_enabled", true)))

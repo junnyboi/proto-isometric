@@ -28,6 +28,7 @@ var _smash_button: Button
 var _run_intent: bool = false
 var _left_handed: bool = false
 var _haptics: bool = true
+var _haptic_intensity: float = 1.0
 var _character_dossier: Control
 
 
@@ -133,8 +134,9 @@ func begin_touch(index: int, position: Vector2) -> bool:
 		if _character_dossier != null:
 			_character_dossier.call("dismiss_pinned")
 		return false
-	if _character_dossier != null and bool(
-		_character_dossier.call("begin_long_press", index, position)
+	if (
+		_character_dossier != null
+		and bool(_character_dossier.call("begin_long_press", index, position))
 	):
 		return false
 	_touch_index = index
@@ -148,9 +150,7 @@ func begin_touch(index: int, position: Vector2) -> bool:
 
 
 func drag_touch(index: int, position: Vector2) -> Vector2:
-	if _character_dossier != null and bool(
-		_character_dossier.call("is_long_press_active", index)
-	):
+	if _character_dossier != null and bool(_character_dossier.call("is_long_press_active", index)):
 		_character_dossier.call("drag_long_press", index, position)
 		return Vector2.ZERO
 	if index != _touch_index:
@@ -162,9 +162,7 @@ func drag_touch(index: int, position: Vector2) -> Vector2:
 
 
 func end_touch(index: int) -> bool:
-	if _character_dossier != null and bool(
-		_character_dossier.call("end_long_press", index)
-	):
+	if _character_dossier != null and bool(_character_dossier.call("end_long_press", index)):
 		return true
 	if index != _touch_index:
 		return false
@@ -174,8 +172,8 @@ func end_touch(index: int) -> bool:
 
 func trigger_smash() -> void:
 	if _mobile_device and _controls_enabled:
-		if _haptics:
-			Input.vibrate_handheld(28)
+		if _haptics and _haptic_intensity > 0.0:
+			Input.vibrate_handheld(roundi(28.0 * _haptic_intensity))
 		smash_pressed.emit()
 
 
@@ -301,7 +299,10 @@ func _bind_accessibility() -> void:
 
 func _apply_preferences(snapshot: Dictionary) -> void:
 	_left_handed = bool(snapshot.get(&"left_handed", false))
-	_haptics = bool(snapshot.get(&"haptics", true))
+	_haptic_intensity = float(
+		snapshot.get(&"haptic_intensity", 1.0 if snapshot.get(&"haptics", true) else 0.0)
+	)
+	_haptics = _haptic_intensity > 0.0
 	if is_inside_tree():
 		apply_layout(get_viewport().get_visible_rect().size)
 

@@ -1,6 +1,7 @@
 extends RefCounted
 
 var _enabled: bool = true
+var _intensity: float = 1.0
 var _request_count: int = 0
 var _played_count: int = 0
 var _last_duration_ms: int = 0
@@ -9,11 +10,11 @@ var _last_strong: float = 0.0
 
 
 func pulse(profile: Dictionary) -> bool:
-	if not _enabled:
+	if not _enabled or _intensity <= 0.0:
 		return false
 	var duration_ms: int = roundi(float(profile.get(&"haptic_duration_seconds", 0.0)) * 1000.0)
-	var weak: float = clampf(float(profile.get(&"haptic_weak", 0.0)), 0.0, 1.0)
-	var strong: float = clampf(float(profile.get(&"haptic_strong", 0.0)), 0.0, 1.0)
+	var weak: float = clampf(float(profile.get(&"haptic_weak", 0.0)) * _intensity, 0.0, 1.0)
+	var strong: float = clampf(float(profile.get(&"haptic_strong", 0.0)) * _intensity, 0.0, 1.0)
 	if duration_ms <= 0 or (weak <= 0.0 and strong <= 0.0):
 		return false
 	_request_count += 1
@@ -35,6 +36,13 @@ func set_enabled(enabled: bool) -> void:
 		stop()
 
 
+func set_intensity(intensity: float) -> void:
+	_intensity = clampf(intensity, 0.0, 1.0)
+	_enabled = _intensity > 0.0
+	if not _enabled:
+		stop()
+
+
 func stop() -> void:
 	if DisplayServer.get_name() == "headless":
 		return
@@ -45,6 +53,7 @@ func stop() -> void:
 func get_metrics() -> Dictionary:
 	return {
 		&"enabled": _enabled,
+		&"intensity": _intensity,
 		&"requests": _request_count,
 		&"played": _played_count,
 		&"last_duration_ms": _last_duration_ms,

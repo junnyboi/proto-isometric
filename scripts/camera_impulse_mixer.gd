@@ -6,6 +6,7 @@ const MAX_OFFSET: float = 11.0
 var _camera: Camera2D
 var _impulses: Array[Dictionary] = []
 var _enabled: bool = true
+var _intensity: float = 1.0
 var _submitted_count: int = 0
 var _culled_count: int = 0
 var _peak_impulses: int = 0
@@ -17,7 +18,7 @@ func bind_camera(camera: Camera2D) -> void:
 
 
 func submit(duration: float, strength: float, direction: Vector2, seed: int) -> bool:
-	if not _enabled or duration <= 0.0 or strength <= 0.0:
+	if not _enabled or _intensity <= 0.0 or duration <= 0.0 or strength <= 0.0:
 		return false
 	_submitted_count += 1
 	if _impulses.size() >= MAX_IMPULSES:
@@ -32,7 +33,7 @@ func submit(duration: float, strength: float, direction: Vector2, seed: int) -> 
 			{
 				&"remaining": minf(duration, 0.4),
 				&"duration": minf(duration, 0.4),
-				&"strength": minf(strength, MAX_OFFSET),
+				&"strength": minf(strength * _intensity, MAX_OFFSET),
 				&"direction": normalized,
 				&"seed": seed,
 			}
@@ -64,6 +65,13 @@ func set_enabled(enabled: bool) -> void:
 		clear()
 
 
+func set_intensity(intensity: float) -> void:
+	_intensity = clampf(intensity, 0.0, 1.0)
+	_enabled = _intensity > 0.0
+	if not _enabled:
+		clear()
+
+
 func clear() -> void:
 	_impulses.clear()
 	_apply_offset(Vector2.ZERO)
@@ -87,6 +95,7 @@ func get_metrics() -> Dictionary:
 		&"submitted": _submitted_count,
 		&"culled": _culled_count,
 		&"enabled": _enabled,
+		&"intensity": _intensity,
 	}
 
 

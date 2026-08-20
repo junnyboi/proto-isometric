@@ -1,6 +1,9 @@
 {
   "common.on": "ON",
   "common.off": "OFF",
+  "common.intensity.off": "OFF",
+  "common.intensity.low": "LOW",
+  "common.intensity.full": "FULL",
   "common.locale.en": "ENGLISH",
   "common.locale.zh-CN": "SIMPLIFIED CHINESE",
   "common.locale_short.en": "EN",

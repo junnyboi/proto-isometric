@@ -53,6 +53,14 @@ func _cycle_scale() -> void:
 	_commit()
 
 
+func _cycle_intensity(key: StringName) -> void:
+	var intensity: float = float(get_preferences()[key]) + 0.5
+	if intensity > 1.0:
+		intensity = 0.0
+	_preferences.call("set_value", key, intensity)
+	_commit()
+
+
 func _cycle_locale() -> void:
 	_preferences.call("load_preferences")
 	var current: StringName = LocalizationScript.get_locale()
@@ -85,14 +93,18 @@ func _refresh() -> void:
 	(_buttons[&"ui_scale"] as Button).text = LocalizationScript.t(
 		&"access.ui_scale", {"percent": roundi(float(snapshot[&"ui_scale"]) * 100.0)}
 	)
-	(_buttons[&"camera_shake"] as Button).text = LocalizationScript.t(
-		&"access.camera_shake", {"state": _on_off(snapshot, &"camera_shake")}
+	(_buttons[&"camera_shake"] as Button).text = (
+		LocalizationScript
+		. t(
+			&"access.camera_shake",
+			{"state": _intensity_label(snapshot, &"camera_shake_intensity")},
+		)
 	)
 	(_buttons[&"reduced_flash"] as Button).text = LocalizationScript.t(
 		&"access.reduced_flash", {"state": _on_off(snapshot, &"reduced_flash")}
 	)
 	(_buttons[&"haptics"] as Button).text = LocalizationScript.t(
-		&"access.haptics", {"state": _on_off(snapshot, &"haptics")}
+		&"access.haptics", {"state": _intensity_label(snapshot, &"haptic_intensity")}
 	)
 	(_buttons[&"left_handed"] as Button).text = LocalizationScript.t(
 		&"access.left_handed", {"state": _on_off(snapshot, &"left_handed")}
@@ -117,6 +129,15 @@ func _on_off(snapshot: Dictionary, key: StringName) -> String:
 		if bool(snapshot[key])
 		else LocalizationScript.t(&"common.off")
 	)
+
+
+func _intensity_label(snapshot: Dictionary, key: StringName) -> String:
+	var intensity: float = float(snapshot[key])
+	if intensity <= 0.0:
+		return LocalizationScript.t(&"common.intensity.off")
+	if intensity < 1.0:
+		return LocalizationScript.t(&"common.intensity.low")
+	return LocalizationScript.t(&"common.intensity.full")
 
 
 func _on_locale_changed(_locale: StringName) -> void:
@@ -176,9 +197,9 @@ func _build_interface() -> void:
 	_title_label.add_theme_font_size_override("font_size", 26)
 	_panel.add_child(_title_label)
 	_add_button(&"ui_scale", 78.0, _cycle_scale)
-	_add_button(&"camera_shake", 134.0, _toggle_boolean.bind(&"camera_shake"))
+	_add_button(&"camera_shake", 134.0, _cycle_intensity.bind(&"camera_shake_intensity"))
 	_add_button(&"reduced_flash", 190.0, _toggle_boolean.bind(&"reduced_flash"))
-	_add_button(&"haptics", 246.0, _toggle_boolean.bind(&"haptics"))
+	_add_button(&"haptics", 246.0, _cycle_intensity.bind(&"haptic_intensity"))
 	_add_button(&"left_handed", 302.0, _toggle_boolean.bind(&"left_handed"))
 	_add_button(&"sfx_enabled", 358.0, _toggle_boolean.bind(&"sfx_enabled"))
 	_add_button(&"locale", 414.0, _cycle_locale)
