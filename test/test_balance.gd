@@ -20,7 +20,7 @@ static func evaluate(coordinator: RefCounted) -> Array[Dictionary]:
 	_add_case(
 		cases,
 		"stable ID registry version is pinned",
-		RuntimeIdsScript.REGISTRY_VERSION == 4,
+		RuntimeIdsScript.REGISTRY_VERSION == 5,
 	)
 	_add_case(
 		cases,
@@ -101,6 +101,14 @@ static func evaluate(coordinator: RefCounted) -> Array[Dictionary]:
 		(
 			RuntimeOwnershipScript.current_owner_for(RuntimeIdsScript.DOMAIN_PERSISTENCE)
 			== RuntimeIdsScript.OWNER_SAVE_REPOSITORY
+		),
+	)
+	_add_case(
+		cases,
+		"semantic feedback presentation has stable ownership",
+		(
+			RuntimeOwnershipScript.current_owner_for(RuntimeIdsScript.DOMAIN_FEEDBACK)
+			== RuntimeIdsScript.OWNER_FEEDBACK_ROUTER
 		),
 	)
 	_add_case(cases, "neutral run coordinator exists", coordinator != null)

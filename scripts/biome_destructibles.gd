@@ -91,6 +91,22 @@ static func debris_palette_for(kind: StringName) -> Array[Color]:
 			return DESERT_DEBRIS
 
 
+static func material_family_for(kind: StringName) -> StringName:
+	match kind:
+		KIND_WETLAND_MANGROVE, KIND_WETLAND_STUMP:
+			return &"wet_wood"
+		KIND_FROZEN_SNOW_ROCK:
+			return &"frozen_stone"
+		KIND_FROZEN_PINE:
+			return &"cold_wood"
+		KIND_LAVA_BASALT_CHIMNEY:
+			return &"basalt"
+		KIND_LAVA_OBSIDIAN_CLUSTER:
+			return &"obsidian"
+		_:
+			return &"dry_stone"
+
+
 static func get_required_paths() -> Array[String]:
 	var result: Array[String] = []
 	for kind: StringName in GENERATED_KINDS:

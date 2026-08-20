@@ -131,6 +131,7 @@ func advance(delta: float) -> void:
 		var worm: Dictionary = _worms[index]
 		worm[&"age"] = float(worm[&"age"]) + step
 		worm[&"hit_flash"] = maxf(float(worm[&"hit_flash"]) - step, 0.0)
+		worm[&"feedback_time"] = maxf(float(worm[&"feedback_time"]) - step, 0.0)
 		_advance_worm(worm, step)
 		if _state_expired(worm) and worm[&"state"] in [STATE_DISPERSING, STATE_DEFEATED]:
 			_worms.remove_at(index)
@@ -178,6 +179,10 @@ func spawn_worm(position: Vector2, emerge_seconds: float = -1.0) -> int:
 				&"strike_pulses": 0,
 				&"resolved_pulses": 0,
 				&"reward_emitted": false,
+				&"feedback_direction": Vector2.ZERO,
+				&"feedback_time": 0.0,
+				&"feedback_duration": 0.0,
+				&"feedback_strength": 0,
 			}
 		)
 	)
@@ -337,6 +342,26 @@ func hit_worm(worm_id: int, damage: int = 1) -> bool:
 		_set_state(worm, STATE_DEFEATED, _p_float(&"defeated_seconds"))
 	queue_redraw()
 	return true
+
+
+func present_hit_feedback(
+	worm_id: int, direction: Vector2, strength: int, hold_seconds: float
+) -> bool:
+	var worm: Dictionary = _find_worm(worm_id)
+	if worm.is_empty():
+		return false
+	worm[&"feedback_direction"] = (
+		Vector2.RIGHT if direction.is_zero_approx() else direction.normalized()
+	)
+	worm[&"feedback_duration"] = maxf(0.1, hold_seconds + 0.08)
+	worm[&"feedback_time"] = float(worm[&"feedback_duration"])
+	worm[&"feedback_strength"] = clampi(strength, 0, 2)
+	queue_redraw()
+	return true
+
+
+func get_feedback_offset(worm_id: int) -> Vector2:
+	return _feedback_offset(_find_worm(worm_id))
 
 
 func stagger_worm(worm_id: int, seconds: float = -1.0) -> bool:
@@ -657,13 +682,31 @@ func _grid_to_screen(position: Vector2) -> Vector2:
 	)
 
 
+func _feedback_offset(worm: Dictionary) -> Vector2:
+	if worm.is_empty() or float(worm.get(&"feedback_time", 0.0)) <= 0.0:
+		return Vector2.ZERO
+	var duration: float = maxf(float(worm.get(&"feedback_duration", 0.1)), 0.001)
+	var ratio: float = clampf(float(worm[&"feedback_time"]) / duration, 0.0, 1.0)
+	var direction: Vector2 = worm.get(&"feedback_direction", Vector2.RIGHT) as Vector2
+	var screen_direction: Vector2 = (
+		Vector2(
+			(direction.x - direction.y) * _tile_size.x * 0.5,
+			(direction.x + direction.y) * _tile_size.y * 0.5,
+		)
+		. normalized()
+	)
+	return (
+		screen_direction * (6.0 + float(worm.get(&"feedback_strength", 0)) * 3.0) * sin(ratio * PI)
+	)
+
+
 func _draw() -> void:
 	for worm: Dictionary in _worms:
 		_draw_worm(worm)
 
 
 func _draw_worm(worm: Dictionary) -> void:
-	var center: Vector2 = _grid_to_screen(worm[&"position"] as Vector2)
+	var center: Vector2 = _grid_to_screen(worm[&"position"] as Vector2) + _feedback_offset(worm)
 	var state: StringName = worm[&"state"] as StringName
 	var progress: float = _state_progress(worm)
 	var alpha: float = 1.0

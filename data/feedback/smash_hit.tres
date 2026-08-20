@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/feedback_profile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+profile_id = &"feedback.smash_hit"
+local_hold_seconds = 0.026
+camera_duration_seconds = 0.09
+camera_strength = 3.8
+particle_count = 9
+haptic_weak = 0.18
+haptic_strong = 0.38
+haptic_duration_seconds = 0.055
+priority = 70

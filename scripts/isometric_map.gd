@@ -5,6 +5,7 @@ const ChassisFeedbackScript: GDScript = preload("res://scripts/chassis_feedback.
 const DesertAtmosphereScript: GDScript = preload("res://scripts/desert_atmosphere.gd")
 const DesertHazardsScript: GDScript = preload("res://scripts/desert_hazards.gd")
 const DriveInputBufferScript: GDScript = preload("res://scripts/drive_input_buffer.gd")
+const FeedbackRouterScript: GDScript = preload("res://scripts/feedback_router.gd")
 const FieldHudScript: GDScript = preload("res://scripts/field_hud.gd")
 const FieldUIBuilderScript: GDScript = preload("res://scripts/field_ui_builder.gd")
 const ImpactChargeScript: GDScript = preload("res://scripts/impact_charge.gd")
@@ -49,7 +50,6 @@ const MAX_CHASSIS: int = 100
 const REPAIR_COST: int = 5
 const REPAIR_AMOUNT: int = 35
 const RESOURCE_MAGNET_RADIUS_CELLS: int = 2
-const AMBER: Color = Color("f5a62d")
 @export var save_path: String = DEFAULT_SAVE_PATH
 var _terrain: Dictionary = {}
 var _elevation: Dictionary = {}
@@ -84,7 +84,6 @@ var _facing: StringName:
 		_set_run_value(&"facing", value)
 var _is_moving: bool = false
 var _is_running: bool = false
-var _impact_flash: float = 0.0
 var _status_hold_time: float = 0.0
 var _context_status: Dictionary = {&"key": &"status.heavy_frame_online", &"placeholders": {}}
 var _attack_was_pressed: bool = false
@@ -103,6 +102,7 @@ var _atmosphere: Node2D
 var _camera: Camera2D
 var _chassis_feedback: CanvasLayer
 var _effects: Node2D
+var _feedback_router: Node
 var _effects_layer: CanvasLayer
 var _hazards: Node2D
 var _hud: CanvasLayer
@@ -182,7 +182,6 @@ func _process(delta: float) -> void:
 	else:
 		update_drive(screen_direction, delta, IsometricControlsScript.is_run_pressed())
 	_update_camera_follow(delta)
-	_impact_flash = maxf(_impact_flash - delta, 0.0)
 	_status_hold_time = maxf(_status_hold_time - delta, 0.0)
 	if _effects != null:
 		_effects.call("advance", delta)
@@ -243,10 +242,6 @@ func _draw() -> void:
 		_velocity,
 		_is_running
 	)
-	if _impact_flash > 0.0:
-		draw_arc(_robot_visual_position, 74.0, 0.0, TAU, 40, AMBER, 5.0 * _impact_flash / 0.36)
-
-
 func grid_to_screen(cell: Vector2i) -> Vector2:
 	return _terrain_renderer.call("grid_to_screen", cell) as Vector2
 
@@ -366,7 +361,6 @@ func _on_avatar_impact_frame() -> void:
 	_pending_impact_cells.clear()
 	_pending_impact_rock_cells.clear()
 	_pending_impact_worm_ids.clear()
-	_impact_flash = 0.36
 	_status_hold_time = 0.7
 	if footprint.is_empty():
 		footprint = [target]
@@ -377,24 +371,25 @@ func _on_avatar_impact_frame() -> void:
 			for cell: Vector2i in footprint:
 				positions.append(grid_to_screen(cell))
 			_impact_charge.call("show_aftershock", positions, impact_band)
-	if impact_band > 0 and _effects != null:
-		_effects.call("emit_aftershock", grid_to_screen(target), target, impact_band)
 	var worm_result: Dictionary = ImpactTargetingScript.hit_worms(
-		_sandworms, worm_ids, impact_band, _run_coordinator
+		_sandworms, worm_ids, impact_band, _run_coordinator, Vector2(_robot_grid)
 	)
 	var worm_hits: int = int(worm_result[&"hits"])
 	var worms_destroyed: int = int(worm_result[&"destroyed"])
 	var last_worm_health: int = int(worm_result[&"last_health"])
 	var rocks_broken: int = 0
+	var broken_props: Array[Dictionary] = []
 	for rock_cell: Vector2i in rock_cells:
+		var kind: StringName = _world_objects.call("get_destructible_kind", rock_cell)
 		if not _break_rock(rock_cell):
 			continue
 		rocks_broken += 1
-		if _effects != null:
-			var kind: StringName = _world_objects.call("get_destructible_kind", rock_cell)
-			_effects.call("emit_rock_impact", grid_to_screen(rock_cell), rock_cell, kind)
+		broken_props.append({&"cell": rock_cell, &"kind": kind})
 	if rocks_broken > 0 and _collect_scrap_near(_robot_grid) <= 0:
 		_save_world_state()
+	_feedback_router.call(
+		"present_smash", worm_result, broken_props, impact_band, Vector2(_robot_grid), target
+	)
 	if worm_hits > 0:
 		var enemy_label: StringName = _sandworms.call("_get_enemy_label", worm_ids[0])
 		var band_name: StringName = _impact_charge.call("get_band_name", impact_band)
@@ -679,7 +674,6 @@ func _move_velocity(delta: float) -> bool:
 	if candidate_grid != _robot_grid and not _can_transition(_robot_grid, candidate_grid):
 		_velocity = Vector2.ZERO
 		_is_moving = false
-		_impact_flash = 0.12
 		return false
 	_robot_visual_position = candidate
 	if candidate_grid != _robot_grid:
@@ -876,6 +870,10 @@ func _build_sandworms() -> void:
 	_sandworms.call("set_outpost_linked", _is_at_outpost())
 	_sandworms.connect("damage_tick", Callable(self, "_apply_chassis_damage"))
 	_object_layer.add_child(_sandworms)
+	_feedback_router = FeedbackRouterScript.install(
+		self, _camera, _effects, _avatar, _sandworms, _performance_sampler,
+		Callable(self, "grid_to_screen")
+	)
 	_world_objects.call("build_run_pickups", _world, _run_coordinator, _sandworms)
 	_world_objects.call("build_encounter_director", _world, _run_coordinator, _sandworms, _hazards)
 	_worm_telegraph = WormTelegraphScript.new() as Node2D

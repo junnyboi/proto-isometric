@@ -1,6 +1,6 @@
 extends RefCounted
 
-const REGISTRY_VERSION: int = 4
+const REGISTRY_VERSION: int = 5
 
 const DOMAIN_FIELD_COMPOSITION: StringName = &"domain.field_composition"
 const DOMAIN_MOVEMENT: StringName = &"domain.movement"
@@ -51,6 +51,11 @@ const EVENT_MODULE_PURCHASED: StringName = &"event.module.purchased"
 const EVENT_RUN_EXTRACTED: StringName = &"event.run.extracted"
 const EVENT_RUN_FAILED: StringName = &"event.run.failed"
 const EVENT_MODIFIER_SELECTED: StringName = &"event.modifier.selected"
+const EVENT_SMASH_WHIFF: StringName = &"event.smash.whiff"
+const EVENT_SMASH_HIT: StringName = &"event.smash.hit"
+const EVENT_SMASH_HEAVY_HIT: StringName = &"event.smash.heavy_hit"
+const EVENT_SMASH_DEFEAT: StringName = &"event.smash.defeat"
+const EVENT_SMASH_BREAK: StringName = &"event.smash.break"
 
 const OBJECTIVE_STARTER_RELAY: StringName = &"objective.relay.starter.v1"
 const OBJECTIVE_RELAY_TWO: StringName = &"objective.relay.second.v1"
@@ -122,9 +127,14 @@ static func catalog() -> Dictionary:
 			EVENT_WORM_DEFEATED,
 			EVENT_MODULE_PURCHASED,
 			EVENT_RUN_EXTRACTED,
-			EVENT_RUN_FAILED,
-			EVENT_MODIFIER_SELECTED,
-		],
+				EVENT_RUN_FAILED,
+				EVENT_MODIFIER_SELECTED,
+				EVENT_SMASH_WHIFF,
+				EVENT_SMASH_HIT,
+				EVENT_SMASH_HEAVY_HIT,
+				EVENT_SMASH_DEFEAT,
+				EVENT_SMASH_BREAK,
+			],
 		&"objectives": [OBJECTIVE_STARTER_RELAY, OBJECTIVE_RELAY_TWO, OBJECTIVE_RELAY_THREE],
 		&"modules": [MODULE_WORN_PLATES, MODULE_RAM_PLATING, MODULE_AFTERSHOCK, MODULE_STORM_SEAL],
 		&"modifiers":

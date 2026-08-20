@@ -13,6 +13,7 @@ const ATTACK_EVENT_FRAME: int = 11
 const ATTACK_FPS: float = 12.0
 const ATTACK_DURATION: float = float(GruntSpriteFramesBuilderScript.FRAME_COUNT) / ATTACK_FPS
 const ATTACK_CONTACT_TIME: float = float(ATTACK_EVENT_FRAME) / ATTACK_FPS
+const SPRITE_BASE_POSITION: Vector2 = Vector2(0.0, -TARGET_RUNTIME_HEIGHT * 0.5)
 
 var _sprite: AnimatedSprite2D
 var _frames: SpriteFrames
@@ -24,6 +25,9 @@ var _impact_emitted: bool = false
 var _using_proxy: bool = true
 var _redraw_request_count: int = 0
 var _hovered: bool = false
+var _impact_hold_time: float = 0.0
+var _presentation_offset: Vector2 = Vector2.ZERO
+var _presentation_recovery: float = 0.0
 
 
 func _ready() -> void:
@@ -32,7 +36,7 @@ func _ready() -> void:
 	_sprite = AnimatedSprite2D.new()
 	_sprite.name = "DirectionalSprite"
 	_sprite.centered = true
-	_sprite.position = Vector2(0.0, -TARGET_RUNTIME_HEIGHT * 0.5)
+	_sprite.position = SPRITE_BASE_POSITION
 	_sprite.scale = (
 		Vector2.ONE * (TARGET_RUNTIME_HEIGHT / float(GruntSpriteFramesBuilderScript.CELL_SIZE.y))
 	)
@@ -46,6 +50,9 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_advance_impact_presentation(delta)
+	if _impact_hold_time > 0.0:
+		return
 	if _attack_time > 0.0:
 		_attack_time = maxf(_attack_time - maxf(delta, 0.0), 0.0)
 		var attack_elapsed: float = ATTACK_DURATION - _attack_time
@@ -153,6 +160,22 @@ func is_hovered() -> bool:
 	return _hovered
 
 
+func _apply_impact_presentation(hold_seconds: float, direction: Vector2, strength: int) -> void:
+	_impact_hold_time = maxf(_impact_hold_time, clampf(hold_seconds, 0.0, 0.12))
+	_presentation_recovery = maxf(_presentation_recovery, 0.12)
+	var normalized: Vector2 = (
+		Vector2.RIGHT if direction.is_zero_approx() else direction.normalized()
+	)
+	_presentation_offset = -normalized * (2.0 + float(clampi(strength, 0, 2)) * 1.5)
+	if _sprite != null and _sprite.is_playing():
+		_sprite.pause()
+	_apply_presentation_offset()
+
+
+func _get_impact_presentation() -> Dictionary:
+	return {&"hold": _impact_hold_time, &"offset": _presentation_offset}
+
+
 func _atlas_contract_is_valid() -> bool:
 	for state: StringName in STATES:
 		for direction: StringName in DIRECTIONS:
@@ -192,6 +215,28 @@ func _set_proxy_usage(value: bool) -> void:
 		_request_redraw()
 
 
+func _advance_impact_presentation(delta: float) -> void:
+	var step: float = maxf(delta, 0.0)
+	var was_holding: bool = _impact_hold_time > 0.0
+	_impact_hold_time = maxf(_impact_hold_time - step, 0.0)
+	if was_holding and _impact_hold_time <= 0.0 and _sprite != null and _attack_time > 0.0:
+		_sprite.play()
+	if _impact_hold_time <= 0.0 and _presentation_recovery > 0.0:
+		_presentation_recovery = maxf(_presentation_recovery - step, 0.0)
+		var blend: float = 1.0 - exp(-28.0 * step)
+		_presentation_offset = _presentation_offset.lerp(Vector2.ZERO, blend)
+		if _presentation_recovery <= 0.0:
+			_presentation_offset = Vector2.ZERO
+	_apply_presentation_offset()
+
+
+func _apply_presentation_offset() -> void:
+	if _sprite != null:
+		_sprite.position = SPRITE_BASE_POSITION + _presentation_offset
+	if _using_proxy:
+		_request_redraw()
+
+
 func _request_redraw() -> void:
 	_redraw_request_count += 1
 	queue_redraw()
@@ -200,6 +245,7 @@ func _request_redraw() -> void:
 func _draw() -> void:
 	if not _using_proxy:
 		return
+	draw_set_transform(_presentation_offset)
 	draw_circle(Vector2(0.0, -70.0), 34.0, Color("d9b28d"))
 	draw_line(Vector2(-30.0, -60.0), Vector2(-42.0, -12.0), Color("17191d"), 18.0)
 	draw_line(Vector2(30.0, -60.0), Vector2(42.0, -12.0), Color("17191d"), 18.0)

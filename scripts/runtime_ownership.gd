@@ -111,12 +111,11 @@ static func contracts() -> Array[Dictionary]:
 			POLICY_AUTHORITATIVE,
 			"res://scripts/field_hud.gd",
 		),
-		_planned_contract(
+		_stable_contract(
 			RuntimeIdsScript.DOMAIN_FEEDBACK,
-			RuntimeIdsScript.OWNER_UNASSIGNED,
 			RuntimeIdsScript.OWNER_FEEDBACK_ROUTER,
 			SCOPE_PRESENTATION,
-			"",
+			POLICY_AUTHORITATIVE,
 			"res://scripts/feedback_router.gd",
 		),
 	]

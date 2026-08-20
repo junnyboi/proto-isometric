@@ -21,6 +21,22 @@ class FakeSandworms:
 	func get_health(worm_id: int) -> int:
 		return int(health.get(worm_id, -1))
 
+	func get_combat_snapshot(worm_id: int) -> Dictionary:
+		if not health.has(worm_id):
+			return {}
+		var position: Vector2 = Vector2.ZERO
+		for cell: Vector2i in targets:
+			if int(targets[cell]) == worm_id:
+				position = Vector2(cell)
+				break
+		return {
+			&"id": worm_id,
+			&"kind": &"sandworm",
+			&"state": &"expose",
+			&"position": position,
+			&"health": int(health[worm_id]),
+		}
+
 	func stagger_worm(_worm_id: int, _seconds: float = -1.0) -> bool:
 		return true
 
@@ -29,21 +45,23 @@ static func evaluate() -> Array[Dictionary]:
 	var cases: Array[Dictionary] = []
 	var impact_charge: Node2D = ImpactChargeScript.new() as Node2D
 	var origin: Vector2i = Vector2i(6, 6)
-	var arc: Array[Vector2i] = impact_charge.call(
-		"attack_footprint", origin, Vector2i.RIGHT, 0
-	) as Array[Vector2i]
+	var arc: Array[Vector2i] = (
+		impact_charge.call("attack_footprint", origin, Vector2i.RIGHT, 0) as Array[Vector2i]
+	)
 	_add(
 		cases,
 		"contact attack covers a two-cell 150-degree forward arc",
-		ImpactChargeScript.ATTACK_ARC_DEGREES == 150.0
-		and ImpactChargeScript.ATTACK_ARC_RADIUS_CELLS == 2
-		and arc.size() == 6
-		and Vector2i(6, 5) in arc
-		and Vector2i(7, 5) in arc
-		and Vector2i(7, 6) in arc
-		and Vector2i(6, 4) in arc
-		and Vector2i(8, 4) in arc
-		and Vector2i(8, 6) in arc,
+		(
+			ImpactChargeScript.ATTACK_ARC_DEGREES == 150.0
+			and ImpactChargeScript.ATTACK_ARC_RADIUS_CELLS == 2
+			and arc.size() == 6
+			and Vector2i(6, 5) in arc
+			and Vector2i(7, 5) in arc
+			and Vector2i(7, 6) in arc
+			and Vector2i(6, 4) in arc
+			and Vector2i(8, 4) in arc
+			and Vector2i(8, 6) in arc
+		),
 	)
 	_add(
 		cases,
@@ -61,33 +79,36 @@ static func evaluate() -> Array[Dictionary]:
 		Vector2i(8, 6): 17,
 	}
 	worms.health = {11: 4, 12: 4, 13: 4, 14: 4, 15: 4, 16: 4, 17: 4}
-	var targets: Dictionary = ImpactTargetingScript.scan(
-		arc, worms, {Vector2i(7, 6): true}
-	)
+	var targets: Dictionary = ImpactTargetingScript.scan(arc, worms, {Vector2i(7, 6): true})
 	var worm_ids: Array[int] = targets[&"worm_ids"] as Array[int]
 	_add(
 		cases,
 		"AOE scanner acquires every forward target once",
-		worm_ids.size() == 6
-		and 11 in worm_ids
-		and 12 in worm_ids
-		and 13 in worm_ids
-		and 15 in worm_ids
-		and 16 in worm_ids
-		and 17 in worm_ids
-		and (targets[&"rock_cells"] as Array).size() == 1,
+		(
+			worm_ids.size() == 6
+			and 11 in worm_ids
+			and 12 in worm_ids
+			and 13 in worm_ids
+			and 15 in worm_ids
+			and 16 in worm_ids
+			and 17 in worm_ids
+			and (targets[&"rock_cells"] as Array).size() == 1
+		),
 	)
 	var result: Dictionary = ImpactTargetingScript.hit_worms(worms, worm_ids, 0, null)
 	_add(
 		cases,
 		"one AOE strike damages all forward targets",
-		int(result[&"hits"]) == 6
-		and int(worms.health[11]) == 3
-		and int(worms.health[12]) == 3
-		and int(worms.health[13]) == 3
-		and int(worms.health[15]) == 3
-		and int(worms.health[16]) == 3
-		and int(worms.health[17]) == 3,
+		(
+			int(result[&"hits"]) == 6
+			and (result[&"targets"] as Array).size() == 6
+			and int(worms.health[11]) == 3
+			and int(worms.health[12]) == 3
+			and int(worms.health[13]) == 3
+			and int(worms.health[15]) == 3
+			and int(worms.health[16]) == 3
+			and int(worms.health[17]) == 3
+		),
 	)
 	_add(cases, "AOE strike leaves rear targets intact", int(worms.health[14]) == 4)
 	impact_charge.free()
