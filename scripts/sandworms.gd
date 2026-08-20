@@ -3,6 +3,7 @@ extends Node2D
 signal damage_tick(amount: int, source: StringName)
 signal defeated(worm_id: int, position: Vector2)
 
+const FaunaCombatScript: GDScript = preload("res://scripts/fauna_combat_catalog.gd")
 const DEFAULT_PROFILE: Resource = preload("res://data/combat/sandworm_default.tres")
 const MUD_SKIMMER_TEXTURE: Texture2D = preload("res://assets/enemies/mud_skimmer.png")
 const RIME_STALKER_TEXTURE: Texture2D = preload("res://assets/enemies/rime_stalker.png")
@@ -22,6 +23,13 @@ const STATE_BURROW: StringName = &"burrow"
 const STATE_INTERCEPT: StringName = &"intercept"
 const STATE_EXPOSE: StringName = &"expose"
 const STATE_DIVE: StringName = &"dive"
+const STATE_SKIM: StringName = &"skim"
+const STATE_WAKE_SWEEP: StringName = &"wake_sweep"
+const STATE_STALK: StringName = &"stalk"
+const STATE_POUNCE: StringName = &"pounce"
+const STATE_BRACE: StringName = &"brace"
+const STATE_EMBER_SALVO: StringName = &"ember_salvo"
+const STATE_RECOVER: StringName = &"recover"
 const STATE_STAGGERED: StringName = &"staggered"
 const STATE_DISPERSING: StringName = &"dispersing"
 const STATE_DEFEATED: StringName = &"defeated"
@@ -138,20 +146,9 @@ func spawn_worm(position: Vector2, emerge_seconds: float = -1.0) -> int:
 		kind = RIME_KIND
 	elif _active_biome == &"lava":
 		kind = CINDER_KIND
-	var default_emerge: float = (
-		CINDER_EMERGE_SECONDS
-		if kind == CINDER_KIND
-		else (
-			RIME_EMERGE_SECONDS
-			if kind == RIME_KIND
-			else (
-				SKIMMER_EMERGE_SECONDS
-				if kind == SKIMMER_KIND
-				else _p_float(&"spawn_burrow_seconds")
-			)
-		)
-	)
+	var default_emerge: float = _initial_state_seconds(kind)
 	var spawn_seconds: float = default_emerge if emerge_seconds < 0.0 else maxf(emerge_seconds, 0.0)
+	var initial_state: StringName = FaunaCombatScript.initial_state(kind)
 	(
 		_worms
 		. append(
@@ -163,7 +160,7 @@ func spawn_worm(position: Vector2, emerge_seconds: float = -1.0) -> int:
 				&"health": _p_int(&"max_health"),
 				&"age": 0.0,
 				&"hit_flash": 0.0,
-				&"state": STATE_BURROW,
+				&"state": initial_state,
 				&"state_elapsed": 0.0,
 				&"state_remaining": spawn_seconds,
 				&"state_duration": spawn_seconds,
@@ -171,8 +168,12 @@ func spawn_worm(position: Vector2, emerge_seconds: float = -1.0) -> int:
 				&"committed_target": position,
 				&"attack_serial": 0,
 				&"resolved_attack_serial": 0,
-				&"resume_state": STATE_BURROW,
+				&"resume_state": initial_state,
 				&"resume_remaining": 0.0,
+				&"attack_pattern": FaunaCombatScript.attack_pattern(kind),
+				&"strike_targets": [],
+				&"strike_pulses": 0,
+				&"resolved_pulses": 0,
 				&"reward_emitted": false,
 			}
 		)
@@ -247,21 +248,22 @@ func _get_character_hover_targets() -> Array[Dictionary]:
 		var state: StringName = worm[&"state"] as StringName
 		if state in [STATE_DISPERSING, STATE_DEFEATED]:
 			continue
+		var kind: StringName = worm.get(&"kind", WORM_KIND) as StringName
 		var center: Vector2 = _grid_to_screen(worm[&"position"] as Vector2)
 		(
 			targets
 			. append(
 				{
 					&"id": int(worm[&"id"]),
-					&"kind": worm.get(&"kind", WORM_KIND),
+					&"kind": kind,
 					&"name_key": _get_enemy_label(int(worm[&"id"])),
 					&"state": state,
 					&"screen_position": center + Vector2(0.0, -24.0),
 					&"hover_radius": 56.0,
 					&"health": int(worm[&"health"]),
 					&"max_health": _p_int(&"max_health"),
-					&"attack_damage": _p_int(&"attack_damage"),
-					&"attack_range": _p_float(&"attack_range"),
+					&"attack_damage": FaunaCombatScript.damage(kind, _profile),
+					&"attack_range": FaunaCombatScript.attack_range(kind, _profile),
 				}
 			)
 		)
@@ -282,9 +284,14 @@ func get_combat_snapshot(worm_id: int) -> Dictionary:
 		&"state_elapsed": float(worm[&"state_elapsed"]),
 		&"state_remaining": float(worm[&"state_remaining"]),
 		&"state_duration": float(worm[&"state_duration"]),
+		&"attack_origin": worm[&"intercept_start"],
 		&"committed_target": worm[&"committed_target"],
 		&"attack_serial": int(worm[&"attack_serial"]),
 		&"resolved_attack_serial": int(worm[&"resolved_attack_serial"]),
+		&"attack_pattern": worm[&"attack_pattern"],
+		&"strike_targets": (worm[&"strike_targets"] as Array).duplicate(),
+		&"strike_pulses": int(worm[&"strike_pulses"]),
+		&"resolved_pulses": int(worm[&"resolved_pulses"]),
 	}
 
 
@@ -311,7 +318,12 @@ func find_target(target_cell: Vector2i) -> int:
 
 func hit_worm(worm_id: int, damage: int = 1) -> bool:
 	var worm: Dictionary = _find_worm(worm_id)
-	if worm.is_empty() or worm[&"state"] != STATE_EXPOSE or damage <= 0:
+	var kind: StringName = worm.get(&"kind", WORM_KIND) as StringName
+	if (
+		worm.is_empty()
+		or not FaunaCombatScript.vulnerable(kind, worm[&"state"] as StringName)
+		or damage <= 0
+	):
 		return false
 	worm[&"health"] = maxi(int(worm[&"health"]) - damage, 0)
 	worm[&"hit_flash"] = 0.18
@@ -364,14 +376,18 @@ func _advance_worm(worm: Dictionary, delta: float) -> void:
 		var state: StringName = worm[&"state"] as StringName
 		var state_remaining: float = maxf(float(worm[&"state_remaining"]), 0.0)
 		var consumed: float = minf(remaining, state_remaining)
+		var elapsed_before: float = float(worm[&"state_elapsed"])
 		_advance_state_motion(worm, state, consumed)
-		worm[&"state_elapsed"] = float(worm[&"state_elapsed"]) + consumed
+		worm[&"state_elapsed"] = elapsed_before + consumed
 		worm[&"state_remaining"] = state_remaining - consumed
+		if state == STATE_EMBER_SALVO and not emitted_attack:
+			emitted_attack = _resolve_salvo_pulses(worm, elapsed_before, elapsed_before + consumed)
 		remaining -= consumed
 		if not _state_expired(worm) or state in [STATE_DISPERSING, STATE_DEFEATED]:
 			break
-		if state == STATE_BURROW and not _player_detected(worm):
-			_set_state(worm, STATE_BURROW, _p_float(&"burrow_seconds"))
+		var kind: StringName = worm.get(&"kind", WORM_KIND) as StringName
+		if FaunaCombatScript.tracking_state(kind, state) and not _player_detected(worm):
+			_set_state(worm, state, _state_duration(kind, state))
 			break
 		emitted_attack = _transition_state(worm, not emitted_attack) or emitted_attack
 		transitions += 1
@@ -380,25 +396,35 @@ func _advance_worm(worm: Dictionary, delta: float) -> void:
 func _advance_state_motion(worm: Dictionary, state: StringName, delta: float) -> void:
 	if delta <= 0.0:
 		return
-	if state == STATE_INTERCEPT:
+	var kind: StringName = worm.get(&"kind", WORM_KIND) as StringName
+	if state in [STATE_INTERCEPT, STATE_WAKE_SWEEP, STATE_POUNCE]:
 		var duration: float = maxf(float(worm[&"state_duration"]), 0.001)
 		var progress: float = clampf((float(worm[&"state_elapsed"]) + delta) / duration, 0.0, 1.0)
 		worm[&"position"] = (worm[&"intercept_start"] as Vector2).lerp(
 			worm[&"committed_target"] as Vector2, progress
 		)
+	elif FaunaCombatScript.tracking_state(kind, state) and kind != WORM_KIND:
+		_advance_surface_tracking(worm, delta)
 	elif state == STATE_DISPERSING:
 		var away: Vector2 = (worm[&"position"] as Vector2) - _player_position
 		if away.is_zero_approx():
 			away = Vector2.RIGHT
+		var disperse_speed: float = (
+			_p_float(&"burrow_speed")
+			if kind == WORM_KIND
+			else FaunaCombatScript.value(kind, &"move_speed", _p_float(&"burrow_speed"))
+		)
 		worm[&"direction"] = away.normalized()
 		worm[&"position"] = (
-			(worm[&"position"] as Vector2)
-			+ away.normalized() * _p_float(&"burrow_speed") * 2.2 * delta
+			(worm[&"position"] as Vector2) + away.normalized() * disperse_speed * 2.2 * delta
 		)
 
 
 func _transition_state(worm: Dictionary, may_attack: bool) -> bool:
 	var state: StringName = worm[&"state"] as StringName
+	var kind: StringName = worm.get(&"kind", WORM_KIND) as StringName
+	if kind != WORM_KIND:
+		return _transition_native_state(worm, state, may_attack)
 	if state == STATE_BURROW:
 		_commit_intercept(worm)
 		return false
@@ -420,6 +446,26 @@ func _transition_state(worm: Dictionary, may_attack: bool) -> bool:
 	return false
 
 
+func _transition_native_state(worm: Dictionary, state: StringName, may_attack: bool) -> bool:
+	var kind: StringName = worm.get(&"kind", WORM_KIND) as StringName
+	if state == FaunaCombatScript.initial_state(kind):
+		_commit_native_attack(worm)
+		return false
+	if state == FaunaCombatScript.attack_state(kind):
+		var attacked: bool = false
+		if kind != CINDER_KIND and may_attack:
+			attacked = _resolve_attack(worm)
+		_set_state(worm, STATE_RECOVER, _state_duration(kind, STATE_RECOVER))
+		return attacked
+	if state == STATE_RECOVER:
+		var initial: StringName = FaunaCombatScript.initial_state(kind)
+		_set_state(worm, initial, _state_duration(kind, initial))
+		return false
+	if state == STATE_STAGGERED:
+		_resume_after_stagger(worm)
+	return false
+
+
 func _commit_intercept(worm: Dictionary) -> void:
 	var position: Vector2 = worm[&"position"] as Vector2
 	var raw_lead: Vector2 = _player_velocity * _p_float(&"maximum_lead_seconds")
@@ -433,24 +479,120 @@ func _commit_intercept(worm: Dictionary) -> void:
 	_set_state(worm, STATE_INTERCEPT, _p_float(&"intercept_seconds"))
 
 
+func _commit_native_attack(worm: Dictionary) -> void:
+	var kind: StringName = worm.get(&"kind", WORM_KIND) as StringName
+	var position: Vector2 = worm[&"position"] as Vector2
+	var lead_seconds: float = FaunaCombatScript.value(kind, &"lead_seconds")
+	var lead_distance: float = FaunaCombatScript.value(kind, &"lead_distance")
+	var target: Vector2 = (
+		_player_position + (_player_velocity * lead_seconds).limit_length(lead_distance)
+	)
+	var direction: Vector2 = target - position
+	direction = Vector2.DOWN if direction.is_zero_approx() else direction.normalized()
+	if kind == SKIMMER_KIND:
+		target += direction * FaunaCombatScript.value(kind, &"overshoot")
+	worm[&"direction"] = direction
+	worm[&"intercept_start"] = position
+	worm[&"committed_target"] = target
+	worm[&"attack_serial"] = int(worm[&"attack_serial"]) + 1
+	worm[&"resolved_pulses"] = 0
+	worm[&"strike_targets"] = _salvo_targets(target, direction) if kind == CINDER_KIND else [target]
+	worm[&"strike_pulses"] = 3 if kind == CINDER_KIND else 1
+	var attack_state: StringName = FaunaCombatScript.attack_state(kind)
+	_set_state(worm, attack_state, _state_duration(kind, attack_state))
+
+
 func _resolve_attack(worm: Dictionary) -> bool:
 	var attack_serial: int = int(worm[&"attack_serial"])
 	if attack_serial <= int(worm[&"resolved_attack_serial"]):
 		return false
 	worm[&"resolved_attack_serial"] = attack_serial
-	if (worm[&"position"] as Vector2).distance_to(_player_position) > _p_float(&"attack_range"):
+	var kind: StringName = worm.get(&"kind", WORM_KIND) as StringName
+	var attack_distance: float = (worm[&"position"] as Vector2).distance_to(_player_position)
+	if kind == SKIMMER_KIND:
+		attack_distance = _distance_to_segment(
+			_player_position,
+			worm[&"intercept_start"] as Vector2,
+			worm[&"committed_target"] as Vector2,
+		)
+	if attack_distance > FaunaCombatScript.attack_range(kind, _profile):
 		return false
 	_last_attack_count += 1
-	damage_tick.emit(_p_int(&"attack_damage"), worm.get(&"kind", WORM_KIND) as StringName)
+	damage_tick.emit(FaunaCombatScript.damage(kind, _profile), kind)
 	return true
+
+
+func _resolve_salvo_pulses(worm: Dictionary, elapsed_before: float, elapsed_after: float) -> bool:
+	var duration: float = maxf(float(worm[&"state_duration"]), 0.001)
+	var before: int = mini(floori(elapsed_before / duration * 3.0), 3)
+	var after: int = mini(floori((elapsed_after + 0.00001) / duration * 3.0), 3)
+	var emitted: bool = false
+	var targets: Array = worm[&"strike_targets"] as Array
+	for pulse: int in range(maxi(before, int(worm[&"resolved_pulses"])), after):
+		worm[&"resolved_pulses"] = pulse + 1
+		if pulse >= targets.size() or emitted:
+			continue
+		if (
+			(targets[pulse] as Vector2).distance_to(_player_position)
+			> FaunaCombatScript.attack_range(CINDER_KIND, _profile)
+		):
+			continue
+		_last_attack_count += 1
+		damage_tick.emit(FaunaCombatScript.damage(CINDER_KIND, _profile), CINDER_KIND)
+		emitted = true
+	return emitted
 
 
 func _resume_after_stagger(worm: Dictionary) -> void:
 	var resume_state: StringName = worm[&"resume_state"] as StringName
-	if resume_state not in [STATE_BURROW, STATE_INTERCEPT, STATE_EXPOSE, STATE_DIVE]:
-		resume_state = STATE_BURROW
+	var kind: StringName = worm.get(&"kind", WORM_KIND) as StringName
+	if not FaunaCombatScript.legal_primary_state(kind, resume_state):
+		resume_state = FaunaCombatScript.initial_state(kind)
 	var remaining: float = maxf(float(worm[&"resume_remaining"]), 0.05)
 	_set_state(worm, resume_state, remaining)
+
+
+func _advance_surface_tracking(worm: Dictionary, delta: float) -> void:
+	var kind: StringName = worm.get(&"kind", WORM_KIND) as StringName
+	var position: Vector2 = worm[&"position"] as Vector2
+	var to_player: Vector2 = _player_position - position
+	if to_player.is_zero_approx():
+		return
+	var direction: Vector2 = to_player.normalized()
+	if kind == SKIMMER_KIND:
+		var side: float = -1.0 if int(worm[&"id"]) % 2 == 0 else 1.0
+		direction = (direction * 0.42 + direction.orthogonal() * side * 0.58).normalized()
+	worm[&"direction"] = direction
+	var speed: float = FaunaCombatScript.value(kind, &"move_speed")
+	var step: float = minf(speed * delta, maxf(to_player.length() - 1.35, 0.0))
+	worm[&"position"] = position + direction * step
+
+
+func _salvo_targets(target: Vector2, direction: Vector2) -> Array[Vector2]:
+	var lateral: Vector2 = direction.orthogonal()
+	return [target - lateral * 0.95, target, target + lateral * 0.95]
+
+
+func _distance_to_segment(point: Vector2, start: Vector2, finish: Vector2) -> float:
+	var segment: Vector2 = finish - start
+	if segment.is_zero_approx():
+		return point.distance_to(start)
+	var progress: float = clampf((point - start).dot(segment) / segment.length_squared(), 0.0, 1.0)
+	return point.distance_to(start + segment * progress)
+
+
+func _initial_state_seconds(kind: StringName) -> float:
+	if kind == WORM_KIND:
+		return _p_float(&"spawn_burrow_seconds")
+	if kind == SKIMMER_KIND:
+		return SKIMMER_EMERGE_SECONDS
+	if kind == RIME_KIND:
+		return RIME_EMERGE_SECONDS
+	return CINDER_EMERGE_SECONDS
+
+
+func _state_duration(kind: StringName, state: StringName) -> float:
+	return FaunaCombatScript.state_duration(kind, state, _profile)
 
 
 func _set_state(worm: Dictionary, state: StringName, duration: float) -> void:
@@ -556,11 +698,7 @@ func _draw_skimmer(
 	center: Vector2, worm: Dictionary, state: StringName, progress: float, alpha: float
 ) -> void:
 	_draw_mud_wake(center, progress, alpha)
-	if state == STATE_BURROW:
-		return
-	if state == STATE_DIVE:
-		alpha *= 1.0 - progress
-	if state == STATE_INTERCEPT:
+	if state == STATE_WAKE_SWEEP:
 		alpha *= 0.78
 	var size: Vector2 = MUD_SKIMMER_TEXTURE.get_size() * 0.23
 	var tint: Color = Color("ffd27a") if int(worm[&"id"]) == _hovered_enemy_id else Color.WHITE
@@ -571,7 +709,7 @@ func _draw_skimmer(
 		false,
 		tint,
 	)
-	if state in [STATE_EXPOSE, STATE_STAGGERED]:
+	if state in [STATE_RECOVER, STATE_STAGGERED]:
 		_draw_health_bar(center + Vector2(0.0, -69.0), int(worm[&"health"]), alpha)
 
 
@@ -592,17 +730,13 @@ func _draw_native_enemy(
 		draw_circle(
 			point, 2.0 + float(mote % 2), Color(wake_dark, (0.25 + mote % 3 * 0.08) * alpha)
 		)
-	if state == STATE_BURROW:
-		return
-	if state == STATE_DIVE:
-		alpha *= 1.0 - progress
-	if state == STATE_INTERCEPT:
+	if state in [STATE_POUNCE, STATE_EMBER_SALVO]:
 		alpha *= 0.78
 	var size: Vector2 = texture.get_size() * 0.23
 	var tint: Color = Color("ffd27a") if int(worm[&"id"]) == _hovered_enemy_id else Color.WHITE
 	tint.a = alpha
 	draw_texture_rect(texture, Rect2(center - size * Vector2(0.5, 0.66), size), false, tint)
-	if state in [STATE_EXPOSE, STATE_STAGGERED]:
+	if state in [STATE_RECOVER, STATE_STAGGERED]:
 		_draw_health_bar(center + Vector2(0.0, -69.0), int(worm[&"health"]), alpha)
 
 

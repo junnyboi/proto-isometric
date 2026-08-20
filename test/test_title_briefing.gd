@@ -40,11 +40,12 @@ static func evaluate() -> Array[Dictionary]:
 	)
 	_add(
 		cases,
-		"field guide teaches desktop, touch, and exposed-enemy timing",
+		"field guide teaches desktop, touch, and enemy counter-windows",
 		(
 			guide.text.contains("WASD")
 			and guide.text.contains("TOUCH")
-			and guide.text.contains("EXPOSED")
+			and guide.text.contains("RECOVERY")
+			and guide.text.contains("EXPOSE")
 		),
 	)
 	_add(
