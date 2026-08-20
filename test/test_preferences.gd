@@ -71,7 +71,12 @@ static func evaluate() -> Array[Dictionary]:
 	_add(
 		cases,
 		"settings menu exposes the bilingual language toggle",
-		language != null and "EN / 简体中文" in language.text and "[EN]" in language.text,
+		(
+			language != null
+			and "EN / 简体中文" in language.text
+			and "[EN]" in language.text
+			and language.get_theme_font_size("font_size") == 18
+		),
 	)
 	panel.call("_cycle_locale")
 	var toggled: Dictionary = (

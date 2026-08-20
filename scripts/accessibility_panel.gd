@@ -190,6 +190,8 @@ func _add_button(key: StringName, y: float, callback: Callable) -> void:
 	button.name = String(key).to_pascal_case()
 	button.position = Vector2(28.0, y)
 	button.size = Vector2(386.0, 46.0)
+	if key == &"locale":
+		button.add_theme_font_size_override("font_size", 18)
 	button.pressed.connect(callback)
 	_panel.add_child(button)
 	_buttons[key] = button
