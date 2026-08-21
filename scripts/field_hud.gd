@@ -36,6 +36,7 @@ var _radar_coordinator: RefCounted
 var _radar_contacts_source: Node
 var _performance_sampler: Node
 var _left_handed: bool = false
+var _vfx_intensity: float = 1.0
 var _panel_title: Label
 var _panel_subtitle: Label
 var _strike_instruction: Label
@@ -255,6 +256,7 @@ func apply_layout(viewport_size: Vector2, mobile: bool, force: bool = false) -> 
 func _on_preferences_changed(snapshot: Dictionary) -> void:
 	_ui_scale = clampf(float(snapshot.get(&"ui_scale", 1.0)), 0.85, 1.25)
 	_left_handed = bool(snapshot.get(&"left_handed", false))
+	_vfx_intensity = clampf(float(snapshot.get(&"vfx_intensity", 1.0)), 0.0, 1.0)
 	if _drive_panel != null:
 		apply_layout(
 			get_viewport().get_visible_rect().size,
@@ -378,15 +380,16 @@ func _advance_charge_pulse(delta: float) -> void:
 		_charge_label.modulate.a = 1.0
 		return
 	_charge_pulse_phase = fmod(_charge_pulse_phase + maxf(delta, 0.0) * 2.4, TAU)
-	_charge_label.modulate.a = 0.88 + sin(_charge_pulse_phase) * 0.12
+	var pulse_range: float = 0.12 * _vfx_intensity
+	_charge_label.modulate.a = 1.0 - pulse_range + sin(_charge_pulse_phase) * pulse_range
 
 
 func _pulse_control(control: Control, scale_peak: float, color: Color) -> void:
 	if control == null or not control.is_inside_tree():
 		return
 	control.pivot_offset = control.size * 0.5
-	control.scale = Vector2.ONE * scale_peak
-	control.modulate = color
+	control.scale = Vector2.ONE * lerpf(1.0, scale_peak, _vfx_intensity)
+	control.modulate = Color.WHITE.lerp(color, _vfx_intensity)
 	var tween: Tween = create_tween().set_parallel(true)
 	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	tween.tween_property(control, "scale", Vector2.ONE, HUD_PULSE_SECONDS)

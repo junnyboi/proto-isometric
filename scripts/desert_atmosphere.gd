@@ -11,12 +11,14 @@ var _punctuation_strength: float = 0.0
 var _profile: StringName = &"sand"
 var _field: Node
 var _world: RefCounted
+var _vfx_intensity: float = 1.0
 
 
 func _ready() -> void:
 	_field = get_parent()
 	if _field != null:
 		_world = _field.get("_world") as RefCounted
+	call_deferred("_bind_accessibility")
 
 
 func advance(delta: float) -> void:
@@ -26,11 +28,16 @@ func advance(delta: float) -> void:
 	if _field != null and _world != null:
 		var grid: Vector2i = _field.call("get_robot_grid") as Vector2i
 		_profile = profile_for_surface(_world.call("terrain_at", grid) as StringName)
-	queue_redraw()
+	if _vfx_intensity > 0.0:
+		queue_redraw()
 
 
 func get_particle_count() -> int:
 	return PARTICLE_COUNT
+
+
+func get_visible_mark_count() -> int:
+	return roundi(float(PARTICLE_COUNT) * _vfx_intensity)
 
 
 func get_wind_intensity() -> float:
@@ -45,6 +52,19 @@ func get_profile() -> StringName:
 	return _profile
 
 
+func _bind_accessibility() -> void:
+	var panel: Node = get_tree().get_first_node_in_group("accessibility_panel")
+	if panel == null:
+		return
+	_apply_preferences(panel.call("get_preferences") as Dictionary)
+	panel.connect("preferences_changed", _apply_preferences)
+
+
+func _apply_preferences(snapshot: Dictionary) -> void:
+	_vfx_intensity = clampf(float(snapshot.get(&"vfx_intensity", 1.0)), 0.0, 1.0)
+	queue_redraw()
+
+
 static func profile_for_surface(surface: StringName) -> StringName:
 	if surface in [&"mud", &"wetland", &"water"]:
 		return &"wetland"
@@ -57,7 +77,7 @@ static func profile_for_surface(surface: StringName) -> StringName:
 
 func _draw() -> void:
 	var colors: Array[Color] = _profile_colors(_profile)
-	for index: int in range(PARTICLE_COUNT):
+	for index: int in range(get_visible_mark_count()):
 		var seed: float = float(index)
 		var speed: float = 75.0 + fmod(seed * 29.0, 95.0) + _punctuation_strength * 45.0
 		var x: float = fposmod(seed * 173.0 + _time * speed, 2300.0) - 500.0
@@ -69,7 +89,7 @@ func _draw() -> void:
 			* (_wind_intensity + _punctuation_strength * 0.22)
 		)
 		var color: Color = colors[0].lerp(colors[1], fmod(seed * 0.37, 1.0))
-		color.a = alpha
+		color.a = alpha * _vfx_intensity
 		var start: Vector2 = Vector2(x, y)
 		var drift: Vector2 = Vector2(length, -length * 0.16)
 		if _profile == &"volcanic":

@@ -41,6 +41,11 @@ static func evaluate() -> Array[Dictionary]:
 	)
 	_add(
 		cases,
+		"preferences default VFX intensity is one hundred percent",
+		is_equal_approx(float(defaults[&"vfx_intensity"]), 1.0),
+	)
+	_add(
+		cases,
 		"preferences default camera zoom is one hundred percent",
 		is_equal_approx(float(defaults[&"camera_zoom"]), 1.0)
 	)
@@ -88,6 +93,11 @@ static func evaluate() -> Array[Dictionary]:
 		"preferences reject unsupported effects quality",
 		not bool(preferences.call("set_value", &"effects_quality", "cinematic")),
 	)
+	_add(
+		cases,
+		"preferences reject unsafe VFX intensity",
+		not bool(preferences.call("set_value", &"vfx_intensity", 1.1)),
+	)
 	preferences.call("set_value", &"ui_scale", 1.15)
 	preferences.call("set_value", &"camera_shake", false)
 	preferences.call("set_value", &"reduced_flash", true)
@@ -100,6 +110,7 @@ static func evaluate() -> Array[Dictionary]:
 	preferences.call("set_value", &"locale", "zh_CN")
 	preferences.call("set_value", &"camera_zoom", 1.2)
 	preferences.call("set_value", &"effects_quality", &"reduced")
+	preferences.call("set_value", &"vfx_intensity", 0.4)
 	_add(cases, "preferences save atomically", bool(preferences.call("save_preferences")))
 	var restored: RefCounted = PlayerPreferencesScript.new() as RefCounted
 	var snapshot: Dictionary = restored.call("load_preferences") as Dictionary
@@ -119,19 +130,21 @@ static func evaluate() -> Array[Dictionary]:
 			and snapshot[&"locale"] == &"zh-CN"
 			and is_equal_approx(float(snapshot[&"camera_zoom"]), 1.2)
 			and snapshot[&"effects_quality"] == &"reduced"
+			and is_equal_approx(float(snapshot[&"vfx_intensity"]), 0.4)
 		),
 	)
-	var legacy_audio: Dictionary = snapshot.duplicate(true)
-	legacy_audio.erase(&"camera_zoom")
-	legacy_audio.erase(&"master_volume")
-	legacy_audio.erase(&"sfx_volume")
-	legacy_audio.erase(&"music_volume")
+	var legacy_runtime: Dictionary = snapshot.duplicate(true)
+	legacy_runtime.erase(&"camera_zoom")
+	legacy_runtime.erase(&"master_volume")
+	legacy_runtime.erase(&"sfx_volume")
+	legacy_runtime.erase(&"music_volume")
+	legacy_runtime.erase(&"vfx_intensity")
 	var legacy_preferences: RefCounted = PlayerPreferencesScript.new() as RefCounted
 	_add(
 		cases,
-		"legacy preferences restore camera and audio defaults",
+		"legacy preferences restore camera, audio, and VFX defaults",
 		(
-			bool(legacy_preferences.call("restore_dictionary", legacy_audio))
+			bool(legacy_preferences.call("restore_dictionary", legacy_runtime))
 			and is_equal_approx(
 				float((legacy_preferences.call("to_dictionary") as Dictionary)[&"camera_zoom"]), 1.0
 			)
@@ -145,6 +158,12 @@ static func evaluate() -> Array[Dictionary]:
 			)
 			and is_equal_approx(
 				float((legacy_preferences.call("to_dictionary") as Dictionary)[&"music_volume"]),
+				1.0,
+			)
+			and is_equal_approx(
+				float(
+					(legacy_preferences.call("to_dictionary") as Dictionary)[&"vfx_intensity"]
+				),
 				1.0,
 			)
 		)
@@ -178,6 +197,7 @@ static func evaluate() -> Array[Dictionary]:
 			and recovered[&"locale"] == &"en"
 			and is_equal_approx(float(recovered[&"camera_zoom"]), 1.0)
 			and recovered[&"effects_quality"] == &"full"
+			and is_equal_approx(float(recovered[&"vfx_intensity"]), 1.0)
 		),
 	)
 	var graded: RefCounted = PlayerPreferencesScript.new() as RefCounted
@@ -200,6 +220,28 @@ static func evaluate() -> Array[Dictionary]:
 	panel.call("_build_interface")
 	panel.call("_refresh")
 	var language: Button = panel.call("get_language_button") as Button
+	var vfx_slider: HSlider = panel.call("get_vfx_intensity_slider") as HSlider
+	_add(
+		cases,
+		"settings menu exposes a ten-step VFX intensity slider",
+		(
+			vfx_slider != null
+			and is_equal_approx(vfx_slider.min_value, 0.0)
+			and is_equal_approx(vfx_slider.max_value, 100.0)
+			and is_equal_approx(vfx_slider.step, 10.0)
+			and is_equal_approx(vfx_slider.value, 100.0)
+			and "VFX INTENSITY" in vfx_slider.tooltip_text
+		),
+	)
+	panel.call("_set_vfx_intensity", 40.0)
+	var vfx_saved: Dictionary = (
+		(PlayerPreferencesScript.new() as RefCounted).call("load_preferences") as Dictionary
+	)
+	_add(
+		cases,
+		"VFX slider persists its normalized value",
+		is_equal_approx(float(vfx_saved[&"vfx_intensity"]), 0.4),
+	)
 	_add(
 		cases,
 		"settings menu exposes the bilingual language toggle",

@@ -19,6 +19,7 @@ var _music_volume: float = 1.0
 var _locale: StringName = &"en"
 var _camera_zoom: float = 1.0
 var _effects_quality: StringName = &"full"
+var _vfx_intensity: float = 1.0
 
 
 func load_preferences() -> Dictionary:
@@ -118,13 +119,17 @@ func set_value(key: StringName, value: Variant) -> bool:
 			valid = quality != &""
 			if valid:
 				_effects_quality = quality
+		&"vfx_intensity":
+			valid = _valid_intensity(value)
+			if valid:
+				_vfx_intensity = snappedf(value, 0.1)
 		_:
 			valid = false
 	return valid
 
 
 func restore_dictionary(snapshot: Dictionary) -> bool:
-	if snapshot.size() < 4 or snapshot.size() > 15:
+	if snapshot.size() < 4 or snapshot.size() > 16:
 		return false
 	var scale: Variant = snapshot.get(&"ui_scale")
 	var shake: Variant = snapshot.get(&"camera_shake")
@@ -141,6 +146,7 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 	var locale: Variant = snapshot.get(&"locale", "en")
 	var camera_zoom: Variant = snapshot.get(&"camera_zoom", 1.0)
 	var effects_quality: Variant = snapshot.get(&"effects_quality", "full")
+	var vfx_intensity: Variant = snapshot.get(&"vfx_intensity", 1.0)
 	if (
 		not scale is float
 		or not shake is bool
@@ -157,6 +163,7 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 		or not (locale is String or locale is StringName)
 		or not camera_zoom is float
 		or not (effects_quality is String or effects_quality is StringName)
+		or not _valid_intensity(vfx_intensity)
 	):
 		return false
 	var before: Dictionary = to_dictionary()
@@ -174,6 +181,7 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 		or not set_value(&"locale", locale)
 		or not set_value(&"camera_zoom", camera_zoom)
 		or not set_value(&"effects_quality", effects_quality)
+		or not set_value(&"vfx_intensity", vfx_intensity)
 	):
 		_apply(before)
 		return false
@@ -197,6 +205,7 @@ func to_dictionary() -> Dictionary:
 		&"locale": _locale,
 		&"camera_zoom": _camera_zoom,
 		&"effects_quality": _effects_quality,
+		&"vfx_intensity": _vfx_intensity,
 	}
 
 
@@ -220,6 +229,7 @@ func _apply(snapshot: Dictionary) -> void:
 	_effects_quality = normalize_effects_quality(snapshot.get(&"effects_quality", "full"))
 	if _effects_quality == &"":
 		_effects_quality = &"full"
+	_vfx_intensity = float(snapshot.get(&"vfx_intensity", 1.0))
 	if _locale == &"":
 		_locale = &"en"
 

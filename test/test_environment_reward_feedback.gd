@@ -28,6 +28,21 @@ static func evaluate() -> Array[Dictionary]:
 		"ambient punctuation keeps the fixed 96-mark budget",
 		int(atmosphere.call("get_particle_count")) == 96
 	)
+	atmosphere.call("_apply_preferences", {&"vfx_intensity": 0.5})
+	_add(
+		cases,
+		"half VFX intensity halves visible ambient marks without changing the fixed budget",
+		(
+			int(atmosphere.call("get_visible_mark_count")) == 48
+			and int(atmosphere.call("get_particle_count")) == 96
+		),
+	)
+	atmosphere.call("_apply_preferences", {&"vfx_intensity": 0.0})
+	_add(
+		cases,
+		"zero VFX intensity suppresses cosmetic atmosphere marks",
+		int(atmosphere.call("get_visible_mark_count")) == 0,
+	)
 	_add(
 		cases,
 		"terminal reward hierarchy settles within 240 milliseconds",

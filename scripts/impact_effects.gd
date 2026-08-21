@@ -41,6 +41,7 @@ var _last_debris_palette: Array[Color] = []
 var _shake_enabled: bool = true
 var _reduced_flash: bool = false
 var _effects_quality: StringName = &"full"
+var _vfx_intensity: float = 1.0
 var _redraw_request_count: int = 0
 
 
@@ -80,11 +81,14 @@ func emit_rock_impact(
 	)
 	if start_camera:
 		_start_shake(0.24, 11.0, cell.x * 92821 + cell.y * 68917 + _emission_count * 31)
+	var scaled_limit: int = _scaled_particle_count(clampi(particle_limit, 1, 28))
+	if scaled_limit <= 0:
+		_sync_metrics()
+		return
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = cell.x * 73856093 ^ cell.y * 19349663 ^ _emission_count * 83492791
-	var quality_limit: int = _quality_particle_count(particle_limit)
-	var primary_count: int = mini(18, clampi(quality_limit, 0, 28))
-	var secondary_count: int = maxi(clampi(quality_limit, 0, 28) - primary_count, 0)
+	var primary_count: int = mini(18, scaled_limit)
+	var secondary_count: int = maxi(scaled_limit - primary_count, 0)
 	for index: int in range(primary_count):
 		var angle: float = rng.randf_range(-PI * 0.92, -PI * 0.08)
 		var speed: float = rng.randf_range(90.0, 245.0)
@@ -116,7 +120,10 @@ func emit_scrap_pickup(
 ) -> void:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = amount * 104729 + _emission_count * 17
-	var particle_count: int = _quality_particle_count(clampi(amount * 4, 5, 14))
+	var particle_count: int = _scaled_particle_count(clampi(amount * 4, 5, 14))
+	if particle_count <= 0:
+		_sync_metrics()
+		return
 	var magnetized: bool = destination.is_finite() and not destination.is_equal_approx(position)
 	for index: int in range(particle_count):
 		var angle: float = TAU * float(index) / float(particle_count)
@@ -141,9 +148,12 @@ func emit_scrap_pickup(
 func emit_chassis_damage(position: Vector2, amount: int) -> void:
 	_damage_emission_count += 1
 	_start_shake(0.15, 6.0, amount * 4099 + _damage_emission_count * 131)
+	var particle_count: int = _scaled_particle_count(clampi(7 + amount, 8, 14))
+	if particle_count <= 0:
+		_sync_metrics()
+		return
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = amount * 65537 + _damage_emission_count * 8191
-	var particle_count: int = _quality_particle_count(clampi(7 + amount, 8, 14))
 	for index: int in range(particle_count):
 		var angle: float = rng.randf_range(-PI * 0.96, -PI * 0.04)
 		_spawn_particle(
@@ -170,7 +180,10 @@ func emit_aftershock(
 	var particle_count: int = 28 if band >= 2 else 16
 	if limit >= 0:
 		particle_count = clampi(limit, 0, 32)
-	particle_count = _quality_particle_count(particle_count)
+	particle_count = _scaled_particle_count(particle_count)
+	if particle_count <= 0:
+		_sync_metrics()
+		return
 	for index: int in range(particle_count):
 		var angle: float = TAU * float(index) / float(particle_count) + rng.randf_range(-0.16, 0.16)
 		_spawn_particle(
@@ -313,6 +326,10 @@ func get_redraw_request_count() -> int:
 	return _redraw_request_count
 
 
+func _get_vfx_intensity() -> float:
+	return _vfx_intensity
+
+
 func _get_burst_count() -> int:
 	return _bursts.size()
 
@@ -380,6 +397,13 @@ func _spawn_particle(
 	assert(_particles.size() <= MAX_ACTIVE_PARTICLES)
 
 
+func _scaled_particle_count(base_count: int) -> int:
+	if base_count <= 0 or _vfx_intensity <= 0.0:
+		return 0
+	var quality_count: int = _quality_particle_count(base_count)
+	return clampi(roundi(float(quality_count) * _vfx_intensity), 1, quality_count)
+
+
 func _emit_directional_contact(event: Dictionary, count: int) -> void:
 	var position: Vector2 = event.get(&"position", Vector2.ZERO) as Vector2
 	var direction: Vector2 = event.get(&"direction", Vector2.RIGHT) as Vector2
@@ -390,7 +414,7 @@ func _emit_directional_contact(event: Dictionary, count: int) -> void:
 	var seed: int = int(event.get(&"sequence_id", 0)) * 104729
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = seed
-	for index: int in range(_quality_particle_count(clampi(count, 0, 32))):
+	for index: int in range(_scaled_particle_count(clampi(count, 0, 32))):
 		var spread: Vector2 = screen_direction.rotated(rng.randf_range(-0.65, 0.65))
 		_spawn_particle(
 			position + Vector2(rng.randf_range(-5.0, 5.0), rng.randf_range(-6.0, 4.0)),
@@ -410,7 +434,7 @@ func _emit_surface_wake(event: Dictionary, count: int) -> void:
 	var color: Color = _surface_color(material)
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = int(event.get(&"sequence_id", 0)) * 16127
-	for index: int in range(_quality_particle_count(clampi(count, 0, 8))):
+	for index: int in range(_scaled_particle_count(clampi(count, 0, 8))):
 		_spawn_particle(
 			position + Vector2(rng.randf_range(-12.0, 12.0), rng.randf_range(6.0, 14.0)),
 			Vector2(rng.randf_range(-28.0, 28.0), rng.randf_range(-34.0, -12.0)),
@@ -455,6 +479,8 @@ func _recycle_particle(particle: Dictionary) -> void:
 
 
 func _emit_semantic_burst(event: Dictionary, profile: Dictionary) -> void:
+	if _vfx_intensity <= 0.0:
+		return
 	if not _allows_semantic_burst(event, int(profile.get(&"priority", 0))):
 		return
 	var spec: Dictionary = _burst_spec(event)
@@ -598,8 +624,21 @@ func _apply_preferences(snapshot: Dictionary) -> void:
 	_effects_quality = StringName(str(snapshot.get(&"effects_quality", "full")))
 	if _effects_quality not in [&"full", &"reduced", &"minimal"]:
 		_effects_quality = &"full"
+	var next_intensity: float = clampf(float(snapshot.get(&"vfx_intensity", 1.0)), 0.0, 1.0)
+	if next_intensity <= 0.0 and _vfx_intensity > 0.0:
+		_clear_cosmetic_visuals()
+	_vfx_intensity = next_intensity
 	if _camera_mixer != null:
 		_camera_mixer.call("set_enabled", _shake_enabled)
+	_sync_metrics()
+
+
+func _clear_cosmetic_visuals() -> void:
+	while not _particles.is_empty():
+		_recycle_particle(_particles.pop_back())
+	while not _bursts.is_empty():
+		_recycle_burst(_bursts.pop_back())
+	_request_redraw()
 
 
 func _quality_particle_count(base_count: int) -> int:
@@ -660,6 +699,7 @@ func _sync_metrics() -> void:
 		&"effects.quality",
 		{&"minimal": 0.0, &"reduced": 0.5, &"full": 1.0}[_effects_quality]
 	)
+	_performance_sampler.call("set_gauge", &"vfx.intensity", _vfx_intensity)
 
 
 func _request_redraw() -> void:
@@ -672,10 +712,10 @@ func _draw() -> void:
 		var maximum_life: float = maxf(float(burst[&"maximum_life"]), 0.001)
 		var ratio: float = clampf(float(burst[&"life"]) / maximum_life, 0.0, 1.0)
 		var progress: float = 1.0 - ratio
-		var size: Vector2 = burst[&"size"] as Vector2
+		var size: Vector2 = (burst[&"size"] as Vector2) * lerpf(0.72, 1.0, _vfx_intensity)
 		var scale_factor: float = 1.0 if _reduced_flash else lerpf(0.82, 1.08, progress)
 		var color: Color = burst.get(&"color", Color.WHITE) as Color
-		color.a *= ratio * (0.46 if _reduced_flash else 0.92)
+		color.a *= ratio * (0.46 if _reduced_flash else 0.92) * _vfx_intensity
 		var draw_size: Vector2 = size * scale_factor
 		draw_texture_rect(
 			burst[&"texture"] as Texture2D,
@@ -688,5 +728,5 @@ func _draw() -> void:
 			float(particle["life"]) / float(particle["maximum_life"]), 0.0, 1.0
 		)
 		var color: Color = particle["color"] as Color
-		color.a = life_ratio
+		color.a = life_ratio * _vfx_intensity
 		draw_circle(particle["position"] as Vector2, float(particle["radius"]) * life_ratio, color)

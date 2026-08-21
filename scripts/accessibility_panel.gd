@@ -10,6 +10,8 @@ var _panel: ColorRect
 var _buttons: Dictionary = {}
 var _access_button: Button
 var _title_label: Label
+var _vfx_label: Label
+var _vfx_slider: HSlider
 
 
 func _ready() -> void:
@@ -36,7 +38,7 @@ func is_panel_visible() -> bool:
 func _toggle_panel() -> void:
 	_panel.visible = not _panel.visible
 	if _panel.visible:
-		(_buttons[&"ui_scale"] as Button).grab_focus()
+		_vfx_slider.grab_focus()
 
 
 func _toggle_boolean(key: StringName) -> void:
@@ -78,6 +80,13 @@ func _cycle_sfx_volume() -> void:
 	_commit()
 
 
+func _set_vfx_intensity(percent: float) -> void:
+	var intensity: float = snappedf(clampf(percent, 0.0, 100.0) / 100.0, 0.1)
+	if not bool(_preferences.call("set_value", &"vfx_intensity", intensity)):
+		return
+	_commit()
+
+
 func _cycle_locale() -> void:
 	_preferences.call("load_preferences")
 	var current: StringName = LocalizationScript.get_locale()
@@ -107,6 +116,10 @@ func _refresh() -> void:
 	var snapshot: Dictionary = get_preferences()
 	_access_button.text = LocalizationScript.t(&"access.button")
 	_title_label.text = LocalizationScript.t(&"access.title")
+	var vfx_percent: int = roundi(float(snapshot[&"vfx_intensity"]) * 100.0)
+	_vfx_label.text = LocalizationScript.t(&"access.vfx_intensity", {"percent": vfx_percent})
+	_vfx_slider.set_value_no_signal(vfx_percent)
+	_vfx_slider.tooltip_text = _vfx_label.text
 	(_buttons[&"ui_scale"] as Button).text = LocalizationScript.t(
 		&"access.ui_scale", {"percent": roundi(float(snapshot[&"ui_scale"]) * 100.0)}
 	)
@@ -173,6 +186,10 @@ func get_language_button() -> Button:
 	return _buttons.get(&"locale") as Button
 
 
+func get_vfx_intensity_slider() -> HSlider:
+	return _vfx_slider
+
+
 func _build_interface() -> void:
 	var access: Button = Button.new()
 	_access_button = access
@@ -210,7 +227,7 @@ func _build_interface() -> void:
 	_panel = ColorRect.new()
 	_panel.name = "AccessibilityPanel"
 	_panel.position = Vector2(820.0, 78.0)
-	_panel.size = Vector2(442.0, 604.0)
+	_panel.size = Vector2(442.0, 666.0)
 	_panel.color = Color(0.025, 0.035, 0.04, 0.97)
 	_panel.visible = false
 	add_child(_panel)
@@ -220,15 +237,37 @@ func _build_interface() -> void:
 	_title_label.size = Vector2(380.0, 44.0)
 	_title_label.add_theme_font_size_override("font_size", 26)
 	_panel.add_child(_title_label)
-	_add_button(&"ui_scale", 78.0, _cycle_scale)
-	_add_button(&"camera_shake", 134.0, _cycle_intensity.bind(&"camera_shake_intensity"))
-	_add_button(&"reduced_flash", 190.0, _toggle_boolean.bind(&"reduced_flash"))
-	_add_button(&"effects_quality", 246.0, _cycle_effects_quality)
-	_add_button(&"haptics", 302.0, _cycle_intensity.bind(&"haptic_intensity"))
-	_add_button(&"left_handed", 358.0, _toggle_boolean.bind(&"left_handed"))
-	_add_button(&"sfx_enabled", 414.0, _cycle_sfx_volume)
-	_add_button(&"locale", 470.0, _cycle_locale)
-	_add_button(&"onboarding_seen", 526.0, _reset_training)
+	_add_vfx_slider(78.0)
+	_add_button(&"ui_scale", 148.0, _cycle_scale)
+	_add_button(&"camera_shake", 204.0, _cycle_intensity.bind(&"camera_shake_intensity"))
+	_add_button(&"reduced_flash", 260.0, _toggle_boolean.bind(&"reduced_flash"))
+	_add_button(&"effects_quality", 316.0, _cycle_effects_quality)
+	_add_button(&"haptics", 372.0, _cycle_intensity.bind(&"haptic_intensity"))
+	_add_button(&"left_handed", 428.0, _toggle_boolean.bind(&"left_handed"))
+	_add_button(&"sfx_enabled", 484.0, _cycle_sfx_volume)
+	_add_button(&"locale", 540.0, _cycle_locale)
+	_add_button(&"onboarding_seen", 596.0, _reset_training)
+
+
+func _add_vfx_slider(y: float) -> void:
+	_vfx_label = Label.new()
+	_vfx_label.name = "VfxIntensityLabel"
+	_vfx_label.position = Vector2(28.0, y)
+	_vfx_label.size = Vector2(228.0, 46.0)
+	_vfx_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_vfx_label.add_theme_font_size_override("font_size", 17)
+	_panel.add_child(_vfx_label)
+	_vfx_slider = HSlider.new()
+	_vfx_slider.name = "VfxIntensitySlider"
+	_vfx_slider.position = Vector2(260.0, y)
+	_vfx_slider.size = Vector2(154.0, 46.0)
+	_vfx_slider.min_value = 0.0
+	_vfx_slider.max_value = 100.0
+	_vfx_slider.step = 10.0
+	_vfx_slider.tick_count = 11
+	_vfx_slider.ticks_on_borders = true
+	_vfx_slider.value_changed.connect(_set_vfx_intensity)
+	_panel.add_child(_vfx_slider)
 
 
 func _add_button(key: StringName, y: float, callback: Callable) -> void:
@@ -247,7 +286,8 @@ func _apply_layout() -> void:
 	if _panel == null:
 		return
 	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
-	var scale_factor: float = minf(1.0, minf(viewport_size.x / 470.0, viewport_size.y / 646.0))
+	var available_height: float = maxf(viewport_size.y - 90.0, 1.0)
+	var scale_factor: float = minf(1.0, minf(viewport_size.x / 470.0, available_height / 666.0))
 	_panel.scale = Vector2.ONE * scale_factor
 	_panel.position = Vector2(viewport_size.x - _panel.size.x * scale_factor - 18.0, 72.0)
 	_access_button.position = Vector2(viewport_size.x - _access_button.size.x - 18.0, 18.0)

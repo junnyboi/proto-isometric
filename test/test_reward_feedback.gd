@@ -11,6 +11,7 @@ static func evaluate() -> Array[Dictionary]:
 	var cases: Array[Dictionary] = []
 	_test_profile_hierarchy(cases)
 	_test_generated_j2_textures(cases)
+	_test_vfx_intensity(cases)
 	_test_reward_and_relay_routing(cases)
 	return cases
 
@@ -72,6 +73,54 @@ static func _test_generated_j2_textures(cases: Array[Dictionary]) -> void:
 		),
 	)
 	effects.call("advance", 1.0)
+	effects.free()
+
+
+static func _test_vfx_intensity(cases: Array[Dictionary]) -> void:
+	var effects: Node2D = ImpactEffectsScript.new() as Node2D
+	var created_particles: int = int(effects.call("get_created_particle_count"))
+	var pickup: Dictionary = FeedbackEventScript.create(
+		RuntimeIdsScript.EVENT_SCRAP_COLLECTED,
+		Vector2(24.0, 24.0),
+		Vector2.UP,
+		1,
+		&"scrap",
+		-1,
+		{&"amount": 3},
+	)
+	effects.call("_apply_preferences", {&"vfx_intensity": 0.5})
+	effects.call("emit_feedback", pickup, FeedbackProfilesScript.resolve(pickup[&"event_id"]))
+	effects.call("emit_scrap_pickup", Vector2.ZERO, 3)
+	_add(
+		cases,
+		"half VFX intensity halves cosmetic particle density and keeps the authored burst",
+		(
+			is_equal_approx(float(effects.call("_get_vfx_intensity")), 0.5)
+			and int(effects.call("get_particle_count")) == 6
+			and int(effects.call("_get_burst_count")) == 1
+		),
+	)
+	effects.call("_apply_preferences", {&"vfx_intensity": 0.0})
+	effects.call("emit_feedback", pickup, FeedbackProfilesScript.resolve(pickup[&"event_id"]))
+	effects.call("emit_scrap_pickup", Vector2.ZERO, 3)
+	_add(
+		cases,
+		"zero VFX intensity clears active cosmetics and suppresses new visual records",
+		(
+			int(effects.call("get_particle_count")) == 0
+			and int(effects.call("_get_burst_count")) == 0
+		),
+	)
+	effects.call("_apply_preferences", {&"vfx_intensity": 1.0})
+	effects.call("emit_scrap_pickup", Vector2.ZERO, 3)
+	_add(
+		cases,
+		"full VFX intensity restores density without allocating beyond the fixed pool",
+		(
+			int(effects.call("get_particle_count")) == 12
+			and int(effects.call("get_created_particle_count")) == created_particles
+		),
+	)
 	effects.free()
 
 

@@ -200,8 +200,10 @@ func apply_preferences(snapshot: Dictionary) -> void:
 			float(
 				snapshot.get(&"haptic_intensity", 1.0 if snapshot.get(&"haptics", true) else 0.0)
 			),
+			)
 		)
-	)
+	if _effects != null:
+		_effects.call("_apply_preferences", snapshot)
 	_ensure_audio()
 	if _audio != null:
 		_audio.call("set_enabled", bool(snapshot.get(&"sfx_enabled", true)))

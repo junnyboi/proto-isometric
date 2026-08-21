@@ -59,6 +59,7 @@
   "title.bank_status": "储备 // 数据 {data} // 废料 {scrap} // 核心 {cores}",
   "access.button": "辅助",
   "access.title": "辅助功能",
+  "access.vfx_intensity": "视觉特效强度  {percent}%",
   "access.ui_scale": "界面缩放  {percent}%",
   "access.camera_shake": "镜头震动  {state}",
   "access.reduced_flash": "减少闪光  {state}",

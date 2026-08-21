@@ -59,6 +59,7 @@
   "title.bank_status": "BANK // DATA {data} // SCRAP {scrap} // CORE {cores}",
   "access.button": "ACCESS",
   "access.title": "ACCESSIBILITY",
+  "access.vfx_intensity": "VFX INTENSITY  {percent}%",
   "access.ui_scale": "UI SCALE  {percent}%",
   "access.camera_shake": "CAMERA SHAKE  {state}",
   "access.reduced_flash": "REDUCED FLASH  {state}",
