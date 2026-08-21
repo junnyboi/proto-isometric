@@ -1,5 +1,6 @@
 extends RefCounted
 
+const MobileControlsScript: GDScript = preload("res://scripts/mobile_controls.gd")
 const ResponsiveCameraScript: GDScript = preload("res://scripts/responsive_camera.gd")
 
 
@@ -78,7 +79,68 @@ static func evaluate() -> Array[Dictionary]:
 		is_equal_approx(float(camera.call("get_user_zoom")), 0.8) and label.text == "80%"
 	)
 	camera.free()
+	_test_pinch_zoom(cases)
 	return cases
+
+
+static func _test_pinch_zoom(cases: Array[Dictionary]) -> void:
+	var camera: Camera2D = ResponsiveCameraScript.new() as Camera2D
+	var mobile_controls: CanvasLayer = MobileControlsScript.new() as CanvasLayer
+	mobile_controls.call("force_mobile", true)
+	camera.call("bind_mobile_controls", mobile_controls)
+	camera.call("_input", _touch(3, Vector2(100.0, 120.0), true))
+	camera.call("_input", _touch(8, Vector2(200.0, 120.0), true))
+	_add(
+		cases,
+		"two separated touches begin mobile pinch zoom",
+		bool(camera.call("is_pinching")) and bool(mobile_controls.call("is_pinch_active"))
+	)
+	_add(
+		cases,
+		"pinch mode suppresses floating joystick capture",
+		not bool(mobile_controls.call("begin_touch", 12, Vector2(80.0, 80.0)))
+	)
+	camera.call("_input", _drag(8, Vector2(225.0, 120.0)))
+	_add(
+		cases,
+		"pinch spread applies smooth proportional zoom",
+		is_equal_approx(float(camera.call("get_user_zoom")), 1.25)
+	)
+	camera.call("_input", _drag(8, Vector2(300.0, 120.0)))
+	_add(
+		cases,
+		"pinch zoom respects the one hundred thirty percent cap",
+		is_equal_approx(float(camera.call("get_user_zoom")), 1.3)
+	)
+	camera.call("_input", _touch(3, Vector2(100.0, 120.0), false))
+	_add(
+		cases,
+		"releasing either pinch finger ends gesture arbitration",
+		not bool(camera.call("is_pinching")) and not bool(mobile_controls.call("is_pinch_active"))
+	)
+	var snapshot: Dictionary = camera.call("get_pinch_snapshot") as Dictionary
+	_add(
+		cases,
+		"pinch release retains only still-active touch state",
+		not bool(snapshot[&"active"]) and int(snapshot[&"touch_count"]) == 1
+	)
+	camera.free()
+	mobile_controls.free()
+
+
+static func _touch(index: int, position: Vector2, pressed: bool) -> InputEventScreenTouch:
+	var event: InputEventScreenTouch = InputEventScreenTouch.new()
+	event.index = index
+	event.position = position
+	event.pressed = pressed
+	return event
+
+
+static func _drag(index: int, position: Vector2) -> InputEventScreenDrag:
+	var event: InputEventScreenDrag = InputEventScreenDrag.new()
+	event.index = index
+	event.position = position
+	return event
 
 
 static func _add(cases: Array[Dictionary], label: String, passed: bool) -> void:

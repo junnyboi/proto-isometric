@@ -171,9 +171,7 @@ func _refresh() -> void:
 	(_buttons[&"onboarding_seen"] as Button).text = LocalizationScript.t(&"access.reset_training")
 
 
-func _refresh_audio_slider(
-	snapshot: Dictionary, key: StringName, label_key: StringName
-) -> void:
+func _refresh_audio_slider(snapshot: Dictionary, key: StringName, label_key: StringName) -> void:
 	var percent: int = roundi(float(snapshot[key]) * 100.0)
 	var label: Label = _audio_labels[key] as Label
 	var slider: HSlider = _audio_sliders[key] as HSlider
@@ -214,6 +212,12 @@ func get_vfx_intensity_slider() -> HSlider:
 
 func get_audio_volume_slider(key: StringName) -> HSlider:
 	return _audio_sliders.get(key) as HSlider
+
+
+func blocks_world_touch(position: Vector2) -> bool:
+	if _access_button != null and _access_button.get_global_rect().has_point(position):
+		return true
+	return _panel != null and _panel.visible and _panel.get_global_rect().has_point(position)
 
 
 func _build_interface() -> void:

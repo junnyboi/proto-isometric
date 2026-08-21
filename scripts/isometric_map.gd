@@ -951,6 +951,7 @@ func _build_mobile_controls() -> void:
 	_mobile_controls.name = "MobileControls"
 	_mobile_controls.connect("smash_pressed", Callable(self, "attack"))
 	add_child(_mobile_controls)
+	_camera.call("bind_mobile_controls", _mobile_controls)
 
 
 func _refresh_outpost_interface() -> void:

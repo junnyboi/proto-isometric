@@ -5,10 +5,20 @@ const ResponsiveViewportScript: GDScript = preload("res://scripts/responsive_vie
 const MIN_USER_ZOOM: float = 0.7
 const MAX_USER_ZOOM: float = 1.3
 const USER_ZOOM_STEP: float = 0.1
+const PINCH_ZOOM_STEP: float = 0.01
+const MIN_PINCH_DISTANCE: float = 24.0
 const CONTROL_SIZE: Vector2 = Vector2(48.0, 44.0)
 
 var _preferences: RefCounted
 var _user_zoom: float = 1.0
+var _mobile_controls: CanvasLayer
+var _touch_points: Dictionary = {}
+var _pinch_active: bool = false
+var _pinch_indices: Array[int] = []
+var _pinch_start_distance: float = 0.0
+var _pinch_start_zoom: float = 1.0
+var _pinch_changed: bool = false
+var _zoom_panel: PanelContainer
 var _zoom_out_button: Button
 var _zoom_in_button: Button
 var _zoom_label: Label
@@ -24,6 +34,12 @@ func _ready() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		_handle_screen_touch(event as InputEventScreenTouch)
+		return
+	if event is InputEventScreenDrag:
+		_handle_screen_drag(event as InputEventScreenDrag)
+		return
 	if not event is InputEventMouseButton:
 		return
 	var mouse_event: InputEventMouseButton = event as InputEventMouseButton
@@ -50,19 +66,140 @@ func get_user_zoom() -> float:
 	return _user_zoom
 
 
+func is_pinching() -> bool:
+	return _pinch_active
+
+
+func get_pinch_snapshot() -> Dictionary:
+	return {
+		&"active": _pinch_active,
+		&"touch_count": _touch_points.size(),
+		&"start_distance": _pinch_start_distance,
+		&"start_zoom": _pinch_start_zoom,
+		&"changed": _pinch_changed,
+	}
+
+
+func bind_mobile_controls(controls: CanvasLayer) -> void:
+	_mobile_controls = controls
+
+
 func adjust_user_zoom(steps: int) -> bool:
-	var next_zoom: float = snappedf(
-		clampf(_user_zoom + float(steps) * USER_ZOOM_STEP, MIN_USER_ZOOM, MAX_USER_ZOOM),
-		USER_ZOOM_STEP,
-	)
+	var next_zoom: float = _user_zoom + float(steps) * USER_ZOOM_STEP
+	return _set_user_zoom(next_zoom, true, USER_ZOOM_STEP)
+
+
+func _set_user_zoom(value: float, persist: bool, step: float) -> bool:
+	var next_zoom: float = snappedf(clampf(value, MIN_USER_ZOOM, MAX_USER_ZOOM), step)
 	if is_equal_approx(next_zoom, _user_zoom):
 		return false
 	_user_zoom = next_zoom
-	_persist_user_zoom()
+	if persist:
+		_persist_user_zoom()
 	_refresh_zoom_controls()
 	if is_inside_tree():
 		_apply_responsive_zoom()
 	return true
+
+
+func _handle_screen_touch(touch: InputEventScreenTouch) -> void:
+	var handled: bool = _pinch_active
+	if touch.pressed:
+		if _accepts_pinch_position(touch.position):
+			_touch_points[touch.index] = touch.position
+			handled = _try_begin_pinch() or handled
+	else:
+		var was_pinching: bool = _pinch_active and touch.index in _pinch_indices
+		_touch_points.erase(touch.index)
+		if was_pinching:
+			_end_pinch()
+			handled = true
+	if handled:
+		_mark_input_handled()
+
+
+func _handle_screen_drag(drag: InputEventScreenDrag) -> void:
+	if not _touch_points.has(drag.index):
+		return
+	_touch_points[drag.index] = drag.position
+	if not _pinch_active:
+		_try_begin_pinch()
+	if not _pinch_active:
+		return
+	var distance: float = _pinch_distance()
+	if distance <= 0.0 or _pinch_start_distance <= 0.0:
+		return
+	var target_zoom: float = _pinch_start_zoom * distance / _pinch_start_distance
+	_pinch_changed = _set_user_zoom(target_zoom, false, PINCH_ZOOM_STEP) or _pinch_changed
+	_mark_input_handled()
+
+
+func _try_begin_pinch() -> bool:
+	if _pinch_active or _touch_points.size() < 2:
+		return false
+	var indices: Array = _touch_points.keys()
+	indices.sort()
+	var first: int = int(indices[0])
+	var second: int = int(indices[1])
+	var distance: float = (_touch_points[first] as Vector2).distance_to(
+		_touch_points[second] as Vector2
+	)
+	if distance < MIN_PINCH_DISTANCE:
+		return false
+	_pinch_indices.assign([first, second])
+	_pinch_start_distance = distance
+	_pinch_start_zoom = _user_zoom
+	_pinch_changed = false
+	_pinch_active = true
+	if _mobile_controls != null:
+		_mobile_controls.call("set_pinch_active", true)
+	return true
+
+
+func _end_pinch() -> void:
+	if not _pinch_active:
+		return
+	var changed: bool = _pinch_changed
+	_pinch_active = false
+	_pinch_indices.clear()
+	_pinch_start_distance = 0.0
+	_pinch_start_zoom = _user_zoom
+	_pinch_changed = false
+	if _mobile_controls != null:
+		_mobile_controls.call("set_pinch_active", false)
+	if changed:
+		_persist_user_zoom()
+
+
+func _pinch_distance() -> float:
+	if _pinch_indices.size() != 2:
+		return 0.0
+	var first: int = _pinch_indices[0]
+	var second: int = _pinch_indices[1]
+	if not _touch_points.has(first) or not _touch_points.has(second):
+		return 0.0
+	return (_touch_points[first] as Vector2).distance_to(_touch_points[second] as Vector2)
+
+
+func _accepts_pinch_position(position: Vector2) -> bool:
+	if _zoom_panel != null and _zoom_panel.get_global_rect().has_point(position):
+		return false
+	if is_inside_tree():
+		var accessibility: Node = get_tree().get_first_node_in_group("accessibility_panel")
+		if (
+			accessibility != null
+			and accessibility.has_method("blocks_world_touch")
+			and bool(accessibility.call("blocks_world_touch", position))
+		):
+			return false
+	if _mobile_controls != null and _mobile_controls.has_method("is_pinch_candidate"):
+		return bool(_mobile_controls.call("is_pinch_candidate", position))
+	return true
+
+
+func _mark_input_handled() -> void:
+	if is_inside_tree():
+		get_viewport().set_input_as_handled()
 
 
 func _apply_responsive_zoom() -> void:
@@ -77,24 +214,24 @@ func _build_zoom_controls() -> void:
 	layer.name = "CameraZoomLayer"
 	layer.layer = 45
 	add_child(layer)
-	var panel: PanelContainer = PanelContainer.new()
-	panel.name = "CameraZoomPanel"
-	panel.anchor_left = 0.5
-	panel.anchor_top = 1.0
-	panel.anchor_right = 0.5
-	panel.anchor_bottom = 1.0
-	panel.offset_left = -94.0
-	panel.offset_top = -76.0
-	panel.offset_right = 94.0
-	panel.offset_bottom = -24.0
-	panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	panel.add_theme_stylebox_override("panel", _control_panel_style())
-	layer.add_child(panel)
+	_zoom_panel = PanelContainer.new()
+	_zoom_panel.name = "CameraZoomPanel"
+	_zoom_panel.anchor_left = 0.5
+	_zoom_panel.anchor_top = 1.0
+	_zoom_panel.anchor_right = 0.5
+	_zoom_panel.anchor_bottom = 1.0
+	_zoom_panel.offset_left = -94.0
+	_zoom_panel.offset_top = -76.0
+	_zoom_panel.offset_right = 94.0
+	_zoom_panel.offset_bottom = -24.0
+	_zoom_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	_zoom_panel.add_theme_stylebox_override("panel", _control_panel_style())
+	layer.add_child(_zoom_panel)
 	var controls: HBoxContainer = HBoxContainer.new()
 	controls.name = "ZoomControls"
 	controls.alignment = BoxContainer.ALIGNMENT_CENTER
 	controls.add_theme_constant_override("separation", 6)
-	panel.add_child(controls)
+	_zoom_panel.add_child(controls)
 	_zoom_out_button = _make_zoom_button("ZoomOutButton", "-")
 	_zoom_out_button.pressed.connect(adjust_user_zoom.bind(-1))
 	controls.add_child(_zoom_out_button)

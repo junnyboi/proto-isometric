@@ -33,6 +33,7 @@ var _run_intent: bool = false
 var _left_handed: bool = false
 var _haptics: bool = true
 var _haptic_intensity: float = 1.0
+var _pinch_active: bool = false
 var _character_dossier: Control
 var _last_smash_ack_msec: int = -SMASH_ACK_COOLDOWN_MS
 
@@ -123,18 +124,34 @@ func set_character_dossier(dossier: Control) -> void:
 func set_controls_enabled(enabled: bool) -> void:
 	_controls_enabled = enabled
 	if not enabled:
+		_pinch_active = false
 		_cancel_touch_interactions()
 	_apply_visibility()
 
 
 func force_mobile(enabled: bool) -> void:
 	_mobile_device = enabled
+	_pinch_active = false
 	_cancel_touch_interactions()
 	_apply_visibility()
 
 
+func set_pinch_active(active: bool) -> void:
+	_pinch_active = active and _mobile_device and _controls_enabled
+	if _pinch_active:
+		_cancel_joystick()
+
+
+func is_pinch_active() -> bool:
+	return _pinch_active
+
+
+func is_pinch_candidate(position: Vector2) -> bool:
+	return _mobile_device and _controls_enabled and not _point_is_excluded(position)
+
+
 func begin_touch(index: int, position: Vector2) -> bool:
-	if not _mobile_device or not _controls_enabled or _touch_index >= 0:
+	if not _mobile_device or not _controls_enabled or _pinch_active or _touch_index >= 0:
 		return false
 	if _point_is_excluded(position):
 		if _character_dossier != null:

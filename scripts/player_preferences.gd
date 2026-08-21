@@ -113,7 +113,7 @@ func set_value(key: StringName, value: Variant) -> bool:
 		&"camera_zoom":
 			valid = value is float and is_finite(value) and value >= 0.7 and value <= 1.3
 			if valid:
-				_camera_zoom = snappedf(value, 0.1)
+				_camera_zoom = snappedf(value, 0.01)
 		&"effects_quality":
 			var quality: StringName = normalize_effects_quality(value)
 			valid = quality != &""

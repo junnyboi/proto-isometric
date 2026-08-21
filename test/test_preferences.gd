@@ -109,7 +109,7 @@ static func evaluate() -> Array[Dictionary]:
 	preferences.call("set_value", &"sfx_volume", 0.65)
 	preferences.call("set_value", &"music_volume", 0.45)
 	preferences.call("set_value", &"locale", "zh_CN")
-	preferences.call("set_value", &"camera_zoom", 1.2)
+	preferences.call("set_value", &"camera_zoom", 1.17)
 	preferences.call("set_value", &"effects_quality", &"reduced")
 	preferences.call("set_value", &"vfx_intensity", 0.4)
 	_add(cases, "preferences save atomically", bool(preferences.call("save_preferences")))
@@ -129,7 +129,7 @@ static func evaluate() -> Array[Dictionary]:
 			and is_equal_approx(float(snapshot[&"sfx_volume"]), 0.65)
 			and is_equal_approx(float(snapshot[&"music_volume"]), 0.45)
 			and snapshot[&"locale"] == &"zh-CN"
-			and is_equal_approx(float(snapshot[&"camera_zoom"]), 1.2)
+			and is_equal_approx(float(snapshot[&"camera_zoom"]), 1.17)
 			and snapshot[&"effects_quality"] == &"reduced"
 			and is_equal_approx(float(snapshot[&"vfx_intensity"]), 0.4)
 		),
@@ -162,9 +162,7 @@ static func evaluate() -> Array[Dictionary]:
 				1.0,
 			)
 			and is_equal_approx(
-				float(
-					(legacy_preferences.call("to_dictionary") as Dictionary)[&"vfx_intensity"]
-				),
+				float((legacy_preferences.call("to_dictionary") as Dictionary)[&"vfx_intensity"]),
 				1.0,
 			)
 		)
@@ -276,6 +274,19 @@ static func evaluate() -> Array[Dictionary]:
 			and "VFX INTENSITY" in vfx_slider.tooltip_text
 		),
 	)
+	var access_button: Button = panel.get("_access_button") as Button
+	var access_panel: ColorRect = panel.get("_panel") as ColorRect
+	access_panel.visible = true
+	_add(
+		cases,
+		"accessibility controls own their touch regions",
+		(
+			bool(panel.call("blocks_world_touch", access_button.position + Vector2.ONE))
+			and bool(panel.call("blocks_world_touch", access_panel.position + Vector2.ONE))
+			and not bool(panel.call("blocks_world_touch", Vector2.ZERO))
+		),
+	)
+	access_panel.visible = false
 	panel.call("_set_vfx_intensity", 40.0)
 	var vfx_saved: Dictionary = (
 		(PlayerPreferencesScript.new() as RefCounted).call("load_preferences") as Dictionary
@@ -350,14 +361,17 @@ static func evaluate() -> Array[Dictionary]:
 	)
 	panel.free()
 	if audio_service != null:
-		audio_service.call(
-			"apply_preferences",
-			{
-				&"sfx_enabled": true,
-				&"master_volume": 1.0,
-				&"sfx_volume": 1.0,
-				&"music_volume": 1.0,
-			},
+		(
+			audio_service
+			. call(
+				"apply_preferences",
+				{
+					&"sfx_enabled": true,
+					&"master_volume": 1.0,
+					&"sfx_volume": 1.0,
+					&"music_volume": 1.0,
+				},
+			)
 		)
 	LocalizationScript.set_locale(&"en", false)
 	_clear()
