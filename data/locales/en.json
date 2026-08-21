@@ -67,6 +67,8 @@
   "access.haptics": "HAPTICS  {state}",
   "access.left_handed": "LEFT-HANDED  {state}",
   "access.sfx": "SFX  {state}",
+  "access.master_volume": "MASTER VOLUME  {percent}%",
+  "access.music_volume": "MUSIC VOLUME  {percent}%",
   "access.sfx_volume": "SFX VOLUME  {percent}%",
   "access.language": "LANGUAGE  EN / 简体中文  [{language}]",
   "access.reset_training": "RESET TRAINING",

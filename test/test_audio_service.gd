@@ -127,6 +127,23 @@ static func _test_preferences(cases: Array[Dictionary], service: Node) -> void:
 		"apply_preferences",
 		{
 			&"sfx_enabled": true,
+			&"master_volume": 0.0,
+			&"sfx_volume": 1.0,
+			&"music_volume": 0.0,
+		},
+	)
+	_add(
+		cases,
+		"zero Master and Music gain mute their buses",
+		(
+			_bus_is_muted(AudioServiceScript.BUS_MASTER)
+			and _bus_is_muted(AudioServiceScript.BUS_MUSIC)
+		),
+	)
+	service.call(
+		"apply_preferences",
+		{
+			&"sfx_enabled": true,
 			&"master_volume": 1.0,
 			&"sfx_volume": 1.0,
 			&"music_volume": 1.0,
@@ -137,6 +154,11 @@ static func _test_preferences(cases: Array[Dictionary], service: Node) -> void:
 static func _volume_is(bus: StringName, expected: float) -> bool:
 	var index: int = AudioServer.get_bus_index(bus)
 	return index >= 0 and is_equal_approx(db_to_linear(AudioServer.get_bus_volume_db(index)), expected)
+
+
+static func _bus_is_muted(bus: StringName) -> bool:
+	var index: int = AudioServer.get_bus_index(bus)
+	return index >= 0 and AudioServer.is_bus_mute(index)
 
 
 static func _add(cases: Array[Dictionary], label: String, passed: bool) -> void:

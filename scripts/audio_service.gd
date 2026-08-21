@@ -288,7 +288,10 @@ func _remember_request(stream: AudioStream, bus: StringName, position: Vector2) 
 func _set_bus_linear(bus: StringName, value: float) -> void:
 	var index: int = AudioServer.get_bus_index(bus)
 	if index >= 0:
-		AudioServer.set_bus_volume_db(index, linear_to_db(maxf(value, MIN_LINEAR_VOLUME)))
+		var normalized: float = clampf(value, 0.0, 1.0)
+		AudioServer.set_bus_volume_db(index, linear_to_db(maxf(normalized, MIN_LINEAR_VOLUME)))
+		if bus != BUS_SFX:
+			AudioServer.set_bus_mute(index, normalized <= 0.0)
 
 
 func _bind_accessibility() -> void:

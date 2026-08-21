@@ -12,6 +12,8 @@ var _access_button: Button
 var _title_label: Label
 var _vfx_label: Label
 var _vfx_slider: HSlider
+var _audio_labels: Dictionary = {}
+var _audio_sliders: Dictionary = {}
 
 
 func _ready() -> void:
@@ -38,7 +40,7 @@ func is_panel_visible() -> bool:
 func _toggle_panel() -> void:
 	_panel.visible = not _panel.visible
 	if _panel.visible:
-		_vfx_slider.grab_focus()
+		(_audio_sliders[&"master_volume"] as HSlider).grab_focus()
 
 
 func _toggle_boolean(key: StringName) -> void:
@@ -80,6 +82,13 @@ func _cycle_sfx_volume() -> void:
 	_commit()
 
 
+func _set_audio_volume(percent: float, key: StringName) -> void:
+	var volume: float = snappedf(clampf(percent, 0.0, 100.0) / 100.0, 0.05)
+	if not bool(_preferences.call("set_value", key, volume)):
+		return
+	_commit()
+
+
 func _set_vfx_intensity(percent: float) -> void:
 	var intensity: float = snappedf(clampf(percent, 0.0, 100.0) / 100.0, 0.1)
 	if not bool(_preferences.call("set_value", &"vfx_intensity", intensity)):
@@ -116,6 +125,8 @@ func _refresh() -> void:
 	var snapshot: Dictionary = get_preferences()
 	_access_button.text = LocalizationScript.t(&"access.button")
 	_title_label.text = LocalizationScript.t(&"access.title")
+	_refresh_audio_slider(snapshot, &"master_volume", &"access.master_volume")
+	_refresh_audio_slider(snapshot, &"music_volume", &"access.music_volume")
 	var vfx_percent: int = roundi(float(snapshot[&"vfx_intensity"]) * 100.0)
 	_vfx_label.text = LocalizationScript.t(&"access.vfx_intensity", {"percent": vfx_percent})
 	_vfx_slider.set_value_no_signal(vfx_percent)
@@ -160,6 +171,17 @@ func _refresh() -> void:
 	(_buttons[&"onboarding_seen"] as Button).text = LocalizationScript.t(&"access.reset_training")
 
 
+func _refresh_audio_slider(
+	snapshot: Dictionary, key: StringName, label_key: StringName
+) -> void:
+	var percent: int = roundi(float(snapshot[key]) * 100.0)
+	var label: Label = _audio_labels[key] as Label
+	var slider: HSlider = _audio_sliders[key] as HSlider
+	label.text = LocalizationScript.t(label_key, {"percent": percent})
+	slider.set_value_no_signal(percent)
+	slider.tooltip_text = label.text
+
+
 func _on_off(snapshot: Dictionary, key: StringName) -> String:
 	return (
 		LocalizationScript.t(&"common.on")
@@ -188,6 +210,10 @@ func get_language_button() -> Button:
 
 func get_vfx_intensity_slider() -> HSlider:
 	return _vfx_slider
+
+
+func get_audio_volume_slider(key: StringName) -> HSlider:
+	return _audio_sliders.get(key) as HSlider
 
 
 func _build_interface() -> void:
@@ -227,7 +253,7 @@ func _build_interface() -> void:
 	_panel = ColorRect.new()
 	_panel.name = "AccessibilityPanel"
 	_panel.position = Vector2(820.0, 78.0)
-	_panel.size = Vector2(442.0, 666.0)
+	_panel.size = Vector2(442.0, 782.0)
 	_panel.color = Color(0.025, 0.035, 0.04, 0.97)
 	_panel.visible = false
 	add_child(_panel)
@@ -237,16 +263,42 @@ func _build_interface() -> void:
 	_title_label.size = Vector2(380.0, 44.0)
 	_title_label.add_theme_font_size_override("font_size", 26)
 	_panel.add_child(_title_label)
-	_add_vfx_slider(78.0)
-	_add_button(&"ui_scale", 148.0, _cycle_scale)
-	_add_button(&"camera_shake", 204.0, _cycle_intensity.bind(&"camera_shake_intensity"))
-	_add_button(&"reduced_flash", 260.0, _toggle_boolean.bind(&"reduced_flash"))
-	_add_button(&"effects_quality", 316.0, _cycle_effects_quality)
-	_add_button(&"haptics", 372.0, _cycle_intensity.bind(&"haptic_intensity"))
-	_add_button(&"left_handed", 428.0, _toggle_boolean.bind(&"left_handed"))
-	_add_button(&"sfx_enabled", 484.0, _cycle_sfx_volume)
-	_add_button(&"locale", 540.0, _cycle_locale)
-	_add_button(&"onboarding_seen", 596.0, _reset_training)
+	_add_audio_slider(&"master_volume", &"access.master_volume", 78.0)
+	_add_audio_slider(&"music_volume", &"access.music_volume", 136.0)
+	_add_vfx_slider(194.0)
+	_add_button(&"ui_scale", 264.0, _cycle_scale)
+	_add_button(&"camera_shake", 320.0, _cycle_intensity.bind(&"camera_shake_intensity"))
+	_add_button(&"reduced_flash", 376.0, _toggle_boolean.bind(&"reduced_flash"))
+	_add_button(&"effects_quality", 432.0, _cycle_effects_quality)
+	_add_button(&"haptics", 488.0, _cycle_intensity.bind(&"haptic_intensity"))
+	_add_button(&"left_handed", 544.0, _toggle_boolean.bind(&"left_handed"))
+	_add_button(&"sfx_enabled", 600.0, _cycle_sfx_volume)
+	_add_button(&"locale", 656.0, _cycle_locale)
+	_add_button(&"onboarding_seen", 712.0, _reset_training)
+
+
+func _add_audio_slider(key: StringName, label_key: StringName, y: float) -> void:
+	var label: Label = Label.new()
+	label.name = "%sLabel" % String(key).to_pascal_case()
+	label.position = Vector2(28.0, y)
+	label.size = Vector2(228.0, 46.0)
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 17)
+	_panel.add_child(label)
+	_audio_labels[key] = label
+	var slider: HSlider = HSlider.new()
+	slider.name = "%sSlider" % String(key).to_pascal_case()
+	slider.position = Vector2(260.0, y)
+	slider.size = Vector2(154.0, 46.0)
+	slider.min_value = 0.0
+	slider.max_value = 100.0
+	slider.step = 5.0
+	slider.tick_count = 5
+	slider.ticks_on_borders = true
+	slider.tooltip_text = LocalizationScript.t(label_key, {"percent": 100})
+	slider.value_changed.connect(_set_audio_volume.bind(key))
+	_panel.add_child(slider)
+	_audio_sliders[key] = slider
 
 
 func _add_vfx_slider(y: float) -> void:
@@ -287,7 +339,7 @@ func _apply_layout() -> void:
 		return
 	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
 	var available_height: float = maxf(viewport_size.y - 90.0, 1.0)
-	var scale_factor: float = minf(1.0, minf(viewport_size.x / 470.0, available_height / 666.0))
+	var scale_factor: float = minf(1.0, minf(viewport_size.x / 470.0, available_height / 782.0))
 	_panel.scale = Vector2.ONE * scale_factor
 	_panel.position = Vector2(viewport_size.x - _panel.size.x * scale_factor - 18.0, 72.0)
 	_access_button.position = Vector2(viewport_size.x - _access_button.size.x - 18.0, 18.0)

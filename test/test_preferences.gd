@@ -1,6 +1,7 @@
 extends RefCounted
 
 const AccessibilityPanelScript: GDScript = preload("res://scripts/accessibility_panel.gd")
+const AudioServiceScript: GDScript = preload("res://scripts/audio_service.gd")
 const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 const PlayerPreferencesScript: GDScript = preload("res://scripts/player_preferences.gd")
 const PATH: String = "user://walkers-wake-preferences.json"
@@ -221,6 +222,48 @@ static func evaluate() -> Array[Dictionary]:
 	panel.call("_refresh")
 	var language: Button = panel.call("get_language_button") as Button
 	var vfx_slider: HSlider = panel.call("get_vfx_intensity_slider") as HSlider
+	var master_slider: HSlider = panel.call("get_audio_volume_slider", &"master_volume") as HSlider
+	var music_slider: HSlider = panel.call("get_audio_volume_slider", &"music_volume") as HSlider
+	_add(
+		cases,
+		"settings exposes Master and Music mixer sliders",
+		(
+			master_slider != null
+			and music_slider != null
+			and master_slider.min_value == 0.0
+			and master_slider.max_value == 100.0
+			and master_slider.step == 5.0
+			and music_slider.step == 5.0
+			and "MASTER VOLUME" in master_slider.tooltip_text
+			and "MUSIC VOLUME" in music_slider.tooltip_text
+		),
+	)
+	var audio_service: Node = (Engine.get_main_loop() as SceneTree).root.get_node_or_null(
+		"AudioService"
+	)
+	if audio_service != null:
+		panel.connect("preferences_changed", Callable(audio_service, "apply_preferences"))
+	panel.call("_set_audio_volume", 60.0, &"master_volume")
+	panel.call("_set_audio_volume", 35.0, &"music_volume")
+	var audio_saved: Dictionary = (
+		(PlayerPreferencesScript.new() as RefCounted).call("load_preferences") as Dictionary
+	)
+	var master_bus: int = AudioServer.get_bus_index(AudioServiceScript.BUS_MASTER)
+	var music_bus: int = AudioServer.get_bus_index(AudioServiceScript.BUS_MUSIC)
+	_add(
+		cases,
+		"Master and Music sliders persist and update live buses",
+		(
+			is_equal_approx(float(audio_saved[&"master_volume"]), 0.6)
+			and is_equal_approx(float(audio_saved[&"music_volume"]), 0.35)
+			and is_equal_approx(master_slider.value, 60.0)
+			and is_equal_approx(music_slider.value, 35.0)
+			and is_equal_approx(db_to_linear(AudioServer.get_bus_volume_db(master_bus)), 0.6)
+			and is_equal_approx(db_to_linear(AudioServer.get_bus_volume_db(music_bus)), 0.35)
+		),
+	)
+	panel.call("_set_audio_volume", 0.0, &"music_volume")
+	_add(cases, "Music slider zero mutes the Music bus", AudioServer.is_bus_mute(music_bus))
 	_add(
 		cases,
 		"settings menu exposes a ten-step VFX intensity slider",
@@ -306,6 +349,16 @@ static func evaluate() -> Array[Dictionary]:
 		),
 	)
 	panel.free()
+	if audio_service != null:
+		audio_service.call(
+			"apply_preferences",
+			{
+				&"sfx_enabled": true,
+				&"master_volume": 1.0,
+				&"sfx_volume": 1.0,
+				&"music_volume": 1.0,
+			},
+		)
 	LocalizationScript.set_locale(&"en", false)
 	_clear()
 	return cases
