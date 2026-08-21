@@ -1,10 +1,12 @@
 extends CanvasLayer
 
 const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
+const AudioServiceScript: GDScript = preload("res://scripts/audio_service.gd")
 
 const DAMAGE_COLOR: Color = Color("ff6b3d")
 const WARNING_COLOR: Color = Color("ffb12d")
 const DAMAGE_FLASH_SECONDS: float = 0.34
+const DAMAGE_CUE: AudioStream = preload("res://assets/audio/chassis_damage.wav")
 
 var _overlay: ColorRect
 var _border: ReferenceRect
@@ -13,7 +15,6 @@ var _shutdown_panel: ColorRect
 var _shutdown_title: Label
 var _shutdown_detail: Label
 var _shutdown_instruction: Label
-var _audio_player: AudioStreamPlayer
 var _avatar: Node2D
 var _flash_remaining: float = 0.0
 var _shutdown_elapsed: float = 0.0
@@ -31,7 +32,6 @@ func _ready() -> void:
 	layer = 4
 	_build_damage_overlay()
 	_build_shutdown_panel()
-	_build_audio_player()
 	add_to_group("localization_listeners")
 	get_viewport().size_changed.connect(_apply_layout)
 	_apply_layout()
@@ -128,13 +128,11 @@ func get_damage_event_count() -> int:
 
 
 func is_audio_ready() -> bool:
-	return _audio_player != null and _audio_player.stream != null
+	return DAMAGE_CUE != null and get_node_or_null("/root/AudioService") != null
 
 
 func prepare_for_shutdown() -> void:
-	if _audio_player != null:
-		_audio_player.stop()
-		_audio_player.stream = null
+	pass
 
 
 func _build_damage_overlay() -> void:
@@ -210,23 +208,21 @@ func _build_shutdown_panel() -> void:
 	_shutdown_panel.add_child(_shutdown_instruction)
 
 
-func _build_audio_player() -> void:
-	_audio_player = AudioStreamPlayer.new()
-	_audio_player.name = "ChassisDamageAudio"
-	_audio_player.stream = load("res://assets/audio/chassis_damage.wav") as AudioStream
-	_audio_player.volume_db = -2.0
-	add_child(_audio_player)
-
-
 func _play_cue(pitch: float) -> void:
-	if not _sfx_enabled or _audio_player == null or _audio_player.stream == null:
+	if not _sfx_enabled or DAMAGE_CUE == null:
 		return
 	_audio_trigger_count += 1
-	if DisplayServer.get_name() == "headless":
-		return
-	_audio_player.stop()
-	_audio_player.pitch_scale = pitch
-	_audio_player.play()
+	var service: Node = get_node_or_null("/root/AudioService")
+	if service != null:
+		var priority: int = 3 if pitch < 0.8 else 2
+		service.call(
+			"play_global",
+			DAMAGE_CUE,
+			AudioServiceScript.BUS_WALKER,
+			pitch,
+			-2.0,
+			priority,
+		)
 
 
 func _apply_layout() -> void:

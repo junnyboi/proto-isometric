@@ -1,6 +1,7 @@
 extends Node
 
-const MAX_VOICES: int = 4
+const AudioServiceScript: GDScript = preload("res://scripts/audio_service.gd")
+const MAX_VOICES: int = AudioServiceScript.SPATIAL_VOICE_COUNT
 const MAX_HISTORY: int = 32
 const WORM_KIND: StringName = &"sandworm"
 const SKIMMER_KIND: StringName = &"mud_skimmer"
@@ -12,7 +13,6 @@ const MUD_WARNING: AudioStream = preload("res://assets/audio/fauna_telegraph_mud
 const RIME_WARNING: AudioStream = preload("res://assets/audio/fauna_telegraph_rime.wav")
 const CINDER_WARNING: AudioStream = preload("res://assets/audio/fauna_telegraph_cinder.wav")
 
-var _players: Array[AudioStreamPlayer] = []
 var _enabled: bool = true
 var _seen: Dictionary = {}
 var _history: Array[String] = []
@@ -24,14 +24,19 @@ var _duplicate_count: int = 0
 var _culled_count: int = 0
 var _last_kind: StringName = &""
 var _last_stream_path: String = ""
+var _last_position: Vector2 = Vector2.ZERO
 
 
 func _ready() -> void:
-	_ensure_players()
 	call_deferred("_bind_accessibility")
 
 
-func play_warning(kind: StringName, enemy_id: int, attack_serial: int) -> bool:
+func play_warning(
+	kind: StringName,
+	enemy_id: int,
+	attack_serial: int,
+	position: Vector2 = Vector2.ZERO,
+) -> bool:
 	var stream: AudioStream = stream_for(kind)
 	if stream == null or enemy_id < 0 or attack_serial <= 0:
 		return false
@@ -47,26 +52,38 @@ func play_warning(kind: StringName, enemy_id: int, attack_serial: int) -> bool:
 	_request_count += 1
 	_last_kind = kind
 	_last_stream_path = stream.resource_path
-	if DisplayServer.get_name() == "headless":
+	_last_position = position
+	if DisplayServer.get_name() == "headless" and not is_inside_tree():
+		_played_count += 1
 		return true
-	_ensure_players()
-	var player: AudioStreamPlayer = _available_player()
-	if player == null:
+	var service: Node = _audio_service()
+	if service == null:
 		_culled_count += 1
 		return false
-	player.stream = stream
-	player.pitch_scale = 1.0
-	player.play()
-	_played_count += 1
-	return true
+	var accepted: bool = bool(
+		service.call(
+			"play_spatial",
+			stream,
+			position,
+			AudioServiceScript.BUS_ENEMY,
+			1.0,
+			0.0,
+			3,
+			1800.0,
+		)
+	)
+	if accepted:
+		_played_count += 1
+	else:
+		_culled_count += 1
+	return accepted
 
 
 func set_enabled(enabled: bool) -> void:
 	_enabled = enabled
-	if enabled:
-		return
-	for player: AudioStreamPlayer in _players:
-		player.stop()
+	var service: Node = _audio_service()
+	if service != null:
+		service.call("set_sfx_enabled", enabled)
 
 
 func stream_for(kind: StringName) -> AudioStream:
@@ -82,10 +99,10 @@ func stream_for(kind: StringName) -> AudioStream:
 
 
 func get_metrics() -> Dictionary:
-	var active: int = 0
-	for player: AudioStreamPlayer in _players:
-		if player.playing:
-			active += 1
+	var service: Node = _audio_service()
+	var service_metrics: Dictionary = (
+		service.call("get_metrics") as Dictionary if service != null else {}
+	)
 	return {
 		&"enabled": _enabled,
 		&"warnings": _warning_count,
@@ -94,11 +111,12 @@ func get_metrics() -> Dictionary:
 		&"muted": _muted_count,
 		&"duplicates": _duplicate_count,
 		&"culled": _culled_count,
-		&"active": active,
+		&"active": int(service_metrics.get(&"spatial_active", 0)),
 		&"capacity": MAX_VOICES,
 		&"history": _history.size(),
 		&"last_kind": _last_kind,
 		&"last_stream_path": _last_stream_path,
+		&"last_position": _last_position,
 	}
 
 
@@ -111,23 +129,6 @@ func _remember(key: String) -> void:
 	_seen.erase(expired)
 
 
-func _ensure_players() -> void:
-	if not _players.is_empty() or not is_inside_tree():
-		return
-	for index: int in range(MAX_VOICES):
-		var player: AudioStreamPlayer = AudioStreamPlayer.new()
-		player.name = "TelegraphVoice%02d" % index
-		add_child(player)
-		_players.append(player)
-
-
-func _available_player() -> AudioStreamPlayer:
-	for player: AudioStreamPlayer in _players:
-		if not player.playing:
-			return player
-	return null
-
-
 func _bind_accessibility() -> void:
 	var panel: Node = get_tree().get_first_node_in_group("accessibility_panel")
 	if panel == null:
@@ -138,3 +139,7 @@ func _bind_accessibility() -> void:
 
 func _apply_preferences(snapshot: Dictionary) -> void:
 	set_enabled(bool(snapshot.get(&"sfx_enabled", true)))
+
+
+func _audio_service() -> Node:
+	return get_node_or_null("/root/AudioService") if is_inside_tree() else null

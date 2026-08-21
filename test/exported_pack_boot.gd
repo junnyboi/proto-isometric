@@ -17,6 +17,19 @@ func _run() -> void:
 	if map_scene == null:
 		_fail("field scene did not load from the exported PCK")
 		return
+	var audio: Node = root.get_node_or_null("AudioService")
+	if audio == null:
+		_fail("persistent audio service did not load from the exported PCK")
+		return
+	var bus_status: Dictionary = audio.call("get_bus_layout_status") as Dictionary
+	var voice_layout: Dictionary = audio.call("get_voice_layout") as Dictionary
+	if (
+		not bool(bus_status.get(&"valid", false))
+		or (voice_layout.get(&"global", []) as Array).is_empty()
+		or (voice_layout.get(&"spatial", []) as Array).is_empty()
+	):
+		_fail("exported audio mixer or voice pools are incomplete")
+		return
 	var map: Node = map_scene.instantiate()
 	if map == null:
 		_fail("field scene did not instantiate from the exported PCK")

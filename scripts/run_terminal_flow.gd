@@ -2,6 +2,7 @@ extends CanvasLayer
 
 const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 
+const AudioServiceScript: GDScript = preload("res://scripts/audio_service.gd")
 const RunSettlementScript: GDScript = preload("res://scripts/run_settlement.gd")
 const ModifierServiceScript: GDScript = preload("res://scripts/modifier_service.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
@@ -21,7 +22,6 @@ var _choice_buttons: Array[Button] = []
 var _retry_button: Button
 var _summary: Dictionary = {}
 var _selected_modifier_id: StringName = &""
-var _audio: AudioStreamPlayer
 var _mobile_controls: CanvasLayer
 var _summary_reveal_count: int = 0
 
@@ -30,9 +30,6 @@ func _ready() -> void:
 	layer = 20
 	_build_interface()
 	add_to_group("localization_listeners")
-	_audio = AudioStreamPlayer.new()
-	_audio.stream = CONFIRM_CUE
-	add_child(_audio)
 	get_viewport().size_changed.connect(_apply_layout)
 	_apply_layout()
 
@@ -259,11 +256,11 @@ func _play_cue(pitch: float) -> void:
 	)
 	if (
 		bool(preferences.get(&"sfx_enabled", true))
-		and _audio != null
-		and DisplayServer.get_name() != "headless"
+		and CONFIRM_CUE != null
 	):
-		_audio.pitch_scale = pitch
-		_audio.play()
+		var service: Node = get_node_or_null("/root/AudioService")
+		if service != null:
+			service.call("play_global", CONFIRM_CUE, AudioServiceScript.BUS_UI, pitch, 0.0, 2)
 
 
 func _apply_layout() -> void:

@@ -3,13 +3,14 @@ config_version=5
 [application]
 
 config/name="Proto Isometric"
-config/version="1.6.5"
+config/version="1.6.6"
 run/main_scene="res://scenes/title_screen.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
 [autoload]
 
 I18n="*res://scripts/localization_service.gd"
+AudioService="*res://scripts/audio_service.gd"
 
 [display]
 

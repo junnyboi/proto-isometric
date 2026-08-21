@@ -46,6 +46,15 @@ static func evaluate() -> Array[Dictionary]:
 	)
 	_add(
 		cases,
+		"preferences default all audio buses to full gain",
+		(
+			is_equal_approx(float(defaults[&"master_volume"]), 1.0)
+			and is_equal_approx(float(defaults[&"sfx_volume"]), 1.0)
+			and is_equal_approx(float(defaults[&"music_volume"]), 1.0)
+		),
+	)
+	_add(
+		cases,
 		"preferences reject unsafe UI scale",
 		not bool(preferences.call("set_value", &"ui_scale", 1.5)),
 	)
@@ -64,12 +73,20 @@ static func evaluate() -> Array[Dictionary]:
 		"preferences reject unsafe feedback intensity",
 		not bool(preferences.call("set_value", &"camera_shake_intensity", 1.5)),
 	)
+	_add(
+		cases,
+		"preferences reject unsafe audio gain",
+		not bool(preferences.call("set_value", &"sfx_volume", 1.4)),
+	)
 	preferences.call("set_value", &"ui_scale", 1.15)
 	preferences.call("set_value", &"camera_shake", false)
 	preferences.call("set_value", &"reduced_flash", true)
 	preferences.call("set_value", &"haptics", false)
 	preferences.call("set_value", &"left_handed", true)
 	preferences.call("set_value", &"sfx_enabled", false)
+	preferences.call("set_value", &"master_volume", 0.8)
+	preferences.call("set_value", &"sfx_volume", 0.65)
+	preferences.call("set_value", &"music_volume", 0.45)
 	preferences.call("set_value", &"locale", "zh_CN")
 	preferences.call("set_value", &"camera_zoom", 1.2)
 	_add(cases, "preferences save atomically", bool(preferences.call("save_preferences")))
@@ -85,20 +102,38 @@ static func evaluate() -> Array[Dictionary]:
 			and not bool(snapshot[&"haptics"])
 			and bool(snapshot[&"left_handed"])
 			and not bool(snapshot[&"sfx_enabled"])
+			and is_equal_approx(float(snapshot[&"master_volume"]), 0.8)
+			and is_equal_approx(float(snapshot[&"sfx_volume"]), 0.65)
+			and is_equal_approx(float(snapshot[&"music_volume"]), 0.45)
 			and snapshot[&"locale"] == &"zh-CN"
 			and is_equal_approx(float(snapshot[&"camera_zoom"]), 1.2)
 		),
 	)
-	var legacy_zoom: Dictionary = snapshot.duplicate(true)
-	legacy_zoom.erase(&"camera_zoom")
+	var legacy_audio: Dictionary = snapshot.duplicate(true)
+	legacy_audio.erase(&"camera_zoom")
+	legacy_audio.erase(&"master_volume")
+	legacy_audio.erase(&"sfx_volume")
+	legacy_audio.erase(&"music_volume")
 	var legacy_preferences: RefCounted = PlayerPreferencesScript.new() as RefCounted
 	_add(
 		cases,
-		"legacy preferences restore default camera zoom",
+		"legacy preferences restore camera and audio defaults",
 		(
-			bool(legacy_preferences.call("restore_dictionary", legacy_zoom))
+			bool(legacy_preferences.call("restore_dictionary", legacy_audio))
 			and is_equal_approx(
 				float((legacy_preferences.call("to_dictionary") as Dictionary)[&"camera_zoom"]), 1.0
+			)
+			and is_equal_approx(
+				float((legacy_preferences.call("to_dictionary") as Dictionary)[&"master_volume"]),
+				1.0,
+			)
+			and is_equal_approx(
+				float((legacy_preferences.call("to_dictionary") as Dictionary)[&"sfx_volume"]),
+				1.0,
+			)
+			and is_equal_approx(
+				float((legacy_preferences.call("to_dictionary") as Dictionary)[&"music_volume"]),
+				1.0,
 			)
 		)
 	)

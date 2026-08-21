@@ -2,6 +2,7 @@ extends Node2D
 
 const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 
+const AudioServiceScript: GDScript = preload("res://scripts/audio_service.gd")
 const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const AccessibilityPanelScript: GDScript = preload("res://scripts/accessibility_panel.gd")
 const SaveRepositoryScript: GDScript = preload("res://scripts/save_repository.gd")
@@ -12,6 +13,7 @@ const WebSceneStateScript: GDScript = preload("res://scripts/web_scene_state.gd"
 const FIELD_SCENE: PackedScene = preload("res://scenes/isometric_map.tscn")
 const TITLE_DESKTOP: Texture2D = preload("res://assets/title/title_scene_desktop.png")
 const TITLE_MOBILE: Texture2D = preload("res://assets/title/title_scene_mobile.png")
+const BEGIN_CUE: AudioStream = preload("res://assets/audio/ui_begin.wav")
 
 const AMBER: Color = Color("f3a21e")
 const AMBER_HOVER: Color = Color("ffc35c")
@@ -36,7 +38,6 @@ var _field_guide_button: Button
 var _field_guide_panel: ColorRect
 var _field_guide_close: Button
 var _language_toggle: Button
-var _audio_player: AudioStreamPlayer
 var _layout: Dictionary = {}
 var _field_visible: bool = false
 var _audio_trigger_count: int = 0
@@ -100,13 +101,6 @@ func _build_interface() -> void:
 	_build_controls_strip()
 	_build_field_guide(ui_root)
 	_build_language_toggle(ui_root)
-
-	_audio_player = AudioStreamPlayer.new()
-	_audio_player.name = "BeginAudio"
-	_audio_player.stream = load("res://assets/audio/ui_begin.wav") as AudioStream
-	_audio_player.volume_db = -5.0
-	add_child(_audio_player)
-
 
 func _build_briefing() -> void:
 	var eyebrow: Label = _make_label(
@@ -776,7 +770,7 @@ func get_language_toggle() -> Button:
 
 
 func is_audio_ready() -> bool:
-	return _audio_player != null and _audio_player.stream != null
+	return BEGIN_CUE != null and get_node_or_null("/root/AudioService") != null
 
 
 func get_audio_trigger_count() -> int:
@@ -784,9 +778,7 @@ func get_audio_trigger_count() -> int:
 
 
 func prepare_for_shutdown() -> void:
-	if _audio_player != null:
-		_audio_player.stop()
-		_audio_player.stream = null
+	pass
 
 
 func _trigger_begin_audio() -> void:
@@ -796,7 +788,8 @@ func _trigger_begin_audio() -> void:
 	)
 	if (
 		bool(preferences.get(&"sfx_enabled", true))
-		and _audio_player.stream != null
-		and DisplayServer.get_name() != "headless"
+		and BEGIN_CUE != null
 	):
-		_audio_player.play()
+		var service: Node = get_node_or_null("/root/AudioService")
+		if service != null:
+			service.call("play_global", BEGIN_CUE, AudioServiceScript.BUS_UI, 1.0, -5.0, 2)

@@ -1,7 +1,8 @@
 extends Node
 
+const AudioServiceScript: GDScript = preload("res://scripts/audio_service.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
-const MAX_VOICES: int = 6
+const MAX_VOICES: int = AudioServiceScript.SPATIAL_VOICE_COUNT
 
 const SWING: AudioStream = preload("res://assets/audio/smash_swing.wav")
 const FAUNA_CONTACT: AudioStream = preload("res://assets/audio/fauna_contact.wav")
@@ -29,17 +30,25 @@ const CHARGE_EVENTS: Array[StringName] = [
 	RuntimeIdsScript.EVENT_CHARGE_LOW,
 	RuntimeIdsScript.EVENT_CHARGE_HIGH,
 ]
+const WALKER_EVENTS: Array[StringName] = SERVO_EVENTS + RUN_EVENTS + CHARGE_EVENTS + [
+	RuntimeIdsScript.EVENT_LOCOMOTION_WALK_CONTACT,
+	RuntimeIdsScript.EVENT_LOCOMOTION_BLOCKED,
+]
+const COMBAT_EVENTS: Array[StringName] = [
+	RuntimeIdsScript.EVENT_SMASH_WHIFF,
+	RuntimeIdsScript.EVENT_SMASH_HIT,
+	RuntimeIdsScript.EVENT_SMASH_HEAVY_HIT,
+	RuntimeIdsScript.EVENT_SMASH_DEFEAT,
+	RuntimeIdsScript.EVENT_SMASH_BREAK,
+]
 
-var _players: Array[AudioStreamPlayer] = []
 var _enabled: bool = true
 var _request_count: int = 0
 var _played_count: int = 0
 var _culled_count: int = 0
 var _last_stream_path: String = ""
-
-
-func _ready() -> void:
-	_ensure_players()
+var _last_bus: StringName = &""
+var _last_position: Vector2 = Vector2.ZERO
 
 
 func play_event(event: Dictionary) -> bool:
@@ -50,41 +59,56 @@ func play_event(event: Dictionary) -> bool:
 		return false
 	_request_count += 1
 	_last_stream_path = stream.resource_path
-	if DisplayServer.get_name() == "headless":
+	var event_id: StringName = event.get(&"event_id", &"") as StringName
+	_last_bus = _bus_for(event_id)
+	_last_position = event.get(&"position", Vector2.ZERO) as Vector2
+	if DisplayServer.get_name() == "headless" and not is_inside_tree():
+		_played_count += 1
 		return true
-	_ensure_players()
-	var player: AudioStreamPlayer = _available_player()
-	if player == null:
+	var service: Node = _audio_service()
+	if service == null:
 		_culled_count += 1
 		return false
-	player.stream = stream
-	player.pitch_scale = _pitch_for(event)
-	player.play()
-	_played_count += 1
-	return true
+	var accepted: bool = bool(
+		service.call(
+			"play_spatial",
+			stream,
+			_last_position,
+			_last_bus,
+			_pitch_for(event),
+			0.0,
+			_priority_for(event_id),
+		)
+	)
+	if accepted:
+		_played_count += 1
+	else:
+		_culled_count += 1
+	return accepted
 
 
 func set_enabled(enabled: bool) -> void:
 	_enabled = enabled
-	if enabled:
-		return
-	for player: AudioStreamPlayer in _players:
-		player.stop()
+	var service: Node = _audio_service()
+	if service != null:
+		service.call("set_sfx_enabled", enabled)
 
 
 func get_metrics() -> Dictionary:
-	var active: int = 0
-	for player: AudioStreamPlayer in _players:
-		if player.playing:
-			active += 1
+	var service: Node = _audio_service()
+	var service_metrics: Dictionary = (
+		service.call("get_metrics") as Dictionary if service != null else {}
+	)
 	return {
 		&"enabled": _enabled,
 		&"requests": _request_count,
 		&"played": _played_count,
 		&"culled": _culled_count,
-		&"active": active,
+		&"active": int(service_metrics.get(&"spatial_active", 0)),
 		&"capacity": MAX_VOICES,
 		&"last_stream_path": _last_stream_path,
+		&"last_bus": _last_bus,
+		&"last_position": _last_position,
 	}
 
 
@@ -105,7 +129,9 @@ func _stream_for(event: Dictionary) -> AudioStream:
 				stream = FAUNA_DEFEAT
 			RuntimeIdsScript.EVENT_SMASH_BREAK:
 				stream = (
-					WET_WOOD_BREAK if event.get(&"material", &"") == &"wet_wood" else STONE_BREAK
+					WET_WOOD_BREAK
+					if event.get(&"material", &"") == &"wet_wood"
+					else STONE_BREAK
 				)
 			RuntimeIdsScript.EVENT_SMASH_HEAVY_HIT:
 				stream = HEAVY_CONTACT
@@ -131,18 +157,25 @@ func _pitch_for(event: Dictionary) -> float:
 	return 0.97 + float(posmod(sequence_id * 17, 7)) * 0.01
 
 
-func _ensure_players() -> void:
-	if not _players.is_empty() or not is_inside_tree():
-		return
-	for index: int in range(MAX_VOICES):
-		var player: AudioStreamPlayer = AudioStreamPlayer.new()
-		player.name = "FeedbackVoice%02d" % index
-		add_child(player)
-		_players.append(player)
+func _bus_for(event_id: StringName) -> StringName:
+	if event_id in WALKER_EVENTS:
+		return AudioServiceScript.BUS_WALKER
+	if event_id in COMBAT_EVENTS:
+		return AudioServiceScript.BUS_COMBAT
+	return AudioServiceScript.BUS_WORLD
 
 
-func _available_player() -> AudioStreamPlayer:
-	for player: AudioStreamPlayer in _players:
-		if not player.playing:
-			return player
-	return null
+func _priority_for(event_id: StringName) -> int:
+	if event_id in [
+		RuntimeIdsScript.EVENT_SMASH_HEAVY_HIT,
+		RuntimeIdsScript.EVENT_SMASH_DEFEAT,
+		RuntimeIdsScript.EVENT_RELAY_COMPLETED,
+		RuntimeIdsScript.EVENT_CHARGE_HIGH,
+		RuntimeIdsScript.EVENT_LOCOMOTION_BLOCKED,
+	]:
+		return 2
+	return 1
+
+
+func _audio_service() -> Node:
+	return get_node_or_null("/root/AudioService") if is_inside_tree() else null

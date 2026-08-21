@@ -79,7 +79,15 @@ func _ready() -> void:
 	_telegraph_audio = FaunaTelegraphAudioScript.new() as Node
 	_telegraph_audio.name = "FaunaTelegraphAudio"
 	add_child(_telegraph_audio)
-	telegraph_started.connect(Callable(_telegraph_audio, "play_warning"))
+	telegraph_started.connect(_on_telegraph_started)
+
+
+func _on_telegraph_started(kind: StringName, enemy_id: int, attack_serial: int) -> void:
+	var worm: Dictionary = _find_worm(enemy_id)
+	var position: Vector2 = (
+		_grid_to_screen(worm[&"position"] as Vector2) if not worm.is_empty() else Vector2.ZERO
+	)
+	_telegraph_audio.call("play_warning", kind, enemy_id, attack_serial, position)
 
 
 func configure(

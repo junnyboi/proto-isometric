@@ -12,6 +12,9 @@ var _haptic_intensity: float = 1.0
 var _onboarding_seen: bool = false
 var _left_handed: bool = false
 var _sfx_enabled: bool = true
+var _master_volume: float = 1.0
+var _sfx_volume: float = 1.0
+var _music_volume: float = 1.0
 var _locale: StringName = &"en"
 var _camera_zoom: float = 1.0
 
@@ -87,6 +90,18 @@ func set_value(key: StringName, value: Variant) -> bool:
 			valid = value is bool
 			if valid:
 				_sfx_enabled = value
+		&"master_volume":
+			valid = _valid_volume(value)
+			if valid:
+				_master_volume = snappedf(value, 0.05)
+		&"sfx_volume":
+			valid = _valid_volume(value)
+			if valid:
+				_sfx_volume = snappedf(value, 0.05)
+		&"music_volume":
+			valid = _valid_volume(value)
+			if valid:
+				_music_volume = snappedf(value, 0.05)
 		&"locale":
 			var locale: StringName = normalize_locale(value)
 			valid = locale != &""
@@ -102,7 +117,7 @@ func set_value(key: StringName, value: Variant) -> bool:
 
 
 func restore_dictionary(snapshot: Dictionary) -> bool:
-	if snapshot.size() < 4 or snapshot.size() > 11:
+	if snapshot.size() < 4 or snapshot.size() > 14:
 		return false
 	var scale: Variant = snapshot.get(&"ui_scale")
 	var shake: Variant = snapshot.get(&"camera_shake")
@@ -113,6 +128,9 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 	var onboarding: Variant = snapshot.get(&"onboarding_seen", false)
 	var left_handed: Variant = snapshot.get(&"left_handed", false)
 	var sfx_enabled: Variant = snapshot.get(&"sfx_enabled", true)
+	var master_volume: Variant = snapshot.get(&"master_volume", 1.0)
+	var sfx_volume: Variant = snapshot.get(&"sfx_volume", 1.0)
+	var music_volume: Variant = snapshot.get(&"music_volume", 1.0)
 	var locale: Variant = snapshot.get(&"locale", "en")
 	var camera_zoom: Variant = snapshot.get(&"camera_zoom", 1.0)
 	if (
@@ -125,6 +143,9 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 		or not onboarding is bool
 		or not left_handed is bool
 		or not sfx_enabled is bool
+		or not master_volume is float
+		or not sfx_volume is float
+		or not music_volume is float
 		or not (locale is String or locale is StringName)
 		or not camera_zoom is float
 	):
@@ -138,6 +159,9 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 		or not set_value(&"onboarding_seen", onboarding)
 		or not set_value(&"left_handed", left_handed)
 		or not set_value(&"sfx_enabled", sfx_enabled)
+		or not set_value(&"master_volume", master_volume)
+		or not set_value(&"sfx_volume", sfx_volume)
+		or not set_value(&"music_volume", music_volume)
 		or not set_value(&"locale", locale)
 		or not set_value(&"camera_zoom", camera_zoom)
 	):
@@ -157,6 +181,9 @@ func to_dictionary() -> Dictionary:
 		&"onboarding_seen": _onboarding_seen,
 		&"left_handed": _left_handed,
 		&"sfx_enabled": _sfx_enabled,
+		&"master_volume": _master_volume,
+		&"sfx_volume": _sfx_volume,
+		&"music_volume": _music_volume,
 		&"locale": _locale,
 		&"camera_zoom": _camera_zoom,
 	}
@@ -174,6 +201,9 @@ func _apply(snapshot: Dictionary) -> void:
 	_onboarding_seen = bool(snapshot.get(&"onboarding_seen", false))
 	_left_handed = bool(snapshot.get(&"left_handed", false))
 	_sfx_enabled = bool(snapshot.get(&"sfx_enabled", true))
+	_master_volume = float(snapshot.get(&"master_volume", 1.0))
+	_sfx_volume = float(snapshot.get(&"sfx_volume", 1.0))
+	_music_volume = float(snapshot.get(&"music_volume", 1.0))
 	_locale = normalize_locale(snapshot.get(&"locale", "en"))
 	_camera_zoom = float(snapshot.get(&"camera_zoom", 1.0))
 	if _locale == &"":
@@ -191,3 +221,7 @@ static func normalize_locale(value: Variant) -> StringName:
 	if normalized in ["zh", "zh-cn", "zh-hans", "zh-hans-cn"]:
 		return &"zh-CN"
 	return &""
+
+
+static func _valid_volume(value: Variant) -> bool:
+	return value is float and is_finite(value) and value >= 0.0 and value <= 1.0
