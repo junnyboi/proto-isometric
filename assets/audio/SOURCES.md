@@ -39,3 +39,14 @@ The four cues below are accepted mono 48 kHz PCM runtime derivatives generated w
 ## J6 biome ambience beds
 
 `ambience_desert.wav` is an accepted mono PCM runtime derivative extracted from an eight-second Gemini Omni audio-bearing generation prompted as a restrained mechanical desert wasteland bed. `ambience_wetland.wav`, `ambience_frozen.wav`, and `ambience_volcanic.wav` are deterministic spectral derivatives of that accepted source, mixed with low-level procedural noise or sub-bass appropriate to each biome after additional generator requests encountered temporary capacity limits. All four beds are 22.05 kHz mono PCM, use short boundary fades, play at a restrained runtime level, and share a hard two-voice crossfade cap. The generation carrier was deleted after codec, channel, sample-rate, duration, and size validation.
+
+## Peaceful herd species cues
+
+The eight `herd_*.wav` files below are accepted 48 kHz mono PCM runtime derivatives generated with built-in **Lyria 3 Pro** on 2026-08-21. Each master requested one isolated, nonverbal creature sound with no music, speech, rhythm, or environmental bed. Runtime treatment is deterministic: silence trimming, duration fitting, mono downmix, band limiting, loudness control, and short boundary fades. Generation masters remain outside Git; only the compact runtime derivatives are shipped.
+
+| Species | Ambient cue | Defeat cue |
+|---|---|---|
+| Dune Grazer | Low hollow bray and sandy exhale | Falling bellow, sandy body thump, plate clack |
+| Reedback | Airy reed chirrup and bubble pop | Descending reed honk, mud splash, fibrous clack |
+| Rimehorn | Breath-driven glacial moan and crystal ping | Fading frost groan, ice crack, snow thump |
+| Ember Ram | Warm basalt rumble and ember chuff | Falling molten bleat, basalt crack, ash thud |

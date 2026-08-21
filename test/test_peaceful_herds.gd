@@ -193,6 +193,16 @@ static func _test_one_hit_reward(cases: Array[Dictionary]) -> void:
 		"defeated peaceful fauna emits one biome reward",
 		rewards.size() == 1 and int(rewards[0][&"amount"]) == 2,
 	)
+	var audio_metrics: Dictionary = herds.call("_get_audio_metrics") as Dictionary
+	_add(
+		cases,
+		"one-hit peaceful defeat requests its species cue",
+		audio_metrics.get(&"last_kind", &"") == &"reedback"
+		and audio_metrics.get(&"last_event", &"") == &"defeat"
+		and str(audio_metrics.get(&"last_stream_path", "")).ends_with(
+			"herd_reedback_defeat.wav"
+		),
+	)
 	_add(
 		cases,
 		"dead peaceful fauna cannot pay twice",

@@ -17,6 +17,12 @@ const CHARGE_DETENT: AudioStream = preload("res://assets/audio/charge_detent.wav
 const BLOCKED_CLANK: AudioStream = preload("res://assets/audio/blocked_clank.wav")
 const PICKUP: AudioStream = preload("res://assets/audio/charge_ready.wav")
 const RELAY_COMPLETE: AudioStream = preload("res://assets/audio/relay_complete.wav")
+const PEACEFUL_KINDS: Array[StringName] = [
+	&"dune_grazer",
+	&"reedback",
+	&"rimehorn",
+	&"ember_ram",
+]
 const SERVO_EVENTS: Array[StringName] = [
 	RuntimeIdsScript.EVENT_LOCOMOTION_START,
 	RuntimeIdsScript.EVENT_LOCOMOTION_STOP,
@@ -126,7 +132,9 @@ func _stream_for(event: Dictionary) -> AudioStream:
 			RuntimeIdsScript.EVENT_SMASH_WHIFF:
 				stream = SWING
 			RuntimeIdsScript.EVENT_SMASH_DEFEAT:
-				stream = FAUNA_DEFEAT
+				var metadata: Dictionary = event.get(&"metadata", {}) as Dictionary
+				if metadata.get(&"kind", &"") not in PEACEFUL_KINDS:
+					stream = FAUNA_DEFEAT
 			RuntimeIdsScript.EVENT_SMASH_BREAK:
 				stream = (
 					WET_WOOD_BREAK
