@@ -30,16 +30,47 @@ static func evaluate() -> Array[Dictionary]:
 		),
 	)
 	var soundscape: Node = BiomeSoundscapeScript.new() as Node
+	(Engine.get_main_loop() as SceneTree).root.add_child(soundscape)
 	var changed: bool = bool(soundscape.call("set_biome", &"mud"))
 	var soundscape_metrics: Dictionary = soundscape.call("get_metrics") as Dictionary
 	_add(
 		cases,
-		"biome soundscape switches semantically within a two-voice cap",
+		"biome soundscape starts an interruptible two-voice crossfade",
 		(
 			changed
 			and soundscape_metrics[&"biome"] == &"wetland"
 			and int(soundscape_metrics[&"capacity"]) == 2
 			and int(soundscape_metrics[&"switches"]) == 1
+			and bool(soundscape_metrics[&"crossfading"])
+			and is_equal_approx(
+				float(soundscape_metrics[&"crossfade_seconds"]),
+				BiomeSoundscapeScript.CROSSFADE_SECONDS,
+			)
+		),
+	)
+	soundscape.call("_process", BiomeSoundscapeScript.CROSSFADE_SECONDS * 0.5)
+	var midpoint: Dictionary = soundscape.call("get_metrics") as Dictionary
+	var gains: Array = midpoint[&"voice_gains"] as Array
+	_add(
+		cases,
+		"biome midpoint uses equal-power gains without a silent gap",
+		(
+			bool(midpoint[&"crossfading"])
+			and absf(float(gains[0]) - sqrt(0.5)) < 0.001
+			and absf(float(gains[1]) - sqrt(0.5)) < 0.001
+		),
+	)
+	soundscape.call("set_biome", &"snow")
+	soundscape.call("_process", BiomeSoundscapeScript.CROSSFADE_SECONDS)
+	var completed: Dictionary = soundscape.call("get_metrics") as Dictionary
+	_add(
+		cases,
+		"interrupted biome crossfade completes on the latest requested bed",
+		(
+			completed[&"biome"] == &"frozen"
+			and not bool(completed[&"crossfading"])
+			and int(completed[&"switches"]) == 2
+			and int(completed[&"completed_crossfades"]) == 1
 		),
 	)
 	soundscape.call("set_volume", 0.0)

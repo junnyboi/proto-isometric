@@ -287,6 +287,27 @@ static func evaluate() -> Array[Dictionary]:
 		"Ambience slider zero mutes the Ambient bus",
 		AudioServer.is_bus_mute(ambience_bus),
 	)
+	panel.get("_preferences").call("set_value", &"left_handed", true)
+	panel.call("_reset_audio_defaults")
+	var reset_audio: Dictionary = panel.call("get_preferences") as Dictionary
+	var reset_button: Button = panel.get("_buttons")[&"audio_defaults"] as Button
+	_add(
+		cases,
+		"Reset Audio Defaults restores every mixer without changing accessibility choices",
+		(
+			bool(reset_audio[&"sfx_enabled"])
+			and is_equal_approx(float(reset_audio[&"master_volume"]), 1.0)
+			and is_equal_approx(float(reset_audio[&"sfx_volume"]), 1.0)
+			and is_equal_approx(float(reset_audio[&"ambience_volume"]), 1.0)
+			and is_equal_approx(float(reset_audio[&"music_volume"]), 1.0)
+			and bool(reset_audio[&"left_handed"])
+			and is_equal_approx(master_slider.value, 100.0)
+			and is_equal_approx(music_slider.value, 100.0)
+			and is_equal_approx(ambience_slider.value, 100.0)
+			and not AudioServer.is_bus_mute(ambience_bus)
+			and "RESET AUDIO DEFAULTS" in reset_button.text
+		),
+	)
 	_add(
 		cases,
 		"settings menu exposes a ten-step VFX intensity slider",

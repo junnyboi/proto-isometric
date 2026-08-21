@@ -3,6 +3,13 @@ extends RefCounted
 const PATH: String = "user://walkers-wake-preferences.json"
 const MAX_BYTES: int = 4096
 const VALID_EFFECTS_QUALITY: Array[StringName] = [&"full", &"reduced", &"minimal"]
+const AUDIO_DEFAULTS: Dictionary = {
+	&"sfx_enabled": true,
+	&"master_volume": 1.0,
+	&"sfx_volume": 1.0,
+	&"ambience_volume": 1.0,
+	&"music_volume": 1.0,
+}
 
 var _ui_scale: float = 1.0
 var _camera_shake: bool = true
@@ -49,6 +56,13 @@ func save_preferences() -> bool:
 	if FileAccess.file_exists(PATH):
 		directory.remove(PATH.get_file())
 	return directory.rename(temporary.get_file(), PATH.get_file()) == OK
+
+
+func reset_audio_defaults() -> bool:
+	for key: StringName in AUDIO_DEFAULTS:
+		if not set_value(key, AUDIO_DEFAULTS[key]):
+			return false
+	return true
 
 
 func set_value(key: StringName, value: Variant) -> bool:

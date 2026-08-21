@@ -71,6 +71,7 @@
   "access.music_volume": "MUSIC VOLUME  {percent}%",
   "access.ambience_volume": "AMBIENCE VOLUME  {percent}%",
   "access.sfx_volume": "SFX VOLUME  {percent}%",
+  "access.reset_audio_defaults": "RESET AUDIO DEFAULTS",
   "access.language": "LANGUAGE  EN / 简体中文  [{language}]",
   "access.reset_training": "RESET TRAINING",
   "hud.panel_title": "WALKER // FIELD DRIVE",

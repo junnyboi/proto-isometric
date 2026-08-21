@@ -211,8 +211,8 @@ func apply_preferences(snapshot: Dictionary) -> void:
 		_audio.call("set_enabled", bool(snapshot.get(&"sfx_enabled", true)))
 	_ensure_soundscape()
 	if _soundscape != null:
-		_soundscape.call("set_volume", float(snapshot.get(&"sfx_volume", 1.0)))
-		_soundscape.call("set_enabled", bool(snapshot.get(&"sfx_enabled", true)))
+		_soundscape.call("set_volume", 1.0)
+		_soundscape.call("set_enabled", float(snapshot.get(&"ambience_volume", 1.0)) > 0.0)
 
 
 func _present_outcome(
