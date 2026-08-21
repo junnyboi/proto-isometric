@@ -7,6 +7,7 @@ var _played_count: int = 0
 var _last_duration_ms: int = 0
 var _last_weak: float = 0.0
 var _last_strong: float = 0.0
+var _active_device: int = -1
 
 
 func pulse(profile: Dictionary) -> bool:
@@ -24,7 +25,7 @@ func pulse(profile: Dictionary) -> bool:
 	if DisplayServer.get_name() == "headless":
 		return true
 	Input.vibrate_handheld(duration_ms)
-	for device: int in Input.get_connected_joypads():
+	for device: int in _target_devices():
 		Input.start_joy_vibration(device, weak, strong, float(duration_ms) / 1000.0)
 	_played_count += 1
 	return true
@@ -43,10 +44,14 @@ func set_intensity(intensity: float) -> void:
 		stop()
 
 
+func set_active_device(device: int) -> void:
+	_active_device = device if device in Input.get_connected_joypads() else -1
+
+
 func stop() -> void:
 	if DisplayServer.get_name() == "headless":
 		return
-	for device: int in Input.get_connected_joypads():
+	for device: int in _target_devices():
 		Input.stop_joy_vibration(device)
 
 
@@ -59,4 +64,12 @@ func get_metrics() -> Dictionary:
 		&"last_duration_ms": _last_duration_ms,
 		&"last_weak": _last_weak,
 		&"last_strong": _last_strong,
+		&"active_device": _active_device,
 	}
+
+
+func _target_devices() -> Array[int]:
+	var connected: Array[int] = Input.get_connected_joypads()
+	if _active_device >= 0 and _active_device in connected:
+		return [_active_device]
+	return connected

@@ -26,6 +26,7 @@ Routine contact emphasis uses local presentation holds rather than global `Engin
 | **J4** | 1.6.3 | Biome punctuation, reward closure, and terminal staging | Atmosphere/UI contracts + full release gate + live terminal smoke |
 | **J5** | 1.6.5 | Generated contact/reward assets, persistent zoom, and graded comfort controls | Migration/true-zero contracts + full release gate + settings smoke |
 | **J6** | 1.6.7 | Persistent positional audio, restrained biome beds, effects quality tiers, and stress certification | Audio/tier/saturation contracts + full release gate + cross-setting live smoke |
+| **J7** | 1.7.2 | Controller bindings and responsive mobile input tuning | Input-feel contracts + full release gate + controller/mobile live smoke |
 
 ## Execution record
 
@@ -172,6 +173,16 @@ Two planned mechanisms were deliberately simplified after runtime integration. A
 | `data/locales/en.json`, `data/locales/zh-CN.json`, font subset, `test/test_contracts.gd`, `export_presets.cfg`, `project.godot` | Add settings copy with exact parity, refresh glyph coverage, register shipping resources, and advance the release to 1.6.5. |
 
 **Done condition:** Existing 1.5.x preferences load without loss. New values validate, save atomically, and persist. Shake 0 yields exactly zero camera displacement; hit-stop 0 yields no local hold; haptics 0 emits no request; SFX 0 plays no voice; Minimal retains compact contact and critical telegraph semantics while reducing actual particle/debris/audio counts. Full, Reduced, and Minimal are perceptibly ordered and do not change damage, collision, AI, rewards, or saves. The combined flash sequence follows the conservative three-flashes-per-second route. EN/zh-CN keys and placeholders match, settings fit at narrow viewport and maximum supported UI scale, and runtime language changes preserve focus. Stress tests show no unbounded nodes, particles, debris, voices, haptics, or memory; standard Web meets p95 ≤16.67 ms and p99 ≤25 ms on the reference browser where achievable, while the declared low tier meets p95 ≤33.33 ms and p99 ≤45 ms with no warm effect hitch above 50 ms. Focused migration, settings, accessibility, localization, stress, performance, save, and smoke contracts pass; `./verify.sh --release` passes; the exact final bundle is deployed and live smoke covers every tier, true-zero settings, language switching, Smash, traversal, dossier, outpost/terminal, focus recovery, and public boot. The final phase receives a checkpoint, commit, and GitHub push.
+
+## J7 — Controller and mobile feel tuning
+
+**Goal:** Make the completed juice stack respond immediately and predictably through keyboard, controller, and touch without changing movement physics, attack authority, camera limits, or accessibility semantics.
+
+**Affected area:** `scripts/isometric_controls.gd` adds radial left-stick dead-zone shaping, D-pad drive, L3/RT run, X/RB Smash, and active-controller tracking. `scripts/mobile_controls.gd` adds a smaller dead zone, responsive response curve, stable run hysteresis, handed thumb ownership, centered button compression, touch-down Smash activation, and a short cooldown-bounded input acknowledgement. `scripts/haptic_router.gd` targets the active controller; dossier haptics now obey the persisted intensity. EN and zh-CN guidance exposes every binding. `test/test_input_feel.gd` certifies response curves, bounds, handed zones, immediate activation, hysteresis, and haptic gating.
+
+**Done condition:** Drift inside the 16% controller dead zone yields zero motion; analog response is monotonic and reaches full magnitude; D-pad, left stick, L3/RT, and X/RB route into existing gameplay owners; only the active controller receives semantic rumble. Touch drive responds immediately outside its compact dead zone, releases stale run intent at center, and keeps run hysteresis stable. Left- and right-handed thumb zones avoid the opposite action side. Smash activates on touch-down, compresses around its center, and acknowledgements cannot spam. Focused input/haptic contracts, the complete smoke suite, and `./verify.sh --release` pass; the exact clean Web bundle is checkpointed, pushed, deployed, and smoke-tested in desktop and forced-mobile browser modes.
+
+**Execution result:** Implemented as Walker’s Wake 1.7.2 on top of peaceful biome herds and the VFX intensity control. The focused controller/mobile/haptic run passed 20 checks; the integrated smoke suite passed 1,504 checks; and `./verify.sh --release` completed with a clean no-threads Web export and `[PCK_BOOT_PASS]`.
 
 ## Final release condition
 

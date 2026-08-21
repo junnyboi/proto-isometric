@@ -7,6 +7,7 @@ const FeedbackEventScript: GDScript = preload("res://scripts/feedback_event.gd")
 const FeedbackProfilesScript: GDScript = preload("res://scripts/feedback_profiles.gd")
 const HapticRouterScript: GDScript = preload("res://scripts/haptic_router.gd")
 const ImpactReactionAdapterScript: GDScript = preload("res://scripts/impact_reaction_adapter.gd")
+const IsometricControlsScript: GDScript = preload("res://scripts/isometric_controls.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const SmashFeedbackResolverScript: GDScript = preload("res://scripts/smash_feedback_resolver.gd")
 const WalkerLocomotionFeedbackScript: GDScript = preload(
@@ -59,6 +60,7 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	_haptics.call("set_active_device", IsometricControlsScript.get_active_joypad())
 	_sync_metrics()
 
 

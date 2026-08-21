@@ -168,8 +168,8 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	var terminal: bool = _terminal_flow != null and bool(_terminal_flow.call("is_summary_visible"))
-	var screen_direction: Vector2i = (
-		Vector2i.ZERO if terminal else IsometricControlsScript.read_screen_direction()
+	var screen_direction: Vector2 = (
+		Vector2.ZERO if terminal else IsometricControlsScript.read_drive_vector()
 	)
 	var attack_pressed: bool = not terminal and IsometricControlsScript.is_attack_pressed()
 	if attack_pressed and not _attack_was_pressed:

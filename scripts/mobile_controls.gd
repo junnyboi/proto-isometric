@@ -10,10 +10,14 @@ const AMBER: Color = Color("f5a62d")
 const INK: Color = Color("11171b")
 const JOYSTICK_RADIUS: float = 76.0
 const KNOB_RADIUS: float = 31.0
-const DEAD_ZONE: float = 12.0
+const DEAD_ZONE: float = 10.0
+const RESPONSE_EXPONENT: float = 1.15
+const DRIVE_ZONE_FRACTION: float = 0.68
 const SMASH_SIZE: Vector2 = Vector2(154.0, 154.0)
-const RUN_ENTER: float = 0.88
-const RUN_EXIT: float = 0.72
+const RUN_ENTER: float = 0.86
+const RUN_EXIT: float = 0.74
+const SMASH_ACK_DURATION_MS: int = 14
+const SMASH_ACK_COOLDOWN_MS: int = 120
 
 var _mobile_device: bool = false
 var _controls_enabled: bool = true
@@ -30,6 +34,7 @@ var _left_handed: bool = false
 var _haptics: bool = true
 var _haptic_intensity: float = 1.0
 var _character_dossier: Control
+var _last_smash_ack_msec: int = -SMASH_ACK_COOLDOWN_MS
 
 
 func _ready() -> void:
@@ -98,6 +103,7 @@ func apply_layout(viewport_size: Vector2) -> bool:
 	if _smash_button != null:
 		_smash_button.position = smash.position
 		_smash_button.size = smash.size
+		_smash_button.pivot_offset = smash.size * 0.5
 	_cancel_touch_interactions()
 	return true
 
@@ -139,6 +145,8 @@ func begin_touch(index: int, position: Vector2) -> bool:
 		and bool(_character_dossier.call("begin_long_press", index, position))
 	):
 		return false
+	if not _point_is_in_drive_zone(position):
+		return false
 	_touch_index = index
 	_touch_origin = _clamp_origin(position)
 	_touch_position = _touch_origin
@@ -172,8 +180,7 @@ func end_touch(index: int) -> bool:
 
 func trigger_smash() -> void:
 	if _mobile_device and _controls_enabled:
-		if _haptics and _haptic_intensity > 0.0:
-			Input.vibrate_handheld(roundi(28.0 * _haptic_intensity))
+		_acknowledge_smash()
 		smash_pressed.emit()
 
 
@@ -213,6 +220,7 @@ func _build_smash_button() -> void:
 	_smash_button.size = SMASH_SIZE
 	_smash_button.text = LocalizationScript.t(&"mobile.smash")
 	_smash_button.focus_mode = Control.FOCUS_NONE
+	_smash_button.action_mode = BaseButton.ACTION_MODE_BUTTON_PRESS
 	_smash_button.add_theme_font_size_override("font_size", 24)
 	_smash_button.add_theme_color_override("font_color", Color("fff4dc"))
 	_smash_button.add_theme_color_override("font_pressed_color", Color.WHITE)
@@ -225,6 +233,7 @@ func _build_smash_button() -> void:
 	)
 	_smash_button.button_down.connect(func() -> void: _smash_button.scale = Vector2(0.95, 0.95))
 	_smash_button.button_up.connect(func() -> void: _smash_button.scale = Vector2.ONE)
+	_smash_button.mouse_exited.connect(func() -> void: _smash_button.scale = Vector2.ONE)
 	_smash_button.pressed.connect(trigger_smash)
 	add_child(_smash_button)
 
@@ -246,6 +255,8 @@ func _button_style(fill: Color, border: Color, width: float) -> StyleBoxFlat:
 func _apply_visibility() -> void:
 	if _smash_button != null:
 		_smash_button.visible = _mobile_device and _controls_enabled
+		if not _smash_button.visible:
+			_smash_button.scale = Vector2.ONE
 	if _joystick != null and (not _mobile_device or not _controls_enabled):
 		_joystick.visible = false
 
@@ -261,6 +272,17 @@ func _point_is_excluded(position: Vector2) -> bool:
 	return false
 
 
+func _point_is_in_drive_zone(position: Vector2) -> bool:
+	if not _layout.has(&"safe_bounds"):
+		return false
+	var safe: Rect2 = _layout[&"safe_bounds"] as Rect2
+	var split: float = safe.position.x + safe.size.x * DRIVE_ZONE_FRACTION
+	if _left_handed:
+		split = safe.position.x + safe.size.x * (1.0 - DRIVE_ZONE_FRACTION)
+		return position.x >= split
+	return position.x <= split
+
+
 func _on_viewport_resized() -> void:
 	apply_layout(get_viewport().get_visible_rect().size)
 
@@ -270,10 +292,21 @@ func _update_drive_vector() -> void:
 	var distance: float = offset.length()
 	if distance <= DEAD_ZONE:
 		_drive_vector = Vector2.ZERO
+		_run_intent = false
 		return
 	var strength: float = clampf((distance - DEAD_ZONE) / (JOYSTICK_RADIUS - DEAD_ZONE), 0.0, 1.0)
 	_run_intent = strength >= (RUN_EXIT if _run_intent else RUN_ENTER)
-	_drive_vector = offset.normalized() * smoothstep(0.0, 1.0, strength)
+	_drive_vector = offset.normalized() * pow(strength, RESPONSE_EXPONENT)
+
+
+func _acknowledge_smash() -> void:
+	if not _haptics or _haptic_intensity <= 0.0:
+		return
+	var now: int = Time.get_ticks_msec()
+	if now - _last_smash_ack_msec < SMASH_ACK_COOLDOWN_MS:
+		return
+	_last_smash_ack_msec = now
+	Input.vibrate_handheld(roundi(float(SMASH_ACK_DURATION_MS) * _haptic_intensity))
 
 
 func _cancel_joystick() -> void:

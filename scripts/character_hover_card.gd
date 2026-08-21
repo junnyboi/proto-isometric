@@ -1,6 +1,7 @@
 extends Control
 
 const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
+const PlayerPreferencesScript: GDScript = preload("res://scripts/player_preferences.gd")
 const AMBER: Color = Color("f5a62d")
 const PANEL: Color = Color("080c13e8")
 const TEXT: Color = Color("f5f1e8")
@@ -38,6 +39,7 @@ var _touch_pinned: bool = false
 var _touch_mode: bool = false
 var _fade_tween: Tween
 var _fade_direction: StringName = &""
+var _haptic_intensity: float = 1.0
 
 
 func _ready() -> void:
@@ -46,6 +48,10 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_card()
 	add_to_group("localization_listeners")
+	_apply_preferences(
+		(PlayerPreferencesScript.new() as RefCounted).call("load_preferences") as Dictionary
+	)
+	call_deferred("_bind_accessibility")
 
 
 func bind_sources(
@@ -186,7 +192,8 @@ func advance_long_press(delta: float) -> bool:
 	_touch_pinned = true
 	_apply_candidate(candidate)
 	_position_card(_touch_position)
-	Input.vibrate_handheld(18)
+	if _haptic_intensity > 0.0:
+		Input.vibrate_handheld(roundi(18.0 * _haptic_intensity))
 	return true
 
 
@@ -575,3 +582,17 @@ func _on_locale_changed(_locale: StringName) -> void:
 	_last_signature = ""
 	if not _current_candidate.is_empty():
 		_update_card(_profile_for(_current_candidate))
+
+
+func _bind_accessibility() -> void:
+	var panel: Node = get_tree().get_first_node_in_group("accessibility_panel")
+	if panel != null:
+		panel.connect("preferences_changed", _apply_preferences)
+
+
+func _apply_preferences(snapshot: Dictionary) -> void:
+	_haptic_intensity = clampf(
+		float(snapshot.get(&"haptic_intensity", 1.0 if snapshot.get(&"haptics", true) else 0.0)),
+		0.0,
+		1.0,
+	)
