@@ -6,6 +6,7 @@ const BiomeDestructiblesScript: GDScript = preload("res://scripts/biome_destruct
 const EncounterDirectorScript: GDScript = preload("res://scripts/encounter_director.gd")
 const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const LavaContactScript: GDScript = preload("res://scripts/lava_contact.gd")
+const OutpostVisualsScript: GDScript = preload("res://scripts/outpost_visuals.gd")
 const RunPickupsScript: GDScript = preload("res://scripts/run_pickups.gd")
 
 const ROCK: Color = Color("934d35")
@@ -16,6 +17,8 @@ const SANCTUARY_FILL: Color = Color(0.16, 0.78, 0.72, 0.09)
 const SANCTUARY_GLOW: Color = Color(0.30, 0.96, 0.88, 0.26)
 const SANCTUARY_LINE: Color = Color(0.34, 1.0, 0.91, 0.88)
 const SANCTUARY_SEGMENTS: int = 48
+const OUTPOST_BASE_OFFSET: Vector2 = Vector2(0.0, 16.0)
+const OUTPOST_LABEL_OFFSET: Vector2 = Vector2(-39.0, -202.0)
 
 var _destructible_rocks: Dictionary = {}
 var _scrap: Dictionary = {}
@@ -82,6 +85,15 @@ func get_destructible_kind(cell: Vector2i) -> StringName:
 		return BiomeDestructiblesScript.KIND_DESERT_ROCK
 	var biome: StringName = _world.call("_biome_at", cell) as StringName
 	return BiomeDestructiblesScript.kind_for(biome, cell)
+
+
+func get_outpost_kind(cell: Vector2i) -> StringName:
+	return OutpostVisualsScript.kind_for(cell)
+
+
+func get_outpost_texture_path(cell: Vector2i) -> String:
+	var texture: Texture2D = OutpostVisualsScript.texture_for(get_outpost_kind(cell))
+	return texture.resource_path if texture != null else ""
 
 
 func invalidate_static_objects() -> void:
@@ -162,6 +174,10 @@ func _draw() -> void:
 			_draw_sanctuary_boundary(outpost_cell)
 	for cell: Vector2i in _visible_cells:
 		_draw_cell_objects(cell)
+	for value: Variant in _outposts:
+		var outpost_cell: Vector2i = value as Vector2i
+		if bool(_outposts[outpost_cell]) and outpost_cell in _visible_cells:
+			_draw_sanctuary_label(outpost_cell)
 
 
 func _draw_sanctuary_boundary(outpost_cell: Vector2i) -> void:
@@ -180,10 +196,13 @@ func _draw_sanctuary_boundary(outpost_cell: Vector2i) -> void:
 		if outward.dot(points[index] - (_grid_to_screen.call(outpost_cell) as Vector2)) < 0.0:
 			outward = -outward
 		draw_line(points[index] - outward * 5.0, points[index] + outward * 7.0, SANCTUARY_LINE, 3.0)
+
+
+func _draw_sanctuary_label(outpost_cell: Vector2i) -> void:
 	var center: Vector2 = _grid_to_screen.call(outpost_cell) as Vector2
 	draw_string(
 		ThemeDB.fallback_font,
-		center + Vector2(-39.0, -54.0),
+		center + OUTPOST_LABEL_OFFSET,
 		LocalizationScript.t(&"world.safe_zone"),
 		HORIZONTAL_ALIGNMENT_LEFT,
 		-1.0,
@@ -195,7 +214,7 @@ func _draw_sanctuary_boundary(outpost_cell: Vector2i) -> void:
 func _draw_cell_objects(cell: Vector2i) -> void:
 	var center: Vector2 = _grid_to_screen.call(cell) as Vector2
 	if bool(_outposts.get(cell, false)):
-		_draw_outpost(center)
+		_draw_outpost(cell, center)
 	if bool(_destructible_rocks.get(cell, false)):
 		_draw_destructible(cell, center)
 	if int(_scrap.get(cell, 0)) > 0:
@@ -222,11 +241,14 @@ func _draw_rock(center: Vector2) -> void:
 	draw_line(center + Vector2(-5.0, 4.0), center + Vector2(9.0, 12.0), INK, 3.0)
 
 
-func _draw_outpost(center: Vector2) -> void:
-	draw_arc(center, 20.0, 0.0, TAU, 24, AMBER, 3.0)
-	draw_arc(center, 28.0, 0.0, TAU, 32, TEAL, 2.0)
-	for direction: Vector2 in [Vector2.UP, Vector2.RIGHT, Vector2.DOWN, Vector2.LEFT]:
-		draw_line(center + direction * 21.0, center + direction * 29.0, AMBER, 4.0)
+func _draw_outpost(cell: Vector2i, center: Vector2) -> void:
+	var kind: StringName = get_outpost_kind(cell)
+	var texture: Texture2D = OutpostVisualsScript.texture_for(kind)
+	var size: Vector2 = OutpostVisualsScript.display_size_for(kind)
+	if texture == null or size.x <= 0.0 or size.y <= 0.0:
+		return
+	var rect: Rect2 = Rect2(center + OUTPOST_BASE_OFFSET - Vector2(size.x * 0.5, size.y), size)
+	draw_texture_rect(texture, rect, false)
 
 
 func _draw_scrap(center: Vector2, amount: int) -> void:

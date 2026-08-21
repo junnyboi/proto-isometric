@@ -16,6 +16,7 @@ const LavaFieldsTestsScript: GDScript = preload("res://test/test_lava_fields.gd"
 const LocalizationTestsScript: GDScript = preload("res://test/test_localization.gd")
 const MeleePressureTestsScript: GDScript = preload("res://test/test_melee_pressure.gd")
 const OasisWetlandsTestsScript: GDScript = preload("res://test/test_oasis_wetlands.gd")
+const OutpostVisualTestsScript: GDScript = preload("res://test/test_outpost_visuals.gd")
 const PreferenceTestsScript: GDScript = preload("res://test/test_preferences.gd")
 const PerformanceTestsScript: GDScript = preload("res://test/test_performance.gd")
 const PeacefulHerdAudioTestsScript: GDScript = preload(
@@ -72,6 +73,7 @@ static func evaluate(
 	cases.append_array(SmashFeedbackTestsScript.evaluate())
 	cases.append_array(PeacefulHerdAudioTestsScript.evaluate())
 	cases.append_array(PeacefulHerdTestsScript.evaluate())
+	cases.append_array(OutpostVisualTestsScript.evaluate())
 	if runtime != null:
 		cases.append_array(PerformanceTestsScript.evaluate_live(runtime, world))
 	cases.append_array(ResponsiveViewportTestsScript.evaluate())
