@@ -6,6 +6,7 @@ const BiomeDestructiblesScript: GDScript = preload("res://scripts/biome_destruct
 const EncounterDirectorScript: GDScript = preload("res://scripts/encounter_director.gd")
 const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const LavaContactScript: GDScript = preload("res://scripts/lava_contact.gd")
+const OutpostEnergyScript: GDScript = preload("res://scripts/outpost_energy.gd")
 const OutpostVisualsScript: GDScript = preload("res://scripts/outpost_visuals.gd")
 const RunPickupsScript: GDScript = preload("res://scripts/run_pickups.gd")
 
@@ -32,6 +33,7 @@ var _world: RefCounted
 var _lava_contact: RefCounted
 var _damage_callback: Callable
 var _redraw_request_count: int = 0
+var _outpost_energy: Node2D
 
 
 func configure(
@@ -50,6 +52,7 @@ func configure(
 	_save_callback = save_callback
 	_tile_size = tile_size
 	_sanctuary_radius = maxf(sanctuary_radius, 0.0)
+	_build_outpost_energy()
 	invalidate_static_objects()
 
 
@@ -73,6 +76,8 @@ func advance_lava(position: Vector2, delta: float) -> void:
 
 func set_visible_cells(cells: Array[Vector2i]) -> void:
 	_visible_cells = cells
+	if _outpost_energy != null:
+		_outpost_energy.call("set_visible_cells", cells)
 	invalidate_static_objects()
 
 
@@ -142,6 +147,17 @@ func build_run_pickups(world: RefCounted, coordinator: RefCounted, worms: Node2D
 		return null
 	add_child(pickups)
 	return pickups
+
+
+func _build_outpost_energy() -> void:
+	if _outpost_energy != null:
+		return
+	_outpost_energy = OutpostEnergyScript.new() as Node2D
+	_outpost_energy.name = "OutpostEnergy"
+	_outpost_energy.z_index = 2
+	add_child(_outpost_energy)
+	_outpost_energy.call("configure", _outposts, _grid_to_screen)
+	_outpost_energy.call("set_visible_cells", _visible_cells)
 
 
 func build_encounter_director(
