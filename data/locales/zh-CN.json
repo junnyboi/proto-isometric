@@ -71,7 +71,7 @@
   "access.music_volume": "音乐音量  {percent}%",
   "access.ambience_volume": "环境音量  {percent}%",
   "access.sfx_volume": "音效音量  {percent}%",
-  "access.reset_audio_defaults": "重置音频默认值",
+  "access.reset_audio_defaults": "重置音量",
   "access.language": "语言  EN / 简体中文  [{language}]",
   "access.reset_training": "重置教学",
   "hud.panel_title": "行者 // 战地驾驶",
