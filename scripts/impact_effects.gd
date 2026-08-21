@@ -40,6 +40,7 @@ var _last_debris_kind: StringName = BiomeDestructiblesScript.KIND_DESERT_ROCK
 var _last_debris_palette: Array[Color] = []
 var _shake_enabled: bool = true
 var _reduced_flash: bool = false
+var _effects_quality: StringName = &"full"
 var _redraw_request_count: int = 0
 
 
@@ -81,8 +82,9 @@ func emit_rock_impact(
 		_start_shake(0.24, 11.0, cell.x * 92821 + cell.y * 68917 + _emission_count * 31)
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = cell.x * 73856093 ^ cell.y * 19349663 ^ _emission_count * 83492791
-	var primary_count: int = mini(18, clampi(particle_limit, 1, 28))
-	var secondary_count: int = maxi(clampi(particle_limit, 1, 28) - primary_count, 0)
+	var quality_limit: int = _quality_particle_count(particle_limit)
+	var primary_count: int = mini(18, clampi(quality_limit, 0, 28))
+	var secondary_count: int = maxi(clampi(quality_limit, 0, 28) - primary_count, 0)
 	for index: int in range(primary_count):
 		var angle: float = rng.randf_range(-PI * 0.92, -PI * 0.08)
 		var speed: float = rng.randf_range(90.0, 245.0)
@@ -114,7 +116,7 @@ func emit_scrap_pickup(
 ) -> void:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = amount * 104729 + _emission_count * 17
-	var particle_count: int = clampi(amount * 4, 5, 14)
+	var particle_count: int = _quality_particle_count(clampi(amount * 4, 5, 14))
 	var magnetized: bool = destination.is_finite() and not destination.is_equal_approx(position)
 	for index: int in range(particle_count):
 		var angle: float = TAU * float(index) / float(particle_count)
@@ -141,7 +143,8 @@ func emit_chassis_damage(position: Vector2, amount: int) -> void:
 	_start_shake(0.15, 6.0, amount * 4099 + _damage_emission_count * 131)
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = amount * 65537 + _damage_emission_count * 8191
-	for index: int in range(clampi(7 + amount, 8, 14)):
+	var particle_count: int = _quality_particle_count(clampi(7 + amount, 8, 14))
+	for index: int in range(particle_count):
 		var angle: float = rng.randf_range(-PI * 0.96, -PI * 0.04)
 		_spawn_particle(
 			position + Vector2(rng.randf_range(-18.0, 18.0), -22.0),
@@ -167,6 +170,7 @@ func emit_aftershock(
 	var particle_count: int = 28 if band >= 2 else 16
 	if limit >= 0:
 		particle_count = clampi(limit, 0, 32)
+	particle_count = _quality_particle_count(particle_count)
 	for index: int in range(particle_count):
 		var angle: float = TAU * float(index) / float(particle_count) + rng.randf_range(-0.16, 0.16)
 		_spawn_particle(
@@ -386,7 +390,7 @@ func _emit_directional_contact(event: Dictionary, count: int) -> void:
 	var seed: int = int(event.get(&"sequence_id", 0)) * 104729
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = seed
-	for index: int in range(clampi(count, 0, 32)):
+	for index: int in range(_quality_particle_count(clampi(count, 0, 32))):
 		var spread: Vector2 = screen_direction.rotated(rng.randf_range(-0.65, 0.65))
 		_spawn_particle(
 			position + Vector2(rng.randf_range(-5.0, 5.0), rng.randf_range(-6.0, 4.0)),
@@ -406,7 +410,7 @@ func _emit_surface_wake(event: Dictionary, count: int) -> void:
 	var color: Color = _surface_color(material)
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = int(event.get(&"sequence_id", 0)) * 16127
-	for index: int in range(clampi(count, 0, 8)):
+	for index: int in range(_quality_particle_count(clampi(count, 0, 8))):
 		_spawn_particle(
 			position + Vector2(rng.randf_range(-12.0, 12.0), rng.randf_range(6.0, 14.0)),
 			Vector2(rng.randf_range(-28.0, 28.0), rng.randf_range(-34.0, -12.0)),
@@ -451,6 +455,8 @@ func _recycle_particle(particle: Dictionary) -> void:
 
 
 func _emit_semantic_burst(event: Dictionary, profile: Dictionary) -> void:
+	if not _allows_semantic_burst(event, int(profile.get(&"priority", 0))):
+		return
 	var spec: Dictionary = _burst_spec(event)
 	if spec.is_empty():
 		return
@@ -486,10 +492,13 @@ func _burst_spec(event: Dictionary) -> Dictionary:
 			&"duration": impact_duration,
 			&"size": Vector2(118.0, 72.0) * (1.0 + float(tier) * 0.2),
 		}
-	if event_id in [
-		RuntimeIdsScript.EVENT_LOCOMOTION_WALK_CONTACT,
-		RuntimeIdsScript.EVENT_LOCOMOTION_RUN_CONTACT,
-	]:
+	if (
+		event_id
+		in [
+			RuntimeIdsScript.EVENT_LOCOMOTION_WALK_CONTACT,
+			RuntimeIdsScript.EVENT_LOCOMOTION_RUN_CONTACT,
+		]
+	):
 		var running: bool = event_id == RuntimeIdsScript.EVENT_LOCOMOTION_RUN_CONTACT
 		return {
 			&"texture": FOOTSTEP_TEXTURE,
@@ -586,8 +595,31 @@ func _bind_accessibility() -> void:
 func _apply_preferences(snapshot: Dictionary) -> void:
 	_shake_enabled = bool(snapshot.get(&"camera_shake", true))
 	_reduced_flash = bool(snapshot.get(&"reduced_flash", false))
+	_effects_quality = StringName(str(snapshot.get(&"effects_quality", "full")))
+	if _effects_quality not in [&"full", &"reduced", &"minimal"]:
+		_effects_quality = &"full"
 	if _camera_mixer != null:
 		_camera_mixer.call("set_enabled", _shake_enabled)
+
+
+func _quality_particle_count(base_count: int) -> int:
+	if base_count <= 0:
+		return 0
+	var multiplier: float = 1.0
+	if _effects_quality == &"reduced":
+		multiplier = 0.6
+	elif _effects_quality == &"minimal":
+		multiplier = 0.35
+	return maxi(roundi(float(base_count) * multiplier), 1)
+
+
+func _allows_semantic_burst(event: Dictionary, priority: int) -> bool:
+	if _effects_quality == &"full":
+		return true
+	var event_id: StringName = event.get(&"event_id", &"") as StringName
+	if event_id in [RuntimeIdsScript.EVENT_SCRAP_COLLECTED, RuntimeIdsScript.EVENT_RELAY_COMPLETED]:
+		return true
+	return priority >= (24 if _effects_quality == &"reduced" else 46)
 
 
 func _apply_camera_offset() -> void:
@@ -623,6 +655,11 @@ func _sync_metrics() -> void:
 	_performance_sampler.call("set_gauge", &"bursts.pool_available", float(_burst_pool.size()))
 	_performance_sampler.call("set_gauge", &"bursts.reclaimed_total", float(_reclaimed_burst_count))
 	_performance_sampler.call("set_gauge", &"bursts.peak_active", float(_peak_burst_count))
+	_performance_sampler.call(
+		"set_gauge",
+		&"effects.quality",
+		{&"minimal": 0.0, &"reduced": 0.5, &"full": 1.0}[_effects_quality]
+	)
 
 
 func _request_redraw() -> void:

@@ -22,10 +22,18 @@ Routine contact emphasis uses local presentation holds rather than global `Engin
 | **J0** | 1.5.6 | Latest source synchronized and verified before juice changes | `./verify.sh` |
 | **J1** | 1.6.0 | Semantic Smash feedback and outcome hierarchy | Focused feedback contracts + `./verify.sh --release` + live Smash smoke |
 | **J2** | 1.6.1 | Walker locomotion weight and charge detents | Focused locomotion/charge contracts + full release gate + live traversal smoke |
-| **J3** | 1.6.2 | Complete material and fauna reaction grammar | Material/fauna matrix contracts + full release gate + live multi-biome smoke |
-| **J4** | 1.6.3 | Reward, relay, Refit, and terminal staging | HUD/UI/localization contracts + full release gate + live objective flow smoke |
-| **J5** | 1.6.4 | Restrained biome soundscapes and environmental response | Audio priority/density contracts + full release gate + live browser audio smoke |
-| **J6** | 1.6.5 | Quality tiers, graded comfort controls, and stress certification | Preference migration, parity, stress, release, and cross-setting live smoke |
+| **J3** | 1.6.2 | Charge, resource, relay, and objective HUD emphasis | HUD targeting/delta contracts + full release gate + live charge smoke |
+| **J4** | 1.6.3 | Biome punctuation, reward closure, and terminal staging | Atmosphere/UI contracts + full release gate + live terminal smoke |
+| **J5** | 1.6.5 | Generated contact/reward assets, persistent zoom, and graded comfort controls | Migration/true-zero contracts + full release gate + settings smoke |
+| **J6** | 1.6.7 | Persistent positional audio, restrained biome beds, effects quality tiers, and stress certification | Audio/tier/saturation contracts + full release gate + cross-setting live smoke |
+
+## Execution record
+
+Implementation proceeded as six independently releasable increments while preserving concurrent upstream additions. J1 shipped at `8eed0b9` with WebDev checkpoint `f8b68261`; J2 shipped at `4adfff4` with checkpoint `37bebc20`; J3 shipped at `b13ba35` with checkpoint `be2890ea`; and the integrated J4 source shipped at `a10dd57` with checkpoint `1a64f28b`. Generated runtime contact/reward assets and camera zoom then arrived concurrently and were preserved. J5 rebased graded camera and haptic intensity onto that superset at `b43dd1f`, passed 1,428 checks plus clean export/PCK boot, and shipped as checkpoint `1dec1195`.
+
+The final J6 implementation preserves the concurrent persistent global/positional audio service, adds four bounded biome beds, applies centralized SFX gain and true-zero mute, adds an actual Full/Reduced/Minimal particle and burst budget, provides bilingual quality settings, and includes a 1,000-emission pool saturation certificate. It passes **1,449 canonical smoke checks**, clean Web export, and exported-PCK boot. The final WebDev checkpoint is recorded by the release workflow after exact-bundle attachment.
+
+Two planned mechanisms were deliberately simplified after runtime integration. A separate global flash-limiter node was unnecessary because all new authored flashes are localized, priority-pooled, hard-capped, and transformed by Reduced Flash. A global time-scale hit-stop control was also rejected: J1 uses short local presentation holds that never alter simulation time, preserving responsive movement, combat authority, Web determinism, and the project’s short-feedback-loop mandate. SFX retains a binary true-zero control rather than an inconsistent partial-volume path across legacy audio owners.
 
 ## J0 — Verified implementation baseline
 

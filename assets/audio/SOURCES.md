@@ -35,3 +35,7 @@ The four cues below are accepted mono 48 kHz PCM runtime derivatives generated w
 ## Generated movement and objective cues
 
 `impact_contact.wav`, `charge_ready.wav`, and `relay_complete.wav` were generated with Manus `generate_video(generate_audio:true)` after Mirelo was unavailable, extracted from audio-bearing carriers, silence-trimmed, peak-limited, and stored as 48 kHz mono PCM runtime WAVs on 2026-08-20. The impact sample can supply a lower-pitched weight layer; the charge sample supplies the pickup voice. Generation carriers remain outside Git.
+
+## J6 biome ambience beds
+
+`ambience_desert.wav` is an accepted mono PCM runtime derivative extracted from an eight-second Gemini Omni audio-bearing generation prompted as a restrained mechanical desert wasteland bed. `ambience_wetland.wav`, `ambience_frozen.wav`, and `ambience_volcanic.wav` are deterministic spectral derivatives of that accepted source, mixed with low-level procedural noise or sub-bass appropriate to each biome after additional generator requests encountered temporary capacity limits. All four beds are 22.05 kHz mono PCM, use short boundary fades, play at a restrained runtime level, and share a hard two-voice crossfade cap. The generation carrier was deleted after codec, channel, sample-rate, duration, and size validation.

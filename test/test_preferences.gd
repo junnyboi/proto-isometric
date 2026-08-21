@@ -55,6 +55,11 @@ static func evaluate() -> Array[Dictionary]:
 	)
 	_add(
 		cases,
+		"preferences default effects quality is full",
+		defaults[&"effects_quality"] == &"full",
+	)
+	_add(
+		cases,
 		"preferences reject unsafe UI scale",
 		not bool(preferences.call("set_value", &"ui_scale", 1.5)),
 	)
@@ -78,6 +83,11 @@ static func evaluate() -> Array[Dictionary]:
 		"preferences reject unsafe audio gain",
 		not bool(preferences.call("set_value", &"sfx_volume", 1.4)),
 	)
+	_add(
+		cases,
+		"preferences reject unsupported effects quality",
+		not bool(preferences.call("set_value", &"effects_quality", "cinematic")),
+	)
 	preferences.call("set_value", &"ui_scale", 1.15)
 	preferences.call("set_value", &"camera_shake", false)
 	preferences.call("set_value", &"reduced_flash", true)
@@ -89,6 +99,7 @@ static func evaluate() -> Array[Dictionary]:
 	preferences.call("set_value", &"music_volume", 0.45)
 	preferences.call("set_value", &"locale", "zh_CN")
 	preferences.call("set_value", &"camera_zoom", 1.2)
+	preferences.call("set_value", &"effects_quality", &"reduced")
 	_add(cases, "preferences save atomically", bool(preferences.call("save_preferences")))
 	var restored: RefCounted = PlayerPreferencesScript.new() as RefCounted
 	var snapshot: Dictionary = restored.call("load_preferences") as Dictionary
@@ -107,6 +118,7 @@ static func evaluate() -> Array[Dictionary]:
 			and is_equal_approx(float(snapshot[&"music_volume"]), 0.45)
 			and snapshot[&"locale"] == &"zh-CN"
 			and is_equal_approx(float(snapshot[&"camera_zoom"]), 1.2)
+			and snapshot[&"effects_quality"] == &"reduced"
 		),
 	)
 	var legacy_audio: Dictionary = snapshot.duplicate(true)
@@ -137,6 +149,20 @@ static func evaluate() -> Array[Dictionary]:
 			)
 		)
 	)
+	var legacy_quality: Dictionary = snapshot.duplicate(true)
+	legacy_quality.erase(&"effects_quality")
+	var quality_preferences: RefCounted = PlayerPreferencesScript.new() as RefCounted
+	_add(
+		cases,
+		"legacy preferences restore full effects quality",
+		(
+			bool(quality_preferences.call("restore_dictionary", legacy_quality))
+			and (
+				(quality_preferences.call("to_dictionary") as Dictionary)[&"effects_quality"]
+				== &"full"
+			)
+		),
+	)
 	var malformed: FileAccess = FileAccess.open(PATH, FileAccess.WRITE)
 	malformed.store_string("{malformed")
 	malformed = null
@@ -151,6 +177,7 @@ static func evaluate() -> Array[Dictionary]:
 			and not bool(recovered[&"reduced_flash"])
 			and recovered[&"locale"] == &"en"
 			and is_equal_approx(float(recovered[&"camera_zoom"]), 1.0)
+			and recovered[&"effects_quality"] == &"full"
 		),
 	)
 	var graded: RefCounted = PlayerPreferencesScript.new() as RefCounted
@@ -200,6 +227,27 @@ static func evaluate() -> Array[Dictionary]:
 		(
 			float(panel.call("get_preferences")[&"camera_shake_intensity"]) == 0.5
 			and "LOW" in camera_button.text
+		),
+	)
+	var quality_button: Button = panel.get("_buttons")[&"effects_quality"] as Button
+	panel.call("_cycle_effects_quality")
+	_add(
+		cases,
+		"settings exposes a persistent reduced effects tier",
+		(
+			panel.call("get_preferences")[&"effects_quality"] == &"reduced"
+			and "REDUCED" in quality_button.text
+		),
+	)
+	var sfx_button: Button = panel.get("_buttons")[&"sfx_enabled"] as Button
+	panel.call("_cycle_sfx_volume")
+	_add(
+		cases,
+		"settings SFX gain cycles from full to true zero",
+		(
+			float(panel.call("get_preferences")[&"sfx_volume"]) == 0.0
+			and not bool(panel.call("get_preferences")[&"sfx_enabled"])
+			and "0%" in sfx_button.text
 		),
 	)
 	panel.call("_cycle_locale")

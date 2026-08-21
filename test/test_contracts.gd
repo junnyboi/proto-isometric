@@ -40,6 +40,7 @@ const EnvironmentRewardFeedbackTestsScript: GDScript = preload(
 const FeedbackAccessibilityTestsScript: GDScript = preload(
 	"res://test/test_feedback_accessibility.gd"
 )
+const JuiceCertificationTestsScript: GDScript = preload("res://test/test_juice_certification.gd")
 
 
 static func evaluate(
@@ -79,6 +80,7 @@ static func evaluate(
 	cases.append_array(HUDFeedbackTestsScript.evaluate())
 	cases.append_array(EnvironmentRewardFeedbackTestsScript.evaluate())
 	cases.append_array(FeedbackAccessibilityTestsScript.evaluate())
+	cases.append_array(JuiceCertificationTestsScript.evaluate())
 	cases.append_array(SanctuaryBoundaryTestsScript.evaluate(world))
 	cases.append_array(SaveMigrationTestsScript.evaluate(world))
 	(

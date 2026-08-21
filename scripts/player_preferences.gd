@@ -2,6 +2,7 @@ extends RefCounted
 
 const PATH: String = "user://walkers-wake-preferences.json"
 const MAX_BYTES: int = 4096
+const VALID_EFFECTS_QUALITY: Array[StringName] = [&"full", &"reduced", &"minimal"]
 
 var _ui_scale: float = 1.0
 var _camera_shake: bool = true
@@ -17,6 +18,7 @@ var _sfx_volume: float = 1.0
 var _music_volume: float = 1.0
 var _locale: StringName = &"en"
 var _camera_zoom: float = 1.0
+var _effects_quality: StringName = &"full"
 
 
 func load_preferences() -> Dictionary:
@@ -111,13 +113,18 @@ func set_value(key: StringName, value: Variant) -> bool:
 			valid = value is float and is_finite(value) and value >= 0.7 and value <= 1.3
 			if valid:
 				_camera_zoom = snappedf(value, 0.1)
+		&"effects_quality":
+			var quality: StringName = normalize_effects_quality(value)
+			valid = quality != &""
+			if valid:
+				_effects_quality = quality
 		_:
 			valid = false
 	return valid
 
 
 func restore_dictionary(snapshot: Dictionary) -> bool:
-	if snapshot.size() < 4 or snapshot.size() > 14:
+	if snapshot.size() < 4 or snapshot.size() > 15:
 		return false
 	var scale: Variant = snapshot.get(&"ui_scale")
 	var shake: Variant = snapshot.get(&"camera_shake")
@@ -133,6 +140,7 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 	var music_volume: Variant = snapshot.get(&"music_volume", 1.0)
 	var locale: Variant = snapshot.get(&"locale", "en")
 	var camera_zoom: Variant = snapshot.get(&"camera_zoom", 1.0)
+	var effects_quality: Variant = snapshot.get(&"effects_quality", "full")
 	if (
 		not scale is float
 		or not shake is bool
@@ -148,6 +156,7 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 		or not music_volume is float
 		or not (locale is String or locale is StringName)
 		or not camera_zoom is float
+		or not (effects_quality is String or effects_quality is StringName)
 	):
 		return false
 	var before: Dictionary = to_dictionary()
@@ -164,6 +173,7 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 		or not set_value(&"music_volume", music_volume)
 		or not set_value(&"locale", locale)
 		or not set_value(&"camera_zoom", camera_zoom)
+		or not set_value(&"effects_quality", effects_quality)
 	):
 		_apply(before)
 		return false
@@ -186,6 +196,7 @@ func to_dictionary() -> Dictionary:
 		&"music_volume": _music_volume,
 		&"locale": _locale,
 		&"camera_zoom": _camera_zoom,
+		&"effects_quality": _effects_quality,
 	}
 
 
@@ -206,6 +217,9 @@ func _apply(snapshot: Dictionary) -> void:
 	_music_volume = float(snapshot.get(&"music_volume", 1.0))
 	_locale = normalize_locale(snapshot.get(&"locale", "en"))
 	_camera_zoom = float(snapshot.get(&"camera_zoom", 1.0))
+	_effects_quality = normalize_effects_quality(snapshot.get(&"effects_quality", "full"))
+	if _effects_quality == &"":
+		_effects_quality = &"full"
 	if _locale == &"":
 		_locale = &"en"
 
@@ -225,3 +239,8 @@ static func normalize_locale(value: Variant) -> StringName:
 
 static func _valid_volume(value: Variant) -> bool:
 	return value is float and is_finite(value) and value >= 0.0 and value <= 1.0
+
+
+static func normalize_effects_quality(value: Variant) -> StringName:
+	var normalized: StringName = StringName(str(value).strip_edges().to_lower())
+	return normalized if normalized in VALID_EFFECTS_QUALITY else &""

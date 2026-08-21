@@ -61,6 +61,23 @@ func _cycle_intensity(key: StringName) -> void:
 	_commit()
 
 
+func _cycle_effects_quality() -> void:
+	var tiers: Array[StringName] = [&"full", &"reduced", &"minimal"]
+	var current: StringName = get_preferences()[&"effects_quality"] as StringName
+	var next_index: int = (tiers.find(current) + 1) % tiers.size()
+	_preferences.call("set_value", &"effects_quality", tiers[next_index])
+	_commit()
+
+
+func _cycle_sfx_volume() -> void:
+	var volume: float = float(get_preferences()[&"sfx_volume"]) + 0.25
+	if volume > 1.0:
+		volume = 0.0
+	_preferences.call("set_value", &"sfx_volume", volume)
+	_preferences.call("set_value", &"sfx_enabled", volume > 0.0)
+	_commit()
+
+
 func _cycle_locale() -> void:
 	_preferences.call("load_preferences")
 	var current: StringName = LocalizationScript.get_locale()
@@ -103,6 +120,13 @@ func _refresh() -> void:
 	(_buttons[&"reduced_flash"] as Button).text = LocalizationScript.t(
 		&"access.reduced_flash", {"state": _on_off(snapshot, &"reduced_flash")}
 	)
+	(_buttons[&"effects_quality"] as Button).text = (
+		LocalizationScript
+		. t(
+			&"access.effects_quality",
+			{"state": LocalizationScript.t("common.quality.%s" % snapshot[&"effects_quality"])},
+		)
+	)
 	(_buttons[&"haptics"] as Button).text = LocalizationScript.t(
 		&"access.haptics", {"state": _intensity_label(snapshot, &"haptic_intensity")}
 	)
@@ -110,7 +134,7 @@ func _refresh() -> void:
 		&"access.left_handed", {"state": _on_off(snapshot, &"left_handed")}
 	)
 	(_buttons[&"sfx_enabled"] as Button).text = LocalizationScript.t(
-		&"access.sfx", {"state": _on_off(snapshot, &"sfx_enabled")}
+		&"access.sfx_volume", {"percent": roundi(float(snapshot[&"sfx_volume"]) * 100.0)}
 	)
 	var locale: String = str(LocalizationScript.get_locale())
 	(_buttons[&"locale"] as Button).text = (
@@ -186,7 +210,7 @@ func _build_interface() -> void:
 	_panel = ColorRect.new()
 	_panel.name = "AccessibilityPanel"
 	_panel.position = Vector2(820.0, 78.0)
-	_panel.size = Vector2(442.0, 548.0)
+	_panel.size = Vector2(442.0, 604.0)
 	_panel.color = Color(0.025, 0.035, 0.04, 0.97)
 	_panel.visible = false
 	add_child(_panel)
@@ -199,11 +223,12 @@ func _build_interface() -> void:
 	_add_button(&"ui_scale", 78.0, _cycle_scale)
 	_add_button(&"camera_shake", 134.0, _cycle_intensity.bind(&"camera_shake_intensity"))
 	_add_button(&"reduced_flash", 190.0, _toggle_boolean.bind(&"reduced_flash"))
-	_add_button(&"haptics", 246.0, _cycle_intensity.bind(&"haptic_intensity"))
-	_add_button(&"left_handed", 302.0, _toggle_boolean.bind(&"left_handed"))
-	_add_button(&"sfx_enabled", 358.0, _toggle_boolean.bind(&"sfx_enabled"))
-	_add_button(&"locale", 414.0, _cycle_locale)
-	_add_button(&"onboarding_seen", 470.0, _reset_training)
+	_add_button(&"effects_quality", 246.0, _cycle_effects_quality)
+	_add_button(&"haptics", 302.0, _cycle_intensity.bind(&"haptic_intensity"))
+	_add_button(&"left_handed", 358.0, _toggle_boolean.bind(&"left_handed"))
+	_add_button(&"sfx_enabled", 414.0, _cycle_sfx_volume)
+	_add_button(&"locale", 470.0, _cycle_locale)
+	_add_button(&"onboarding_seen", 526.0, _reset_training)
 
 
 func _add_button(key: StringName, y: float, callback: Callable) -> void:
@@ -222,7 +247,7 @@ func _apply_layout() -> void:
 	if _panel == null:
 		return
 	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
-	var scale_factor: float = minf(1.0, minf(viewport_size.x / 470.0, viewport_size.y / 590.0))
+	var scale_factor: float = minf(1.0, minf(viewport_size.x / 470.0, viewport_size.y / 646.0))
 	_panel.scale = Vector2.ONE * scale_factor
 	_panel.position = Vector2(viewport_size.x - _panel.size.x * scale_factor - 18.0, 72.0)
 	_access_button.position = Vector2(viewport_size.x - _access_button.size.x - 18.0, 18.0)
