@@ -56,6 +56,7 @@ static func evaluate() -> Array[Dictionary]:
 		(
 			is_equal_approx(float(defaults[&"master_volume"]), 1.0)
 			and is_equal_approx(float(defaults[&"sfx_volume"]), 1.0)
+			and is_equal_approx(float(defaults[&"ambience_volume"]), 1.0)
 			and is_equal_approx(float(defaults[&"music_volume"]), 1.0)
 		),
 	)
@@ -107,6 +108,7 @@ static func evaluate() -> Array[Dictionary]:
 	preferences.call("set_value", &"sfx_enabled", false)
 	preferences.call("set_value", &"master_volume", 0.8)
 	preferences.call("set_value", &"sfx_volume", 0.65)
+	preferences.call("set_value", &"ambience_volume", 0.55)
 	preferences.call("set_value", &"music_volume", 0.45)
 	preferences.call("set_value", &"locale", "zh_CN")
 	preferences.call("set_value", &"camera_zoom", 1.17)
@@ -127,6 +129,7 @@ static func evaluate() -> Array[Dictionary]:
 			and not bool(snapshot[&"sfx_enabled"])
 			and is_equal_approx(float(snapshot[&"master_volume"]), 0.8)
 			and is_equal_approx(float(snapshot[&"sfx_volume"]), 0.65)
+			and is_equal_approx(float(snapshot[&"ambience_volume"]), 0.55)
 			and is_equal_approx(float(snapshot[&"music_volume"]), 0.45)
 			and snapshot[&"locale"] == &"zh-CN"
 			and is_equal_approx(float(snapshot[&"camera_zoom"]), 1.17)
@@ -138,6 +141,7 @@ static func evaluate() -> Array[Dictionary]:
 	legacy_runtime.erase(&"camera_zoom")
 	legacy_runtime.erase(&"master_volume")
 	legacy_runtime.erase(&"sfx_volume")
+	legacy_runtime.erase(&"ambience_volume")
 	legacy_runtime.erase(&"music_volume")
 	legacy_runtime.erase(&"vfx_intensity")
 	var legacy_preferences: RefCounted = PlayerPreferencesScript.new() as RefCounted
@@ -155,6 +159,12 @@ static func evaluate() -> Array[Dictionary]:
 			)
 			and is_equal_approx(
 				float((legacy_preferences.call("to_dictionary") as Dictionary)[&"sfx_volume"]),
+				1.0,
+			)
+			and is_equal_approx(
+				float(
+					(legacy_preferences.call("to_dictionary") as Dictionary)[&"ambience_volume"]
+				),
 				1.0,
 			)
 			and is_equal_approx(
@@ -222,18 +232,24 @@ static func evaluate() -> Array[Dictionary]:
 	var vfx_slider: HSlider = panel.call("get_vfx_intensity_slider") as HSlider
 	var master_slider: HSlider = panel.call("get_audio_volume_slider", &"master_volume") as HSlider
 	var music_slider: HSlider = panel.call("get_audio_volume_slider", &"music_volume") as HSlider
+	var ambience_slider: HSlider = (
+		panel.call("get_audio_volume_slider", &"ambience_volume") as HSlider
+	)
 	_add(
 		cases,
-		"settings exposes Master and Music mixer sliders",
+		"settings exposes Master, Music, and Ambience mixer sliders",
 		(
 			master_slider != null
 			and music_slider != null
+			and ambience_slider != null
 			and master_slider.min_value == 0.0
 			and master_slider.max_value == 100.0
 			and master_slider.step == 5.0
 			and music_slider.step == 5.0
+			and ambience_slider.step == 5.0
 			and "MASTER VOLUME" in master_slider.tooltip_text
 			and "MUSIC VOLUME" in music_slider.tooltip_text
+			and "AMBIENCE VOLUME" in ambience_slider.tooltip_text
 		),
 	)
 	var audio_service: Node = (Engine.get_main_loop() as SceneTree).root.get_node_or_null(
@@ -243,25 +259,34 @@ static func evaluate() -> Array[Dictionary]:
 		panel.connect("preferences_changed", Callable(audio_service, "apply_preferences"))
 	panel.call("_set_audio_volume", 60.0, &"master_volume")
 	panel.call("_set_audio_volume", 35.0, &"music_volume")
+	panel.call("_set_audio_volume", 25.0, &"ambience_volume")
 	var audio_saved: Dictionary = (
 		(PlayerPreferencesScript.new() as RefCounted).call("load_preferences") as Dictionary
 	)
 	var master_bus: int = AudioServer.get_bus_index(AudioServiceScript.BUS_MASTER)
 	var music_bus: int = AudioServer.get_bus_index(AudioServiceScript.BUS_MUSIC)
+	var ambience_bus: int = AudioServer.get_bus_index(AudioServiceScript.BUS_AMBIENT)
 	_add(
 		cases,
-		"Master and Music sliders persist and update live buses",
+		"Master, Music, and Ambience sliders persist and update live buses",
 		(
 			is_equal_approx(float(audio_saved[&"master_volume"]), 0.6)
 			and is_equal_approx(float(audio_saved[&"music_volume"]), 0.35)
+			and is_equal_approx(float(audio_saved[&"ambience_volume"]), 0.25)
 			and is_equal_approx(master_slider.value, 60.0)
 			and is_equal_approx(music_slider.value, 35.0)
+			and is_equal_approx(ambience_slider.value, 25.0)
 			and is_equal_approx(db_to_linear(AudioServer.get_bus_volume_db(master_bus)), 0.6)
 			and is_equal_approx(db_to_linear(AudioServer.get_bus_volume_db(music_bus)), 0.35)
+			and is_equal_approx(db_to_linear(AudioServer.get_bus_volume_db(ambience_bus)), 0.25)
 		),
 	)
-	panel.call("_set_audio_volume", 0.0, &"music_volume")
-	_add(cases, "Music slider zero mutes the Music bus", AudioServer.is_bus_mute(music_bus))
+	panel.call("_set_audio_volume", 0.0, &"ambience_volume")
+	_add(
+		cases,
+		"Ambience slider zero mutes the Ambient bus",
+		AudioServer.is_bus_mute(ambience_bus),
+	)
 	_add(
 		cases,
 		"settings menu exposes a ten-step VFX intensity slider",
@@ -369,6 +394,7 @@ static func evaluate() -> Array[Dictionary]:
 					&"sfx_enabled": true,
 					&"master_volume": 1.0,
 					&"sfx_volume": 1.0,
+					&"ambience_volume": 1.0,
 					&"music_volume": 1.0,
 				},
 			)

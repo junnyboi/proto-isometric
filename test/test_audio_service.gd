@@ -111,6 +111,7 @@ static func _test_preferences(cases: Array[Dictionary], service: Node) -> void:
 			&"sfx_enabled": true,
 			&"master_volume": 0.55,
 			&"sfx_volume": 0.65,
+			&"ambience_volume": 0.35,
 			&"music_volume": 0.45,
 		},
 	)
@@ -118,9 +119,10 @@ static func _test_preferences(cases: Array[Dictionary], service: Node) -> void:
 		cases,
 		"audio preferences apply independent bus gains",
 		(
-			_volume_is(AudioServiceScript.BUS_MASTER, 0.55)
-			and _volume_is(AudioServiceScript.BUS_SFX, 0.65)
-			and _volume_is(AudioServiceScript.BUS_MUSIC, 0.45)
+				_volume_is(AudioServiceScript.BUS_MASTER, 0.55)
+				and _volume_is(AudioServiceScript.BUS_SFX, 0.65)
+				and _volume_is(AudioServiceScript.BUS_AMBIENT, 0.35)
+				and _volume_is(AudioServiceScript.BUS_MUSIC, 0.45)
 		),
 	)
 	service.call(
@@ -129,14 +131,16 @@ static func _test_preferences(cases: Array[Dictionary], service: Node) -> void:
 			&"sfx_enabled": true,
 			&"master_volume": 0.0,
 			&"sfx_volume": 1.0,
+			&"ambience_volume": 0.0,
 			&"music_volume": 0.0,
 		},
 	)
 	_add(
 		cases,
-		"zero Master and Music gain mute their buses",
+		"zero Master, Ambience, and Music gain mute their buses",
 		(
 			_bus_is_muted(AudioServiceScript.BUS_MASTER)
+			and _bus_is_muted(AudioServiceScript.BUS_AMBIENT)
 			and _bus_is_muted(AudioServiceScript.BUS_MUSIC)
 		),
 	)
@@ -146,6 +150,7 @@ static func _test_preferences(cases: Array[Dictionary], service: Node) -> void:
 			&"sfx_enabled": true,
 			&"master_volume": 1.0,
 			&"sfx_volume": 1.0,
+			&"ambience_volume": 1.0,
 			&"music_volume": 1.0,
 		},
 	)

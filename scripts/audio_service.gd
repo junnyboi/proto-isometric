@@ -126,6 +126,7 @@ func apply_preferences(snapshot: Dictionary) -> void:
 	set_sfx_enabled(bool(snapshot.get(&"sfx_enabled", true)))
 	_set_bus_linear(BUS_MASTER, float(snapshot.get(&"master_volume", 1.0)))
 	_set_bus_linear(BUS_SFX, float(snapshot.get(&"sfx_volume", 1.0)))
+	_set_bus_linear(BUS_AMBIENT, float(snapshot.get(&"ambience_volume", 1.0)))
 	_set_bus_linear(BUS_MUSIC, float(snapshot.get(&"music_volume", 1.0)))
 
 

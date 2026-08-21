@@ -15,6 +15,7 @@ var _left_handed: bool = false
 var _sfx_enabled: bool = true
 var _master_volume: float = 1.0
 var _sfx_volume: float = 1.0
+var _ambience_volume: float = 1.0
 var _music_volume: float = 1.0
 var _locale: StringName = &"en"
 var _camera_zoom: float = 1.0
@@ -101,6 +102,10 @@ func set_value(key: StringName, value: Variant) -> bool:
 			valid = _valid_volume(value)
 			if valid:
 				_sfx_volume = snappedf(value, 0.05)
+		&"ambience_volume":
+			valid = _valid_volume(value)
+			if valid:
+				_ambience_volume = snappedf(value, 0.05)
 		&"music_volume":
 			valid = _valid_volume(value)
 			if valid:
@@ -129,7 +134,7 @@ func set_value(key: StringName, value: Variant) -> bool:
 
 
 func restore_dictionary(snapshot: Dictionary) -> bool:
-	if snapshot.size() < 4 or snapshot.size() > 16:
+	if snapshot.size() < 4 or snapshot.size() > 17:
 		return false
 	var scale: Variant = snapshot.get(&"ui_scale")
 	var shake: Variant = snapshot.get(&"camera_shake")
@@ -142,6 +147,7 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 	var sfx_enabled: Variant = snapshot.get(&"sfx_enabled", true)
 	var master_volume: Variant = snapshot.get(&"master_volume", 1.0)
 	var sfx_volume: Variant = snapshot.get(&"sfx_volume", 1.0)
+	var ambience_volume: Variant = snapshot.get(&"ambience_volume", 1.0)
 	var music_volume: Variant = snapshot.get(&"music_volume", 1.0)
 	var locale: Variant = snapshot.get(&"locale", "en")
 	var camera_zoom: Variant = snapshot.get(&"camera_zoom", 1.0)
@@ -159,6 +165,7 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 		or not sfx_enabled is bool
 		or not master_volume is float
 		or not sfx_volume is float
+		or not ambience_volume is float
 		or not music_volume is float
 		or not (locale is String or locale is StringName)
 		or not camera_zoom is float
@@ -177,6 +184,7 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 		or not set_value(&"sfx_enabled", sfx_enabled)
 		or not set_value(&"master_volume", master_volume)
 		or not set_value(&"sfx_volume", sfx_volume)
+		or not set_value(&"ambience_volume", ambience_volume)
 		or not set_value(&"music_volume", music_volume)
 		or not set_value(&"locale", locale)
 		or not set_value(&"camera_zoom", camera_zoom)
@@ -201,6 +209,7 @@ func to_dictionary() -> Dictionary:
 		&"sfx_enabled": _sfx_enabled,
 		&"master_volume": _master_volume,
 		&"sfx_volume": _sfx_volume,
+		&"ambience_volume": _ambience_volume,
 		&"music_volume": _music_volume,
 		&"locale": _locale,
 		&"camera_zoom": _camera_zoom,
@@ -223,6 +232,7 @@ func _apply(snapshot: Dictionary) -> void:
 	_sfx_enabled = bool(snapshot.get(&"sfx_enabled", true))
 	_master_volume = float(snapshot.get(&"master_volume", 1.0))
 	_sfx_volume = float(snapshot.get(&"sfx_volume", 1.0))
+	_ambience_volume = float(snapshot.get(&"ambience_volume", 1.0))
 	_music_volume = float(snapshot.get(&"music_volume", 1.0))
 	_locale = normalize_locale(snapshot.get(&"locale", "en"))
 	_camera_zoom = float(snapshot.get(&"camera_zoom", 1.0))
