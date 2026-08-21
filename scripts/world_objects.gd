@@ -56,6 +56,7 @@ func bind_world(world: RefCounted, damage_callback: Callable) -> bool:
 	_world = world
 	_lava_contact = LavaContactScript.new() as RefCounted
 	_damage_callback = damage_callback
+	invalidate_static_objects()
 	return bool(_lava_contact.call("configure", world))
 
 
@@ -100,7 +101,7 @@ func get_visible_sanctuary_count() -> int:
 	var count: int = 0
 	for value: Variant in _outposts:
 		var cell: Vector2i = value as Vector2i
-		if bool(_outposts[cell]) and cell in _visible_cells:
+		if bool(_outposts[cell]) and cell in _visible_cells and _outpost_has_sanctuary(cell):
 			count += 1
 	return count
 
@@ -153,7 +154,11 @@ func _draw() -> void:
 		return
 	for value: Variant in _outposts:
 		var outpost_cell: Vector2i = value as Vector2i
-		if bool(_outposts[outpost_cell]) and outpost_cell in _visible_cells:
+		if (
+			bool(_outposts[outpost_cell])
+			and outpost_cell in _visible_cells
+			and _outpost_has_sanctuary(outpost_cell)
+		):
 			_draw_sanctuary_boundary(outpost_cell)
 	for cell: Vector2i in _visible_cells:
 		_draw_cell_objects(cell)
@@ -236,4 +241,12 @@ func _project_grid_offset(offset: Vector2) -> Vector2:
 	return Vector2(
 		(offset.x - offset.y) * _tile_size.x * 0.5,
 		(offset.x + offset.y) * _tile_size.y * 0.5,
+	)
+
+
+func _outpost_has_sanctuary(cell: Vector2i) -> bool:
+	return (
+		bool(_world.call("_is_sanctuary_outpost", cell))
+		if _world != null and _world.has_method("_is_sanctuary_outpost")
+		else true
 	)

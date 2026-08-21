@@ -56,7 +56,7 @@ static func evaluate() -> Array[Dictionary]:
 	)
 
 	var worms: Node2D = SandwormsScript.new() as Node2D
-	worms.call("configure", Vector2(90.0, 45.0), Vector2.ZERO)
+	worms.call("configure", Vector2(90.0, 45.0), Vector2.ZERO, null, world)
 	var hazards: Node2D = DesertHazardsScript.new() as Node2D
 	hazards.call("configure", Vector2(90.0, 45.0), Vector2.ZERO, Vector2i(14, 11))
 	var director: Node = EncounterDirectorScript.new() as Node
@@ -87,7 +87,7 @@ static func evaluate() -> Array[Dictionary]:
 	)
 	worms.call("clear_worms")
 	hazards.call("clear_hazards")
-	coordinator.call("set_run_value", &"player_cell", Vector2i(8, 4))
+	coordinator.call("set_run_value", &"player_cell", InfiniteWorldScript.SAFE_STARTER_OUTPOST)
 	coordinator.call("_complete_next_relay", RuntimeIdsScript.OBJECTIVE_RELAY_THREE)
 	_add(
 		cases,
@@ -122,7 +122,7 @@ static func _test_ambient_pressure(cases: Array[Dictionary], world: RefCounted) 
 	coordinator.call("configure_default")
 	coordinator.call("set_run_value", &"player_cell", Vector2i(10, 20))
 	var worms: Node2D = SandwormsScript.new() as Node2D
-	worms.call("configure", Vector2(90.0, 45.0), Vector2.ZERO)
+	worms.call("configure", Vector2(90.0, 45.0), Vector2.ZERO, null, world)
 	var hazards: Node2D = DesertHazardsScript.new() as Node2D
 	hazards.call("configure", Vector2(90.0, 45.0), Vector2.ZERO, Vector2i(14, 11))
 	var director: Node = EncounterDirectorScript.new() as Node
@@ -154,6 +154,11 @@ static func _test_ambient_pressure(cases: Array[Dictionary], world: RefCounted) 
 	)
 	coordinator.call("set_run_value", &"starter_relay_completed", true)
 	director.call("_process", 4.1)
+	_add(
+		cases,
+		"Alert I fills but never exceeds its melee pressure cap",
+		int(worms.call("_get_melee_count")) == int(director.call("get_melee_soft_cap")),
+	)
 	_add(
 		cases,
 		"initial relay alert cannot add a second worm",
@@ -201,7 +206,7 @@ static func _test_ambient_pressure(cases: Array[Dictionary], world: RefCounted) 
 	)
 	worms.call("clear_worms")
 	hazards.call("clear_hazards")
-	coordinator.call("set_run_value", &"player_cell", Vector2i(8, 4))
+	coordinator.call("set_run_value", &"player_cell", InfiniteWorldScript.SAFE_STARTER_OUTPOST)
 	director.call("_process", 100.0)
 	_add(
 		cases,

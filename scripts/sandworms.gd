@@ -7,6 +7,7 @@ signal peaceful_defeated(creature_id: int, position: Vector2, resource_amount: i
 
 const FaunaCombatScript: GDScript = preload("res://scripts/fauna_combat_catalog.gd")
 const FaunaTelegraphAudioScript: GDScript = preload("res://scripts/fauna_telegraph_audio.gd")
+const MeleePressureScript: GDScript = preload("res://scripts/melee_pressure.gd")
 const PeacefulHerdsScript: GDScript = preload("res://scripts/peaceful_herds.gd")
 const DEFAULT_PROFILE: Resource = preload("res://data/combat/sandworm_default.tres")
 const MUD_SKIMMER_TEXTURE: Texture2D = preload("res://assets/enemies/mud_skimmer.png")
@@ -74,6 +75,7 @@ var _active_biome: StringName = &"desert"
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _hovered_enemy_id: int = -1
 var _telegraph_audio: Node
+var _melee_pressure: Node2D
 var _peaceful_herds: Node2D
 var _defeated_peaceful_kinds: Dictionary = {}
 
@@ -108,6 +110,12 @@ func configure(
 	_map_origin = map_origin
 	_profile = profile
 	_world = world
+	if _world != null and _melee_pressure == null:
+		_melee_pressure = MeleePressureScript.new() as Node2D
+		_melee_pressure.name = "MeleePressure"
+		_melee_pressure.call("configure", _tile_size, _map_origin, _world)
+		_melee_pressure.connect("damage_tick", damage_tick.emit)
+		add_child(_melee_pressure)
 	if _world != null and _peaceful_herds == null:
 		_peaceful_herds = PeacefulHerdsScript.new() as Node2D
 		_peaceful_herds.name = "PeacefulHerds"
@@ -134,19 +142,27 @@ func set_player_position(position: Vector2, velocity: Vector2 = Vector2.ZERO) ->
 	_sync_biome(position)
 	_player_position = position
 	_player_velocity = velocity
+	if _melee_pressure != null:
+		_melee_pressure.call("set_player_position", position)
 	if _peaceful_herds != null:
 		_peaceful_herds.call("set_player_position", position)
 
 
 func set_outpost_linked(linked: bool) -> void:
+	if _world != null:
+		linked = bool(_world.call("_is_in_sanctuary", _player_position))
 	if linked and not _outpost_linked:
 		disperse_all()
 	_outpost_linked = linked
+	if _melee_pressure != null:
+		_melee_pressure.call("set_sanctuary_active", linked)
 
 
 func disperse_all() -> void:
 	for worm: Dictionary in _worms:
 		_set_state(worm, STATE_DISPERSING, _p_float(&"disperse_seconds"))
+	if _melee_pressure != null:
+		_melee_pressure.call("disperse_all")
 	queue_redraw()
 
 
@@ -167,6 +183,8 @@ func advance(delta: float) -> void:
 			_worms.remove_at(index)
 	if _peaceful_herds != null:
 		_peaceful_herds.call("advance", step)
+	if _melee_pressure != null:
+		_melee_pressure.call("advance", step)
 	queue_redraw()
 
 
@@ -224,12 +242,26 @@ func spawn_worm(position: Vector2, emerge_seconds: float = -1.0) -> int:
 
 func clear_worms() -> void:
 	_worms.clear()
+	if _melee_pressure != null:
+		_melee_pressure.call("clear")
 	_hovered_enemy_id = -1
 	queue_redraw()
 
 
 func get_worm_count() -> int:
 	return _worms.size()
+
+
+func _spawn_melee_pack(center: Vector2, count: int) -> int:
+	return int(_melee_pressure.call("spawn_pack", center, count)) if _melee_pressure != null else 0
+
+
+func _get_melee_count() -> int:
+	return int(_melee_pressure.call("get_count")) if _melee_pressure != null else 0
+
+
+func _get_melee_pressure() -> Node2D:
+	return _melee_pressure
 
 
 func _get_peaceful_count() -> int:
@@ -241,6 +273,8 @@ func _get_peaceful_herds() -> Node2D:
 
 
 func get_health(worm_id: int) -> int:
+	if worm_id >= MeleePressureScript.ID_BASE:
+		return int(_melee_pressure.call("get_health", worm_id))
 	if worm_id >= PeacefulHerdsScript.CREATURE_ID_BASE:
 		return (
 			1
@@ -253,11 +287,15 @@ func get_health(worm_id: int) -> int:
 
 
 func get_worm_position(worm_id: int) -> Vector2:
+	if worm_id >= MeleePressureScript.ID_BASE:
+		return _melee_pressure.call("get_mite_position", worm_id) as Vector2
 	var worm: Dictionary = _find_worm(worm_id)
 	return worm.get(&"position", MISSING_POSITION) as Vector2
 
 
 func _get_enemy_kind(worm_id: int) -> StringName:
+	if worm_id >= MeleePressureScript.ID_BASE:
+		return MeleePressureScript.KIND
 	if worm_id >= PeacefulHerdsScript.CREATURE_ID_BASE:
 		var snapshot: Dictionary = _peaceful_herds.call("get_snapshot", worm_id) as Dictionary
 		return snapshot.get(
@@ -269,6 +307,8 @@ func _get_enemy_kind(worm_id: int) -> StringName:
 
 func _get_enemy_label(worm_id: int) -> StringName:
 	var kind: StringName = _get_enemy_kind(worm_id)
+	if kind == MeleePressureScript.KIND:
+		return &"enemy.razor_mite.name"
 	if worm_id >= PeacefulHerdsScript.CREATURE_ID_BASE:
 		return PeacefulHerdsScript.name_key(kind)
 	if kind == SKIMMER_KIND:
@@ -285,6 +325,8 @@ func _get_active_biome() -> StringName:
 
 
 func get_state(worm_id: int) -> StringName:
+	if worm_id >= MeleePressureScript.ID_BASE:
+		return _melee_pressure.call("get_state", worm_id) as StringName
 	var worm: Dictionary = _find_worm(worm_id)
 	return worm.get(&"state", &"missing") as StringName
 
@@ -297,6 +339,8 @@ func _set_hovered_enemy(worm_id: int) -> void:
 	if worm_id == _hovered_enemy_id:
 		return
 	_hovered_enemy_id = worm_id
+	if _melee_pressure != null:
+		_melee_pressure.call("set_hovered", worm_id)
 	queue_redraw()
 
 
@@ -329,6 +373,8 @@ func _get_character_hover_targets() -> Array[Dictionary]:
 				}
 			)
 		)
+	if _melee_pressure != null:
+		targets.append_array(_melee_pressure.call("get_hover_targets"))
 	return targets
 
 
@@ -339,6 +385,8 @@ func _on_peaceful_defeated(
 
 
 func get_combat_snapshot(worm_id: int) -> Dictionary:
+	if worm_id >= MeleePressureScript.ID_BASE:
+		return _melee_pressure.call("get_combat_snapshot", worm_id) as Dictionary
 	var worm: Dictionary = _find_worm(worm_id)
 	if worm.is_empty():
 		return {}
@@ -367,6 +415,8 @@ func get_combat_snapshots() -> Array[Dictionary]:
 	var snapshots: Array[Dictionary] = []
 	for worm: Dictionary in _worms:
 		snapshots.append(get_combat_snapshot(int(worm[&"id"])))
+	if _melee_pressure != null:
+		snapshots.append_array(_melee_pressure.call("get_combat_snapshots"))
 	return snapshots
 
 
@@ -381,12 +431,20 @@ func find_target(target_cell: Vector2i) -> int:
 		if distance <= best_distance:
 			best_distance = distance
 			best_id = int(worm[&"id"])
-	if best_id >= 0 or _peaceful_herds == null:
+	if best_id >= 0:
 		return best_id
+	if _melee_pressure != null:
+		best_id = int(_melee_pressure.call("find_target", target_cell))
+		if best_id >= 0:
+			return best_id
+	if _peaceful_herds == null:
+		return -1
 	return int(_peaceful_herds.call("find_target", target_cell))
 
 
 func hit_worm(worm_id: int, damage: int = 1) -> bool:
+	if worm_id >= MeleePressureScript.ID_BASE:
+		return bool(_melee_pressure.call("hit_mite", worm_id, damage))
 	if worm_id >= PeacefulHerdsScript.CREATURE_ID_BASE:
 		var snapshot: Dictionary = _peaceful_herds.call("get_snapshot", worm_id) as Dictionary
 		var accepted: bool = bool(_peaceful_herds.call("hit_creature", worm_id, damage))

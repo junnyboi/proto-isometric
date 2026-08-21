@@ -8,7 +8,8 @@ const MAP_ORIGIN: Vector2 = Vector2(760.0, 70.0)
 
 static func evaluate(world: RefCounted) -> Array[Dictionary]:
 	var cases: Array[Dictionary] = []
-	var outpost: Vector2i = Vector2i(8, 4)
+	var outpost: Vector2i = InfiniteWorldScript.SAFE_STARTER_OUTPOST
+	var service_only: Vector2i = Vector2i(8, 4)
 	var projection: Callable = func(cell: Vector2i) -> Vector2:
 		return (
 			MAP_ORIGIN
@@ -24,14 +25,15 @@ static func evaluate(world: RefCounted) -> Array[Dictionary]:
 			"configure",
 			{},
 			{},
-			{outpost: true},
+			{outpost: true, service_only: true, Vector2i(15, 8): true},
 			projection,
 			Callable(),
 			TILE_SIZE,
 			InfiniteWorldScript.SANCTUARY_RADIUS,
 		)
 	)
-	var visible_cells: Array[Vector2i] = [outpost]
+	renderer.call("bind_world", world, Callable())
+	var visible_cells: Array[Vector2i] = [outpost, service_only, Vector2i(15, 8)]
 	renderer.call("set_visible_cells", visible_cells)
 	_add(
 		cases,
@@ -43,8 +45,13 @@ static func evaluate(world: RefCounted) -> Array[Dictionary]:
 	)
 	_add(
 		cases,
-		"one visible outpost exposes one sanctuary boundary",
+		"three starter services expose only one sanctuary boundary",
 		int(renderer.call("get_visible_sanctuary_count")) == 1,
+	)
+	_add(
+		cases,
+		"procedural sanctuary policy retains exactly one quarter of outposts",
+		InfiniteWorldScript.SANCTUARY_OUTPOST_DIVISOR == 4,
 	)
 	var points: PackedVector2Array = renderer.call("get_sanctuary_boundary_points", outpost)
 	var center: Vector2 = projection.call(outpost) as Vector2
@@ -64,12 +71,17 @@ static func evaluate(world: RefCounted) -> Array[Dictionary]:
 	_add(
 		cases,
 		"gameplay sanctuary accepts a point just inside the ring",
-		bool(world.call("_is_in_sanctuary", Vector2(10.49, 4.0))),
+		bool(world.call("_is_in_sanctuary", Vector2(3.49, 10.0))),
 	)
 	_add(
 		cases,
 		"gameplay sanctuary rejects a point just outside the ring",
-		not bool(world.call("_is_in_sanctuary", Vector2(10.51, 4.0))),
+		not bool(world.call("_is_in_sanctuary", Vector2(3.51, 10.0))),
+	)
+	_add(
+		cases,
+		"service-only starter outpost does not suppress enemies",
+		not bool(world.call("_is_in_sanctuary", Vector2(service_only))),
 	)
 	var culled_cells: Array[Vector2i] = []
 	renderer.call("set_visible_cells", culled_cells)

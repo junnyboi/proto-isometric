@@ -21,6 +21,12 @@ const AMBIENT_SANDSTORM_INITIAL_SECONDS: float = 8.0
 const AMBIENT_SANDSTORM_INTERVAL_MIN: float = 10.0
 const AMBIENT_SANDSTORM_INTERVAL_MAX: float = 14.0
 const AMBIENT_SANDSTORM_SOFT_CAP: int = 2
+const MELEE_INITIAL_SECONDS: float = 5.0
+const MELEE_INTERVAL_MIN: float = 8.0
+const MELEE_INTERVAL_MAX: float = 11.0
+const MELEE_BASE_SOFT_CAP: int = 4
+const MELEE_PER_ALERT: int = 2
+const MELEE_PACK_SIZE: int = 4
 
 var _coordinator: RefCounted
 var _world: RefCounted
@@ -34,6 +40,7 @@ var _ambient_enabled: bool = true
 var _ambient_worm_remaining: float = AMBIENT_WORM_INITIAL_SECONDS
 var _ambient_tornado_remaining: float = AMBIENT_TORNADO_INITIAL_SECONDS
 var _ambient_sandstorm_remaining: float = AMBIENT_SANDSTORM_INITIAL_SECONDS
+var _melee_remaining: float = MELEE_INITIAL_SECONDS
 var _active_biome: StringName = &"desert"
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
@@ -110,7 +117,17 @@ func get_worm_soft_cap() -> int:
 	return AMBIENT_WORM_SOFT_CAP
 
 
+func get_melee_soft_cap() -> int:
+	return MELEE_BASE_SOFT_CAP + get_alert_level() * MELEE_PER_ALERT
+
+
 func _advance_ambient(delta: float, player: Vector2) -> void:
+	_melee_remaining -= delta
+	if _melee_remaining <= 0.0:
+		var room: int = get_melee_soft_cap() - int(_worms.call("_get_melee_count"))
+		if room > 0:
+			_worms.call("_spawn_melee_pack", player, mini(room, MELEE_PACK_SIZE))
+		_melee_remaining = _rng.randf_range(MELEE_INTERVAL_MIN, MELEE_INTERVAL_MAX)
 	_ambient_worm_remaining -= delta
 	if _ambient_worm_remaining <= 0.0:
 		if int(_worms.call("get_worm_count")) < get_worm_soft_cap():
@@ -137,6 +154,7 @@ func _advance_ambient(delta: float, player: Vector2) -> void:
 
 
 func _reset_ambient_grace() -> void:
+	_melee_remaining = MELEE_INITIAL_SECONDS
 	_ambient_worm_remaining = AMBIENT_WORM_INITIAL_SECONDS
 	_ambient_tornado_remaining = AMBIENT_TORNADO_INITIAL_SECONDS
 	_ambient_sandstorm_remaining = AMBIENT_SANDSTORM_INITIAL_SECONDS
@@ -187,6 +205,9 @@ func _sync_alert() -> void:
 
 func _spawn_composition(alert: int, player: Vector2) -> void:
 	var profile: Resource = PROFILES[alert - 1]
+	var room: int = get_melee_soft_cap() - int(_worms.call("_get_melee_count"))
+	if room > 0:
+		_worms.call("_spawn_melee_pack", player, mini(room, alert + 2))
 	var modifier: StringName = (
 		_coordinator.call("get_run_value", &"active_modifier_id") as StringName
 	)
