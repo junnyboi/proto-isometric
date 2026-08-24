@@ -33,39 +33,39 @@ const LAVA_DEBRIS: Array[Color] = [
 const BLOCK_PALETTES: Dictionary = {
 	&"dry_stone":
 	{
-		&"top": Color("934d35"),
-		&"right": Color("5f3022"),
-		&"left": Color("462219"),
+		&"top": Color("8b4c2d"),
+		&"right": Color("63341f"),
+		&"left": Color("482519"),
 	},
 	&"wet_wood":
 	{
-		&"top": Color("60724b"),
-		&"right": Color("394b35"),
-		&"left": Color("2a3928"),
+		&"top": Color("716a3a"),
+		&"right": Color("4f4930"),
+		&"left": Color("373326"),
 	},
 	&"frozen_stone":
 	{
-		&"top": Color("b7d7df"),
-		&"right": Color("7296a2"),
-		&"left": Color("526f7a"),
+		&"top": Color("afbfca"),
+		&"right": Color("788d9a"),
+		&"left": Color("5c707c"),
 	},
 	&"cold_wood":
 	{
-		&"top": Color("54746d"),
-		&"right": Color("324b46"),
-		&"left": Color("233a36"),
+		&"top": Color("6f8583"),
+		&"right": Color("4a5d5b"),
+		&"left": Color("334340"),
 	},
 	&"basalt":
 	{
-		&"top": Color("484145"),
-		&"right": Color("2e292c"),
-		&"left": Color("211d20"),
+		&"top": Color("34363a"),
+		&"right": Color("242529"),
+		&"left": Color("18191d"),
 	},
 	&"obsidian":
 	{
-		&"top": Color("30333d"),
-		&"right": Color("1d1f27"),
-		&"left": Color("15171d"),
+		&"top": Color("252a35"),
+		&"right": Color("181c24"),
+		&"left": Color("10131a"),
 	},
 }
 

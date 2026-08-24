@@ -19,6 +19,28 @@ const LAVA: Color = Color("ff5a12")
 const TEAL: Color = Color("4eb6aa")
 const AMBER: Color = Color("f5a62d")
 const GRID_LINE: Color = Color(0.18, 0.12, 0.08, 0.32)
+const EDGE_NEIGHBORS: Array[Vector2i] = [
+	Vector2i(0, -1),
+	Vector2i(1, 0),
+	Vector2i(0, 1),
+	Vector2i(-1, 0),
+]
+const TRANSITION_DEPTHS: Array[float] = [0.28, 0.18, 0.09]
+const TRANSITION_ALPHAS: Array[float] = [0.07, 0.12, 0.20]
+const HAZARD_TRANSITION_DEPTH_SCALE: float = 0.68
+const HAZARD_TRANSITION_ALPHA_SCALE: float = 0.70
+const TERRAIN_BLEND_COLORS: Dictionary = {
+	&"sand": Color("c67832"),
+	&"salt": Color("d9cfbd"),
+	&"rock": Color("874627"),
+	&"wetland": Color("9c9249"),
+	&"mud": Color("251f19"),
+	&"snow": Color("ccd6df"),
+	&"blue_ice": Color("55b3da"),
+	&"lava_basalt": Color("28292b"),
+	&"volcanic_ash": Color("7e7e7d"),
+	&"lava": Color("8c2511"),
+}
 const TEXTURES: Dictionary = {
 	&"sand": preload("res://assets/textures/terrain/desert_sand.png"),
 	&"salt": preload("res://assets/textures/terrain/salt_crust.png"),
@@ -82,16 +104,8 @@ static func occupied_cells_for(position: Vector2, screen_to_grid: Callable) -> A
 
 func draw_tile(canvas: Node2D, cell: Vector2i) -> void:
 	var center: Vector2 = grid_to_screen(cell)
-	var half: Vector2 = _tile_size * 0.5
 	var height: float = float(_elevation.get(cell, 0)) * 10.0
-	var points: PackedVector2Array = PackedVector2Array(
-		[
-			center + Vector2(0.0, -half.y),
-			center + Vector2(half.x, 0.0),
-			center + Vector2(0.0, half.y),
-			center + Vector2(-half.x, 0.0),
-		]
-	)
+	var points: PackedVector2Array = tile_points(cell)
 	var terrain_id: StringName = display_terrain_at(cell)
 	var color: Color = SAND if (cell.x + cell.y) % 2 == 0 else SAND_LIGHT
 	var obstacle_palette: Dictionary = {}
@@ -159,6 +173,31 @@ func draw_tile(canvas: Node2D, cell: Vector2i) -> void:
 		terrain_texture = null
 	if terrain_texture != null:
 		canvas.draw_polygon(points, terrain_tints(cell), terrain_uvs(cell), terrain_texture)
+
+
+func draw_tile_transitions(canvas: Node2D, cell: Vector2i) -> void:
+	var points: PackedVector2Array = tile_points(cell)
+	for transition: Dictionary in transition_descriptors_for(cell):
+		var edge: int = int(transition[&"edge"])
+		var scale: float = float(transition[&"scale"])
+		var color: Color = transition[&"color"] as Color
+		for index: int in range(TRANSITION_DEPTHS.size()):
+			var band: PackedVector2Array = transition_band_points(
+				points, edge, TRANSITION_DEPTHS[index] * scale
+			)
+			(
+				canvas
+				. draw_colored_polygon(
+					band,
+					Color(color, TRANSITION_ALPHAS[index] * float(transition[&"alpha_scale"])),
+				)
+			)
+
+
+func draw_tile_details(canvas: Node2D, cell: Vector2i) -> void:
+	var center: Vector2 = grid_to_screen(cell)
+	var points: PackedVector2Array = tile_points(cell)
+	var terrain_id: StringName = display_terrain_at(cell)
 	for edge: int in range(4):
 		canvas.draw_line(points[edge], points[(edge + 1) % 4], GRID_LINE, 1.2)
 	if terrain_id == &"blue_ice":
@@ -172,6 +211,63 @@ func draw_tile(canvas: Node2D, cell: Vector2i) -> void:
 		var closed: PackedVector2Array = points.duplicate()
 		closed.append(points[0])
 		canvas.draw_polyline(closed, Color(1.0, 0.76, 0.18, 0.58), 2.0)
+
+
+func transition_descriptors_for(cell: Vector2i) -> Array[Dictionary]:
+	var transitions: Array[Dictionary] = []
+	if not _terrain.has(cell) or int(_elevation.get(cell, 0)) != 0:
+		return transitions
+	var terrain_id: StringName = display_terrain_at(cell)
+	if terrain_id == &"rock":
+		return transitions
+	for edge: int in range(EDGE_NEIGHBORS.size()):
+		var neighbor_cell: Vector2i = cell + EDGE_NEIGHBORS[edge]
+		if not _terrain.has(neighbor_cell) or int(_elevation.get(neighbor_cell, 0)) != 0:
+			continue
+		var neighbor_id: StringName = display_terrain_at(neighbor_cell)
+		if neighbor_id == terrain_id or neighbor_id == &"rock":
+			continue
+		var hazard: bool = terrain_id == &"lava" or neighbor_id == &"lava"
+		(
+			transitions
+			. append(
+				{
+					&"edge": edge,
+					&"neighbor": neighbor_cell,
+					&"terrain": neighbor_id,
+					&"color": TERRAIN_BLEND_COLORS.get(neighbor_id, Color.WHITE),
+					&"scale": HAZARD_TRANSITION_DEPTH_SCALE if hazard else 1.0,
+					&"alpha_scale": HAZARD_TRANSITION_ALPHA_SCALE if hazard else 1.0,
+				}
+			)
+		)
+	return transitions
+
+
+func tile_points(cell: Vector2i) -> PackedVector2Array:
+	var center: Vector2 = grid_to_screen(cell)
+	var half: Vector2 = _tile_size * 0.5
+	return PackedVector2Array(
+		[
+			center + Vector2(0.0, -half.y),
+			center + Vector2(half.x, 0.0),
+			center + Vector2(0.0, half.y),
+			center + Vector2(-half.x, 0.0),
+		]
+	)
+
+
+static func transition_band_points(
+	points: PackedVector2Array, edge: int, depth: float
+) -> PackedVector2Array:
+	if points.size() != 4 or edge < 0 or edge >= 4:
+		return PackedVector2Array()
+	var center: Vector2 = (points[0] + points[1] + points[2] + points[3]) * 0.25
+	var start: Vector2 = points[edge]
+	var finish: Vector2 = points[(edge + 1) % 4]
+	return PackedVector2Array(
+		[start, finish, finish.lerp(center, depth), start.lerp(center, depth)]
+	)
 
 
 func obstacle_palette_at(cell: Vector2i) -> Dictionary:

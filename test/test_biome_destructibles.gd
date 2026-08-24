@@ -108,12 +108,22 @@ static func _test_obstacle_block_palettes(cases: Array[Dictionary]) -> void:
 	]
 	var top_colors: Dictionary = {}
 	var faces_valid: bool = true
+	var native_targets: Dictionary = {
+		BiomeDestructiblesScript.KIND_DESERT_ROCK: Color("874627"),
+		BiomeDestructiblesScript.KIND_WETLAND_STUMP: Color("8e873c"),
+		BiomeDestructiblesScript.KIND_FROZEN_SNOW_ROCK: Color("bec9d5"),
+		BiomeDestructiblesScript.KIND_FROZEN_PINE: Color("526f7a"),
+		BiomeDestructiblesScript.KIND_LAVA_BASALT_CHIMNEY: Color("28292b"),
+		BiomeDestructiblesScript.KIND_LAVA_OBSIDIAN_CLUSTER: Color("1f1f29"),
+	}
+	var native_harmony: bool = true
 	for kind: StringName in kinds:
 		var palette: Dictionary = BiomeDestructiblesScript.block_palette_for(kind)
 		var top: Color = palette.get(&"top", Color.TRANSPARENT) as Color
 		var right: Color = palette.get(&"right", Color.TRANSPARENT) as Color
 		var left: Color = palette.get(&"left", Color.TRANSPARENT) as Color
 		top_colors[top.to_html()] = true
+		native_harmony = native_harmony and _color_distance(top, native_targets[kind]) < 0.25
 		faces_valid = (
 			faces_valid
 			and top.a > 0.99
@@ -125,6 +135,11 @@ static func _test_obstacle_block_palettes(cases: Array[Dictionary]) -> void:
 		cases,
 		"desert, wetland, frozen stone, frozen wood, basalt, and obsidian blocks differ",
 		top_colors.size() == kinds.size(),
+	)
+	_add(
+		cases,
+		"obstacle tops remain close to measured native terrain and material colors",
+		native_harmony,
 	)
 	var renderer: RefCounted = TerrainRendererScript.new() as RefCounted
 	renderer.call("configure", {}, {}, {}, Vector2(90.0, 45.0), Vector2.ZERO)
@@ -243,6 +258,10 @@ static func _find_natural_rock(world: RefCounted, biome: StringName) -> Vector2i
 			):
 				return cell
 	return Vector2i(1_000_001, 1_000_001)
+
+
+static func _color_distance(first: Color, second: Color) -> float:
+	return Vector3(first.r - second.r, first.g - second.g, first.b - second.b).length()
 
 
 static func _add(cases: Array[Dictionary], label: String, passed: bool) -> void:

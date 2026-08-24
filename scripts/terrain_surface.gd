@@ -60,3 +60,7 @@ func _draw() -> void:
 	_renderer.call("draw_world_backdrop", self, center)
 	for cell: Vector2i in _visible_cells:
 		_renderer.call("draw_tile", self, cell)
+	for cell: Vector2i in _visible_cells:
+		_renderer.call("draw_tile_transitions", self, cell)
+	for cell: Vector2i in _visible_cells:
+		_renderer.call("draw_tile_details", self, cell)

@@ -19,9 +19,7 @@ const OasisWetlandsTestsScript: GDScript = preload("res://test/test_oasis_wetlan
 const OutpostVisualTestsScript: GDScript = preload("res://test/test_outpost_visuals.gd")
 const PreferenceTestsScript: GDScript = preload("res://test/test_preferences.gd")
 const PerformanceTestsScript: GDScript = preload("res://test/test_performance.gd")
-const PeacefulHerdAudioTestsScript: GDScript = preload(
-	"res://test/test_peaceful_herd_audio.gd"
-)
+const PeacefulHerdAudioTestsScript: GDScript = preload("res://test/test_peaceful_herd_audio.gd")
 const PeacefulHerdTestsScript: GDScript = preload("res://test/test_peaceful_herds.gd")
 const RefitTestsScript: GDScript = preload("res://test/test_refit.gd")
 const RewardFeedbackTestsScript: GDScript = preload("res://test/test_reward_feedback.gd")
@@ -33,6 +31,7 @@ const SaveRepositoryTestsScript: GDScript = preload("res://test/test_save_reposi
 const SmashFeedbackTestsScript: GDScript = preload("res://test/test_smash_feedback.gd")
 const StateTestsScript: GDScript = preload("res://test/test_state.gd")
 const TerminalFlowTestsScript: GDScript = preload("res://test/test_terminal_flow.gd")
+const TerrainTransitionTestsScript: GDScript = preload("res://test/test_terrain_transitions.gd")
 const TitleBriefingTestsScript: GDScript = preload("res://test/test_title_briefing.gd")
 const VisualCatalogTestsScript: GDScript = preload("res://test/test_visual_catalog.gd")
 const WormCounterplayTestsScript: GDScript = preload("res://test/test_worm_counterplay.gd")
@@ -62,6 +61,7 @@ static func evaluate(
 	cases.append_array(CameraZoomTestsScript.evaluate())
 	cases.append_array(StateTestsScript.evaluate(coordinator))
 	cases.append_array(TerminalFlowTestsScript.evaluate())
+	cases.append_array(TerrainTransitionTestsScript.evaluate())
 	cases.append_array(VisualCatalogTestsScript.evaluate())
 	cases.append_array(FieldUITestsScript.evaluate())
 	cases.append_array(InputFeelTestsScript.evaluate())

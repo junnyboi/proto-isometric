@@ -11,6 +11,7 @@ const MINIMUM_LENGTH_SECONDS: float = 80.0
 const SEEK_BEFORE_END_SECONDS: float = 0.12
 const WAIT_AFTER_SEEK_SECONDS: float = 0.32
 const MAXIMUM_WRAPPED_POSITION_SECONDS: float = 1.0
+const FINAL_RELEASE_WAIT_SECONDS: float = 0.25
 
 var _failures: Array[String] = []
 
@@ -24,6 +25,9 @@ func _run() -> void:
 		_failures.append("Music bus is missing")
 	for path: String in TRACK_PATHS:
 		await _test_track(path)
+	await create_timer(FINAL_RELEASE_WAIT_SECONDS).timeout
+	await process_frame
+	await process_frame
 	if not _failures.is_empty():
 		for failure: String in _failures:
 			push_error("[BGM_LOOP_GODOT_FAIL] %s" % failure)
@@ -64,13 +68,13 @@ func _test_track(path: String) -> void:
 	if not player.playing:
 		_failures.append("%s stopped instead of looping" % path)
 	elif wrapped_position > MAXIMUM_WRAPPED_POSITION_SECONDS:
-		_failures.append(
-			"%s did not wrap near zero; position=%.3f" % [path, wrapped_position]
-		)
+		_failures.append("%s did not wrap near zero; position=%.3f" % [path, wrapped_position])
 	else:
 		print(
-			"[BGM_LOOP_GODOT_TRACK_PASS] path=%s length=%.3f wrapped_position=%.3f"
-			% [path, ogg_stream.get_length(), wrapped_position]
+			(
+				"[BGM_LOOP_GODOT_TRACK_PASS] path=%s length=%.3f wrapped_position=%.3f"
+				% [path, ogg_stream.get_length(), wrapped_position]
+			)
 		)
 	player.stop()
 	player.stream = null
