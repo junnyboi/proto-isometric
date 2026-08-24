@@ -347,7 +347,18 @@ func attack() -> bool:
 	)
 	_update_status(StatusLocalizerScript.impact_windup(band_name, _scrap_count))
 	_avatar.call("play_attack")
-	return not _pending_impact_rock_cells.is_empty() or not _pending_impact_worm_ids.is_empty()
+	var broken_props: Array[Dictionary] = ImpactTargetingScript.break_props(
+		_world_objects, _pending_impact_rock_cells, _break_rock
+	)
+	if not broken_props.is_empty():
+		if _collect_scrap_near(_robot_grid) <= 0:
+			_save_world_state()
+		_feedback_router.call(
+			"present_smash", {}, broken_props, _pending_impact_band,
+			Vector2(_robot_grid), _pending_impact_cell
+		)
+		_update_status(StatusLocalizerScript.rock_salvaged(broken_props.size(), _scrap_count))
+	return not broken_props.is_empty() or not _pending_impact_worm_ids.is_empty()
 
 
 func _on_avatar_impact_frame() -> void:
@@ -356,8 +367,8 @@ func _on_avatar_impact_frame() -> void:
 	var target: Vector2i = _pending_impact_cell
 	var impact_band: int = _pending_impact_band
 	var footprint: Array[Vector2i] = _pending_impact_cells.duplicate()
-	var rock_cells: Array[Vector2i] = _pending_impact_rock_cells.duplicate()
 	var worm_ids: Array[int] = _pending_impact_worm_ids.duplicate()
+	var had_immediate_break: bool = not _pending_impact_rock_cells.is_empty()
 	_pending_impact_cell = INVALID_CELL
 	_pending_impact_band = 0
 	_pending_impact_cells.clear()
@@ -379,19 +390,11 @@ func _on_avatar_impact_frame() -> void:
 	var worm_hits: int = int(worm_result[&"hits"])
 	var worms_destroyed: int = int(worm_result[&"destroyed"])
 	var last_worm_health: int = int(worm_result[&"last_health"])
-	var rocks_broken: int = 0
-	var broken_props: Array[Dictionary] = []
-	for rock_cell: Vector2i in rock_cells:
-		var kind: StringName = _world_objects.call("get_destructible_kind", rock_cell)
-		if not _break_rock(rock_cell):
-			continue
-		rocks_broken += 1
-		broken_props.append({&"cell": rock_cell, &"kind": kind})
-	if rocks_broken > 0 and _collect_scrap_near(_robot_grid) <= 0:
-		_save_world_state()
-	_feedback_router.call(
-		"present_smash", worm_result, broken_props, impact_band, Vector2(_robot_grid), target
-	)
+	var no_broken_props: Array[Dictionary] = []
+	if worm_hits > 0 or not had_immediate_break:
+		_feedback_router.call(
+			"present_smash", worm_result, no_broken_props, impact_band, Vector2(_robot_grid), target
+		)
 	if worm_hits > 0:
 		var enemy_label: StringName = _sandworms.call("_get_enemy_label", worm_ids[0])
 		var band_name: StringName = _impact_charge.call("get_band_name", impact_band)
@@ -401,8 +404,7 @@ func _on_avatar_impact_frame() -> void:
 			)
 		)
 		return
-	if rocks_broken > 0:
-		_update_status(StatusLocalizerScript.rock_salvaged(rocks_broken, _scrap_count))
+	if had_immediate_break:
 		return
 	_update_status(&"status.impact_clear", {"scrap": "%03d" % _scrap_count})
 

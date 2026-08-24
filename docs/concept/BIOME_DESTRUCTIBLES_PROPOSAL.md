@@ -1,6 +1,6 @@
 # Walker’s Wake — Biome-Specific Destructibles Proposal
 
-**Goal:** Replace the generic desert-rock presentation in every non-desert biome with biome-native destructibles while preserving the proven Smash, collision, salvage, save, and streaming contracts.
+**Goal:** Give every biome, including the desert, two generated biome-native destructibles while preserving the proven Smash, collision, salvage, save, and streaming contracts.
 
 **Affected area:** Static destructible rendering, generated runtime sprites, visual catalog validation, biome-focused tests, and impact feedback copy.
 
@@ -10,13 +10,13 @@
 
 Treat the change as a **presentation adapter over existing rock truth**, not a new resource or persistence system. Internally, a destructible cell remains a rock because `InfiniteWorld` already owns deterministic placement, blocking, breaking, scrap reward, world mutation, and schema-compatible `destroyed_rocks` / `placed_rocks` storage. `WorldObjects` should ask the world for the cell’s biome, choose a deterministic visual variant, and draw the corresponding sprite.
 
-This gives each biome an immediate silhouette language without risking save migration or duplicating gameplay code. The desert keeps its iron-rock cluster. Wetlands, tundra, and lava fields receive two visually distinct variants each.
+This gives each biome an immediate silhouette language without risking save migration or duplicating gameplay code. Desert, wetlands, tundra, and lava fields each receive two visually distinct generated variants.
 
 ## Runtime set
 
 | Biome | Primary destructible | Secondary variant | Readability role |
 |---|---|---|---|
-| **Desert** | Existing iron-rock cluster | Procedural fallback | Low, wide obstacle that preserves the current baseline |
+| **Desert** | Sunscoured sandstone cluster | Ironstone knuckle | Bright stepped slabs and dense dark mineral blocks establish two readable desert silhouettes |
 | **Oasis Wetlands** | Mangrove snag | Rotting stump | Vertical vegetation and broad decayed wood distinguish wetland routes from desert rubble |
 | **Frozen Tundra** | Snow-capped granite boulder | Wind-bent pine | White stone reads against blue ice; dark evergreen silhouette reads against snow |
 | **Lava Fields** | Basalt chimney | Obsidian clinker cluster | Tall cooled vent and low glassy fragments remain legible against ash, basalt, and lava |
@@ -37,8 +37,8 @@ func _destructible_kind(cell: Vector2i) -> StringName:
             return &"frozen_snow_rock" if variant == 0 else &"frozen_pine"
         &"lava":
             return &"lava_basalt_chimney" if variant == 0 else &"lava_obsidian_cluster"
-        _:
-            return &"desert_rock"
+		_:
+			return &"desert_sandstone_cluster" if variant == 0 else &"desert_ironstone_outcrop"
 ```
 
 The selector belongs in a pure `BiomeDestructibles` adapter so tests can validate it without constructing a render tree. `WorldObjects` binds the existing `InfiniteWorld` reference and consumes this read-only classification during `_draw()`.
@@ -51,6 +51,8 @@ The accepted runtime derivative is a 256×256 RGBA PNG. The object should occupy
 
 | Asset | Approximate on-screen bounds | Pivot intent |
 |---|---:|---|
+| Sunscoured sandstone | 84×66 px | Broad stone base centered at the bottom |
+| Ironstone knuckle | 82×70 px | Dense stone base centered at the bottom |
 | Mangrove snag | 88×118 px | Trunk contact centered at the bottom |
 | Rotting stump | 76×66 px | Root base centered at the bottom |
 | Snow-capped rock | 78×60 px | Stone base centered at the bottom |
@@ -58,7 +60,7 @@ The accepted runtime derivative is a 256×256 RGBA PNG. The object should occupy
 | Basalt chimney | 82×104 px | Vent base centered at the bottom |
 | Obsidian cluster | 82×64 px | Cluster base centered at the bottom |
 
-A procedural rock fallback remains available for missing optional textures, but the six new paths become required release assets through `VisualCatalog`.
+All eight generated texture paths are required release assets. Missing or invalid textures fail validation rather than silently reverting to procedural obstacle graphics.
 
 ## Feedback
 
@@ -66,17 +68,17 @@ The existing Smash effect can remain geometrically unchanged, but the status lin
 
 The post-release debris increment now routes each broken object kind into a biome-owned palette. Wetland wood throws dark bark, pale splinters, and olive moss; frozen stone throws snow, granite, and blue ice; frozen pine adds deep evergreen; lava objects throw basalt, ash, and restrained orange cooling fragments. Desert objects retain the original warm rock family.
 
-`ImpactEffects` owns one prewarmed pool of 128 particle dictionaries. Emission reuses those records, active particles never exceed 128, saturation reclaims the oldest active slot instead of allocating, and every destructible fragment is culled at the one-second boundary. Smash and Ram Plating share this path; particle state remains transient and unsaved.
+`ImpactEffects` retains its fixed pool of 128 lightweight particle dictionaries and adds a fixed pool of 64 nonblocking `RigidBody2D` obstacle fragments. Each material family supplies a distinct shape, palette, gravity, launch-speed, size, and spin profile. Active visual particles remain capped at 128, saturation reclaims an active slot instead of allocating, and every destructible fragment fades and returns to the pool at the one-second boundary. Smash and Ram Plating share this transient, unsaved path.
 
 ## Lean implementation
 
 | Change | Goal | Affected area | Done condition |
 |---|---|---|---|
-| **1. Asset set** | Produce six coherent transparent GPT Image 2 sprites and concise source notes. | `assets/destructibles/`, source note, import metadata. | All six 256×256 RGBA textures load with clean alpha and consistent 2:1 isometric lighting. |
-| **2. Deterministic adapter** | Map biome and cell to a visual kind without changing saved rock truth. | New `biome_destructibles.gd`, `world_objects.gd`, `isometric_map.gd`. | The same cell always resolves to the same variant; unknown/missing assets fall back to desert rock. |
-| **3. Runtime rendering** | Draw biome-native sprites at stable bottom-centered pivots. | `world_objects.gd`, visual catalog. | Non-desert rock cells show native assets, remain one-cell blockers, break normally, and drop exactly two scrap. |
+| **1. Asset set** | Produce eight coherent transparent GPT Image 2 sprites and concise source notes. | `assets/destructibles/`, source note, import metadata. | All eight 256×256 RGBA textures load with clean alpha and consistent 2:1 isometric lighting. |
+| **2. Deterministic adapter** | Map biome and cell to a visual kind without changing saved rock truth. | `biome_destructibles.gd`, `world_objects.gd`, `isometric_map.gd`. | The same cell always resolves to the same generated variant; every registered texture is required and validated. |
+| **3. Runtime rendering** | Draw biome-native sprites at stable bottom-centered pivots. | `world_objects.gd`, visual catalog. | Every rock cell shows a native generated asset, remains a one-cell blocker, breaks immediately, and drops exactly two scrap. |
 | **4. Focused coverage** | Protect selection, save compatibility, and rendering assets. | Biome tests, visual catalog tests, smoke checks. | Tests prove both variants occur per biome, rock mutation schema is unchanged, and all textures meet runtime dimensions. |
-| **5. Release** | Publish the exact verified bundle. | Clean export, attached WebDev deployment, live browser smoke, Git. | The exported and public builds boot and show unique wetland, frozen, and lava destructibles without regressions. |
+| **5. Release** | Publish the exact verified bundle. | Clean export, live smoke, visual certification, Git. | The validated build boots and shows unique desert, wetland, frozen, and lava destructibles without regressions. |
 
 ## Acceptance criteria
 

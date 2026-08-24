@@ -24,6 +24,17 @@ static func scan(
 	return {&"rock_cells": rock_cells, &"worm_ids": worm_ids, &"target_cell": target_cell}
 
 
+static func break_props(
+	world_objects: Node2D, rock_cells: Array[Vector2i], break_callback: Callable
+) -> Array[Dictionary]:
+	var broken: Array[Dictionary] = []
+	for cell: Vector2i in rock_cells:
+		var kind: StringName = world_objects.call("get_destructible_kind", cell) as StringName
+		if bool(break_callback.call(cell)):
+			broken.append({&"cell": cell, &"kind": kind})
+	return broken
+
+
 static func hit_worms(
 	sandworms: Node2D,
 	worm_ids: Array[int],

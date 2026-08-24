@@ -1,6 +1,7 @@
 extends Node2D
 
 const BiomeDestructiblesScript: GDScript = preload("res://scripts/biome_destructibles.gd")
+const ObstacleDebrisFragmentScript: GDScript = preload("res://scripts/obstacle_debris_fragment.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const IMPACT_CONTACT_TEXTURE: Texture2D = preload("res://assets/vfx/juice/impact_contact.png")
 const FOOTSTEP_TEXTURE: Texture2D = preload("res://assets/vfx/juice/footstep_dust.png")
@@ -13,6 +14,7 @@ const CHASSIS_SPARK: Color = Color("ffb12d")
 const DEBRIS_LIFETIME_SECONDS: float = 1.0
 const MAX_POOL_SIZE: int = 128
 const MAX_ACTIVE_PARTICLES: int = 128
+const MAX_ACTIVE_DEBRIS: int = 64
 const MAX_ACTIVE_BURSTS: int = 16
 
 var _camera: Camera2D
@@ -24,6 +26,8 @@ var _shake_strength: float = 0.0
 var _shake_seed: int = 0
 var _particles: Array[Dictionary] = []
 var _particle_pool: Array[Dictionary] = []
+var _debris_fragments: Array[RigidBody2D] = []
+var _debris_pool: Array[RigidBody2D] = []
 var _bursts: Array[Dictionary] = []
 var _burst_pool: Array[Dictionary] = []
 var _emission_count: int = 0
@@ -32,6 +36,9 @@ var _aftershock_emission_count: int = 0
 var _created_particle_count: int = 0
 var _reused_particle_count: int = 0
 var _reclaimed_particle_count: int = 0
+var _created_debris_count: int = 0
+var _reused_debris_count: int = 0
+var _reclaimed_debris_count: int = 0
 var _peak_particle_count: int = 0
 var _created_burst_count: int = 0
 var _reclaimed_burst_count: int = 0
@@ -47,6 +54,7 @@ var _redraw_request_count: int = 0
 
 func _init() -> void:
 	_prewarm_particle_pool()
+	_prewarm_debris_pool()
 	_prewarm_burst_pool()
 
 
@@ -85,32 +93,27 @@ func emit_rock_impact(
 	if scaled_limit <= 0:
 		_sync_metrics()
 		return
+	var profile: Dictionary = BiomeDestructiblesScript.debris_profile_for(destructible_kind)
+	var speed_range: Vector2 = profile[&"speed"] as Vector2
+	var size_range: Vector2 = profile[&"size"] as Vector2
+	var spin_range: Vector2 = profile[&"spin"] as Vector2
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = cell.x * 73856093 ^ cell.y * 19349663 ^ _emission_count * 83492791
-	var primary_count: int = mini(18, scaled_limit)
-	var secondary_count: int = maxi(scaled_limit - primary_count, 0)
-	for index: int in range(primary_count):
+	for index: int in range(scaled_limit):
 		var angle: float = rng.randf_range(-PI * 0.92, -PI * 0.08)
-		var speed: float = rng.randf_range(90.0, 245.0)
-		_spawn_particle(
-			position + Vector2(rng.randf_range(-12.0, 12.0), rng.randf_range(-8.0, 6.0)),
-			Vector2(cos(angle), sin(angle)) * speed,
-			DEBRIS_LIFETIME_SECONDS,
-			DEBRIS_LIFETIME_SECONDS,
-			rng.randf_range(2.5, 6.5),
+		var spin: float = rng.randf_range(spin_range.x, spin_range.y)
+		if index % 2 == 0:
+			spin = -spin
+		_spawn_debris(
+			position + Vector2(rng.randf_range(-14.0, 14.0), rng.randf_range(-8.0, 5.0)),
+			Vector2.from_angle(angle) * rng.randf_range(speed_range.x, speed_range.y),
+			spin,
+			float(profile[&"gravity"]),
+			rng.randf_range(size_range.x, size_range.y),
 			_last_debris_palette[index % _last_debris_palette.size()],
-		)
-	for index: int in range(secondary_count):
-		_spawn_particle(
-			position + Vector2(rng.randf_range(-18.0, 18.0), rng.randf_range(-2.0, 10.0)),
-			Vector2(rng.randf_range(-65.0, 65.0), rng.randf_range(-95.0, -30.0)),
-			DEBRIS_LIFETIME_SECONDS,
-			DEBRIS_LIFETIME_SECONDS,
-			rng.randf_range(3.0, 8.0),
-			_last_debris_palette[(index + 2) % _last_debris_palette.size()],
+			profile[&"shape"] as StringName,
 		)
 	_sync_metrics()
-	_request_redraw()
 
 
 func emit_scrap_pickup(
@@ -234,7 +237,9 @@ func emit_feedback(event: Dictionary, profile: Dictionary) -> void:
 
 func advance(delta: float) -> void:
 	var step: float = maxf(delta, 0.0)
-	var had_visuals: bool = not _particles.is_empty() or not _bursts.is_empty()
+	var had_visuals: bool = (
+		not _particles.is_empty() or not _debris_fragments.is_empty() or not _bursts.is_empty()
+	)
 	var recycled: bool = false
 	if _camera_mixer != null:
 		_camera_mixer.call("advance", step)
@@ -260,6 +265,12 @@ func advance(delta: float) -> void:
 			recycled = true
 		else:
 			_particles[index] = particle
+	for index: int in range(_debris_fragments.size() - 1, -1, -1):
+		var fragment: RigidBody2D = _debris_fragments[index]
+		if not bool(fragment.call("advance_lifetime", step)):
+			_debris_fragments.remove_at(index)
+			_recycle_debris(fragment)
+			recycled = true
 	for index: int in range(_bursts.size() - 1, -1, -1):
 		var burst: Dictionary = _bursts[index]
 		burst[&"life"] = float(burst[&"life"]) - step
@@ -279,23 +290,23 @@ func advance(delta: float) -> void:
 
 
 func get_particle_count() -> int:
-	return _particles.size()
+	return _particles.size() + _debris_fragments.size()
 
 
 func get_particle_pool_size() -> int:
-	return _particle_pool.size()
+	return _particle_pool.size() + _debris_pool.size()
 
 
 func get_created_particle_count() -> int:
-	return _created_particle_count
+	return _created_particle_count + _created_debris_count
 
 
 func get_reused_particle_count() -> int:
-	return _reused_particle_count
+	return _reused_particle_count + _reused_debris_count
 
 
 func _get_reclaimed_particle_count() -> int:
-	return _reclaimed_particle_count
+	return _reclaimed_particle_count + _reclaimed_debris_count
 
 
 func get_peak_particle_count() -> int:
@@ -362,6 +373,55 @@ func get_camera_offset() -> Vector2:
 	return _camera.offset if _camera != null else Vector2.ZERO
 
 
+func _get_active_debris_snapshot() -> Array[Dictionary]:
+	var snapshot: Array[Dictionary] = []
+	for fragment: RigidBody2D in _debris_fragments:
+		snapshot.append({
+			&"body": fragment,
+			&"shape": fragment.call("get_shape_kind"),
+			&"life": fragment.call("get_life"),
+			&"velocity": fragment.linear_velocity,
+			&"spin": fragment.angular_velocity,
+			&"gravity": fragment.gravity_scale,
+			&"collision_layer": fragment.collision_layer,
+			&"collision_mask": fragment.collision_mask,
+		})
+	return snapshot
+
+
+func _spawn_debris(
+	position: Vector2,
+	velocity: Vector2,
+	spin: float,
+	gravity: float,
+	size: float,
+	color: Color,
+	shape_kind: StringName,
+) -> void:
+	if get_particle_count() >= MAX_ACTIVE_PARTICLES:
+		if not _particles.is_empty():
+			_recycle_particle(_particles.pop_front())
+		else:
+			_recycle_debris(_debris_fragments.pop_front())
+	var fragment: RigidBody2D
+	if _debris_pool.is_empty():
+		fragment = _debris_fragments.pop_front()
+		fragment.call("deactivate")
+		_reclaimed_debris_count += 1
+		_record_counter(&"particles.reclaimed")
+	else:
+		fragment = _debris_pool.pop_back()
+		_reused_debris_count += 1
+		_record_counter(&"particles.reused")
+	fragment.call(
+		"activate", position, velocity, spin, gravity, DEBRIS_LIFETIME_SECONDS,
+		size, color, shape_kind
+	)
+	_debris_fragments.append(fragment)
+	_peak_particle_count = maxi(_peak_particle_count, get_particle_count())
+	assert(get_particle_count() <= MAX_ACTIVE_PARTICLES)
+
+
 func _spawn_particle(
 	position: Vector2,
 	velocity: Vector2,
@@ -371,6 +431,13 @@ func _spawn_particle(
 	color: Color,
 	gravity: float = 480.0,
 ) -> void:
+	if get_particle_count() >= MAX_ACTIVE_PARTICLES:
+		if not _particles.is_empty():
+			_recycle_particle(_particles.pop_front())
+		elif not _debris_fragments.is_empty():
+			_recycle_debris(_debris_fragments.pop_front())
+		_reclaimed_particle_count += 1
+		_record_counter(&"particles.reclaimed")
 	if _particle_pool.is_empty() and _particles.is_empty():
 		_prewarm_particle_pool()
 	var particle: Dictionary
@@ -393,8 +460,8 @@ func _spawn_particle(
 	particle["color"] = color
 	particle["gravity"] = gravity
 	_particles.append(particle)
-	_peak_particle_count = maxi(_peak_particle_count, _particles.size())
-	assert(_particles.size() <= MAX_ACTIVE_PARTICLES)
+	_peak_particle_count = maxi(_peak_particle_count, get_particle_count())
+	assert(get_particle_count() <= MAX_ACTIVE_PARTICLES)
 
 
 func _scaled_particle_count(base_count: int) -> int:
@@ -460,6 +527,23 @@ func _surface_color(material: StringName) -> Color:
 		&"energy":
 			return CHASSIS_SPARK
 	return Color("d8ba78")
+
+
+func _prewarm_debris_pool() -> void:
+	if not _debris_pool.is_empty() or not _debris_fragments.is_empty():
+		return
+	for _index: int in range(MAX_ACTIVE_DEBRIS):
+		var fragment: RigidBody2D = ObstacleDebrisFragmentScript.new() as RigidBody2D
+		fragment.name = "ObstacleDebris%03d" % _index
+		add_child(fragment)
+		_debris_pool.append(fragment)
+		_created_debris_count += 1
+
+
+func _recycle_debris(fragment: RigidBody2D) -> void:
+	fragment.call("deactivate")
+	if _debris_pool.size() < MAX_ACTIVE_DEBRIS:
+		_debris_pool.append(fragment)
 
 
 func _prewarm_particle_pool() -> void:
@@ -647,6 +731,8 @@ func _apply_preferences(snapshot: Dictionary) -> void:
 func _clear_cosmetic_visuals() -> void:
 	while not _particles.is_empty():
 		_recycle_particle(_particles.pop_back())
+	while not _debris_fragments.is_empty():
+		_recycle_debris(_debris_fragments.pop_back())
 	while not _bursts.is_empty():
 		_recycle_burst(_bursts.pop_back())
 	_request_redraw()
@@ -689,16 +775,18 @@ func _record_counter(counter: StringName) -> void:
 func _sync_metrics() -> void:
 	if _performance_sampler == null:
 		return
-	_performance_sampler.call("set_gauge", &"particles.active", float(_particles.size()))
+	_performance_sampler.call("set_gauge", &"particles.active", float(get_particle_count()))
 	_performance_sampler.call(
-		"set_gauge", &"particles.pool_available", float(_particle_pool.size())
+		"set_gauge", &"particles.pool_available", float(get_particle_pool_size())
 	)
 	_performance_sampler.call(
-		"set_gauge", &"particles.created_total", float(_created_particle_count)
+		"set_gauge", &"particles.created_total", float(get_created_particle_count())
 	)
-	_performance_sampler.call("set_gauge", &"particles.reused_total", float(_reused_particle_count))
 	_performance_sampler.call(
-		"set_gauge", &"particles.reclaimed_total", float(_reclaimed_particle_count)
+		"set_gauge", &"particles.reused_total", float(get_reused_particle_count())
+	)
+	_performance_sampler.call(
+		"set_gauge", &"particles.reclaimed_total", float(_get_reclaimed_particle_count())
 	)
 	_performance_sampler.call("set_gauge", &"particles.peak_active", float(_peak_particle_count))
 	_performance_sampler.call("set_gauge", &"bursts.active", float(_bursts.size()))

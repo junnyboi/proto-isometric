@@ -10,7 +10,6 @@ const OutpostEnergyScript: GDScript = preload("res://scripts/outpost_energy.gd")
 const OutpostVisualsScript: GDScript = preload("res://scripts/outpost_visuals.gd")
 const RunPickupsScript: GDScript = preload("res://scripts/run_pickups.gd")
 
-const ROCK: Color = Color("934d35")
 const TEAL: Color = Color("4eb6aa")
 const AMBER: Color = Color("f5a62d")
 const INK: Color = Color("11151a")
@@ -242,19 +241,10 @@ func _draw_destructible(cell: Vector2i, center: Vector2) -> void:
 	var texture: Texture2D = BiomeDestructiblesScript.texture_for(kind)
 	var size: Vector2 = BiomeDestructiblesScript.display_size_for(kind)
 	if texture == null or size.x <= 0.0 or size.y <= 0.0:
-		_draw_rock(center)
 		return
 	var bottom_center: Vector2 = center + Vector2(0.0, 12.0)
 	var rect: Rect2 = Rect2(bottom_center - Vector2(size.x * 0.5, size.y), size)
 	draw_texture_rect(texture, rect, false)
-
-
-func _draw_rock(center: Vector2) -> void:
-	draw_circle(center + Vector2(-12.0, -5.0), 15.0, ROCK.darkened(0.08))
-	draw_circle(center + Vector2(7.0, -9.0), 19.0, ROCK.lightened(0.06))
-	draw_circle(center + Vector2(18.0, 2.0), 12.0, ROCK.darkened(0.18))
-	draw_line(center + Vector2(0.0, -24.0), center + Vector2(-5.0, 4.0), INK, 3.0)
-	draw_line(center + Vector2(-5.0, 4.0), center + Vector2(9.0, 12.0), INK, 3.0)
 
 
 func _draw_outpost(cell: Vector2i, center: Vector2) -> void:

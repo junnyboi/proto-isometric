@@ -252,10 +252,13 @@ static func evaluate() -> Array[Dictionary]:
 				28,
 			)
 		)
+	var total_pool_size: int = (
+		ImpactEffectsScript.MAX_POOL_SIZE + ImpactEffectsScript.MAX_ACTIVE_DEBRIS
+	)
 	var saturated: bool = (
-		int(effects.call("get_particle_count")) == 128
-		and int(effects.call("get_created_particle_count")) == 128
-		and int(effects.call("get_peak_particle_count")) == 128
+		int(effects.call("get_particle_count")) == ImpactEffectsScript.MAX_ACTIVE_DEBRIS
+		and int(effects.call("get_created_particle_count")) == total_pool_size
+		and int(effects.call("get_peak_particle_count")) == ImpactEffectsScript.MAX_ACTIVE_DEBRIS
 		and int(effects.call("_get_reclaimed_particle_count")) > 0
 	)
 	effects.call("advance", 1.1)
@@ -265,7 +268,7 @@ static func evaluate() -> Array[Dictionary]:
 		(
 			saturated
 			and int(effects.call("get_particle_count")) == 0
-			and int(effects.call("get_particle_pool_size")) == 128
+			and int(effects.call("get_particle_pool_size")) == total_pool_size
 		),
 	)
 	effects.free()

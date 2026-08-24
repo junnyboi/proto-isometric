@@ -1,6 +1,8 @@
 extends RefCounted
 
-const KIND_DESERT_ROCK: StringName = &"desert_rock"
+const KIND_DESERT_SANDSTONE_CLUSTER: StringName = &"desert_sandstone_cluster"
+const KIND_DESERT_IRONSTONE_OUTCROP: StringName = &"desert_ironstone_outcrop"
+const KIND_DESERT_ROCK: StringName = KIND_DESERT_SANDSTONE_CLUSTER
 const KIND_WETLAND_MANGROVE: StringName = &"wetland_mangrove"
 const KIND_WETLAND_STUMP: StringName = &"wetland_stump"
 const KIND_FROZEN_SNOW_ROCK: StringName = &"frozen_snow_rock"
@@ -9,6 +11,8 @@ const KIND_LAVA_BASALT_CHIMNEY: StringName = &"lava_basalt_chimney"
 const KIND_LAVA_OBSIDIAN_CLUSTER: StringName = &"lava_obsidian_cluster"
 
 const GENERATED_KINDS: Array[StringName] = [
+	KIND_DESERT_SANDSTONE_CLUSTER,
+	KIND_DESERT_IRONSTONE_OUTCROP,
 	KIND_WETLAND_MANGROVE,
 	KIND_WETLAND_STUMP,
 	KIND_FROZEN_SNOW_ROCK,
@@ -30,6 +34,32 @@ const FROZEN_PINE_DEBRIS: Array[Color] = [
 const LAVA_DEBRIS: Array[Color] = [
 	Color("252326"), Color("575253"), Color("8c8a86"), Color("ff5a12")
 ]
+const DEBRIS_PROFILES: Dictionary = {
+	&"dry_stone": {
+		&"shape": &"stone", &"gravity": 1.35, &"speed": Vector2(110.0, 245.0),
+		&"size": Vector2(4.0, 9.0), &"spin": Vector2(3.0, 8.0),
+	},
+	&"wet_wood": {
+		&"shape": &"splinter", &"gravity": 0.9, &"speed": Vector2(85.0, 205.0),
+		&"size": Vector2(4.0, 11.0), &"spin": Vector2(5.0, 12.0),
+	},
+	&"frozen_stone": {
+		&"shape": &"ice", &"gravity": 0.75, &"speed": Vector2(115.0, 250.0),
+		&"size": Vector2(3.0, 8.0), &"spin": Vector2(6.0, 13.0),
+	},
+	&"cold_wood": {
+		&"shape": &"splinter", &"gravity": 0.82, &"speed": Vector2(95.0, 220.0),
+		&"size": Vector2(4.0, 10.0), &"spin": Vector2(5.0, 12.0),
+	},
+	&"basalt": {
+		&"shape": &"jagged", &"gravity": 1.55, &"speed": Vector2(120.0, 260.0),
+		&"size": Vector2(4.0, 9.0), &"spin": Vector2(6.0, 14.0),
+	},
+	&"obsidian": {
+		&"shape": &"jagged", &"gravity": 1.45, &"speed": Vector2(130.0, 270.0),
+		&"size": Vector2(3.0, 9.0), &"spin": Vector2(7.0, 15.0),
+	},
+}
 const BLOCK_PALETTES: Dictionary = {
 	&"dry_stone":
 	{
@@ -70,6 +100,8 @@ const BLOCK_PALETTES: Dictionary = {
 }
 
 const TEXTURES: Dictionary = {
+	KIND_DESERT_SANDSTONE_CLUSTER: preload("res://assets/destructibles/desert_sandstone_cluster.png"),
+	KIND_DESERT_IRONSTONE_OUTCROP: preload("res://assets/destructibles/desert_ironstone_outcrop.png"),
 	KIND_WETLAND_MANGROVE: preload("res://assets/destructibles/wetland_mangrove.png"),
 	KIND_WETLAND_STUMP: preload("res://assets/destructibles/wetland_stump.png"),
 	KIND_FROZEN_SNOW_ROCK: preload("res://assets/destructibles/frozen_snow_rock.png"),
@@ -79,6 +111,8 @@ const TEXTURES: Dictionary = {
 }
 
 const DISPLAY_SIZES: Dictionary = {
+	KIND_DESERT_SANDSTONE_CLUSTER: Vector2(84.0, 66.0),
+	KIND_DESERT_IRONSTONE_OUTCROP: Vector2(82.0, 70.0),
 	KIND_WETLAND_MANGROVE: Vector2(88.0, 118.0),
 	KIND_WETLAND_STUMP: Vector2(76.0, 66.0),
 	KIND_FROZEN_SNOW_ROCK: Vector2(78.0, 60.0),
@@ -98,7 +132,7 @@ static func kind_for(biome: StringName, cell: Vector2i) -> StringName:
 		&"lava":
 			return KIND_LAVA_BASALT_CHIMNEY if variant == 0 else KIND_LAVA_OBSIDIAN_CLUSTER
 		_:
-			return KIND_DESERT_ROCK
+			return KIND_DESERT_SANDSTONE_CLUSTER if variant == 0 else KIND_DESERT_IRONSTONE_OUTCROP
 
 
 static func texture_for(kind: StringName) -> Texture2D:
@@ -141,6 +175,11 @@ static func material_family_for(kind: StringName) -> StringName:
 			return &"obsidian"
 		_:
 			return &"dry_stone"
+
+
+static func debris_profile_for(kind: StringName) -> Dictionary:
+	var family: StringName = material_family_for(kind)
+	return (DEBRIS_PROFILES.get(family, DEBRIS_PROFILES[&"dry_stone"]) as Dictionary).duplicate()
 
 
 static func block_palette_for(kind: StringName) -> Dictionary:

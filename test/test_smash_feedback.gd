@@ -205,7 +205,10 @@ static func _test_router_channels(cases: Array[Dictionary]) -> void:
 				<= CameraImpulseMixerScript.MAX_IMPULSES
 			)
 				and int(effects.call("get_particle_count")) <= ImpactEffectsScript.MAX_ACTIVE_PARTICLES
-				and int(effects.call("get_created_particle_count")) == ImpactEffectsScript.MAX_POOL_SIZE
+				and (
+					int(effects.call("get_created_particle_count"))
+					== ImpactEffectsScript.MAX_POOL_SIZE + ImpactEffectsScript.MAX_ACTIVE_DEBRIS
+				)
 				and int(effects.call("_get_burst_count")) <= ImpactEffectsScript.MAX_ACTIVE_BURSTS
 				and (
 					int(effects.call("_get_created_burst_count"))

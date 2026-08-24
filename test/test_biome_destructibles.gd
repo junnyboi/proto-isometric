@@ -10,6 +10,7 @@ static func evaluate() -> Array[Dictionary]:
 	var cases: Array[Dictionary] = []
 	_test_variant_contract(cases)
 	_test_debris_palettes(cases)
+	_test_debris_profiles(cases)
 	_test_obstacle_block_palettes(cases)
 	_test_runtime_assets(cases)
 	_test_world_binding(cases)
@@ -18,15 +19,12 @@ static func evaluate() -> Array[Dictionary]:
 
 
 static func _test_variant_contract(cases: Array[Dictionary]) -> void:
-	_add(
-		cases,
-		"desert cells retain the procedural rock fallback",
-		(
-			BiomeDestructiblesScript.kind_for(&"desert", Vector2i(8, 10))
-			== BiomeDestructiblesScript.KIND_DESERT_ROCK
-		),
-	)
 	var expected: Dictionary = {
+		&"desert":
+		[
+			BiomeDestructiblesScript.KIND_DESERT_SANDSTONE_CLUSTER,
+			BiomeDestructiblesScript.KIND_DESERT_IRONSTONE_OUTCROP,
+		],
 		&"oasis":
 		[
 			BiomeDestructiblesScript.KIND_WETLAND_MANGROVE,
@@ -97,6 +95,30 @@ static func _test_debris_palettes(cases: Array[Dictionary]) -> void:
 	)
 
 
+static func _test_debris_profiles(cases: Array[Dictionary]) -> void:
+	var kinds: Array[StringName] = [
+		BiomeDestructiblesScript.KIND_DESERT_SANDSTONE_CLUSTER,
+		BiomeDestructiblesScript.KIND_WETLAND_STUMP,
+		BiomeDestructiblesScript.KIND_FROZEN_SNOW_ROCK,
+		BiomeDestructiblesScript.KIND_FROZEN_PINE,
+		BiomeDestructiblesScript.KIND_LAVA_OBSIDIAN_CLUSTER,
+	]
+	var shapes: Dictionary = {}
+	var profiles_valid: bool = true
+	for kind: StringName in kinds:
+		var profile: Dictionary = BiomeDestructiblesScript.debris_profile_for(kind)
+		var speed: Vector2 = profile.get(&"speed", Vector2.ZERO) as Vector2
+		var size: Vector2 = profile.get(&"size", Vector2.ZERO) as Vector2
+		var spin: Vector2 = profile.get(&"spin", Vector2.ZERO) as Vector2
+		shapes[profile.get(&"shape", &"missing")] = true
+		profiles_valid = (
+			profiles_valid and float(profile.get(&"gravity", 0.0)) > 0.0
+			and speed.y > speed.x and size.y > size.x and spin.y > spin.x
+		)
+	_add(cases, "every biome debris profile has valid 2D physics ranges", profiles_valid)
+	_add(cases, "stone, wood, ice, and volcanic debris use distinct silhouettes", shapes.size() == 4)
+
+
 static func _test_obstacle_block_palettes(cases: Array[Dictionary]) -> void:
 	var kinds: Array[StringName] = [
 		BiomeDestructiblesScript.KIND_DESERT_ROCK,
@@ -158,7 +180,7 @@ static func _test_obstacle_block_palettes(cases: Array[Dictionary]) -> void:
 
 static func _test_runtime_assets(cases: Array[Dictionary]) -> void:
 	var paths: Array[String] = BiomeDestructiblesScript.get_required_paths()
-	_add(cases, "six generated destructible sprites are registered", paths.size() == 6)
+	_add(cases, "eight generated destructible sprites are registered", paths.size() == 8)
 	for kind: StringName in BiomeDestructiblesScript.GENERATED_KINDS:
 		var texture: Texture2D = BiomeDestructiblesScript.texture_for(kind)
 		var size: Vector2 = BiomeDestructiblesScript.display_size_for(kind)
@@ -206,7 +228,7 @@ static func _test_world_binding(cases: Array[Dictionary]) -> void:
 
 
 static func _test_break_and_save_compatibility(cases: Array[Dictionary]) -> void:
-	for biome: StringName in [&"oasis", &"frozen", &"lava"]:
+	for biome: StringName in [&"desert", &"oasis", &"frozen", &"lava"]:
 		var terrain: Dictionary = {}
 		var elevation: Dictionary = {}
 		var blocked: Dictionary = {}

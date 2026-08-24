@@ -160,9 +160,9 @@ static func _test_particle_pool(cases: Array[Dictionary]) -> void:
 	var prewarmed: int = int(effects.call("get_created_particle_count"))
 	_add(
 		cases,
-		"impact particles prewarm one fixed dictionary pool",
+		"impact effects prewarm fixed particle and physics-debris pools",
 		(
-			prewarmed == ImpactEffectsScript.MAX_POOL_SIZE
+			prewarmed == ImpactEffectsScript.MAX_POOL_SIZE + ImpactEffectsScript.MAX_ACTIVE_DEBRIS
 			and int(effects.call("get_particle_pool_size")) == prewarmed
 		),
 	)
@@ -209,6 +209,17 @@ static func _test_particle_pool(cases: Array[Dictionary]) -> void:
 			== BiomeDestructiblesScript.debris_palette_for(&"lava_obsidian_cluster")
 		),
 	)
+	var debris: Array[Dictionary] = effects.call("_get_active_debris_snapshot") as Array[Dictionary]
+	var physics_valid: bool = not debris.is_empty()
+	for fragment: Dictionary in debris:
+		physics_valid = (
+			physics_valid and fragment[&"body"] is RigidBody2D
+			and int(fragment[&"collision_layer"]) == 0 and int(fragment[&"collision_mask"]) == 0
+			and (fragment[&"velocity"] as Vector2).length() > 0.0
+			and absf(float(fragment[&"spin"])) > 0.0 and float(fragment[&"gravity"]) > 0.0
+			and fragment[&"shape"] == &"jagged"
+		)
+	_add(cases, "biome debris uses nonblocking Godot 2D physics bodies", physics_valid)
 	_add(
 		cases,
 		"impact particle activity never exceeds its fixed capacity",
@@ -227,10 +238,14 @@ static func _test_particle_pool(cases: Array[Dictionary]) -> void:
 		),
 	)
 	effects.call("advance", ImpactEffectsScript.DEBRIS_LIFETIME_SECONDS - 0.001)
+	debris = effects.call("_get_active_debris_snapshot") as Array[Dictionary]
+	var debris_faded: bool = not debris.is_empty()
+	for fragment: Dictionary in debris:
+		debris_faded = debris_faded and (fragment[&"body"] as RigidBody2D).modulate.a < 0.01
 	_add(
 		cases,
-		"biome debris remains alive before the one-second boundary",
-		int(effects.call("get_particle_count")) > 0,
+		"biome debris remains alive and fades before the one-second boundary",
+		int(effects.call("get_particle_count")) > 0 and debris_faded,
 	)
 	effects.call("advance", 0.002)
 	_add(
