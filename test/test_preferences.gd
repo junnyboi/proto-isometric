@@ -231,25 +231,29 @@ static func evaluate() -> Array[Dictionary]:
 	var language: Button = panel.call("get_language_button") as Button
 	var vfx_slider: HSlider = panel.call("get_vfx_intensity_slider") as HSlider
 	var master_slider: HSlider = panel.call("get_audio_volume_slider", &"master_volume") as HSlider
+	var sfx_slider: HSlider = panel.call("get_audio_volume_slider", &"sfx_volume") as HSlider
 	var music_slider: HSlider = panel.call("get_audio_volume_slider", &"music_volume") as HSlider
 	var ambience_slider: HSlider = (
 		panel.call("get_audio_volume_slider", &"ambience_volume") as HSlider
 	)
 	_add(
 		cases,
-		"settings exposes Master, Music, and Ambience mixer sliders",
+		"settings exposes Master, SFX, Music, and Ambience mixer sliders",
 		(
 			master_slider != null
-			and music_slider != null
-			and ambience_slider != null
-			and master_slider.min_value == 0.0
-			and master_slider.max_value == 100.0
-			and master_slider.step == 5.0
-			and music_slider.step == 5.0
-			and ambience_slider.step == 5.0
-			and "MASTER VOLUME" in master_slider.tooltip_text
-			and "MUSIC VOLUME" in music_slider.tooltip_text
-			and "AMBIENCE VOLUME" in ambience_slider.tooltip_text
+				and sfx_slider != null
+				and music_slider != null
+				and ambience_slider != null
+				and master_slider.min_value == 0.0
+				and master_slider.max_value == 100.0
+				and master_slider.step == 5.0
+				and sfx_slider.step == 5.0
+				and music_slider.step == 5.0
+				and ambience_slider.step == 5.0
+				and "MASTER VOLUME" in master_slider.tooltip_text
+				and "SFX VOLUME" in sfx_slider.tooltip_text
+				and "MUSIC VOLUME" in music_slider.tooltip_text
+				and "AMBIENCE VOLUME" in ambience_slider.tooltip_text
 		),
 	)
 	var audio_service: Node = (Engine.get_main_loop() as SceneTree).root.get_node_or_null(
@@ -258,27 +262,42 @@ static func evaluate() -> Array[Dictionary]:
 	if audio_service != null:
 		panel.connect("preferences_changed", Callable(audio_service, "apply_preferences"))
 	panel.call("_set_audio_volume", 60.0, &"master_volume")
+	panel.call("_set_audio_volume", 45.0, &"sfx_volume")
 	panel.call("_set_audio_volume", 35.0, &"music_volume")
 	panel.call("_set_audio_volume", 25.0, &"ambience_volume")
 	var audio_saved: Dictionary = (
 		(PlayerPreferencesScript.new() as RefCounted).call("load_preferences") as Dictionary
 	)
 	var master_bus: int = AudioServer.get_bus_index(AudioServiceScript.BUS_MASTER)
+	var sfx_bus: int = AudioServer.get_bus_index(AudioServiceScript.BUS_SFX)
 	var music_bus: int = AudioServer.get_bus_index(AudioServiceScript.BUS_MUSIC)
 	var ambience_bus: int = AudioServer.get_bus_index(AudioServiceScript.BUS_AMBIENT)
 	_add(
 		cases,
-		"Master, Music, and Ambience sliders persist and update live buses",
+		"Master, SFX, Music, and Ambience sliders persist and update live buses",
 		(
 			is_equal_approx(float(audio_saved[&"master_volume"]), 0.6)
-			and is_equal_approx(float(audio_saved[&"music_volume"]), 0.35)
-			and is_equal_approx(float(audio_saved[&"ambience_volume"]), 0.25)
-			and is_equal_approx(master_slider.value, 60.0)
-			and is_equal_approx(music_slider.value, 35.0)
-			and is_equal_approx(ambience_slider.value, 25.0)
-			and is_equal_approx(db_to_linear(AudioServer.get_bus_volume_db(master_bus)), 0.6)
-			and is_equal_approx(db_to_linear(AudioServer.get_bus_volume_db(music_bus)), 0.35)
-			and is_equal_approx(db_to_linear(AudioServer.get_bus_volume_db(ambience_bus)), 0.25)
+				and bool(audio_saved[&"sfx_enabled"])
+				and is_equal_approx(float(audio_saved[&"sfx_volume"]), 0.45)
+				and is_equal_approx(float(audio_saved[&"music_volume"]), 0.35)
+				and is_equal_approx(float(audio_saved[&"ambience_volume"]), 0.25)
+				and is_equal_approx(master_slider.value, 60.0)
+				and is_equal_approx(sfx_slider.value, 45.0)
+				and is_equal_approx(music_slider.value, 35.0)
+				and is_equal_approx(ambience_slider.value, 25.0)
+				and is_equal_approx(db_to_linear(AudioServer.get_bus_volume_db(master_bus)), 0.6)
+				and is_equal_approx(db_to_linear(AudioServer.get_bus_volume_db(sfx_bus)), 0.45)
+				and is_equal_approx(db_to_linear(AudioServer.get_bus_volume_db(music_bus)), 0.35)
+				and is_equal_approx(db_to_linear(AudioServer.get_bus_volume_db(ambience_bus)), 0.25)
+		),
+	)
+	panel.call("_set_audio_volume", 0.0, &"sfx_volume")
+	_add(
+		cases,
+		"SFX slider zero mutes the SFX bus and preserves legacy disable semantics",
+		(
+			not bool((panel.call("get_preferences") as Dictionary)[&"sfx_enabled"])
+				and AudioServer.is_bus_mute(sfx_bus)
 		),
 	)
 	panel.call("_set_audio_volume", 0.0, &"ambience_volume")
@@ -302,8 +321,10 @@ static func evaluate() -> Array[Dictionary]:
 			and is_equal_approx(float(reset_audio[&"music_volume"]), 1.0)
 			and bool(reset_audio[&"left_handed"])
 			and is_equal_approx(master_slider.value, 100.0)
+			and is_equal_approx(sfx_slider.value, 100.0)
 			and is_equal_approx(music_slider.value, 100.0)
 			and is_equal_approx(ambience_slider.value, 100.0)
+			and not AudioServer.is_bus_mute(sfx_bus)
 			and not AudioServer.is_bus_mute(ambience_bus)
 			and "RESET AUDIO DEFAULTS" in reset_button.text
 		),
@@ -381,15 +402,15 @@ static func evaluate() -> Array[Dictionary]:
 			and "REDUCED" in quality_button.text
 		),
 	)
-	var sfx_button: Button = panel.get("_buttons")[&"sfx_enabled"] as Button
-	panel.call("_cycle_sfx_volume")
+	panel.call("_set_audio_volume", 65.0, &"sfx_volume")
 	_add(
 		cases,
-		"settings SFX gain cycles from full to true zero",
+		"SFX slider restores live effects after a true-zero mute",
 		(
-			float(panel.call("get_preferences")[&"sfx_volume"]) == 0.0
-			and not bool(panel.call("get_preferences")[&"sfx_enabled"])
-			and "0%" in sfx_button.text
+			float(panel.call("get_preferences")[&"sfx_volume"]) == 0.65
+				and bool(panel.call("get_preferences")[&"sfx_enabled"])
+				and is_equal_approx(sfx_slider.value, 65.0)
+				and not AudioServer.is_bus_mute(sfx_bus)
 		),
 	)
 	panel.call("_cycle_locale")
