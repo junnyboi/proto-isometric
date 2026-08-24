@@ -142,15 +142,28 @@ func _on_worm_defeated(worm_id: int, position: Vector2) -> void:
 	queue_redraw()
 
 
-func _on_peaceful_defeated(creature_id: int, position: Vector2, scrap: int) -> void:
+func _on_peaceful_defeated(
+	creature_id: int,
+	position: Vector2,
+	cores: int,
+	scrap: int,
+) -> void:
 	if _handled_peaceful_ids.has(creature_id) or _drops.size() >= MAX_ACTIVE_DROPS:
 		return
 	_handled_peaceful_ids[creature_id] = true
+	if cores <= 0 and scrap <= 0:
+		return
 	var player_cell: Vector2i = _get_player_cell()
 	var cell: Vector2i = _find_drop_cell(Vector2i(position.round()), player_cell)
 	if not bool(_world.call("is_walkable", cell)) or cell == player_cell:
 		return
-	var drop: Dictionary = _place_drop(cell, creature_id, 1, maxi(scrap, 1), false)
+	var drop: Dictionary = _place_drop(
+		cell,
+		creature_id,
+		clampi(cores, 0, 1),
+		clampi(scrap, 0, 1),
+		false,
+	)
 	if drop.is_empty():
 		return
 	_sync_drops()

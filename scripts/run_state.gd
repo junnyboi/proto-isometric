@@ -129,8 +129,9 @@ func _get_relay_objectives() -> Array[Dictionary]:
 func _place_drop(cell: Vector2i, cores: int, scrap: int, source_worm_id: int) -> Dictionary:
 	if (
 		not _is_valid_cell(cell)
-		or cores <= 0
+		or cores < 0
 		or scrap < 0
+		or (cores == 0 and scrap == 0)
 		or source_worm_id <= 0
 		or _run_drops.size() >= MAX_RUN_DROPS
 		or _next_drop_sequence > 999_999
@@ -618,11 +619,12 @@ func _validate_run_drop(drop: Dictionary, next_sequence: int, _player_cell: Vect
 		or int(drop[&"source_worm_id"]) <= 0
 		or cell == Vector2i(COORDINATE_LIMIT + 1, COORDINATE_LIMIT + 1)
 		or not drop[&"cores"] is int
-		or int(drop[&"cores"]) <= 0
+		or int(drop[&"cores"]) < 0
 		or int(drop[&"cores"]) > MAX_WORM_CORES
 		or not drop[&"scrap"] is int
 		or int(drop[&"scrap"]) < 0
 		or int(drop[&"scrap"]) > MAX_RUN_SCRAP
+		or (int(drop[&"cores"]) == 0 and int(drop[&"scrap"]) == 0)
 	):
 		return {}
 	return {

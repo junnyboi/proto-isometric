@@ -35,6 +35,7 @@ class ScreenProjection:
 static func evaluate() -> Array[Dictionary]:
 	var cases: Array[Dictionary] = []
 	_test_catalog(cases)
+	_test_loot_balance(cases)
 	_test_biome_population(cases)
 	_test_herd_motion(cases)
 	_test_avoidance_and_presentation(cases)
@@ -63,7 +64,41 @@ static func _test_catalog(cases: Array[Dictionary]) -> void:
 			"%s uses one generated transparent runtime sprite" % kind,
 			texture != null and texture.get_width() == 512 and texture.get_height() == 512,
 		)
-		_add(cases, "%s drops positive resources" % kind, HerdsScript.resource_amount(kind) > 0)
+		_add(cases, "%s exposes a bounded loot profile" % kind, HerdsScript.resource_amount(kind) > 0)
+
+
+static func _test_loot_balance(cases: Array[Dictionary]) -> void:
+	var expected: Dictionary = {
+		&"dune_grazer": Vector2(0.70, 0.03),
+		&"reedback": Vector2(0.78, 0.04),
+		&"rimehorn": Vector2(0.84, 0.06),
+		&"ember_ram": Vector2(0.90, 0.08),
+	}
+	var herds: Node2D = _make_herds(FakeWorld.new())
+	for kind: StringName in expected:
+		var profile: Dictionary = HerdsScript.loot_profile(kind)
+		var target: Vector2 = expected[kind] as Vector2
+		_add(
+			cases,
+			"%s loot chances match the economy curve" % kind,
+			is_equal_approx(float(profile[&"scrap_chance"]), target.x)
+			and is_equal_approx(float(profile[&"core_chance"]), target.y),
+		)
+		herds.call("set_loot_random_seed", 0x4000 + expected.keys().find(kind))
+		var scrap_drops: int = 0
+		var core_drops: int = 0
+		var samples: int = 10_000
+		for _sample: int in range(samples):
+			var loot: Dictionary = herds.call("_roll_resources", kind) as Dictionary
+			scrap_drops += int(loot[&"scrap"])
+			core_drops += int(loot[&"cores"])
+		_add(
+			cases,
+			"%s seeded loot frequency stays within two points" % kind,
+			absf(float(scrap_drops) / samples - target.x) <= 0.02
+			and absf(float(core_drops) / samples - target.y) <= 0.02,
+		)
+	herds.free()
 
 
 static func _test_biome_population(cases: Array[Dictionary]) -> void:
@@ -177,12 +212,13 @@ static func _test_one_hit_reward(cases: Array[Dictionary]) -> void:
 		herds.call("spawn_herd", Vector2(6.0, 6.0), 1, biome)
 		var snapshot: Dictionary = (herds.call("get_snapshots") as Array[Dictionary])[0]
 		var creature_id: int = int(snapshot[&"id"])
-		var expected_amount: int = HerdsScript.resource_amount(snapshot[&"kind"] as StringName)
 		var rewards: Array[Dictionary] = []
 		herds.connect(
 			"defeated",
-			func(id: int, position: Vector2, amount: int) -> void:
-				rewards.append({&"id": id, &"position": position, &"amount": amount})
+			func(id: int, position: Vector2, cores: int, scrap: int) -> void:
+				rewards.append(
+					{&"id": id, &"position": position, &"cores": cores, &"scrap": scrap}
+				)
 		)
 		_add(
 			cases,
@@ -198,12 +234,13 @@ static func _test_one_hit_reward(cases: Array[Dictionary]) -> void:
 		_add(
 			cases,
 			"%s herd defeat emits its resource drop exactly once" % biome,
-			(
-				rewards.size() == 1
-				and int(rewards[0][&"amount"]) == expected_amount
-				and not bool(herds.call("hit_creature", creature_id, 1))
-				and rewards.size() == 1
-			),
+				(
+					rewards.size() == 1
+					and int(rewards[0][&"cores"]) in [0, 1]
+					and int(rewards[0][&"scrap"]) in [0, 1]
+					and not bool(herds.call("hit_creature", creature_id, 1))
+					and rewards.size() == 1
+				),
 		)
 		herds.free()
 
@@ -215,6 +252,7 @@ static func _test_fauna_and_pickup_integration(cases: Array[Dictionary]) -> void
 	enemies.call("set_auto_spawn", false)
 	var herds: Node2D = enemies.call("_get_peaceful_herds") as Node2D
 	herds.call("set_auto_spawn", false)
+	var reward_seeded: bool = _seed_scrap_only_reward(herds, &"dune_grazer")
 	herds.call("spawn_herd", Vector2(4.0, 4.0), 1, &"desert")
 	var creature_id: int = int(
 		(herds.call("get_snapshots") as Array[Dictionary])[0][&"id"]
@@ -245,13 +283,24 @@ static func _test_fauna_and_pickup_integration(cases: Array[Dictionary]) -> void
 	var drops: Array[Dictionary] = coordinator.call("_get_run_drops") as Array[Dictionary]
 	_add(
 		cases,
-		"peaceful defeat creates one persistent resource pickup",
-		drops.size() == 1
-		and int(drops[0][&"cores"]) == 1
+		"peaceful defeat creates one balanced persistent resource pickup",
+		reward_seeded
+		and drops.size() == 1
+		and int(drops[0][&"cores"]) == 0
 		and int(drops[0][&"scrap"]) == 1,
 	)
 	pickups.free()
 	enemies.free()
+
+
+static func _seed_scrap_only_reward(herds: Node2D, kind: StringName) -> bool:
+	for seed_value: int in range(1, 512):
+		herds.call("set_loot_random_seed", seed_value)
+		var loot: Dictionary = herds.call("_roll_resources", kind) as Dictionary
+		if int(loot[&"cores"]) == 0 and int(loot[&"scrap"]) == 1:
+			herds.call("set_loot_random_seed", seed_value)
+			return true
+	return false
 
 
 static func _make_herds(world: FakeWorld) -> Node2D:

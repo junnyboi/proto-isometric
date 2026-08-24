@@ -1,6 +1,6 @@
 extends Node2D
 
-signal defeated(creature_id: int, position: Vector2, resource_amount: int)
+signal defeated(creature_id: int, position: Vector2, cores: int, scrap: int)
 
 const DUNE_GRAZER_TEXTURE: Texture2D = preload("res://assets/fauna/dune_grazer.png")
 const REEDBACK_TEXTURE: Texture2D = preload("res://assets/fauna/reedback.png")
@@ -25,11 +25,11 @@ const DISPLAY_SIZES: Dictionary = {
 	&"rimehorn": Vector2(112.0, 112.0),
 	&"ember_ram": Vector2(108.0, 108.0),
 }
-const RESOURCE_AMOUNTS: Dictionary = {
-	&"dune_grazer": 1,
-	&"reedback": 2,
-	&"rimehorn": 2,
-	&"ember_ram": 2,
+const LOOT_PROFILES: Dictionary = {
+	&"dune_grazer": {&"scrap_chance": 0.70, &"core_chance": 0.03},
+	&"reedback": {&"scrap_chance": 0.78, &"core_chance": 0.04},
+	&"rimehorn": {&"scrap_chance": 0.84, &"core_chance": 0.06},
+	&"ember_ram": {&"scrap_chance": 0.90, &"core_chance": 0.08},
 }
 const HERD_COUNT: int = 2
 const MEMBERS_PER_HERD: int = 4
@@ -63,10 +63,12 @@ var _next_herd_id: int = 1
 var _time: float = 0.0
 var _auto_spawn: bool = true
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+var _loot_rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 
 func _ready() -> void:
 	_rng.seed = 0x48E2D91
+	_loot_rng.seed = 0x10A7B4E
 
 
 func configure(
@@ -90,6 +92,10 @@ func configure(
 
 func set_auto_spawn(enabled: bool) -> void:
 	_auto_spawn = enabled
+
+
+func set_loot_random_seed(seed_value: int) -> void:
+	_loot_rng.seed = seed_value
 
 
 func set_player_position(position: Vector2) -> void:
@@ -201,11 +207,13 @@ func hit_creature(creature_id: int, damage: int = 1) -> bool:
 			_creatures[index] = creature
 			return true
 		var position: Vector2 = creature[&"position"] as Vector2
-		var amount: int = resource_amount(creature[&"kind"] as StringName)
+		var loot: Dictionary = _roll_resources(creature[&"kind"] as StringName)
+		var cores: int = int(loot[&"cores"])
+		var scrap: int = int(loot[&"scrap"])
 		_creatures.remove_at(index)
 		if _drop_callback.is_valid():
-			_drop_callback.call(position, amount)
-		defeated.emit(creature_id, position, amount)
+			_drop_callback.call(position, cores, scrap)
+		defeated.emit(creature_id, position, cores, scrap)
 		queue_redraw()
 		return true
 	return false
@@ -220,7 +228,21 @@ static func texture_for(kind: StringName) -> Texture2D:
 
 
 static func resource_amount(kind: StringName) -> int:
-	return int(RESOURCE_AMOUNTS.get(kind, 1))
+	return 1 if LOOT_PROFILES.has(kind) else 0
+
+
+static func loot_profile(kind: StringName) -> Dictionary:
+	return (LOOT_PROFILES.get(kind, {}) as Dictionary).duplicate(true)
+
+
+func _roll_resources(kind: StringName) -> Dictionary:
+	var profile: Dictionary = loot_profile(kind)
+	if profile.is_empty():
+		return {&"cores": 0, &"scrap": 0}
+	return {
+		&"cores": 1 if _loot_rng.randf() < float(profile[&"core_chance"]) else 0,
+		&"scrap": 1 if _loot_rng.randf() < float(profile[&"scrap_chance"]) else 0,
+	}
 
 
 static func name_key(kind: StringName) -> StringName:

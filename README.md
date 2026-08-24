@@ -10,9 +10,9 @@ Press **Enter** or select **BEGIN** to deploy. Use **WASD** or the **arrow keys*
 
 ## Expedition loop
 
-The run starts with a nearby relay and two deterministic streamed objectives beyond it. Linking relays raises Alert from I to III: a hunter, then a hunter with dust devils, then a hunter inside a broad storm front. Outposts suppress directed pressure and provide repair plus one atomic Refit purchase per expedition.
+The run starts with a nearby relay and two deterministic streamed objectives beyond it. Linking relays raises Alert from I to III: a hunter, then a hunter with dust devils, then a hunter inside a broad storm front. Entering eligible deep-biome tiles can also trigger a telegraphed Quicksand Collapse, Bog-Gas Bloom, Ice Shear, or Magma Vent. These seeded events share a cooldown, stay capped, and never trigger in outpost sanctuary. Outposts suppress directed pressure and provide repair plus one atomic Refit purchase per expedition.
 
-Sandworms use a readable Burrow → Intercept → Expose → Dive cycle. Walker can damage them only during Expose. Four valid hits defeat a worm and create one persistent run-scoped Core/scrap reward. Impact Charge retains its contact, two-cell line, and three-cell fan bands; the Worn Plates starter module increases charge gain without changing damage or footprint.
+Sandworms use a readable Burrow → Intercept → Expose → Dive cycle. Walker can damage them only during Expose. Four valid hits defeat a worm and create one persistent run-scoped Core/scrap reward. Peaceful herd fauna remain one-hit targets, but now roll one Scrap and one rare Core independently at biome-scaled rates rather than guaranteeing both currencies. Impact Charge retains its contact, two-cell line, and three-cell fan bands; the Worn Plates starter module increases charge gain without changing damage or footprint.
 
 Refit offers **Ram Plating**, **Aftershock**, and **Storm Seal**. Ram Plating converts a charged running collision into one normal rock break, Aftershock extends the existing high-charge punish window, and Storm Seal reduces weather damage only while running. Each effect uses the existing movement or Smash controls—Walker has enough buttons already.
 

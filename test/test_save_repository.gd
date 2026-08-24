@@ -22,6 +22,7 @@ static func evaluate(
 		),
 	)
 	_test_commit_and_rotation(cases, repository, world, run_snapshot, profile_snapshot)
+	_test_scrap_only_reward(cases, world, run_snapshot, profile_snapshot)
 	_test_schema_three_module_default(cases, world, run_snapshot, profile_snapshot)
 	_test_legacy_load_and_commit(cases, world)
 	_test_primary_recovery(cases, world, run_snapshot, profile_snapshot)
@@ -93,6 +94,40 @@ static func _test_commit_and_rotation(
 				== (run_snapshot[&"completed_objective_ids"] as Array).size()
 			)
 		),
+	)
+
+
+static func _test_scrap_only_reward(
+	cases: Array[Dictionary],
+	world: RefCounted,
+	run_snapshot: Dictionary,
+	profile_snapshot: Dictionary,
+) -> void:
+	_clear_artifacts(TEST_ROOT)
+	var repository: RefCounted = _repository(TEST_ROOT, world)
+	var scrap_run: Dictionary = run_snapshot.duplicate(true)
+	scrap_run[&"run_drops"] = [
+		{
+			&"drop_id": "drop.worm.000001",
+			&"source_worm_id": 100_001,
+			&"cell": [20, 20],
+			&"cores": 0,
+			&"scrap": 1,
+		}
+	]
+	scrap_run[&"next_drop_sequence"] = 2
+	var saved: bool = bool(
+		repository.call("save_state", world.call("make_snapshot"), scrap_run, profile_snapshot)
+	)
+	var loaded: Dictionary = repository.call("load_state") as Dictionary
+	var drops: Array = (loaded.get(&"active_run", {}) as Dictionary).get(&"run_drops", [])
+	_add_case(
+		cases,
+		"schema-3 repository preserves a Scrap-only herd reward",
+		saved
+		and drops.size() == 1
+		and int((drops[0] as Dictionary)[&"cores"]) == 0
+		and int((drops[0] as Dictionary)[&"scrap"]) == 1,
 	)
 
 

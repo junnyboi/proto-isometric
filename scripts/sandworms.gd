@@ -3,7 +3,7 @@ extends Node2D
 signal damage_tick(amount: int, source: StringName)
 signal defeated(worm_id: int, position: Vector2)
 signal telegraph_started(kind: StringName, worm_id: int, attack_serial: int)
-signal peaceful_defeated(creature_id: int, position: Vector2, resource_amount: int)
+signal peaceful_defeated(creature_id: int, position: Vector2, cores: int, scrap: int)
 const FaunaCombatScript: GDScript = preload("res://scripts/fauna_combat_catalog.gd")
 const FaunaTelegraphAudioScript: GDScript = preload("res://scripts/fauna_telegraph_audio.gd")
 const FaunaVisualsScript: GDScript = preload("res://scripts/fauna_visuals.gd")
@@ -403,8 +403,8 @@ func _get_character_hover_targets() -> Array[Dictionary]:
 	return targets
 
 
-func _on_peaceful_defeated(creature_id: int, position: Vector2, resource_amount: int) -> void:
-	peaceful_defeated.emit(creature_id, position, resource_amount)
+func _on_peaceful_defeated(id: int, position: Vector2, cores: int, scrap: int) -> void:
+	peaceful_defeated.emit(id, position, cores, scrap)
 
 
 func get_combat_snapshot(worm_id: int) -> Dictionary:

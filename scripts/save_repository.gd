@@ -615,7 +615,7 @@ func _normalize_reward_drops(values: Array) -> Variant:
 		if not _exact_keys(drop, [&"drop_id", &"source_worm_id", &"cell", &"cores", &"scrap"]):
 			return null
 		var source: Variant = _json_integer(drop[&"source_worm_id"], 1, MAX_SEQUENCE)
-		var cores: Variant = _json_integer(drop[&"cores"], 1, RunStateScript.MAX_WORM_CORES)
+		var cores: Variant = _json_integer(drop[&"cores"], 0, RunStateScript.MAX_WORM_CORES)
 		var scrap: Variant = _json_integer(drop[&"scrap"], 0, MAX_WALLET)
 		var cell: Variant = _normalize_cell(drop[&"cell"])
 		if (
@@ -623,6 +623,7 @@ func _normalize_reward_drops(values: Array) -> Variant:
 			or source == null
 			or cores == null
 			or scrap == null
+			or (int(cores) == 0 and int(scrap) == 0)
 			or cell == null
 		):
 			return null

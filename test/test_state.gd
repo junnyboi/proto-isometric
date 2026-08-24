@@ -118,6 +118,32 @@ static func _test_run_round_trip(cases: Array[Dictionary]) -> void:
 		"RunState collected reward cannot credit twice",
 		(restored.call("_collect_drop_at", Vector2i(21, -4)) as Dictionary).is_empty(),
 	)
+	var scrap_only: Dictionary = (
+		restored.call("_place_drop", Vector2i(22, -4), 0, 1, 78) as Dictionary
+	)
+	var scrap_snapshot: Dictionary = restored.call("to_dictionary") as Dictionary
+	var scrap_restored: RefCounted = RunStateScript.new() as RefCounted
+	var scrap_round_trip: bool = bool(scrap_restored.call("restore_dictionary", scrap_snapshot))
+	var scrap_before: int = int(scrap_restored.call("get_value", &"scrap"))
+	var cores_before: int = int(scrap_restored.call("get_value", &"worm_cores"))
+	var scrap_collected: Dictionary = (
+		scrap_restored.call("_collect_drop_at", Vector2i(22, -4)) as Dictionary
+	)
+	_add_case(
+		cases,
+		"RunState persists and collects a Scrap-only herd reward",
+		not scrap_only.is_empty()
+		and scrap_round_trip
+		and int(scrap_collected[&"cores"]) == 0
+		and int(scrap_collected[&"scrap"]) == 1
+		and int(scrap_restored.call("get_value", &"worm_cores")) == cores_before
+		and int(scrap_restored.call("get_value", &"scrap")) == scrap_before + 1,
+	)
+	_add_case(
+		cases,
+		"RunState still rejects an empty reward drop",
+		(scrap_restored.call("_place_drop", Vector2i(23, -4), 0, 0, 79) as Dictionary).is_empty(),
+	)
 	var duplicate_reward: Dictionary = snapshot.duplicate(true)
 	(duplicate_reward[&"run_drops"] as Array).append(
 		(duplicate_reward[&"run_drops"] as Array)[0].duplicate(true)

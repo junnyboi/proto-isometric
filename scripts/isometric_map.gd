@@ -844,7 +844,7 @@ func _build_hazards() -> void:
 	_hazards = DesertHazardsScript.new() as Node2D
 	_hazards.name = "DesertHazards"
 	_hazards.z_index = 40
-	_hazards.call("configure", TILE_SIZE, MAP_ORIGIN, _world.call("get_cull_radius"))
+	_hazards.call("configure", TILE_SIZE, MAP_ORIGIN, _world.call("get_cull_radius"), _world)
 	_hazards.call("set_player_cell", _robot_grid)
 	_hazards.connect("damage_tick", Callable(self, "_apply_chassis_damage"))
 	_effects_layer.add_child(_hazards)
