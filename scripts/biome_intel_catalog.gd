@@ -24,6 +24,13 @@ const RESOURCE_FAUNA_KEYS: Dictionary = {
 	&"frozen": &"fauna.rimehorn.name",
 	&"lava": &"fauna.ember_ram.name",
 }
+const OUTPOST_KINDS: Array[StringName] = [
+	&"ancient_ruin",
+	&"ancient_temple",
+	&"ancient_ziggurat",
+	&"ancient_palace",
+	&"ancient_safehouse",
+]
 const SURFACE_KEYS: Dictionary = {
 	&"sand": &"field_intel.surface.sand",
 	&"salt": &"field_intel.surface.salt",
@@ -42,6 +49,16 @@ const SURFACE_KEYS: Dictionary = {
 
 static func supports(biome: StringName, surface: StringName) -> bool:
 	return REGION_KEYS.has(biome) and SURFACE_KEYS.has(surface)
+
+
+static func supports_outpost(biome: StringName, outpost_kind: StringName) -> bool:
+	return REGION_KEYS.has(biome) and outpost_kind in OUTPOST_KINDS
+
+
+static func outpost_name_key(biome: StringName, outpost_kind: StringName) -> StringName:
+	if not supports_outpost(biome, outpost_kind):
+		return &""
+	return StringName("outpost.name.%s.%s" % [biome, outpost_kind])
 
 
 static func snapshot(biome: StringName, surface: StringName) -> Dictionary:

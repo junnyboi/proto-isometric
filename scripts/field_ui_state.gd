@@ -44,6 +44,7 @@ var _outpost_linked: bool = false
 var _mobile_controls: bool = false
 var _current_biome: StringName = &"desert"
 var _terrain_surface: StringName = &"sand"
+var _current_outpost_kind: StringName = &""
 var _active_module_ids: Array[StringName] = []
 var _refit_purchase_used: bool = false
 var _debug_visible: bool = false
@@ -115,6 +116,7 @@ func configure_context(
 	refit_purchase_used: bool = false,
 	current_biome: StringName = &"desert",
 	terrain_surface: StringName = &"sand",
+	current_outpost_kind: StringName = &"",
 ) -> bool:
 	var modifier_ids: Array = RuntimeIdsScript.catalog()[&"modifiers"] as Array
 	var module_ids: Array[StringName] = _validated_modules(active_module_ids)
@@ -125,6 +127,8 @@ func configure_context(
 		or active_modifier_id not in modifier_ids
 		or module_ids.is_empty()
 		or not BiomeIntelScript.supports(current_biome, terrain_surface)
+		or (outpost_linked and not BiomeIntelScript.supports_outpost(current_biome, current_outpost_kind))
+		or (not outpost_linked and current_outpost_kind != &"")
 	):
 		return false
 	_context_event = context_event
@@ -133,6 +137,7 @@ func configure_context(
 	_mobile_controls = mobile_controls
 	_current_biome = current_biome
 	_terrain_surface = terrain_surface
+	_current_outpost_kind = current_outpost_kind
 	_active_module_ids = module_ids
 	_refit_purchase_used = refit_purchase_used
 	_sections |= SECTION_CONTEXT
@@ -219,6 +224,8 @@ func get_value(key: StringName) -> Variant:
 			value = _current_biome
 		&"terrain_surface":
 			value = _terrain_surface
+		&"current_outpost_kind":
+			value = _current_outpost_kind
 		&"active_module_ids":
 			value = _active_module_ids.duplicate()
 		&"refit_purchase_used":
@@ -262,6 +269,7 @@ func _snapshot() -> Dictionary:
 		&"mobile_controls": _mobile_controls,
 		&"current_biome": _current_biome,
 		&"terrain_surface": _terrain_surface,
+		&"current_outpost_kind": _current_outpost_kind,
 		&"active_module_ids": _active_module_ids.duplicate(),
 		&"refit_purchase_used": _refit_purchase_used,
 		&"debug_visible": _debug_visible,

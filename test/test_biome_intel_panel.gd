@@ -46,6 +46,7 @@ static func evaluate(runtime: Node = null) -> Array[Dictionary]:
 	var original_locale: StringName = LocalizationScript.get_locale()
 	LocalizationScript.set_locale(&"en", false)
 	_test_catalog(cases)
+	_test_outpost_names(cases)
 	_test_panel_modes(cases)
 	if runtime != null:
 		_test_live_map_panel(cases, runtime)
@@ -81,6 +82,60 @@ static func _test_catalog(cases: Array[Dictionary]) -> void:
 	)
 
 
+static func _test_outpost_names(cases: Array[Dictionary]) -> void:
+	var panel: Control = OutpostInterfaceScript.new() as Control
+	(Engine.get_main_loop() as SceneTree).root.add_child(panel)
+	var unique_names: Dictionary = {}
+	var all_rendered: bool = true
+	for biome: StringName in [&"desert", &"oasis", &"frozen", &"lava"]:
+		for outpost_kind: StringName in BiomeIntelScript.OUTPOST_KINDS:
+			var name_key: StringName = BiomeIntelScript.outpost_name_key(biome, outpost_kind)
+			panel.call("set_location_context", biome, &"sand", outpost_kind)
+			panel.call(
+				"set_state",
+				true,
+				12,
+				3,
+				82,
+				100,
+				[RuntimeIdsScript.MODULE_WORN_PLATES],
+				false,
+				RuntimeIdsScript.MODIFIER_NEUTRAL,
+			)
+			var expected: String = LocalizationScript.t(name_key)
+			unique_names[expected] = true
+			if str(panel.call("get_title_text")) != expected or expected == "HARVESTED OUTPOST":
+				all_rendered = false
+	_add(cases, "all twenty biome and building outpost names render", all_rendered)
+	_add(cases, "every biome and building combination has a unique title", unique_names.size() == 20)
+	_add(
+		cases,
+		"outpost naming rejects unknown biomes and structures",
+		BiomeIntelScript.outpost_name_key(&"unknown", &"ancient_ruin") == &""
+		and BiomeIntelScript.outpost_name_key(&"desert", &"unknown") == &"",
+	)
+	LocalizationScript.set_locale(&"zh-CN", false)
+	panel.call("set_location_context", &"lava", &"lava_basalt", &"ancient_palace")
+	panel.call(
+		"set_state",
+		true,
+		12,
+		3,
+		82,
+		100,
+		[RuntimeIdsScript.MODULE_WORN_PLATES],
+		false,
+		RuntimeIdsScript.MODIFIER_NEUTRAL,
+	)
+	_add(
+		cases,
+		"biome and building outpost names render in Simplified Chinese",
+		str(panel.call("get_title_text")) == "烬冠宫",
+	)
+	LocalizationScript.set_locale(&"en", false)
+	panel.free()
+
+
 static func _test_live_map_panel(cases: Array[Dictionary], runtime: Node) -> void:
 	var field_hud: CanvasLayer = runtime.get_node("FieldHUD") as CanvasLayer
 	var snapshot: Dictionary = field_hud.call("get_field_state_snapshot") as Dictionary
@@ -91,7 +146,8 @@ static func _test_live_map_panel(cases: Array[Dictionary], runtime: Node) -> voi
 		cases,
 		"live map passes authoritative biome and tile surface into the HUD",
 		snapshot[&"current_biome"] == world.call("_biome_at", player_cell)
-		and snapshot[&"terrain_surface"] == world.call("terrain_at", player_cell),
+		and snapshot[&"terrain_surface"] == world.call("terrain_at", player_cell)
+		and snapshot[&"current_outpost_kind"] == &"",
 	)
 	_add(
 		cases,
@@ -102,12 +158,30 @@ static func _test_live_map_panel(cases: Array[Dictionary], runtime: Node) -> voi
 		and str(panel.call("get_intel_text")).contains("CURRENT TILE")
 		and str(panel.call("get_intel_text")).contains("DETECTED"),
 	)
+	var outpost_cell: Vector2i = Vector2i(1, 10)
+	var world_objects: Node2D = runtime.get("_world_objects") as Node2D
+	var rendered_kind: StringName = world_objects.call("get_outpost_kind", outpost_cell) as StringName
+	var linked_biome: StringName = world.call("_biome_at", outpost_cell) as StringName
+	var expected_title: String = LocalizationScript.t(
+		BiomeIntelScript.outpost_name_key(linked_biome, rendered_kind)
+	)
+	_add(
+		cases,
+		"live outpost renderer resolves a biome-specific building title",
+		rendered_kind in BiomeIntelScript.OUTPOST_KINDS
+		and expected_title != "HARVESTED OUTPOST",
+	)
 
 
 static func _test_panel_modes(cases: Array[Dictionary]) -> void:
 	var panel: Control = OutpostInterfaceScript.new() as Control
 	(Engine.get_main_loop() as SceneTree).root.add_child(panel)
 	for field_case: Dictionary in FIELD_CASES:
+		panel.call(
+			"set_location_context",
+			field_case[&"biome"],
+			field_case[&"surface"],
+		)
 		panel.call(
 			"set_state",
 			false,
@@ -118,8 +192,6 @@ static func _test_panel_modes(cases: Array[Dictionary]) -> void:
 			[RuntimeIdsScript.MODULE_WORN_PLATES],
 			false,
 			RuntimeIdsScript.MODIFIER_NEUTRAL,
-			field_case[&"biome"],
-			field_case[&"surface"],
 		)
 		var intel_text: String = str(panel.call("get_intel_text"))
 		_add(
@@ -148,6 +220,7 @@ static func _test_panel_modes(cases: Array[Dictionary]) -> void:
 			and "CORES" in intel_text
 			and str(field_case[&"fauna"]) in intel_text,
 		)
+	panel.call("set_location_context", &"desert", &"sand", &"ancient_ruin")
 	panel.call(
 		"set_state",
 		true,
@@ -158,8 +231,6 @@ static func _test_panel_modes(cases: Array[Dictionary]) -> void:
 		[RuntimeIdsScript.MODULE_WORN_PLATES],
 		false,
 		RuntimeIdsScript.MODIFIER_NEUTRAL,
-		&"desert",
-		&"sand",
 	)
 	_add(
 		cases,
@@ -168,9 +239,10 @@ static func _test_panel_modes(cases: Array[Dictionary]) -> void:
 		and not bool(panel.call("is_intel_visible"))
 		and bool(panel.call("are_service_controls_visible"))
 		and bool(panel.call("is_repair_enabled"))
-		and str(panel.call("get_title_text")) == "HARVESTED OUTPOST",
+		and str(panel.call("get_title_text")) == "WINDCARVED RUIN",
 	)
 	LocalizationScript.set_locale(&"zh-CN", false)
+	panel.call("set_location_context", &"frozen", &"snow")
 	panel.call(
 		"set_state",
 		false,
@@ -181,8 +253,6 @@ static func _test_panel_modes(cases: Array[Dictionary]) -> void:
 		[RuntimeIdsScript.MODULE_WORN_PLATES],
 		false,
 		RuntimeIdsScript.MODIFIER_NEUTRAL,
-		&"frozen",
-		&"snow",
 	)
 	_add(
 		cases,

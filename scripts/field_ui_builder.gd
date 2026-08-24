@@ -1,6 +1,7 @@
 extends RefCounted
 
 const FieldUIStateScript: GDScript = preload("res://scripts/field_ui_state.gd")
+const OutpostVisualsScript: GDScript = preload("res://scripts/outpost_visuals.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 
 static var _performance_sampler: Node
@@ -30,6 +31,9 @@ static func build(
 	terrain_surface: StringName = &"sand",
 ) -> RefCounted:
 	var mobile: bool = mobile_controls != null and bool(mobile_controls.call("is_mobile_device"))
+	var current_outpost_kind: StringName = (
+		OutpostVisualsScript.kind_for(cell) if not shutdown and outpost_linked else &""
+	)
 	var completed: int = int(coordinator.call("get_run_value", &"completed_relays"))
 	var charge: float = float(impact.call("get_charge"))
 	var band: StringName = impact.call("get_band_name") as StringName
@@ -55,6 +59,7 @@ static func build(
 		bool(coordinator.call("get_run_value", &"refit_purchase_used")),
 		current_biome,
 		terrain_surface,
+		current_outpost_kind,
 	]
 	if signature == _signature:
 		_record_counter(&"hud.build_skips")
@@ -93,6 +98,7 @@ static func build(
 				coordinator.call("get_run_value", &"refit_purchase_used"),
 				current_biome,
 				terrain_surface,
+				current_outpost_kind,
 			)
 	)
 	state.call("configure_debug", false, facing, speed_ratio, cell)

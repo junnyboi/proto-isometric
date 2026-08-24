@@ -186,6 +186,7 @@ func apply_state(state: RefCounted) -> bool:
 			&"active_modifier_id",
 			&"current_biome",
 			&"terrain_surface",
+			&"current_outpost_kind",
 		]
 	):
 		_apply_outpost()
@@ -519,6 +520,15 @@ func _apply_outpost() -> void:
 	(
 		_outpost_interface
 		. call(
+			"set_location_context",
+			_state.call("get_value", &"current_biome"),
+			_state.call("get_value", &"terrain_surface"),
+			_state.call("get_value", &"current_outpost_kind"),
+		)
+	)
+	(
+		_outpost_interface
+		. call(
 			"set_state",
 			bool(_state.call("get_value", &"outpost_linked")),
 			int(_state.call("get_value", &"run_scrap")),
@@ -528,8 +538,6 @@ func _apply_outpost() -> void:
 			_state.call("get_value", &"active_module_ids"),
 			bool(_state.call("get_value", &"refit_purchase_used")),
 			_state.call("get_value", &"active_modifier_id"),
-			_state.call("get_value", &"current_biome"),
-			_state.call("get_value", &"terrain_surface"),
 		)
 	)
 
