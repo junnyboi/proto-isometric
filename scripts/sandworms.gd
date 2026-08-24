@@ -8,6 +8,7 @@ const FaunaCombatScript: GDScript = preload("res://scripts/fauna_combat_catalog.
 const FaunaTelegraphAudioScript: GDScript = preload("res://scripts/fauna_telegraph_audio.gd")
 const MeleePressureScript: GDScript = preload("res://scripts/melee_pressure.gd")
 const PeacefulHerdsScript: GDScript = preload("res://scripts/peaceful_herds.gd")
+const SandwormVisualsScript: GDScript = preload("res://scripts/sandworm_visuals.gd")
 const DEFAULT_PROFILE: Resource = preload("res://data/combat/sandworm_default.tres")
 const MUD_SKIMMER_TEXTURE: Texture2D = preload("res://assets/enemies/mud_skimmer.png")
 const RIME_STALKER_TEXTURE: Texture2D = preload("res://assets/enemies/rime_stalker.png")
@@ -133,8 +134,10 @@ func _set_active_biome(biome: StringName) -> void:
 	if biome != _active_biome:
 		clear_worms()
 		_active_biome = biome
-		if _melee_pressure != null: _melee_pressure.call("_set_active_biome", biome)
-		if _peaceful_herds != null: _peaceful_herds.call("set_active_biome", biome)
+		if _melee_pressure != null:
+			_melee_pressure.call("_set_active_biome", biome)
+		if _peaceful_herds != null:
+			_peaceful_herds.call("set_active_biome", biome)
 
 
 func set_player_position(position: Vector2, velocity: Vector2 = Vector2.ZERO) -> void:
@@ -936,34 +939,22 @@ func _draw_mud_wake(center: Vector2, progress: float, alpha: float) -> void:
 
 
 func _draw_exposed_body(center: Vector2, worm: Dictionary, alpha: float) -> void:
-	var direction: Vector2 = worm[&"direction"] as Vector2
-	var screen_direction: Vector2 = (
-		(_grid_to_screen(direction) - _grid_to_screen(Vector2.ZERO)).normalized()
-	)
-	var side: Vector2 = screen_direction.orthogonal()
-	var head: Vector2 = center + Vector2(0.0, -18.0)
-	for segment: int in range(4, 0, -1):
-		var phase: float = _time * 6.0 + float(segment) * 0.8
-		var segment_center: Vector2 = (
-			head - screen_direction * float(segment) * 17.0 + side * sin(phase) * 6.0
+	(
+		SandwormVisualsScript
+		. draw_exposed_body(
+			self,
+			center,
+			worm[&"direction"] as Vector2,
+			_time,
+			int(worm[&"id"]),
+			worm[&"state"] as StringName,
+			int(worm[&"health"]),
+			_p_int(&"max_health"),
+			alpha,
+			int(worm[&"id"]) == _hovered_enemy_id,
+			float(worm[&"hit_flash"]) > 0.0,
 		)
-		var shell: Color = SHELL.lightened(float(4 - segment) * 0.035)
-		shell.a = alpha
-		draw_circle(segment_center, 15.0 - float(segment) * 1.3, shell)
-		draw_arc(segment_center, 11.0, PI, TAU, 12, Color(SHELL_DARK, alpha), 3.0)
-	var head_color: Color = (
-		Color("ffd27a")
-		if int(worm[&"id"]) == _hovered_enemy_id
-		else (Color.WHITE if float(worm[&"hit_flash"]) > 0.0 else SHELL)
 	)
-	head_color.a = alpha
-	draw_circle(head, 19.0, head_color)
-	draw_arc(head, 20.0, 0.0, TAU, 24, Color(SHELL_DARK, alpha), 4.0)
-	var mouth: Vector2 = head + screen_direction * 12.0
-	draw_circle(mouth, 8.0, Color(SHELL_DARK, alpha))
-	for tooth: int in range(3):
-		draw_circle(mouth + side * float(tooth - 1) * 5.0, 1.7, Color(PALE_SAND, alpha))
-	_draw_health_bar(head + Vector2(0.0, -35.0), int(worm[&"health"]), alpha)
 
 
 func _state_progress(worm: Dictionary) -> float:
