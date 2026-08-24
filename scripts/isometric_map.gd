@@ -974,6 +974,8 @@ func _refresh_outpost_interface() -> void:
 			_facing,
 			get_speed_ratio(),
 			_robot_grid,
+			_world.call("_biome_at", _robot_grid),
+			_world.call("terrain_at", _robot_grid),
 		)
 	)
 	if state != null:

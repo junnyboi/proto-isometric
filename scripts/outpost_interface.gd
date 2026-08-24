@@ -3,6 +3,7 @@ extends Control
 signal repair_requested
 signal refit_requested(module_id: StringName)
 
+const BiomeIntelScript: GDScript = preload("res://scripts/biome_intel_catalog.gd")
 const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const RunModifierEffectsScript: GDScript = preload("res://scripts/run_modifier_effects.gd")
@@ -14,6 +15,7 @@ const DEFINITIONS: Array[Resource] = [
 const AMBER: Color = Color("f5a62d")
 const TEAL: Color = Color("4eb6aa")
 const MUTED: Color = Color("9f9787")
+const DANGER: Color = Color("ff5d5d")
 const REPAIR_COST: int = 5
 const DESIGN_SIZE: Vector2 = Vector2(386.0, 252.0)
 const INTERACTION_PULSE_SECONDS: float = 0.16
@@ -24,6 +26,13 @@ var _inventory: Label
 var _repair_button: Button
 var _module_buttons: Array[Button] = []
 var _footer_label: Label
+var _intel_tile: Label
+var _intel_primary_threat: Label
+var _intel_swarm_threat: Label
+var _intel_resources_header: Label
+var _intel_scrap: Label
+var _intel_cores: Label
+var _intel_labels: Array[Label] = []
 var _last_state: Dictionary = {}
 
 
@@ -56,6 +65,8 @@ func set_state(
 	active_modules: Array = [RuntimeIdsScript.MODULE_WORN_PLATES],
 	refit_used: bool = false,
 	active_modifier: StringName = RuntimeIdsScript.MODIFIER_NEUTRAL,
+	current_biome: StringName = &"desert",
+	terrain_surface: StringName = &"sand",
 ) -> void:
 	_last_state = {
 		&"linked": linked,
@@ -66,6 +77,8 @@ func set_state(
 		&"active_modules": active_modules.duplicate(),
 		&"refit_used": refit_used,
 		&"active_modifier": active_modifier,
+		&"current_biome": current_biome,
+		&"terrain_surface": terrain_surface,
 	}
 	_refresh_state()
 
@@ -74,6 +87,14 @@ func _refresh_state() -> void:
 	if _status == null or _last_state.is_empty():
 		return
 	var linked: bool = bool(_last_state[&"linked"])
+	_set_service_visibility(linked)
+	if linked:
+		_refresh_outpost_state()
+	else:
+		_refresh_field_intel()
+
+
+func _refresh_outpost_state() -> void:
 	var scrap: int = int(_last_state[&"scrap"])
 	var cores: int = int(_last_state[&"cores"])
 	var chassis: int = int(_last_state[&"chassis"])
@@ -81,10 +102,9 @@ func _refresh_state() -> void:
 	var active_modules: Array = _last_state[&"active_modules"] as Array
 	var refit_used: bool = bool(_last_state[&"refit_used"])
 	var active_modifier: StringName = _last_state[&"active_modifier"] as StringName
-	_status.text = LocalizationScript.t(
-		&"outpost.status_linked" if linked else &"outpost.status_searching"
-	)
-	_status.add_theme_color_override("font_color", TEAL if linked else MUTED)
+	_title_label.text = LocalizationScript.t(&"outpost.title")
+	_status.text = LocalizationScript.t(&"outpost.status_linked")
+	_status.add_theme_color_override("font_color", TEAL)
 	_inventory.text = (
 		LocalizationScript
 		. t(
@@ -99,15 +119,14 @@ func _refresh_state() -> void:
 	)
 	var repair_cost: int = RunModifierEffectsScript.repair_cost(REPAIR_COST, active_modifier)
 	_repair_button.text = LocalizationScript.t(&"outpost.repair", {"cost": repair_cost})
-	_repair_button.disabled = not linked or scrap < repair_cost or chassis >= max_chassis
+	_repair_button.disabled = scrap < repair_cost or chassis >= max_chassis
 	for index: int in range(DEFINITIONS.size()):
 		var definition: Resource = DEFINITIONS[index]
 		var module_id: StringName = definition.get("module_id") as StringName
 		var button: Button = _module_buttons[index]
 		var installed: bool = module_id in active_modules
 		button.disabled = (
-			not linked
-			or refit_used
+			refit_used
 			or installed
 			or cores < int(definition.get("core_cost"))
 			or scrap < int(definition.get("scrap_cost"))
@@ -140,6 +159,45 @@ func _refresh_state() -> void:
 		)
 
 
+func _refresh_field_intel() -> void:
+	var intel: Dictionary = BiomeIntelScript.snapshot(
+		_last_state[&"current_biome"] as StringName,
+		_last_state[&"terrain_surface"] as StringName,
+	)
+	if intel.is_empty():
+		return
+	var fauna: String = LocalizationScript.t(intel[&"resource_fauna_key"])
+	_title_label.text = LocalizationScript.t(intel[&"region_key"])
+	_intel_tile.text = LocalizationScript.t(
+		&"field_intel.tile",
+		{"surface": LocalizationScript.t(intel[&"surface_key"])},
+	)
+	_intel_primary_threat.text = LocalizationScript.t(
+		&"field_intel.threat",
+		{"name": LocalizationScript.t(intel[&"primary_threat_key"])},
+	)
+	_intel_swarm_threat.text = LocalizationScript.t(
+		&"field_intel.threat",
+		{"name": LocalizationScript.t(intel[&"swarm_threat_key"])},
+	)
+	_intel_resources_header.text = LocalizationScript.t(&"field_intel.resources")
+	_intel_scrap.text = LocalizationScript.t(&"field_intel.scrap", {"fauna": fauna})
+	_intel_cores.text = LocalizationScript.t(&"field_intel.cores", {"fauna": fauna})
+
+
+func _set_service_visibility(linked: bool) -> void:
+	_status.visible = linked
+	_inventory.visible = linked
+	_repair_button.visible = linked
+	_repair_button.disabled = not linked
+	_footer_label.visible = linked
+	for button: Button in _module_buttons:
+		button.visible = linked
+		button.disabled = not linked
+	for label: Label in _intel_labels:
+		label.visible = not linked
+
+
 func is_repair_enabled() -> bool:
 	return _repair_button != null and not _repair_button.disabled
 
@@ -153,6 +211,33 @@ func are_locked_actions_disabled() -> bool:
 
 func get_status_text() -> String:
 	return _status.text if _status != null else ""
+
+
+func is_outpost_mode() -> bool:
+	return not _last_state.is_empty() and bool(_last_state[&"linked"])
+
+
+func get_title_text() -> String:
+	return _title_label.text if _title_label != null else ""
+
+
+func is_intel_visible() -> bool:
+	return _intel_tile != null and _intel_tile.visible
+
+
+func are_service_controls_visible() -> bool:
+	return _repair_button != null and _repair_button.visible
+
+
+func get_intel_text() -> String:
+	var lines: PackedStringArray = []
+	for label: Label in _intel_labels:
+		lines.append(label.text)
+	return "\n".join(lines)
+
+
+func get_threat_color() -> Color:
+	return _intel_primary_threat.get_theme_color("font_color")
 
 
 func get_module_button(module_id: StringName) -> Button:
@@ -170,7 +255,6 @@ func _on_locale_changed(_locale: StringName) -> void:
 func _refresh_static_text() -> void:
 	if _title_label == null:
 		return
-	_title_label.text = LocalizationScript.t(&"outpost.title")
 	_footer_label.text = LocalizationScript.t(&"outpost.footer")
 
 
@@ -197,6 +281,27 @@ func _build_panel() -> void:
 		LocalizationScript.t(&"outpost.footer"), Vector2(22.0, 229.0), 10, MUTED
 	)
 	background.add_child(_footer_label)
+	_build_intel_panel(background)
+
+
+func _build_intel_panel(parent: Control) -> void:
+	_intel_tile = _make_label("", Vector2(22.0, 52.0), 14, Color("d8d0b5"))
+	_intel_primary_threat = _make_label("", Vector2(22.0, 84.0), 14, DANGER)
+	_intel_swarm_threat = _make_label("", Vector2(22.0, 112.0), 14, DANGER)
+	_intel_resources_header = _make_label("", Vector2(22.0, 154.0), 14, AMBER)
+	_intel_scrap = _make_label("", Vector2(22.0, 184.0), 13, Color("d8d0b5"))
+	_intel_cores = _make_label("", Vector2(22.0, 211.0), 13, Color("d8d0b5"))
+	_intel_labels = [
+		_intel_tile,
+		_intel_primary_threat,
+		_intel_swarm_threat,
+		_intel_resources_header,
+		_intel_scrap,
+		_intel_cores,
+	]
+	for label: Label in _intel_labels:
+		label.visible = false
+		parent.add_child(label)
 
 
 func _build_module_button(parent: Control, definition: Resource, index: int) -> void:

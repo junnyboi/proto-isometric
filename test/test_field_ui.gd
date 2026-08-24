@@ -69,6 +69,11 @@ static func _test_semantic_state(cases: Array[Dictionary]) -> void:
 		"resource collection goals match repair and refit thresholds",
 		int(snapshot[&"scrap_goal"]) == 5 and int(snapshot[&"core_goal"]) == 1,
 	)
+	_add_case(
+		cases,
+		"field UI carries validated biome and terrain context",
+		snapshot[&"current_biome"] == &"desert" and snapshot[&"terrain_surface"] == &"sand",
+	)
 	_add_case(cases, "future Alert field is present at zero", int(snapshot[&"alert_level"]) == 0)
 	_add_case(cases, "future relay total is explicit", int(snapshot[&"total_relays"]) == 1)
 	_add_case(
@@ -106,6 +111,23 @@ static func _test_invalid_state(cases: Array[Dictionary]) -> void:
 		cases,
 		"field UI rejects unknown modifier IDs",
 		not bool(state.call("configure_context", "TEST", &"modifier.unknown", false, false)),
+	)
+	_add_case(
+		cases,
+		"field UI rejects unknown biome and terrain context",
+		not bool(
+			state.call(
+				"configure_context",
+				"TEST",
+				RuntimeIdsScript.MODIFIER_NEUTRAL,
+				false,
+				false,
+				[RuntimeIdsScript.MODULE_WORN_PLATES],
+				false,
+				&"unknown",
+				&"mystery",
+			)
+		),
 	)
 	_add_case(cases, "incomplete field UI state cannot seal", not bool(state.call("seal")))
 
