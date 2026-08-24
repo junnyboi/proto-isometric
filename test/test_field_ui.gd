@@ -72,7 +72,9 @@ static func _test_semantic_state(cases: Array[Dictionary]) -> void:
 	_add_case(
 		cases,
 		"field UI carries validated biome and terrain context",
-		snapshot[&"current_biome"] == &"desert" and snapshot[&"terrain_surface"] == &"sand",
+		snapshot[&"current_biome"] == &"desert"
+		and snapshot[&"terrain_surface"] == &"sand"
+		and snapshot[&"current_outpost_kind"] == &"",
 	)
 	_add_case(cases, "future Alert field is present at zero", int(snapshot[&"alert_level"]) == 0)
 	_add_case(cases, "future relay total is explicit", int(snapshot[&"total_relays"]) == 1)
@@ -126,6 +128,42 @@ static func _test_invalid_state(cases: Array[Dictionary]) -> void:
 				false,
 				&"unknown",
 				&"mystery",
+			)
+		),
+	)
+	_add_case(
+		cases,
+		"linked outpost context requires a supported building identity",
+		not bool(
+			state.call(
+				"configure_context",
+				"TEST",
+				RuntimeIdsScript.MODIFIER_NEUTRAL,
+				true,
+				false,
+				[RuntimeIdsScript.MODULE_WORN_PLATES],
+				false,
+				&"desert",
+				&"sand",
+				&"",
+			)
+		),
+	)
+	_add_case(
+		cases,
+		"field UI accepts a biome-matched rendered outpost kind",
+		bool(
+			state.call(
+				"configure_context",
+				"TEST",
+				RuntimeIdsScript.MODIFIER_NEUTRAL,
+				true,
+				false,
+				[RuntimeIdsScript.MODULE_WORN_PLATES],
+				false,
+				&"desert",
+				&"sand",
+				&"ancient_temple",
 			)
 		),
 	)

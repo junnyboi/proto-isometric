@@ -34,6 +34,9 @@ var _intel_scrap: Label
 var _intel_cores: Label
 var _intel_labels: Array[Label] = []
 var _last_state: Dictionary = {}
+var _current_biome: StringName = &"desert"
+var _terrain_surface: StringName = &"sand"
+var _current_outpost_kind: StringName = &""
 
 
 func _ready() -> void:
@@ -56,6 +59,17 @@ func get_layout_rect() -> Rect2:
 	return Rect2(position, DESIGN_SIZE * scale)
 
 
+func set_location_context(
+	current_biome: StringName,
+	terrain_surface: StringName,
+	current_outpost_kind: StringName = &"",
+) -> void:
+	_current_biome = current_biome
+	_terrain_surface = terrain_surface
+	_current_outpost_kind = current_outpost_kind
+	_refresh_state()
+
+
 func set_state(
 	linked: bool,
 	scrap: int,
@@ -65,8 +79,6 @@ func set_state(
 	active_modules: Array = [RuntimeIdsScript.MODULE_WORN_PLATES],
 	refit_used: bool = false,
 	active_modifier: StringName = RuntimeIdsScript.MODIFIER_NEUTRAL,
-	current_biome: StringName = &"desert",
-	terrain_surface: StringName = &"sand",
 ) -> void:
 	_last_state = {
 		&"linked": linked,
@@ -77,8 +89,6 @@ func set_state(
 		&"active_modules": active_modules.duplicate(),
 		&"refit_used": refit_used,
 		&"active_modifier": active_modifier,
-		&"current_biome": current_biome,
-		&"terrain_surface": terrain_surface,
 	}
 	_refresh_state()
 
@@ -102,7 +112,15 @@ func _refresh_outpost_state() -> void:
 	var active_modules: Array = _last_state[&"active_modules"] as Array
 	var refit_used: bool = bool(_last_state[&"refit_used"])
 	var active_modifier: StringName = _last_state[&"active_modifier"] as StringName
-	_title_label.text = LocalizationScript.t(&"outpost.title")
+	var name_key: StringName = BiomeIntelScript.outpost_name_key(
+		_current_biome,
+		_current_outpost_kind,
+	)
+	_title_label.text = (
+		LocalizationScript.t(name_key)
+		if name_key != &""
+		else LocalizationScript.t(&"outpost.title")
+	)
 	_status.text = LocalizationScript.t(&"outpost.status_linked")
 	_status.add_theme_color_override("font_color", TEAL)
 	_inventory.text = (
@@ -161,8 +179,8 @@ func _refresh_outpost_state() -> void:
 
 func _refresh_field_intel() -> void:
 	var intel: Dictionary = BiomeIntelScript.snapshot(
-		_last_state[&"current_biome"] as StringName,
-		_last_state[&"terrain_surface"] as StringName,
+		_current_biome,
+		_terrain_surface,
 	)
 	if intel.is_empty():
 		return
