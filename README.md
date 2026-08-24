@@ -6,7 +6,7 @@
 
 Live Web build: https://proto-web-bylaknug.manus.space
 
-Press **Enter** or select **BEGIN** to deploy. Use **WASD** or the **arrow keys** for weighted eight-direction movement, hold **Shift** to run, and press **Space**, **J**, or **K** for Walker's contact-frame Smash. On mobile, hold outside UI exclusions to summon the floating joystick; pushing into its outer ring engages the same run path, while the single **SMASH** button supports simultaneous movement and attack. Each biome carries its own original background score, crossfading through the expedition as terrain changes. Left-handed mirroring, haptics, Master/SFX/Music/Ambience levels, UI scale, reduced flash, and camera shake are available through **ACCESS** on the title and field screens.
+Press **Enter** or select **BEGIN** to deploy. Use **WASD** or the **arrow keys** for weighted eight-direction movement, hold **Shift** to run, and press **Space**, **J**, or **K** for Walker's contact-frame Smash. On mobile, hold outside UI exclusions to summon the floating joystick; pushing into its outer ring engages the same run path, while the single **SMASH** button supports simultaneous movement and attack. Each biome carries its own original acoustic-forward background score, blending strings, winds, percussion, and environmental sound as terrain changes; Desert adds sparse invented-language contralto calls, while Lava Fields adds an original low male choir. Left-handed mirroring, haptics, Master/SFX/Music/Ambience levels, UI scale, reduced flash, and camera shake are available through **ACCESS** on the title and field screens.
 
 ## Expedition loop
 

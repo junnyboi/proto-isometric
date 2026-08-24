@@ -53,13 +53,15 @@ The eight `herd_*.wav` files below are accepted 48 kHz mono PCM runtime derivati
 
 ## Biome background music suite
 
-The four `bgm_*.ogg` files below are original instrumental masters generated with built-in **Lyria 3 Pro** on 2026-08-24. The suite uses a shared three-note descending expedition motif while giving each biome a distinct tempo, mode, instrumentation, and environmental texture. Prompts explicitly excluded vocals, recognizable existing melodies, and stylistic imitation of any existing soundtrack.
+The four `bgm_*.ogg` files are v2 runtime derivatives of original masters regenerated with built-in **Lyria 3 Pro** on 2026-08-24. This revision deliberately replaces prominent synthetic scoring with live-feeling bowed and plucked strings, winds, reeds, skin drums, wood, stone, metal, human breath, and biome-specific environmental events. A shared original three-note descending expedition motif connects the suite.
+
+Desert alone includes sparse contralto calls in a wholly invented nonsemantic language; Lava Fields alone includes a disciplined low male strong-voice choir using short invented fantasy syllables. The vocal prompts prohibit real-language lyrics, recognizable melodies, quotation, and imitation of existing vocal writing. Wetlands and Frozen Tundra remain instrumental.
 
 Runtime treatment is deterministic: each generated stereo master was decoded, loudness-normalized to a restrained gameplay target of approximately -18 LUFS with a -1.5 dB true-peak ceiling, resampled to 48 kHz stereo, turned into a cyclic loop by crossfading its tail into its opening over four seconds, stripped of metadata, and encoded as Ogg Vorbis. Godot loops each stream and crossfades biome changes through a hard two-voice cap on the `Music` bus.
 
-| Runtime file | Biome role | Runtime duration |
+| Runtime file | Acoustic and environmental identity | Runtime duration |
 |---|---|---:|
-| `bgm_desert.ogg` | Monumental desert traverse with deep drums, bowed metal, wind, and granular sand | 84.3 s |
-| `bgm_wetland.ogg` | Luminous wetland passage with airy reeds, water resonance, and wooden pulse | 93.9 s |
-| `bgm_frozen.ogg` | Vast frozen crossing with bowed glass, crystalline tones, and snow-muted drums | 83.0 s |
-| `bgm_volcanic.ogg` | Heavy lava-field drive with basalt strikes, ember texture, and subterranean pulse | 81.5 s |
+| `bgm_desert.ogg` | Low strings, plucked gut strings, woodwinds, frame drums, contralto calls, howling wind, and shifting sand | 93.6 s |
+| `bgm_wetland.ogg` | Cellos, violas, alto flute, bass clarinet, reeds, hollow wood, water bubbles, droplets, and mud movement | 92.7 s |
+| `bgm_frozen.ogg` | Tremolo strings, harmonics, cello, bass flute, oboe, blizzard wind, snow sweep, ice groans, and distant cracks | 92.3 s |
+| `bgm_volcanic.ogg` | Low strings, contrabassoon, bass clarinet, barrel drums, male choir, volcano blasts, fireballs, flame jets, lava, and embers | 90.1 s |
