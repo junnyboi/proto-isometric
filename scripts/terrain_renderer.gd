@@ -1,5 +1,7 @@
 extends RefCounted
 
+const BiomeDestructiblesScript: GDScript = preload("res://scripts/biome_destructibles.gd")
+
 const TERRAIN_TEXTURE_PERIOD_CELLS: float = 4.0
 const TERRAIN_UV_VARIATION: float = 0.035
 const WALKER_FOOT_SAMPLE_OFFSETS: Array[Vector2] = [Vector2(-24.0, 0.0), Vector2(24.0, 0.0)]
@@ -35,6 +37,7 @@ var _elevation: Dictionary
 var _terrain_textures: Dictionary
 var _tile_size: Vector2
 var _map_origin: Vector2
+var _biome_at: Callable
 
 
 func configure(
@@ -49,6 +52,10 @@ func configure(
 	_terrain_textures = terrain_textures
 	_tile_size = tile_size
 	_map_origin = map_origin
+
+
+func set_biome_lookup(biome_at: Callable) -> void:
+	_biome_at = biome_at
 
 
 func grid_to_screen(cell: Vector2i) -> Vector2:
@@ -87,10 +94,12 @@ func draw_tile(canvas: Node2D, cell: Vector2i) -> void:
 	)
 	var terrain_id: StringName = display_terrain_at(cell)
 	var color: Color = SAND if (cell.x + cell.y) % 2 == 0 else SAND_LIGHT
+	var obstacle_palette: Dictionary = {}
 	if terrain_id == &"salt":
 		color = SALT
 	elif terrain_id == &"rock":
-		color = ROCK
+		obstacle_palette = obstacle_palette_at(cell)
+		color = obstacle_palette[&"top"] as Color
 	elif terrain_id == &"wetland":
 		color = WETLAND
 	elif terrain_id == &"mud":
@@ -118,7 +127,11 @@ func draw_tile(canvas: Node2D, cell: Vector2i) -> void:
 						points[2],
 					]
 				),
-				color.darkened(0.38),
+				(
+					obstacle_palette[&"right"] as Color
+					if not obstacle_palette.is_empty()
+					else color.darkened(0.38)
+				),
 			)
 		)
 		(
@@ -132,12 +145,18 @@ func draw_tile(canvas: Node2D, cell: Vector2i) -> void:
 						points[3],
 					]
 				),
-				color.darkened(0.52),
+				(
+					obstacle_palette[&"left"] as Color
+					if not obstacle_palette.is_empty()
+					else color.darkened(0.52)
+				),
 			)
 		)
 
 	canvas.draw_colored_polygon(points, color)
 	var terrain_texture: Texture2D = _terrain_textures.get(terrain_id) as Texture2D
+	if terrain_id == &"rock" and _biome_for(cell) != &"desert":
+		terrain_texture = null
 	if terrain_texture != null:
 		canvas.draw_polygon(points, terrain_tints(cell), terrain_uvs(cell), terrain_texture)
 	for edge: int in range(4):
@@ -153,6 +172,16 @@ func draw_tile(canvas: Node2D, cell: Vector2i) -> void:
 		var closed: PackedVector2Array = points.duplicate()
 		closed.append(points[0])
 		canvas.draw_polyline(closed, Color(1.0, 0.76, 0.18, 0.58), 2.0)
+
+
+func obstacle_palette_at(cell: Vector2i) -> Dictionary:
+	var biome: StringName = _biome_for(cell)
+	var kind: StringName = BiomeDestructiblesScript.kind_for(biome, cell)
+	return BiomeDestructiblesScript.block_palette_for(kind)
+
+
+func _biome_for(cell: Vector2i) -> StringName:
+	return _biome_at.call(cell) as StringName if _biome_at.is_valid() else &"desert"
 
 
 func display_terrain_at(cell: Vector2i) -> StringName:

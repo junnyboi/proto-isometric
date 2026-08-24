@@ -20,8 +20,7 @@ const SANCTUARY_LINE: Color = Color(0.34, 1.0, 0.91, 0.88)
 const SANCTUARY_SEGMENTS: int = 48
 const OCCUPIED_TILE_GOLD: Color = Color("ffc247")
 const OCCUPIED_TILE_GLOW: Color = Color(1.0, 0.64, 0.12, 0.28)
-const OUTPOST_BASE_OFFSET: Vector2 = Vector2(0.0, 16.0)
-const OUTPOST_LABEL_OFFSET: Vector2 = Vector2(-39.0, -202.0)
+const OUTPOST_LABEL_MARGIN: Vector2 = Vector2(-39.0, -22.0)
 
 var _destructible_rocks: Dictionary = {}
 var _scrap: Dictionary = {}
@@ -257,9 +256,10 @@ func _draw_sanctuary_boundary(outpost_cell: Vector2i) -> void:
 
 func _draw_sanctuary_label(outpost_cell: Vector2i) -> void:
 	var center: Vector2 = _grid_to_screen.call(outpost_cell) as Vector2
+	var kind: StringName = get_outpost_kind(outpost_cell)
 	draw_string(
 		ThemeDB.fallback_font,
-		center + OUTPOST_LABEL_OFFSET,
+		center + OutpostVisualsScript.draw_offset_for(kind) + OUTPOST_LABEL_MARGIN,
 		LocalizationScript.t(&"world.safe_zone"),
 		HORIZONTAL_ALIGNMENT_LEFT,
 		-1.0,
@@ -304,7 +304,7 @@ func _draw_outpost(cell: Vector2i, center: Vector2) -> void:
 	var size: Vector2 = OutpostVisualsScript.display_size_for(kind)
 	if texture == null or size.x <= 0.0 or size.y <= 0.0:
 		return
-	var rect: Rect2 = Rect2(center + OUTPOST_BASE_OFFSET - Vector2(size.x * 0.5, size.y), size)
+	var rect: Rect2 = Rect2(center + OutpostVisualsScript.draw_offset_for(kind), size)
 	draw_texture_rect(texture, rect, false)
 
 

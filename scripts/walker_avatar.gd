@@ -14,7 +14,18 @@ const ATTACK_EVENT_FRAME: int = 11
 const ATTACK_FPS: float = 12.0
 const ATTACK_DURATION: float = float(GruntSpriteFramesBuilderScript.FRAME_COUNT) / ATTACK_FPS
 const ATTACK_CONTACT_TIME: float = float(ATTACK_EVENT_FRAME) / ATTACK_FPS
-const SPRITE_BASE_POSITION: Vector2 = Vector2(0.0, -TARGET_RUNTIME_HEIGHT * 0.5)
+const WALK_FRAME_FOOTLINE_Y: float = 214.0
+const SPRITE_RUNTIME_SCALE: float = (
+	TARGET_RUNTIME_HEIGHT / float(GruntSpriteFramesBuilderScript.CELL_SIZE.y)
+)
+const SPRITE_BASE_POSITION: Vector2 = Vector2(
+	0.0,
+	(
+		(float(GruntSpriteFramesBuilderScript.CELL_SIZE.y) * 0.5 - WALK_FRAME_FOOTLINE_Y)
+		* SPRITE_RUNTIME_SCALE
+	),
+)
+const PROXY_FOOTLINE_Y: float = -12.0
 
 var _sprite: AnimatedSprite2D
 var _frames: SpriteFrames
@@ -41,9 +52,7 @@ func _ready() -> void:
 	_sprite.name = "DirectionalSprite"
 	_sprite.centered = true
 	_sprite.position = SPRITE_BASE_POSITION
-	_sprite.scale = (
-		Vector2.ONE * (TARGET_RUNTIME_HEIGHT / float(GruntSpriteFramesBuilderScript.CELL_SIZE.y))
-	)
+	_sprite.scale = Vector2.ONE * SPRITE_RUNTIME_SCALE
 	_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_sprite.sprite_frames = _frames
 	_sprite.visible = not _using_proxy
@@ -147,6 +156,21 @@ func get_active_animation() -> StringName:
 
 func get_active_frame() -> int:
 	return _sprite.frame if _sprite != null else -1
+
+
+func get_visual_foot_offset() -> Vector2:
+	if _using_proxy:
+		return Vector2.ZERO
+	return (
+		SPRITE_BASE_POSITION
+		+ Vector2(
+			0.0,
+			(
+				(WALK_FRAME_FOOTLINE_Y - float(GruntSpriteFramesBuilderScript.CELL_SIZE.y) * 0.5)
+				* SPRITE_RUNTIME_SCALE
+			),
+		)
+	)
 
 
 func get_redraw_request_count() -> int:
@@ -293,7 +317,10 @@ func _request_redraw() -> void:
 func _draw() -> void:
 	if not _using_proxy:
 		return
-	draw_set_transform(_presentation_offset)
+	draw_set_transform(
+		_presentation_offset + _locomotion_offset - Vector2(0.0, PROXY_FOOTLINE_Y),
+		_locomotion_tilt,
+	)
 	draw_circle(Vector2(0.0, -70.0), 34.0, Color("d9b28d"))
 	draw_line(Vector2(-30.0, -60.0), Vector2(-42.0, -12.0), Color("17191d"), 18.0)
 	draw_line(Vector2(30.0, -60.0), Vector2(42.0, -12.0), Color("17191d"), 18.0)

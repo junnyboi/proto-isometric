@@ -34,7 +34,7 @@ const BEACON_POINTS: Dictionary = {
 	KIND_PALACE: Vector2(0.60, 0.22),
 	KIND_SAFEHOUSE: Vector2(0.67, 0.34),
 }
-const BASE_OFFSET: Vector2 = Vector2(0.0, 16.0)
+const GROUND_ANCHOR: Vector2 = Vector2(0.5, 0.80)
 
 
 static func kind_for(cell: Vector2i) -> StringName:
@@ -52,10 +52,14 @@ static func display_size_for(kind: StringName) -> Vector2:
 	return DISPLAY_SIZES.get(kind, Vector2.ZERO) as Vector2
 
 
+static func draw_offset_for(kind: StringName) -> Vector2:
+	return -display_size_for(kind) * GROUND_ANCHOR
+
+
 static func beacon_offset_for(kind: StringName) -> Vector2:
 	var size: Vector2 = display_size_for(kind)
 	var point: Vector2 = BEACON_POINTS.get(kind, Vector2(0.5, 0.25)) as Vector2
-	return BASE_OFFSET - size * Vector2(0.5, 1.0) + size * point
+	return draw_offset_for(kind) + size * point
 
 
 static func get_required_paths() -> Array[String]:

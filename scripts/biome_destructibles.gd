@@ -17,9 +17,7 @@ const GENERATED_KINDS: Array[StringName] = [
 	KIND_LAVA_OBSIDIAN_CLUSTER,
 ]
 
-const DESERT_DEBRIS: Array[Color] = [
-	Color("934d35"), Color("bd7152"), Color("e8b861")
-]
+const DESERT_DEBRIS: Array[Color] = [Color("934d35"), Color("bd7152"), Color("e8b861")]
 const WETLAND_DEBRIS: Array[Color] = [
 	Color("4a3427"), Color("9b7047"), Color("68733f"), Color("2d281f")
 ]
@@ -32,6 +30,44 @@ const FROZEN_PINE_DEBRIS: Array[Color] = [
 const LAVA_DEBRIS: Array[Color] = [
 	Color("252326"), Color("575253"), Color("8c8a86"), Color("ff5a12")
 ]
+const BLOCK_PALETTES: Dictionary = {
+	&"dry_stone":
+	{
+		&"top": Color("934d35"),
+		&"right": Color("5f3022"),
+		&"left": Color("462219"),
+	},
+	&"wet_wood":
+	{
+		&"top": Color("60724b"),
+		&"right": Color("394b35"),
+		&"left": Color("2a3928"),
+	},
+	&"frozen_stone":
+	{
+		&"top": Color("b7d7df"),
+		&"right": Color("7296a2"),
+		&"left": Color("526f7a"),
+	},
+	&"cold_wood":
+	{
+		&"top": Color("54746d"),
+		&"right": Color("324b46"),
+		&"left": Color("233a36"),
+	},
+	&"basalt":
+	{
+		&"top": Color("484145"),
+		&"right": Color("2e292c"),
+		&"left": Color("211d20"),
+	},
+	&"obsidian":
+	{
+		&"top": Color("30333d"),
+		&"right": Color("1d1f27"),
+		&"left": Color("15171d"),
+	},
+}
 
 const TEXTURES: Dictionary = {
 	KIND_WETLAND_MANGROVE: preload("res://assets/destructibles/wetland_mangrove.png"),
@@ -105,6 +141,11 @@ static func material_family_for(kind: StringName) -> StringName:
 			return &"obsidian"
 		_:
 			return &"dry_stone"
+
+
+static func block_palette_for(kind: StringName) -> Dictionary:
+	var family: StringName = material_family_for(kind)
+	return (BLOCK_PALETTES.get(family, BLOCK_PALETTES[&"dry_stone"]) as Dictionary).duplicate()
 
 
 static func get_required_paths() -> Array[String]:

@@ -11,6 +11,13 @@ static func evaluate_live(map: Node, world_objects: Node2D, heat_haze: Node2D) -
 		world_objects.call("get_occupied_tile_border_points", occupied[0]) as PackedVector2Array
 	)
 	_add(cases, "occupied tile border uses four isometric corners", border.size() == 4)
+	var avatar: Node2D = map.get("_avatar") as Node2D
+	var foot_offset: Vector2 = avatar.call("get_visual_foot_offset") as Vector2
+	_add(
+		cases,
+		"Walker visible feet resolve to the authoritative world origin",
+		foot_offset.length() <= 0.5,
+	)
 
 	_add(cases, "place Walker beside rock", bool(map.call("place_robot", Vector2i(3, 4))))
 	_add(

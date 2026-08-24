@@ -2,6 +2,7 @@ extends RefCounted
 
 const BiomeDestructiblesScript: GDScript = preload("res://scripts/biome_destructibles.gd")
 const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
+const TerrainRendererScript: GDScript = preload("res://scripts/terrain_renderer.gd")
 const WorldObjectsScript: GDScript = preload("res://scripts/world_objects.gd")
 
 
@@ -9,6 +10,7 @@ static func evaluate() -> Array[Dictionary]:
 	var cases: Array[Dictionary] = []
 	_test_variant_contract(cases)
 	_test_debris_palettes(cases)
+	_test_obstacle_block_palettes(cases)
 	_test_runtime_assets(cases)
 	_test_world_binding(cases)
 	_test_break_and_save_compatibility(cases)
@@ -19,19 +21,24 @@ static func _test_variant_contract(cases: Array[Dictionary]) -> void:
 	_add(
 		cases,
 		"desert cells retain the procedural rock fallback",
-		BiomeDestructiblesScript.kind_for(&"desert", Vector2i(8, 10))
-		== BiomeDestructiblesScript.KIND_DESERT_ROCK,
+		(
+			BiomeDestructiblesScript.kind_for(&"desert", Vector2i(8, 10))
+			== BiomeDestructiblesScript.KIND_DESERT_ROCK
+		),
 	)
 	var expected: Dictionary = {
-		&"oasis": [
+		&"oasis":
+		[
 			BiomeDestructiblesScript.KIND_WETLAND_MANGROVE,
 			BiomeDestructiblesScript.KIND_WETLAND_STUMP,
 		],
-		&"frozen": [
+		&"frozen":
+		[
 			BiomeDestructiblesScript.KIND_FROZEN_SNOW_ROCK,
 			BiomeDestructiblesScript.KIND_FROZEN_PINE,
 		],
-		&"lava": [
+		&"lava":
+		[
 			BiomeDestructiblesScript.KIND_LAVA_BASALT_CHIMNEY,
 			BiomeDestructiblesScript.KIND_LAVA_OBSIDIAN_CLUSTER,
 		],
@@ -52,27 +59,27 @@ static func _test_variant_contract(cases: Array[Dictionary]) -> void:
 		_add(
 			cases,
 			"%s exposes both biome-native destructible variants" % biome,
-				found.size() == 2 and found.has(expected_kinds[0]) and found.has(expected_kinds[1]),
-			)
+			found.size() == 2 and found.has(expected_kinds[0]) and found.has(expected_kinds[1]),
+		)
 
 
 static func _test_debris_palettes(cases: Array[Dictionary]) -> void:
 	var desert: Array[Color] = BiomeDestructiblesScript.debris_palette_for(&"desert_rock")
 	var wetland: Array[Color] = BiomeDestructiblesScript.debris_palette_for(&"wetland_stump")
-	var frozen_rock: Array[Color] = (
-		BiomeDestructiblesScript.debris_palette_for(&"frozen_snow_rock")
-	)
+	var frozen_rock: Array[Color] = BiomeDestructiblesScript.debris_palette_for(&"frozen_snow_rock")
 	var frozen_pine: Array[Color] = BiomeDestructiblesScript.debris_palette_for(&"frozen_pine")
-	var lava: Array[Color] = (
-		BiomeDestructiblesScript.debris_palette_for(&"lava_obsidian_cluster")
+	var lava: Array[Color] = BiomeDestructiblesScript.debris_palette_for(&"lava_obsidian_cluster")
+	_add(
+		cases,
+		"every biome debris palette has at least three colors",
+		(
+			desert.size() >= 3
+			and wetland.size() >= 3
+			and frozen_rock.size() >= 3
+			and frozen_pine.size() >= 3
+			and lava.size() >= 3
+		)
 	)
-	_add(cases, "every biome debris palette has at least three colors", (
-		desert.size() >= 3
-		and wetland.size() >= 3
-		and frozen_rock.size() >= 3
-		and frozen_pine.size() >= 3
-		and lava.size() >= 3
-	))
 	_add(
 		cases,
 		"wetland debris differs from desert rock debris",
@@ -87,6 +94,50 @@ static func _test_debris_palettes(cases: Array[Dictionary]) -> void:
 		cases,
 		"lava debris differs from every cold palette",
 		lava != frozen_rock and lava != frozen_pine,
+	)
+
+
+static func _test_obstacle_block_palettes(cases: Array[Dictionary]) -> void:
+	var kinds: Array[StringName] = [
+		BiomeDestructiblesScript.KIND_DESERT_ROCK,
+		BiomeDestructiblesScript.KIND_WETLAND_STUMP,
+		BiomeDestructiblesScript.KIND_FROZEN_SNOW_ROCK,
+		BiomeDestructiblesScript.KIND_FROZEN_PINE,
+		BiomeDestructiblesScript.KIND_LAVA_BASALT_CHIMNEY,
+		BiomeDestructiblesScript.KIND_LAVA_OBSIDIAN_CLUSTER,
+	]
+	var top_colors: Dictionary = {}
+	var faces_valid: bool = true
+	for kind: StringName in kinds:
+		var palette: Dictionary = BiomeDestructiblesScript.block_palette_for(kind)
+		var top: Color = palette.get(&"top", Color.TRANSPARENT) as Color
+		var right: Color = palette.get(&"right", Color.TRANSPARENT) as Color
+		var left: Color = palette.get(&"left", Color.TRANSPARENT) as Color
+		top_colors[top.to_html()] = true
+		faces_valid = (
+			faces_valid
+			and top.a > 0.99
+			and right.get_luminance() < top.get_luminance()
+			and left.get_luminance() < right.get_luminance()
+		)
+	_add(cases, "every obstacle palette has readable top and shaded side faces", faces_valid)
+	_add(
+		cases,
+		"desert, wetland, frozen stone, frozen wood, basalt, and obsidian blocks differ",
+		top_colors.size() == kinds.size(),
+	)
+	var renderer: RefCounted = TerrainRendererScript.new() as RefCounted
+	renderer.call("configure", {}, {}, {}, Vector2(90.0, 45.0), Vector2.ZERO)
+	renderer.call("set_biome_lookup", func(_cell: Vector2i) -> StringName: return &"frozen")
+	var sample: Vector2i = Vector2i(4, 5)
+	var expected_kind: StringName = BiomeDestructiblesScript.kind_for(&"frozen", sample)
+	_add(
+		cases,
+		"terrain renderer resolves elevated obstacle colors through biome metadata",
+		(
+			renderer.call("obstacle_palette_at", sample)
+			== BiomeDestructiblesScript.block_palette_for(expected_kind)
+		),
 	)
 
 
@@ -131,8 +182,10 @@ static func _test_world_binding(cases: Array[Dictionary]) -> void:
 	_add(
 		cases,
 		"WorldObjects resolves frozen rock truth through the biome adapter",
-		objects.call("get_destructible_kind", cell)
-		== BiomeDestructiblesScript.kind_for(&"frozen", cell),
+		(
+			objects.call("get_destructible_kind", cell)
+			== BiomeDestructiblesScript.kind_for(&"frozen", cell)
+		),
 	)
 	objects.free()
 

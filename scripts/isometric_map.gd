@@ -712,6 +712,7 @@ func _build_world_stream() -> void:
 	_terrain_renderer.call(
 		"configure", _terrain, _elevation, _terrain_textures, TILE_SIZE, MAP_ORIGIN
 	)
+	_terrain_renderer.call("set_biome_lookup", Callable(_world, "_biome_at"))
 	_terrain_surface = TerrainSurfaceScript.new() as Node2D
 	_terrain_surface.call("configure", _terrain_renderer, _performance_sampler)
 	add_child(_terrain_surface)

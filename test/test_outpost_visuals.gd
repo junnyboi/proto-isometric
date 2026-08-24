@@ -12,10 +12,12 @@ static func evaluate() -> Array[Dictionary]:
 	var assets_valid: bool = true
 	var sizes_valid: bool = true
 	var anchors_valid: bool = true
+	var ground_anchors_valid: bool = true
 	for kind: StringName in OutpostVisualsScript.KINDS:
 		var texture: Texture2D = OutpostVisualsScript.texture_for(kind)
 		var size: Vector2 = OutpostVisualsScript.display_size_for(kind)
 		var anchor: Vector2 = OutpostVisualsScript.beacon_offset_for(kind)
+		var draw_offset: Vector2 = OutpostVisualsScript.draw_offset_for(kind)
 		assets_valid = (
 			assets_valid
 			and texture != null
@@ -24,22 +26,37 @@ static func evaluate() -> Array[Dictionary]:
 			and texture.resource_path in required_paths
 		)
 		sizes_valid = (
-			sizes_valid
-			and size.x >= 178.0
-			and size.x <= 198.0
-			and is_equal_approx(size.x, size.y)
+			sizes_valid and size.x >= 178.0 and size.x <= 198.0 and is_equal_approx(size.x, size.y)
 		)
 		anchors_valid = (
 			anchors_valid
 			and is_finite(anchor.x)
 			and is_finite(anchor.y)
-			and absf(anchor.x) <= size.x * 0.5
-			and anchor.y >= OutpostVisualsScript.BASE_OFFSET.y - size.y
-			and anchor.y <= OutpostVisualsScript.BASE_OFFSET.y
+			and anchor.x >= draw_offset.x
+			and anchor.x <= draw_offset.x + size.x
+			and anchor.y >= draw_offset.y
+			and anchor.y <= draw_offset.y + size.y
+		)
+		ground_anchors_valid = (
+			ground_anchors_valid
+			and (draw_offset + size * OutpostVisualsScript.GROUND_ANCHOR).is_equal_approx(
+				Vector2.ZERO
+			)
+			and OutpostVisualsScript.GROUND_ANCHOR.y > 0.75
+			and OutpostVisualsScript.GROUND_ANCHOR.y < 0.9
 		)
 	_add(cases, "every outpost sprite is a validated 384-pixel RGBA resource", assets_valid)
-	_add(cases, "outposts render larger than Walker without exceeding two hundred pixels", sizes_valid)
+	_add(
+		cases,
+		"outposts render larger than Walker without exceeding two hundred pixels",
+		sizes_valid
+	)
 	_add(cases, "every energy beacon is anchored inside its structure silhouette", anchors_valid)
+	_add(
+		cases,
+		"every outpost ground footprint resolves to its authoritative safe-zone tile",
+		ground_anchors_valid,
+	)
 	var observed: Dictionary = {}
 	for y: int in range(-12, 13):
 		for x: int in range(-12, 13):
@@ -80,10 +97,7 @@ static func evaluate() -> Array[Dictionary]:
 	_add(
 		cases,
 		"one shared renderer owns all visible outpost energy",
-		(
-			renderer.get_child_count() == 1
-			and int(energy.call("get_visible_beacon_count")) == 1
-		),
+		renderer.get_child_count() == 1 and int(energy.call("get_visible_beacon_count")) == 1,
 	)
 	var snapshot_before: Dictionary = energy.call("_get_animation_snapshot", sample) as Dictionary
 	var static_redraws: int = int(renderer.call("get_redraw_request_count"))
@@ -115,10 +129,7 @@ static func evaluate() -> Array[Dictionary]:
 	_add(
 		cases,
 		"zero VFX intensity suppresses and idles ambient outpost energy",
-		(
-			is_zero_approx(float(energy.call("get_effect_strength")))
-			and not energy.is_processing()
-		),
+		is_zero_approx(float(energy.call("get_effect_strength"))) and not energy.is_processing(),
 	)
 	renderer.free()
 	return cases
