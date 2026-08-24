@@ -50,11 +50,18 @@ class FakeAvatar:
 class FakeRouter:
 	extends Node
 	var events: Array[Dictionary] = []
+	var biomes: Array[StringName] = []
 
 	func submit(event: Dictionary) -> bool:
 		if not FeedbackEventScript.validate(event):
 			return false
 		events.append(event.duplicate(true))
+		return true
+
+	func present_biome(biome: StringName) -> bool:
+		if not biomes.is_empty() and biomes[-1] == biome:
+			return false
+		biomes.append(biome)
 		return true
 
 
@@ -109,6 +116,11 @@ static func _test_locomotion_classification(cases: Array[Dictionary]) -> void:
 		"locomotion feedback binds presentation-only sources",
 		bool(feedback.call("configure", field, avatar, router, charge, world)),
 	)
+	_add(
+		cases,
+		"locomotion feedback synchronizes the initial biome",
+		router.biomes == [&"sand"],
+	)
 	field.velocity = Vector2(100.0, 0.0)
 	avatar.frame = 1
 	feedback.call("_process", 0.016)
@@ -136,6 +148,7 @@ static func _test_locomotion_classification(cases: Array[Dictionary]) -> void:
 		(
 			_count(router.events, RuntimeIdsScript.EVENT_LOCOMOTION_WALK_CONTACT) == 2
 			and (router.events[-1][&"material"] as StringName) == &"mud"
+			and router.biomes == [&"sand", &"mud"]
 		),
 	)
 	field._is_running = true
@@ -164,6 +177,20 @@ static func _test_locomotion_classification(cases: Array[Dictionary]) -> void:
 		cases,
 		"full stop dispatches once",
 		_count(router.events, RuntimeIdsScript.EVENT_LOCOMOTION_STOP) == 1,
+	)
+	var contacts_before_border: int = _count(
+		router.events, RuntimeIdsScript.EVENT_LOCOMOTION_WALK_CONTACT
+	)
+	world.terrain = &"blue_ice"
+	feedback.call("_process", 0.016)
+	_add(
+		cases,
+		"terrain border changes notify audio without waiting for a gait contact",
+		(
+			router.biomes == [&"sand", &"mud", &"snow"]
+			and _count(router.events, RuntimeIdsScript.EVENT_LOCOMOTION_WALK_CONTACT)
+			== contacts_before_border
+		),
 	)
 	_add(cases, "blocked transition dispatches", bool(feedback.call("notify_blocked")))
 	_add(

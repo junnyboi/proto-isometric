@@ -17,6 +17,7 @@ var _last_moving: bool = false
 var _last_running: bool = false
 var _last_frame: int = -1
 var _last_animation: StringName = &""
+var _last_surface: StringName = &""
 var _blocked_cooldown: float = 0.0
 var _event_counts: Dictionary = {}
 
@@ -33,6 +34,9 @@ func configure(
 	_router = router
 	_charge = charge
 	_world = world
+	if _field != null and _router != null and _world != null:
+		_last_surface = _surface_family()
+		_router.call("present_biome", _last_surface)
 	if _charge != null and not _charge.is_connected("band_crossed", _on_charge_band_crossed):
 		_charge.connect("band_crossed", _on_charge_band_crossed)
 	return _field != null and _avatar != null and _router != null and _world != null
@@ -47,6 +51,9 @@ func _process(delta: float) -> void:
 	var running: bool = bool(_field.get("_is_running")) and moving
 	var position: Vector2 = _field.call("get_robot_position") as Vector2
 	var surface: StringName = _surface_family()
+	if surface != _last_surface:
+		_last_surface = surface
+		_router.call("present_biome", surface)
 	if moving and not _last_moving:
 		_emit(RuntimeIdsScript.EVENT_LOCOMOTION_START, position, velocity, running, surface)
 	elif not moving and _last_moving:

@@ -7,18 +7,25 @@ const FROZEN: AudioStream = preload("res://assets/audio/bgm_frozen.ogg")
 const VOLCANIC: AudioStream = preload("res://assets/audio/bgm_volcanic.ogg")
 
 const MAX_VOICES: int = 2
-const TRACK_VOLUME_DB: float = -7.5
+const TRACK_VOLUME_DB_BY_BIOME: Dictionary = {
+	&"sand": -6.0,
+	&"wetland": -5.0,
+	&"frozen": -4.0,
+	&"volcanic": -7.0,
+}
 const SILENT_VOLUME_DB: float = -80.0
 const CROSSFADE_SECONDS: float = 4.0
 
 var _players: Array[AudioStreamPlayer] = []
 var _voice_gains: Array[float] = [0.0, 0.0]
+var _voice_biomes: Array[StringName] = [&"sand", &"sand"]
 var _current_biome: StringName = &"sand"
 var _active_index: int = 0
 var _outgoing_index: int = 0
 var _incoming_index: int = 0
 var _fade_elapsed: float = CROSSFADE_SECONDS
 var _fade_start_gain: float = 1.0
+var _fade_in_start_gain: float = 0.0
 var _enabled: bool = true
 var _volume: float = 1.0
 var _switch_count: int = 0
@@ -39,7 +46,10 @@ func _process(delta: float) -> void:
 	_fade_elapsed = minf(_fade_elapsed + maxf(delta, 0.0), CROSSFADE_SECONDS)
 	var gains: Vector2 = crossfade_gains(_fade_elapsed / CROSSFADE_SECONDS)
 	_apply_voice_gain(_outgoing_index, _fade_start_gain * gains.x)
-	_apply_voice_gain(_incoming_index, gains.y)
+	_apply_voice_gain(
+		_incoming_index,
+		_fade_in_start_gain + (1.0 - _fade_in_start_gain) * gains.y,
+	)
 	if _fade_elapsed >= CROSSFADE_SECONDS:
 		_players[_outgoing_index].stop()
 		_apply_voice_gain(_outgoing_index, 0.0)
@@ -100,6 +110,8 @@ func get_metrics() -> Dictionary:
 		&"volume": _volume,
 		&"biome": _current_biome,
 		&"stream_path": stream_path_for(_current_biome),
+		&"track_volume_db": volume_db_for(_current_biome),
+		&"voice_biomes": _voice_biomes.duplicate(),
 		&"switches": _switch_count,
 		&"active": active,
 		&"capacity": MAX_VOICES,
@@ -125,6 +137,11 @@ static func stream_path_for(biome: StringName) -> String:
 	return _stream_for(normalize_biome(biome)).resource_path
 
 
+static func volume_db_for(biome: StringName) -> float:
+	var normalized: StringName = normalize_biome(biome)
+	return float(TRACK_VOLUME_DB_BY_BIOME.get(normalized, -6.0))
+
+
 static func crossfade_gains(progress: float) -> Vector2:
 	var phase: float = clampf(progress, 0.0, 1.0) * PI * 0.5
 	return Vector2(cos(phase), sin(phase))
@@ -141,20 +158,29 @@ func _start_biome(biome: StringName, immediate: bool) -> void:
 		_outgoing_index = 0
 		_incoming_index = 0
 		_fade_elapsed = CROSSFADE_SECONDS
+		_fade_in_start_gain = 0.0
+		_voice_biomes[0] = biome
 		_players[0].stream = _stream_for(biome)
 		_apply_voice_gain(0, 1.0)
 		_play_voice(0)
 		_players[1].stop()
 		_apply_voice_gain(1, 0.0)
 		return
-	_outgoing_index = _dominant_voice_index()
-	_incoming_index = 1 - _outgoing_index
+	var existing_index: int = _voice_index_for_biome(biome)
+	if existing_index >= 0:
+		_incoming_index = existing_index
+		_outgoing_index = 1 - existing_index
+	else:
+		_outgoing_index = _dominant_voice_index()
+		_incoming_index = 1 - _outgoing_index
+		_players[_incoming_index].stop()
+		_voice_biomes[_incoming_index] = biome
+		_players[_incoming_index].stream = _stream_for(biome)
+		_apply_voice_gain(_incoming_index, 0.0)
+		_play_voice(_incoming_index)
 	_active_index = _outgoing_index
 	_fade_start_gain = _voice_gains[_outgoing_index]
-	_players[_incoming_index].stop()
-	_players[_incoming_index].stream = _stream_for(biome)
-	_apply_voice_gain(_incoming_index, 0.0)
-	_play_voice(_incoming_index)
+	_fade_in_start_gain = _voice_gains[_incoming_index]
 	_fade_elapsed = 0.0
 
 
@@ -208,7 +234,7 @@ func _apply_voice_gain(index: int, gain: float) -> void:
 	_players[index].volume_db = (
 		SILENT_VOLUME_DB
 		if normalized <= 0.0
-		else _track_volume_db() + linear_to_db(normalized)
+		else _voice_volume_db(index) + linear_to_db(normalized)
 	)
 
 
@@ -216,8 +242,15 @@ func _dominant_voice_index() -> int:
 	return 0 if _voice_gains[0] >= _voice_gains[1] else 1
 
 
-func _track_volume_db() -> float:
-	return TRACK_VOLUME_DB + linear_to_db(maxf(_volume, 0.001))
+func _voice_index_for_biome(biome: StringName) -> int:
+	for index: int in range(_players.size()):
+		if _voice_gains[index] > 0.0 and _voice_biomes[index] == biome:
+			return index
+	return -1
+
+
+func _voice_volume_db(index: int) -> float:
+	return volume_db_for(_voice_biomes[index]) + linear_to_db(maxf(_volume, 0.001))
 
 
 static func _stream_for(biome: StringName) -> AudioStream:
