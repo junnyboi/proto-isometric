@@ -54,3 +54,18 @@ Runtime treatment is deterministic: each generated stereo master was decoded, lo
 | `bgm_wetland.ogg` | Cellos, violas, alto flute, bass clarinet, reeds, hollow wood, water bubbles, droplets, and mud movement | 92.7 s |
 | `bgm_frozen.ogg` | Tremolo strings, harmonics, cello, bass flute, oboe, blizzard wind, snow sweep, ice groans, and distant cracks | 92.3 s |
 | `bgm_volcanic.ogg` | Low strings, contrabassoon, bass clarinet, barrel drums, male choir, volcano blasts, fireballs, flame jets, lava, and embers | 90.1 s |
+
+## Peaceful biome BGM alternates
+
+The four `bgm_*_alt.ogg` files are original instrumental masters generated with built-in **Lyria 3 Pro** on 2026-08-24. They provide a quieter traversal state for each biome using sparse acoustic strings and winds, near-zero percussion, environmental field textures, and no vocals. They intentionally contrast with the more active primary cues without changing the established biome identity.
+
+Runtime treatment follows the primary suite’s deterministic loop process, with a quieter target of approximately -19 LUFS and a -2.0 dB true-peak ceiling. Each master was resampled to 48 kHz stereo, transformed into a cyclic loop by crossfading its tail into its opening over four seconds, stripped of metadata, and encoded as Ogg Vorbis.
+
+| Runtime file | Peaceful acoustic and environmental identity | Runtime duration |
+|---|---|---:|
+| `bgm_desert_alt.ogg` | Cello, viola harmonics, wooden flute, muted plucks, gentle wind, sand grains, and distant dune slides | 92.7 s |
+| `bgm_wetland_alt.ogg` | Alto flute, bass clarinet, cello, harp harmonics, water bubbles, ripples, reeds, and distant insects | 93.1 s |
+| `bgm_frozen_alt.ogg` | String harmonics, cello, bass flute, oboe, bowed glass, wide wind, powder snow, and remote ice groans | 92.7 s |
+| `bgm_volcanic_alt.ogg` | Low cello, contrabass, bass clarinet, contrabassoon, bowed metal, lava bubbles, ember hiss, and distant rockfall | 91.0 s |
+
+Godot exposes a two-track pool per biome. A seeded shuffle bag randomizes which cue plays first, guarantees both primary and alternate cues are selected once per bag, and prevents immediate repeats across bag boundaries. The existing bounded equal-power Music-bus crossfader handles both biome changes and same-biome track rotation.

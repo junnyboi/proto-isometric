@@ -30,18 +30,15 @@ static func evaluate() -> Array[Dictionary]:
 			and BiomeSoundscapeScript.normalize_biome(&"lava") == &"volcanic"
 		),
 	)
-	var music_paths: Array[String] = [
-		BiomeMusicScript.stream_path_for(&"sand"),
-		BiomeMusicScript.stream_path_for(&"mud"),
-		BiomeMusicScript.stream_path_for(&"snow"),
-		BiomeMusicScript.stream_path_for(&"volcanic"),
-	]
+	var music_paths: Array[String] = []
+	for biome: StringName in [&"sand", &"mud", &"snow", &"volcanic"]:
+		music_paths.append_array(BiomeMusicScript.stream_paths_for(biome))
 	_add(
 		cases,
-		"four distinct long-form biome BGM tracks load",
+		"eight distinct long-form biome BGM tracks load in two-track pools",
 		(
-			music_paths.size() == 4
-			and _unique_count(music_paths) == 4
+			music_paths.size() == 8
+			and _unique_count(music_paths) == 8
 			and _all_runtime_oggs(music_paths)
 			and _all_tracks_long_form(music_paths)
 		),
@@ -67,6 +64,7 @@ static func evaluate() -> Array[Dictionary]:
 		),
 	)
 	var music: Node = BiomeMusicScript.new() as Node
+	music.call("set_random_seed", 20260824)
 	(Engine.get_main_loop() as SceneTree).root.add_child(music)
 	var music_changed: bool = bool(music.call("set_biome", &"lava"))
 	var music_metrics: Dictionary = music.call("get_metrics") as Dictionary
@@ -77,7 +75,8 @@ static func evaluate() -> Array[Dictionary]:
 		(
 			music_changed
 			and music_metrics[&"biome"] == &"volcanic"
-			and music_metrics[&"stream_path"] == BiomeMusicScript.stream_path_for(&"lava")
+			and music_metrics[&"stream_path"] in BiomeMusicScript.stream_paths_for(&"lava")
+			and int(music_metrics[&"variant"]) in [0, 1]
 			and int(music_metrics[&"capacity"]) == 2
 			and bool(music_metrics[&"crossfading"])
 			and music_players.size() == 2
@@ -102,12 +101,13 @@ static func evaluate() -> Array[Dictionary]:
 	var reversed_music_gains: Array = reversed_music[&"voice_gains"] as Array
 	_add(
 		cases,
-		"rapid border reversal preserves both active BGM voices",
+		"rapid border reversal keeps a sounding voice while selecting a sand alternate",
 		(
 			reversed_music[&"biome"] == &"sand"
 			and bool(reversed_music[&"crossfading"])
-			and absf(float(reversed_music_gains[0]) - sqrt(0.5)) < 0.001
-			and absf(float(reversed_music_gains[1]) - sqrt(0.5)) < 0.001
+			and maxf(float(reversed_music_gains[0]), float(reversed_music_gains[1]))
+			>= sqrt(0.5) - 0.001
+			and reversed_music[&"stream_path"] in BiomeMusicScript.stream_paths_for(&"sand")
 		),
 	)
 	music.call("set_volume", 0.0)
@@ -119,6 +119,41 @@ static func evaluate() -> Array[Dictionary]:
 		not bool(muted_music[&"enabled"]) and float(muted_music[&"volume"]) == 0.0,
 	)
 	music.free()
+	var shuffle_music: Node = BiomeMusicScript.new() as Node
+	shuffle_music.call("set_random_seed", 424242)
+	(Engine.get_main_loop() as SceneTree).root.add_child(shuffle_music)
+	var first_variant: int = int((shuffle_music.call("get_metrics") as Dictionary)[&"variant"])
+	var first_advanced: bool = bool(shuffle_music.call("advance_track"))
+	var second_variant: int = int((shuffle_music.call("get_metrics") as Dictionary)[&"variant"])
+	shuffle_music.call("_process", BiomeMusicScript.CROSSFADE_SECONDS)
+	var second_advanced: bool = bool(shuffle_music.call("advance_track"))
+	var third_variant: int = int((shuffle_music.call("get_metrics") as Dictionary)[&"variant"])
+	shuffle_music.call("_process", BiomeMusicScript.CROSSFADE_SECONDS)
+	shuffle_music.call("_process", 1000.0)
+	var automatic_metrics: Dictionary = shuffle_music.call("get_metrics") as Dictionary
+	var fourth_variant: int = int(automatic_metrics[&"variant"])
+	_add(
+		cases,
+		"seeded shuffle bag alternates both biome tracks without immediate repeats",
+		(
+			first_advanced
+			and second_advanced
+			and first_variant != second_variant
+			and second_variant != third_variant
+			and third_variant != fourth_variant
+		),
+	)
+	_add(
+		cases,
+		"track end automatically rotates through the bounded crossfader",
+		(
+			int(automatic_metrics[&"track_changes"]) == 3
+			and int(automatic_metrics[&"completed_crossfades"]) >= 3
+			and automatic_metrics[&"stream_path"]
+			in BiomeMusicScript.stream_paths_for(&"sand")
+		),
+	)
+	shuffle_music.free()
 	_add(
 		cases,
 		"all ambience beds are raised and quietest frozen bed is compensated",

@@ -44,7 +44,7 @@ static func evaluate(tree: SceneTree, map: Node, world: RefCounted) -> Array[Dic
 			"%s gameplay selects matching BGM and ambience" % label,
 			(
 				music_metrics[&"biome"] == BiomeMusicScript.normalize_biome(surface)
-				and music_metrics[&"stream_path"] == BiomeMusicScript.stream_path_for(surface)
+				and music_metrics[&"stream_path"] in BiomeMusicScript.stream_paths_for(surface)
 				and ambience_metrics[&"biome"]
 				== BiomeSoundscapeScript.normalize_biome(surface)
 			),
@@ -67,7 +67,7 @@ static func evaluate(tree: SceneTree, map: Node, world: RefCounted) -> Array[Dic
 			(
 				not bool(music_metrics[&"crossfading"])
 				and not bool(ambience_metrics[&"crossfading"])
-				and music_metrics[&"stream_path"] == BiomeMusicScript.stream_path_for(surface)
+				and music_metrics[&"stream_path"] in BiomeMusicScript.stream_paths_for(surface)
 			),
 		)
 	var safe_cell: Vector2i = _find_walkable_surface_cell(

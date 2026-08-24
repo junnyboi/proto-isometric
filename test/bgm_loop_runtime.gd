@@ -2,9 +2,13 @@ extends SceneTree
 
 const TRACK_PATHS: Array[String] = [
 	"res://assets/audio/bgm_desert.ogg",
+	"res://assets/audio/bgm_desert_alt.ogg",
 	"res://assets/audio/bgm_wetland.ogg",
+	"res://assets/audio/bgm_wetland_alt.ogg",
 	"res://assets/audio/bgm_frozen.ogg",
+	"res://assets/audio/bgm_frozen_alt.ogg",
 	"res://assets/audio/bgm_volcanic.ogg",
+	"res://assets/audio/bgm_volcanic_alt.ogg",
 ]
 const MUSIC_BUS: StringName = &"Music"
 const MINIMUM_LENGTH_SECONDS: float = 80.0

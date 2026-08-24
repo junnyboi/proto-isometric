@@ -6,7 +6,7 @@
 
 Live Web build: https://proto-web-bylaknug.manus.space
 
-Press **Enter** or select **BEGIN** to deploy. Use **WASD** or the **arrow keys** for weighted eight-direction movement, hold **Shift** to run, and press **Space**, **J**, or **K** for Walker's contact-frame Smash. On mobile, hold outside UI exclusions to summon the floating joystick; pushing into its outer ring engages the same run path, while the single **SMASH** button supports simultaneous movement and attack. Each biome carries its own original acoustic-forward background score, blending strings, winds, percussion, and environmental sound; tuned per-biome gains preserve combat-SFX clarity, louder ambience reinforces each environment, and both layers crossfade immediately at terrain borders. Desert adds sparse invented-language contralto calls, while Lava Fields adds an original low male choir. Left-handed mirroring, haptics, Master/SFX/Music/Ambience levels, UI scale, reduced flash, and camera shake are available through **ACCESS** on the title and field screens.
+Press **Enter** or select **BEGIN** to deploy. Use **WASD** or the **arrow keys** for weighted eight-direction movement, hold **Shift** to run, and press **Space**, **J**, or **K** for Walker's contact-frame Smash. On mobile, hold outside UI exclusions to summon the floating joystick; pushing into its outer ring engages the same run path, while the single **SMASH** button supports simultaneous movement and attack. Each biome carries a two-track acoustic-forward score: an active theme and a quieter, near-percussionless peaceful alternate selected through a non-repeating randomized shuffle. Strings, winds, environmental sound, and tuned per-biome gains preserve combat-SFX clarity; louder ambience reinforces each environment, while track rotations and terrain changes use the same bounded equal-power crossfade. Desert's active theme adds sparse invented-language contralto calls, while Lava Fields' active theme adds an original low male choir. Left-handed mirroring, haptics, Master/SFX/Music/Ambience levels, UI scale, reduced flash, and camera shake are available through **ACCESS** on the title and field screens.
 
 ## Expedition loop
 
@@ -31,7 +31,7 @@ $HOME/bin/godot --path .
 ./verify.sh
 ```
 
-`verify.sh` includes a Python batch gate that decodes all four biome Ogg files, checks their cyclic waveform boundaries, and asks Godot to seek each imported stream across its loop point. Run that gate directly when iterating on music assets:
+`verify.sh` includes a Python batch gate that decodes all eight primary and alternate biome Ogg files, checks their cyclic waveform boundaries, and asks Godot to seek each imported stream across its loop point. Run that gate directly when iterating on music assets:
 
 ```bash
 python3 test/test_bgm_loops.py --godot "$HOME/.local/bin/godot"
