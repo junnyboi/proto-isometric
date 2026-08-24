@@ -18,6 +18,8 @@ const VALID_IMPACT_BANDS: Array[StringName] = [
 ]
 const VALID_FACINGS: Array[StringName] = [&"N", &"NE", &"E", &"SE", &"S", &"SW", &"W", &"NW"]
 const MAX_TEXT_LENGTH: int = 96
+const SCRAP_COLLECTION_GOAL: int = 5
+const CORE_COLLECTION_GOAL: int = 1
 
 var _sections: int = 0
 var _sealed: bool = false
@@ -34,6 +36,8 @@ var _relay_state: StringName = &"dormant"
 var _alert_level: int = 0
 var _active_modifier_id: StringName = RuntimeIdsScript.MODIFIER_NEUTRAL
 var _objective_guidance: String = ""
+var _scrap_goal: int = SCRAP_COLLECTION_GOAL
+var _core_goal: int = CORE_COLLECTION_GOAL
 var _context_event: String = ""
 var _outpost_linked: bool = false
 var _mobile_controls: bool = false
@@ -76,8 +80,16 @@ func configure_objective(
 	state: StringName,
 	alert_level: int,
 	guidance: String,
+	scrap_goal: int = SCRAP_COLLECTION_GOAL,
+	core_goal: int = CORE_COLLECTION_GOAL,
 ) -> bool:
-	if not _objective_values_are_valid(completed, total, progress, state, alert_level, guidance):
+	if (
+		not _objective_values_are_valid(completed, total, progress, state, alert_level, guidance)
+		or scrap_goal <= 0
+		or scrap_goal > 999
+		or core_goal <= 0
+		or core_goal > 99
+	):
 		return false
 	_completed_relays = completed
 	_total_relays = total
@@ -85,6 +97,8 @@ func configure_objective(
 	_relay_state = state
 	_alert_level = alert_level
 	_objective_guidance = guidance
+	_scrap_goal = scrap_goal
+	_core_goal = core_goal
 	_sections |= SECTION_OBJECTIVE
 	return true
 
@@ -183,6 +197,10 @@ func get_value(key: StringName) -> Variant:
 			value = _active_modifier_id
 		&"objective_guidance":
 			value = _objective_guidance
+		&"scrap_goal":
+			value = _scrap_goal
+		&"core_goal":
+			value = _core_goal
 		&"context_event":
 			value = _context_event
 		&"outpost_linked":
@@ -225,6 +243,8 @@ func _snapshot() -> Dictionary:
 		&"alert_level": _alert_level,
 		&"active_modifier_id": _active_modifier_id,
 		&"objective_guidance": _objective_guidance,
+		&"scrap_goal": _scrap_goal,
+		&"core_goal": _core_goal,
 		&"context_event": _context_event,
 		&"outpost_linked": _outpost_linked,
 		&"mobile_controls": _mobile_controls,
