@@ -50,3 +50,16 @@ The eight `herd_*.wav` files below are accepted 48 kHz mono PCM runtime derivati
 | Reedback | Airy reed chirrup and bubble pop | Descending reed honk, mud splash, fibrous clack |
 | Rimehorn | Breath-driven glacial moan and crystal ping | Fading frost groan, ice crack, snow thump |
 | Ember Ram | Warm basalt rumble and ember chuff | Falling molten bleat, basalt crack, ash thud |
+
+## Biome background music suite
+
+The four `bgm_*.ogg` files below are original instrumental masters generated with built-in **Lyria 3 Pro** on 2026-08-24. The suite uses a shared three-note descending expedition motif while giving each biome a distinct tempo, mode, instrumentation, and environmental texture. Prompts explicitly excluded vocals, recognizable existing melodies, and stylistic imitation of any existing soundtrack.
+
+Runtime treatment is deterministic: each generated stereo master was decoded, loudness-normalized to a restrained gameplay target of approximately -18 LUFS with a -1.5 dB true-peak ceiling, resampled to 48 kHz stereo, turned into a cyclic loop by crossfading its tail into its opening over four seconds, stripped of metadata, and encoded as Ogg Vorbis. Godot loops each stream and crossfades biome changes through a hard two-voice cap on the `Music` bus.
+
+| Runtime file | Biome role | Runtime duration |
+|---|---|---:|
+| `bgm_desert.ogg` | Monumental desert traverse with deep drums, bowed metal, wind, and granular sand | 84.3 s |
+| `bgm_wetland.ogg` | Luminous wetland passage with airy reeds, water resonance, and wooden pulse | 93.9 s |
+| `bgm_frozen.ogg` | Vast frozen crossing with bowed glass, crystalline tones, and snow-muted drums | 83.0 s |
+| `bgm_volcanic.ogg` | Heavy lava-field drive with basalt strikes, ember texture, and subterranean pulse | 81.5 s |

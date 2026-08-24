@@ -1,5 +1,6 @@
 extends Node
 
+const BiomeMusicScript: GDScript = preload("res://scripts/biome_music.gd")
 const BiomeSoundscapeScript: GDScript = preload("res://scripts/biome_soundscape.gd")
 const CameraImpulseMixerScript: GDScript = preload("res://scripts/camera_impulse_mixer.gd")
 const FeedbackAudioScript: GDScript = preload("res://scripts/feedback_audio.gd")
@@ -23,6 +24,7 @@ var _camera_mixer: RefCounted = CameraImpulseMixerScript.new() as RefCounted
 var _reactions: RefCounted = ImpactReactionAdapterScript.new() as RefCounted
 var _haptics: RefCounted = HapticRouterScript.new() as RefCounted
 var _audio: Node
+var _music: Node
 var _soundscape: Node
 var _locomotion_feedback: Node
 var _seen_sequences: Dictionary = {}
@@ -55,6 +57,7 @@ static func install(
 
 func _ready() -> void:
 	_ensure_audio()
+	_ensure_music()
 	_ensure_soundscape()
 	call_deferred("_bind_accessibility")
 
@@ -165,6 +168,7 @@ func get_metrics() -> Dictionary:
 		&"history": _history.size(),
 		&"camera": _camera_mixer.call("get_metrics"),
 		&"audio": _audio.call("get_metrics") if _audio != null else {},
+		&"music": _music.call("get_metrics") if _music != null else {},
 		&"soundscape": _soundscape.call("get_metrics") if _soundscape != null else {},
 		&"haptics": _haptics.call("get_metrics"),
 		&"reactions": int(_reactions.call("get_presentation_count")),
@@ -209,6 +213,10 @@ func apply_preferences(snapshot: Dictionary) -> void:
 	_ensure_audio()
 	if _audio != null:
 		_audio.call("set_enabled", bool(snapshot.get(&"sfx_enabled", true)))
+	_ensure_music()
+	if _music != null:
+		_music.call("set_volume", 1.0)
+		_music.call("set_enabled", float(snapshot.get(&"music_volume", 1.0)) > 0.0)
 	_ensure_soundscape()
 	if _soundscape != null:
 		_soundscape.call("set_volume", 1.0)
@@ -247,6 +255,9 @@ func _dispatch(event: Dictionary, profile: Dictionary) -> void:
 	if hud != null:
 		hud.call("present_feedback", event, profile)
 	_reactions.call("present", event, profile)
+	_ensure_music()
+	if _music != null:
+		_music.call("present", event)
 	_ensure_soundscape()
 	if _soundscape != null:
 		_soundscape.call("present", event)
@@ -262,6 +273,14 @@ func _ensure_audio() -> void:
 	_audio = FeedbackAudioScript.new() as Node
 	_audio.name = "FeedbackAudio"
 	add_child(_audio)
+
+
+func _ensure_music() -> void:
+	if _music != null:
+		return
+	_music = BiomeMusicScript.new() as Node
+	_music.name = "BiomeMusic"
+	add_child(_music)
 
 
 func _ensure_soundscape() -> void:
@@ -290,12 +309,16 @@ func _sync_metrics() -> void:
 		return
 	var camera: Dictionary = _camera_mixer.call("get_metrics") as Dictionary
 	var audio: Dictionary = _audio.call("get_metrics") as Dictionary if _audio != null else {}
+	var music: Dictionary = _music.call("get_metrics") as Dictionary if _music != null else {}
 	var soundscape: Dictionary = (
 		_soundscape.call("get_metrics") as Dictionary if _soundscape != null else {}
 	)
 	_performance_sampler.call("set_gauge", &"feedback.history", float(_history.size()))
 	_performance_sampler.call("set_gauge", &"feedback.camera_active", float(camera[&"active"]))
 	_performance_sampler.call("set_gauge", &"feedback.audio_active", float(audio.get(&"active", 0)))
+	_performance_sampler.call(
+		"set_gauge", &"feedback.music_active", float(music.get(&"active", 0))
+	)
 	_performance_sampler.call(
 		"set_gauge", &"feedback.ambience_active", float(soundscape.get(&"active", 0))
 	)
