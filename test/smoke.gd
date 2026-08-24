@@ -1,10 +1,9 @@
 extends SceneTree
-
 const ContractTestsScript: GDScript = preload("res://test/test_contracts.gd")
+const GameplayAudioSmokeScript: GDScript = preload("res://test/gameplay_audio_smoke.gd")
 const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 const SmokeHelpersScript: GDScript = preload("res://test/smoke_helpers.gd")
 const WalkerSpatialTestsScript: GDScript = preload("res://test/test_walker_spatial.gd")
-
 var _checks: int = 0
 var _failures: int = 0
 
@@ -82,6 +81,8 @@ func _test_isometric_map() -> void:
 		int(world.call("get_loaded_chunk_count")) == 25, "stream keeps five by five chunks active"
 	)
 	_check(int(world.call("get_active_cell_count")) <= 25 * 64, "active terrain memory is bounded")
+	for test_case: Dictionary in await GameplayAudioSmokeScript.evaluate(self, map, world):
+		_check(bool(test_case[&"passed"]), str(test_case[&"label"]))
 	var sample: Vector2i = Vector2i(5, 3)
 	var projected: Vector2 = map.call("grid_to_screen", sample) as Vector2
 	_check(map.call("screen_to_grid", projected) == sample, "2:1 projection round trip")
@@ -980,7 +981,6 @@ func _test_isometric_map() -> void:
 	SmokeHelpersScript.clear_test_save(save_path)
 	SmokeHelpersScript.clear_test_save(malformed_path)
 	SmokeHelpersScript.clear_test_save(incompatible_path)
-
 
 func _check(condition: bool, label: String) -> void:
 	_checks += 1

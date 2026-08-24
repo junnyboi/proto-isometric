@@ -185,6 +185,16 @@ func notify_blocked() -> bool:
 	)
 
 
+func present_biome(biome: StringName) -> bool:
+	_ensure_music()
+	_ensure_soundscape()
+	var music_changed: bool = bool(_music.call("set_biome", biome)) if _music != null else false
+	var ambience_changed: bool = (
+		bool(_soundscape.call("set_biome", biome)) if _soundscape != null else false
+	)
+	return music_changed or ambience_changed
+
+
 func apply_preferences(snapshot: Dictionary) -> void:
 	if _effects != null:
 		_effects.call("_apply_preferences", snapshot)

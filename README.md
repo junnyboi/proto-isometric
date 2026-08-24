@@ -1,12 +1,12 @@
 # Proto Isometric — WALKER'S WAKE
 
-**Walker's Wake** is a Godot 4.7.1, 2:1 isometric desert expedition game. Drive Walker—a compact gorilla-like salvage robot—through an infinite streamed wasteland, build Impact Charge, counter hunting sandworms, link three relays, survive escalating Alerts, install one-run Refit modules, and return to an outpost to extract.
+**Walker's Wake** is a Godot 4.7.2, 2:1 isometric desert expedition game. Drive Walker—a compact gorilla-like salvage robot—through an infinite streamed wasteland, build Impact Charge, counter hunting sandworms, link three relays, survive escalating Alerts, install one-run Refit modules, and return to an outpost to extract.
 
 ## Play
 
 Live Web build: https://proto-web-bylaknug.manus.space
 
-Press **Enter** or select **BEGIN** to deploy. Use **WASD** or the **arrow keys** for weighted eight-direction movement, hold **Shift** to run, and press **Space**, **J**, or **K** for Walker's contact-frame Smash. On mobile, hold outside UI exclusions to summon the floating joystick; pushing into its outer ring engages the same run path, while the single **SMASH** button supports simultaneous movement and attack. Each biome carries its own original acoustic-forward background score, blending strings, winds, percussion, and environmental sound as terrain changes; Desert adds sparse invented-language contralto calls, while Lava Fields adds an original low male choir. Left-handed mirroring, haptics, Master/SFX/Music/Ambience levels, UI scale, reduced flash, and camera shake are available through **ACCESS** on the title and field screens.
+Press **Enter** or select **BEGIN** to deploy. Use **WASD** or the **arrow keys** for weighted eight-direction movement, hold **Shift** to run, and press **Space**, **J**, or **K** for Walker's contact-frame Smash. On mobile, hold outside UI exclusions to summon the floating joystick; pushing into its outer ring engages the same run path, while the single **SMASH** button supports simultaneous movement and attack. Each biome carries its own original acoustic-forward background score, blending strings, winds, percussion, and environmental sound; tuned per-biome gains preserve combat-SFX clarity, louder ambience reinforces each environment, and both layers crossfade immediately at terrain borders. Desert adds sparse invented-language contralto calls, while Lava Fields adds an original low male choir. Left-handed mirroring, haptics, Master/SFX/Music/Ambience levels, UI scale, reduced flash, and camera shake are available through **ACCESS** on the title and field screens.
 
 ## Expedition loop
 

@@ -56,6 +56,16 @@ static func evaluate() -> Array[Dictionary]:
 			and BiomeMusicScript.normalize_biome(&"lava") == &"volcanic"
 		),
 	)
+	_add(
+		cases,
+		"per-biome BGM gains preserve SFX headroom while lifting sparse cues",
+		(
+			is_equal_approx(BiomeMusicScript.volume_db_for(&"sand"), -6.0)
+			and is_equal_approx(BiomeMusicScript.volume_db_for(&"mud"), -5.0)
+			and is_equal_approx(BiomeMusicScript.volume_db_for(&"snow"), -4.0)
+			and is_equal_approx(BiomeMusicScript.volume_db_for(&"lava"), -7.0)
+		),
+	)
 	var music: Node = BiomeMusicScript.new() as Node
 	(Engine.get_main_loop() as SceneTree).root.add_child(music)
 	var music_changed: bool = bool(music.call("set_biome", &"lava"))
@@ -87,6 +97,19 @@ static func evaluate() -> Array[Dictionary]:
 			and absf(float(music_gains[1]) - sqrt(0.5)) < 0.001
 		),
 	)
+	music.call("set_biome", &"sand")
+	var reversed_music: Dictionary = music.call("get_metrics") as Dictionary
+	var reversed_music_gains: Array = reversed_music[&"voice_gains"] as Array
+	_add(
+		cases,
+		"rapid border reversal preserves both active BGM voices",
+		(
+			reversed_music[&"biome"] == &"sand"
+			and bool(reversed_music[&"crossfading"])
+			and absf(float(reversed_music_gains[0]) - sqrt(0.5)) < 0.001
+			and absf(float(reversed_music_gains[1]) - sqrt(0.5)) < 0.001
+		),
+	)
 	music.call("set_volume", 0.0)
 	music.call("set_enabled", false)
 	var muted_music: Dictionary = music.call("get_metrics") as Dictionary
@@ -96,6 +119,16 @@ static func evaluate() -> Array[Dictionary]:
 		not bool(muted_music[&"enabled"]) and float(muted_music[&"volume"]) == 0.0,
 	)
 	music.free()
+	_add(
+		cases,
+		"all ambience beds are raised and quietest frozen bed is compensated",
+		(
+			is_equal_approx(BiomeSoundscapeScript.volume_db_for(&"sand"), 2.0)
+			and is_equal_approx(BiomeSoundscapeScript.volume_db_for(&"mud"), 2.5)
+			and is_equal_approx(BiomeSoundscapeScript.volume_db_for(&"snow"), 6.0)
+			and is_equal_approx(BiomeSoundscapeScript.volume_db_for(&"lava"), 1.5)
+		),
+	)
 	var soundscape: Node = BiomeSoundscapeScript.new() as Node
 	(Engine.get_main_loop() as SceneTree).root.add_child(soundscape)
 	var changed: bool = bool(soundscape.call("set_biome", &"mud"))
