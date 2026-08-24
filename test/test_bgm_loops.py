@@ -25,9 +25,13 @@ SAMPLE_RATE = 48_000
 CHANNELS = 2
 EXPECTED_TRACK_NAMES = (
     "bgm_desert.ogg",
+    "bgm_desert_alt.ogg",
     "bgm_wetland.ogg",
+    "bgm_wetland_alt.ogg",
     "bgm_frozen.ogg",
+    "bgm_frozen_alt.ogg",
     "bgm_volcanic.ogg",
+    "bgm_volcanic_alt.ogg",
 )
 
 
