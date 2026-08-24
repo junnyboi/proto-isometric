@@ -184,6 +184,8 @@ func apply_state(state: RefCounted) -> bool:
 			&"active_module_ids",
 			&"refit_purchase_used",
 			&"active_modifier_id",
+			&"current_biome",
+			&"terrain_surface",
 		]
 	):
 		_apply_outpost()
@@ -526,6 +528,8 @@ func _apply_outpost() -> void:
 			_state.call("get_value", &"active_module_ids"),
 			bool(_state.call("get_value", &"refit_purchase_used")),
 			_state.call("get_value", &"active_modifier_id"),
+			_state.call("get_value", &"current_biome"),
+			_state.call("get_value", &"terrain_surface"),
 		)
 	)
 

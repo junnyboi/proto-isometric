@@ -26,6 +26,8 @@ static func build(
 	facing: StringName,
 	speed_ratio: float,
 	cell: Vector2i,
+	current_biome: StringName = &"desert",
+	terrain_surface: StringName = &"sand",
 ) -> RefCounted:
 	var mobile: bool = mobile_controls != null and bool(mobile_controls.call("is_mobile_device"))
 	var completed: int = int(coordinator.call("get_run_value", &"completed_relays"))
@@ -51,6 +53,8 @@ static func build(
 		mobile,
 		active_modules,
 		bool(coordinator.call("get_run_value", &"refit_purchase_used")),
+		current_biome,
+		terrain_surface,
 	]
 	if signature == _signature:
 		_record_counter(&"hud.build_skips")
@@ -85,9 +89,11 @@ static func build(
 			coordinator.call("get_run_value", &"active_modifier_id"),
 			not shutdown and outpost_linked,
 			mobile,
-			active_modules,
-			coordinator.call("get_run_value", &"refit_purchase_used"),
-		)
+				active_modules,
+				coordinator.call("get_run_value", &"refit_purchase_used"),
+				current_biome,
+				terrain_surface,
+			)
 	)
 	state.call("configure_debug", false, facing, speed_ratio, cell)
 	var result: RefCounted = state if bool(state.call("seal")) else null
