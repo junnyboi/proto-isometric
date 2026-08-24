@@ -52,3 +52,24 @@ The 1920×1920 masters remain outside Git. `tools/prepare_sandworm_sprites.py` d
 | `sandworm/ironjaw_dune_burrower_tail.png` | Tapered terminal segment | `91eea848cda7b9b43949c6bcee8def3b822874f162d0d57522dcf176623459f8` |
 
 The textures replace exposed anatomy only. Burrow wakes, breach rings, attack telegraphs, health, hitboxes, damage, targeting, rewards, and state timing remain deterministic Godot logic.
+
+## Ironjaw Apex boss and burrow transitions
+
+The seven `ironjaw_apex_*.png` armor sprites and three `ironjaw_burrow_*.png` transition frames were generated with **GPT Image 2** on 2026-08-25 as an original boss extension of the accepted Ironjaw Dune Burrower. The intact Apex head establishes a wider crowned silhouette; cracked and broken image-to-image variants progressively expose hotter inner chitin while preserving camera, connector geometry, and upper-left lighting. The ordered burrow sequence advances from a low sand ridge through a split crest to a pre-breach crown.
+
+The accepted masters remain outside Git. `tools/prepare_sandworm_sprites.py --set boss` applies the same edge-connected background cleanup, fringe decontamination, trim, centering, and Lanczos downsampling used for the standard creature, producing transparent 512×512 RGBA runtime sprites. The full combat, animation, prompt, and acceptance contract is recorded in `docs/plans/IRONJAW_APEX_BOSS_DESIGN.md`.
+
+| Runtime file | Role | SHA-256 |
+|---|---|---|
+| `sandworm/ironjaw_apex_head.png` | Intact crowned boss head | `e22ec0e4e496eb6bc9d73ee393bc2e149972bee8db5149fb71395a54eb1f26f2` |
+| `sandworm/ironjaw_apex_body.png` | Intact modular armor segment | `e0d917d5ce0c3c5da7d3354179461f39fdb83f43eea11c7b86dcc44905df329d` |
+| `sandworm/ironjaw_apex_tail.png` | Reinforced terminal segment | `267efe6223f56e96b2047c4ceba17f053ba6c6e4145b8ae3d344973ff85ce63c` |
+| `sandworm/ironjaw_apex_head_cracked.png` | First armor-break head | `1d96af8675e971b6db802bb24ece56ac27398dccb910f5d9f1efc2cb3386e810` |
+| `sandworm/ironjaw_apex_body_cracked.png` | First armor-break body | `2d81e9b63e64187888aa0c400dec83e1706739de910abecd99b209cef0b17d8d` |
+| `sandworm/ironjaw_apex_head_broken.png` | Final exposed-core head | `537dc176c0602e95bf7fd29f1ee51320522626108dd1d68bc6217542c0a686d9` |
+| `sandworm/ironjaw_apex_body_broken.png` | Final exposed-core body | `0e2d6642108e93eb067310b9c4bcf3505a3b11f0d7a5f88c915c56dfe77bc96e` |
+| `sandworm/ironjaw_burrow_01.png` | Low submerged ridge | `756bcda1a633698ad56d4607396dcb3ffa4aec068cab74bc454cd3e272bc6cd8` |
+| `sandworm/ironjaw_burrow_02.png` | Split medium crest | `6741db9ab50502da42ec2777586700e7ab9274a195191b4d529bbf7cc12cfa76` |
+| `sandworm/ironjaw_burrow_03.png` | High pre-breach crown | `91e170467eca48dc8f485206d6bd682c76811908d938192ead7c274830d92ff3` |
+
+Boss health, armor thresholds, attack selection, telegraph geometry, hit testing, sanctuary cancellation, encounter spawning, and defeat persistence remain deterministic Godot logic; the generated images are presentation assets only.

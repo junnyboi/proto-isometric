@@ -16,7 +16,34 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MASTER_DIR = ROOT / ".generated" / "sandworm"
 OUTPUT_DIR = ROOT / "assets" / "enemies" / "sandworm"
 PREVIEW_PATH = DEFAULT_MASTER_DIR / "runtime_sprite_preview.png"
-PARTS = ("head", "body", "tail")
+BASE_PARTS = ("head", "body", "tail")
+ASSETS: dict[str, tuple[str, str]] = {
+    "head": ("ironjaw_dune_burrower_head_master.png", "ironjaw_dune_burrower_head.png"),
+    "body": ("ironjaw_dune_burrower_body_master.png", "ironjaw_dune_burrower_body.png"),
+    "tail": ("ironjaw_dune_burrower_tail_master.png", "ironjaw_dune_burrower_tail.png"),
+    "apex_head": ("ironjaw_apex_head_master.png", "ironjaw_apex_head.png"),
+    "apex_body": ("ironjaw_apex_body_master.png", "ironjaw_apex_body.png"),
+    "apex_tail": ("ironjaw_apex_tail_master.png", "ironjaw_apex_tail.png"),
+    "apex_head_cracked": (
+        "ironjaw_apex_head_cracked_master.png",
+        "ironjaw_apex_head_cracked.png",
+    ),
+    "apex_body_cracked": (
+        "ironjaw_apex_body_cracked_master.png",
+        "ironjaw_apex_body_cracked.png",
+    ),
+    "apex_head_broken": (
+        "ironjaw_apex_head_broken_master.png",
+        "ironjaw_apex_head_broken.png",
+    ),
+    "apex_body_broken": (
+        "ironjaw_apex_body_broken_master.png",
+        "ironjaw_apex_body_broken.png",
+    ),
+    "burrow_01": ("ironjaw_burrow_01_master.png", "ironjaw_burrow_01.png"),
+    "burrow_02": ("ironjaw_burrow_02_master.png", "ironjaw_burrow_02.png"),
+    "burrow_03": ("ironjaw_burrow_03_master.png", "ironjaw_burrow_03.png"),
+}
 
 
 def sha256(path: Path) -> str:
@@ -89,7 +116,8 @@ def edge_connected_background(rgb: np.ndarray) -> np.ndarray:
 
 
 def prepare_part(master_dir: Path, name: str) -> Image.Image:
-    source = master_dir / f"ironjaw_dune_burrower_{name}_master.png"
+    source_name, output_name = ASSETS[name]
+    source = master_dir / source_name
     image = Image.open(source).convert("RGBA")
     pixels = np.asarray(image).copy()
     alpha = pixels[..., 3]
@@ -136,7 +164,7 @@ def prepare_part(master_dir: Path, name: str) -> Image.Image:
     runtime_pixels = np.asarray(runtime).copy()
     runtime_pixels[runtime_pixels[..., 3] == 0, :3] = 0
     runtime = Image.fromarray(runtime_pixels, "RGBA")
-    output = OUTPUT_DIR / f"ironjaw_dune_burrower_{name}.png"
+    output = OUTPUT_DIR / output_name
     output.parent.mkdir(parents=True, exist_ok=True)
     runtime.save(output, optimize=True)
     runtime_visible = runtime_pixels[..., 3] > 8
@@ -159,11 +187,11 @@ def paste_scaled(
 
 
 def make_preview(master_dir: Path, parts: dict[str, Image.Image]) -> None:
-    if set(parts) != set(PARTS):
+    if set(parts) != set(BASE_PARTS):
         return
     preview = Image.new("RGBA", (1120, 520), (22, 24, 28, 255))
     draw = ImageDraw.Draw(preview)
-    for index, name in enumerate(PARTS):
+    for index, name in enumerate(BASE_PARTS):
         x0 = 20 + index * 230
         draw.rounded_rectangle((x0, 20, x0 + 210, 250), radius=14, fill=(54, 44, 34, 255))
         paste_scaled(preview, parts[name], (x0 + 105, 132), 184)
@@ -180,13 +208,55 @@ def make_preview(master_dir: Path, parts: dict[str, Image.Image]) -> None:
     print(f"preview={preview_path}")
 
 
+def make_boss_preview(master_dir: Path, parts: dict[str, Image.Image]) -> None:
+    required = {
+        "apex_head",
+        "apex_body",
+        "apex_tail",
+        "apex_head_cracked",
+        "apex_body_cracked",
+        "apex_head_broken",
+        "apex_body_broken",
+        "burrow_01",
+        "burrow_02",
+        "burrow_03",
+    }
+    if not required.issubset(parts):
+        return
+    preview = Image.new("RGBA", (1440, 900), (20, 22, 26, 255))
+    draw = ImageDraw.Draw(preview)
+    stages = (
+        ("INTACT", "apex_head", "apex_body", (234, 182, 92, 255)),
+        ("CRACKED", "apex_head_cracked", "apex_body_cracked", (238, 132, 74, 255)),
+        ("BROKEN", "apex_head_broken", "apex_body_broken", (255, 92, 48, 255)),
+    )
+    for row, (label, head_key, body_key, accent) in enumerate(stages):
+        y = 138 + row * 214
+        draw.rounded_rectangle((28, y - 94, 936, y + 96), radius=18, fill=(66, 53, 39, 255))
+        centers = [(814, y), (700, y + 10), (598, y - 3), (500, y + 13), (406, y - 4)]
+        paste_scaled(preview, parts[head_key], centers[0], 214)
+        for center, angle in zip(centers[1:4], (-6.0, 5.0, -4.0), strict=True):
+            paste_scaled(preview, parts[body_key], center, 150, angle)
+        paste_scaled(preview, parts["apex_tail"], centers[4], 136, 4.0)
+        draw.text((52, y - 74), label, fill=accent)
+    draw.rounded_rectangle((974, 44, 1412, 846), radius=18, fill=(54, 44, 34, 255))
+    for index, key in enumerate(("burrow_01", "burrow_02", "burrow_03")):
+        center_y = 178 + index * 238
+        paste_scaled(preview, parts[key], (1193, center_y), 204)
+        draw.text((1002, center_y + 86), key.upper(), fill=(238, 190, 108, 255))
+    preview_path = master_dir / "boss_runtime_sprite_preview.png"
+    preview.save(preview_path, optimize=True)
+    print(f"boss_preview={preview_path}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--master-dir", type=Path, default=DEFAULT_MASTER_DIR)
-    parser.add_argument("--parts", nargs="+", choices=PARTS, default=list(PARTS))
+    parser.add_argument("--parts", nargs="+", choices=tuple(ASSETS), default=list(BASE_PARTS))
     args = parser.parse_args()
     outputs = {name: prepare_part(args.master_dir, name) for name in args.parts}
     make_preview(args.master_dir, outputs)
+    make_boss_preview(args.master_dir, outputs)
 
 
 if __name__ == "__main__":

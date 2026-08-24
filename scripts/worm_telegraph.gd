@@ -1,6 +1,7 @@
 extends Node2D
 
 const FaunaCombatScript: GDScript = preload("res://scripts/fauna_combat_catalog.gd")
+const IronjawBossScript: GDScript = preload("res://scripts/ironjaw_boss.gd")
 const RIDGE_TEXTURE: Texture2D = preload("res://assets/vfx/worm/ridge_segment.png")
 const BREACH_TEXTURE: Texture2D = preload("res://assets/vfx/worm/breach_plume.png")
 
@@ -45,6 +46,7 @@ const WETLAND: Color = Color("75a06c")
 const SKIMMER_KIND: StringName = &"mud_skimmer"
 const RIME_KIND: StringName = &"rime_stalker"
 const CINDER_KIND: StringName = &"cinder_crawler"
+const BOSS_KIND: StringName = &"ironjaw_apex"
 const ICE: Color = Color("aeeeff")
 const ICE_DARK: Color = Color("27688f")
 const CINDER: Color = Color("ff9b2f")
@@ -80,7 +82,7 @@ func sync_combat_snapshots(snapshots: Array[Dictionary]) -> void:
 		var previous: StringName = _previous_states.get(worm_id, &"missing") as StringName
 		var kind: StringName = snapshot.get(&"kind", FaunaCombatScript.WORM_KIND) as StringName
 		if (
-			kind == FaunaCombatScript.WORM_KIND
+			kind in [FaunaCombatScript.WORM_KIND, BOSS_KIND]
 			and state == STATE_EXPOSE
 			and previous != STATE_EXPOSE
 		):
@@ -118,7 +120,9 @@ func get_telegraph_snapshot(worm_id: int) -> Dictionary:
 	var duration: float = maxf(float(snapshot.get(&"state_duration", 0.0)), 0.001)
 	var state: StringName = snapshot[&"state"] as StringName
 	var kind: StringName = snapshot.get(&"kind", &"sandworm") as StringName
-	var warning_active: bool = FaunaCombatScript.warning(kind, state)
+	var warning_active: bool = (
+		state == STATE_INTERCEPT if kind == BOSS_KIND else FaunaCombatScript.warning(kind, state)
+	)
 	var countdown: float = clampf(float(snapshot.get(&"state_remaining", 0.0)) / duration, 0.0, 1.0)
 	return {
 		&"id": worm_id,
@@ -131,7 +135,7 @@ func get_telegraph_snapshot(worm_id: int) -> Dictionary:
 		&"countdown": countdown,
 		&"warning_active": warning_active,
 		&"warning_countdown": countdown if warning_active else 0.0,
-		&"target_radius": TARGET_RADIUS,
+		&"target_radius": TARGET_RADIUS * (1.35 if kind == BOSS_KIND else 1.0),
 		&"safe_radius": SAFE_RADIUS,
 		&"trail_points": get_trail_point_count(worm_id),
 		&"breach_remaining": float(_breaches.get(worm_id, 0.0)),
@@ -143,7 +147,7 @@ func get_telegraph_snapshot(worm_id: int) -> Dictionary:
 
 func _update_trail(worm_id: int, snapshot: Dictionary) -> void:
 	var state: StringName = snapshot[&"state"] as StringName
-	if snapshot.get(&"kind", &"sandworm") != &"sandworm":
+	if snapshot.get(&"kind", &"sandworm") not in [&"sandworm", BOSS_KIND]:
 		return
 	if state not in [STATE_BURROW, STATE_INTERCEPT]:
 		return
@@ -186,7 +190,8 @@ func _draw() -> void:
 
 func _draw_trail(worm_id: int, snapshot: Dictionary) -> void:
 	var state: StringName = snapshot[&"state"] as StringName
-	if snapshot.get(&"kind", &"sandworm") != &"sandworm":
+	var kind: StringName = snapshot.get(&"kind", &"sandworm") as StringName
+	if kind not in [&"sandworm", BOSS_KIND]:
 		return
 	if state not in [STATE_BURROW, STATE_INTERCEPT]:
 		return
@@ -199,8 +204,9 @@ func _draw_trail(worm_id: int, snapshot: Dictionary) -> void:
 	if screen_points.size() >= 2:
 		var dark: Color = RUST
 		var light: Color = SAND
-		draw_polyline(screen_points, Color(dark, 0.58), 7.0, true)
-		draw_polyline(screen_points, Color(light, 0.78), 3.0, true)
+		var width_scale: float = 1.55 if kind == BOSS_KIND else 1.0
+		draw_polyline(screen_points, Color(dark, 0.58), 7.0 * width_scale, true)
+		draw_polyline(screen_points, Color(light, 0.78), 3.0 * width_scale, true)
 	for index: int in range(screen_points.size()):
 		var alpha: float = 0.09 + 0.22 * float(index + 1) / float(screen_points.size())
 		var scale: float = 0.22 + 0.08 * float(index + 1) / float(screen_points.size())
@@ -209,6 +215,9 @@ func _draw_trail(worm_id: int, snapshot: Dictionary) -> void:
 
 func _draw_target(snapshot: Dictionary) -> void:
 	var state: StringName = snapshot[&"state"] as StringName
+	if snapshot.get(&"kind", &"sandworm") == BOSS_KIND:
+		_draw_boss_attack(snapshot)
+		return
 	if state in [STATE_WAKE_WARNING, STATE_WAKE_SWEEP]:
 		_draw_wake_sweep(snapshot)
 		return
@@ -305,6 +314,41 @@ func _draw_ember_salvo(snapshot: Dictionary) -> void:
 		_draw_warning_marker(_grid_to_screen(snapshot[&"attack_origin"] as Vector2), AMBER, pulse)
 
 
+func _draw_boss_attack(snapshot: Dictionary) -> void:
+	var state: StringName = snapshot[&"state"] as StringName
+	var pattern: StringName = snapshot.get(&"attack_pattern", &"") as StringName
+	if state not in [STATE_INTERCEPT, STATE_EXPOSE]:
+		return
+	var countdown: float = _remaining_ratio(snapshot)
+	var pulse: float = _warning_pulse(countdown)
+	var origin: Vector2 = _grid_to_screen(snapshot[&"attack_origin"] as Vector2)
+	var target: Vector2 = _grid_to_screen(snapshot[&"committed_target"] as Vector2)
+	if pattern == IronjawBossScript.PATTERN_CROWN_BREACH:
+		for raw: Variant in snapshot.get(&"strike_targets", []) as Array:
+			var center: Vector2 = _grid_to_screen(raw as Vector2)
+			draw_circle(center, 34.0, Color(RUST, 0.18 + pulse * 0.12))
+			draw_arc(center, 34.0, 0.0, TAU, 36, AMBER, 5.0 + pulse * 2.0)
+			_draw_countdown_ring(center, 43.0, countdown, AMBER)
+		draw_dashed_line(origin, target, Color(AMBER, 0.75), 4.0, 10.0, true)
+	elif pattern == IronjawBossScript.PATTERN_FAULTLINE_RUSH:
+		var direction: Vector2 = (target - origin).normalized()
+		var side: Vector2 = direction.orthogonal()
+		draw_line(origin, target, Color(RUST, 0.23 + pulse * 0.12), 64.0, true)
+		draw_dashed_line(origin, target, Color(AMBER, 0.9), 6.0, 14.0, true)
+		for lane_side: float in [-1.0, 1.0]:
+			draw_line(origin + side * 32.0 * lane_side, target + side * 32.0 * lane_side, TEAL, 4.0)
+		_draw_countdown_ring(target, 40.0, countdown, AMBER)
+	else:
+		var resolved: int = int(snapshot.get(&"resolved_pulses", 0))
+		for index: int in range(IronjawBossScript.RING_RADII.size()):
+			var radius: float = IronjawBossScript.RING_RADII[index] * 35.0
+			var edge: Color = Color(RUST, 0.36) if index < resolved else Color(AMBER, 0.88)
+			draw_arc(target, radius, 0.0, TAU, 48, edge, 4.0 + pulse)
+		if state == STATE_INTERCEPT:
+			_draw_countdown_ring(target, 112.0, countdown, AMBER)
+	_draw_warning_marker(origin, AMBER, pulse)
+
+
 func _remaining_ratio(snapshot: Dictionary) -> float:
 	var duration: float = maxf(float(snapshot.get(&"state_duration", 0.0)), 0.001)
 	return clampf(float(snapshot.get(&"state_remaining", 0.0)) / duration, 0.0, 1.0)
@@ -365,7 +409,7 @@ func _draw_expose(worm_id: int, snapshot: Dictionary) -> void:
 	draw_arc(center, 36.0, -PI * 0.5, -PI * 0.5 + TAU * remaining, 32, TEAL, 4.0)
 	draw_arc(center, 42.0, 0.0, TAU, 32, Color(AMBER, 0.32), 2.0)
 	var kind: StringName = snapshot.get(&"kind", &"sandworm") as StringName
-	if kind != &"sandworm":
+	if kind not in [&"sandworm", BOSS_KIND]:
 		var accent: Color = _kind_colors(kind)[1]
 		draw_arc(center, 48.0, 0.0, TAU, 36, Color(accent, 0.48), 3.0)
 		return
@@ -396,6 +440,8 @@ func _kind_colors(kind: StringName) -> Array[Color]:
 		return [ICE_DARK, ICE]
 	if kind == CINDER_KIND:
 		return [CINDER_DARK, CINDER]
+	if kind == BOSS_KIND:
+		return [Color("3b1815"), AMBER]
 	return [RUST, SAND]
 
 

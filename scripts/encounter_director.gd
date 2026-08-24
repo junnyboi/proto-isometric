@@ -27,6 +27,8 @@ const MELEE_INTERVAL_MAX: float = 11.0
 const MELEE_BASE_SOFT_CAP: int = 4
 const MELEE_PER_ALERT: int = 2
 const MELEE_PACK_SIZE: int = 4
+const BOSS_INITIAL_SECONDS: float = 2.4
+const BOSS_RETRY_SECONDS: float = 5.0
 
 var _coordinator: RefCounted
 var _world: RefCounted
@@ -41,6 +43,7 @@ var _ambient_worm_remaining: float = AMBIENT_WORM_INITIAL_SECONDS
 var _ambient_tornado_remaining: float = AMBIENT_TORNADO_INITIAL_SECONDS
 var _ambient_sandstorm_remaining: float = AMBIENT_SANDSTORM_INITIAL_SECONDS
 var _melee_remaining: float = MELEE_INITIAL_SECONDS
+var _boss_remaining: float = BOSS_INITIAL_SECONDS
 var _active_biome: StringName = &"desert"
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
@@ -87,6 +90,8 @@ func _process(delta: float) -> void:
 		_reset_ambient_grace()
 	_sanctuary = sanctuary_now
 	_sync_alert()
+	if not _sanctuary:
+		_advance_boss(step, player)
 	if _ambient_enabled and not _sanctuary:
 		_advance_ambient(step, player)
 	if _armed_alert <= 0 or _spawned_alert >= _armed_alert or _sanctuary:
@@ -119,6 +124,22 @@ func get_worm_soft_cap() -> int:
 
 func get_melee_soft_cap() -> int:
 	return MELEE_BASE_SOFT_CAP + get_alert_level() * MELEE_PER_ALERT
+
+
+func _advance_boss(delta: float, player: Vector2) -> void:
+	if (
+		_active_biome != &"desert"
+		or _armed_alert < 3
+		or bool(_worms.call("_is_boss_defeated"))
+		or int(_worms.call("_get_boss_id")) >= 0
+	):
+		return
+	_boss_remaining -= delta
+	if _boss_remaining > 0.0:
+		return
+	var angle: float = _rng.randf_range(0.0, TAU)
+	_worms.call("_spawn_boss", player + Vector2.from_angle(angle) * 6.75, 1.0)
+	_boss_remaining = BOSS_RETRY_SECONDS
 
 
 func _advance_ambient(delta: float, player: Vector2) -> void:
@@ -158,6 +179,7 @@ func _reset_ambient_grace() -> void:
 	_ambient_worm_remaining = AMBIENT_WORM_INITIAL_SECONDS
 	_ambient_tornado_remaining = AMBIENT_TORNADO_INITIAL_SECONDS
 	_ambient_sandstorm_remaining = AMBIENT_SANDSTORM_INITIAL_SECONDS
+	_boss_remaining = BOSS_INITIAL_SECONDS
 
 
 func _spawn_ambient_worm(player: Vector2) -> void:
@@ -191,6 +213,8 @@ func _sync_alert() -> void:
 	if alert == _armed_alert:
 		return
 	_armed_alert = alert
+	if alert >= 3:
+		_boss_remaining = minf(_boss_remaining, BOSS_INITIAL_SECONDS)
 	var modifier: StringName = (
 		_coordinator.call("get_run_value", &"active_modifier_id") as StringName
 	)
