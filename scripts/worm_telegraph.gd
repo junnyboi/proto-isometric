@@ -2,6 +2,7 @@ extends Node2D
 
 const FaunaCombatScript: GDScript = preload("res://scripts/fauna_combat_catalog.gd")
 const IronjawBossScript: GDScript = preload("res://scripts/ironjaw_boss.gd")
+const KilnheartTelegraphScript: GDScript = preload("res://scripts/kilnheart_telegraph.gd")
 const RIDGE_TEXTURE: Texture2D = preload("res://assets/vfx/worm/ridge_segment.png")
 const BREACH_TEXTURE: Texture2D = preload("res://assets/vfx/worm/breach_plume.png")
 
@@ -31,6 +32,11 @@ const ACTIVE_STATES: Array[StringName] = [
 	&"ember_salvo",
 	&"recover",
 	&"staggered",
+	&"kilnheart_emerge",
+	&"kilnheart_track",
+	&"kilnheart_warning",
+	&"kilnheart_attack",
+	&"kilnheart_recover",
 ]
 const MAX_TRAIL_POINTS: int = 7
 const MIN_TRAIL_DISTANCE: float = 0.18
@@ -47,6 +53,7 @@ const SKIMMER_KIND: StringName = &"mud_skimmer"
 const RIME_KIND: StringName = &"rime_stalker"
 const CINDER_KIND: StringName = &"cinder_crawler"
 const BOSS_KIND: StringName = &"ironjaw_apex"
+const KILNHEART_KIND: StringName = &"kilnheart_colossus"
 const ICE: Color = Color("aeeeff")
 const ICE_DARK: Color = Color("27688f")
 const CINDER: Color = Color("ff9b2f")
@@ -120,9 +127,11 @@ func get_telegraph_snapshot(worm_id: int) -> Dictionary:
 	var duration: float = maxf(float(snapshot.get(&"state_duration", 0.0)), 0.001)
 	var state: StringName = snapshot[&"state"] as StringName
 	var kind: StringName = snapshot.get(&"kind", &"sandworm") as StringName
-	var warning_active: bool = (
-		state == STATE_INTERCEPT if kind == BOSS_KIND else FaunaCombatScript.warning(kind, state)
-	)
+	var warning_active: bool = FaunaCombatScript.warning(kind, state)
+	if kind == BOSS_KIND:
+		warning_active = state == STATE_INTERCEPT
+	elif kind == KILNHEART_KIND:
+		warning_active = state == &"kilnheart_warning"
 	var countdown: float = clampf(float(snapshot.get(&"state_remaining", 0.0)) / duration, 0.0, 1.0)
 	return {
 		&"id": worm_id,
@@ -135,7 +144,9 @@ func get_telegraph_snapshot(worm_id: int) -> Dictionary:
 		&"countdown": countdown,
 		&"warning_active": warning_active,
 		&"warning_countdown": countdown if warning_active else 0.0,
-		&"target_radius": TARGET_RADIUS * (1.35 if kind == BOSS_KIND else 1.0),
+		&"target_radius": TARGET_RADIUS * (
+			1.6 if kind == KILNHEART_KIND else (1.35 if kind == BOSS_KIND else 1.0)
+		),
 		&"safe_radius": SAFE_RADIUS,
 		&"trail_points": get_trail_point_count(worm_id),
 		&"breach_remaining": float(_breaches.get(worm_id, 0.0)),
@@ -215,7 +226,11 @@ func _draw_trail(worm_id: int, snapshot: Dictionary) -> void:
 
 func _draw_target(snapshot: Dictionary) -> void:
 	var state: StringName = snapshot[&"state"] as StringName
-	if snapshot.get(&"kind", &"sandworm") == BOSS_KIND:
+	var kind: StringName = snapshot.get(&"kind", &"sandworm") as StringName
+	if kind == KILNHEART_KIND:
+		KilnheartTelegraphScript.draw_attack(self, snapshot, _tile_size, _map_origin)
+		return
+	if kind == BOSS_KIND:
 		_draw_boss_attack(snapshot)
 		return
 	if state in [STATE_WAKE_WARNING, STATE_WAKE_SWEEP]:
@@ -235,7 +250,6 @@ func _draw_target(snapshot: Dictionary) -> void:
 	var angle: float = direction.angle() if not direction.is_zero_approx() else 0.0
 	var duration: float = maxf(float(snapshot.get(&"state_duration", 0.0)), 0.001)
 	var remaining: float = clampf(float(snapshot.get(&"state_remaining", 0.0)) / duration, 0.0, 1.0)
-	var kind: StringName = snapshot.get(&"kind", &"sandworm") as StringName
 	var warning: Color = _kind_colors(kind)[1]
 	draw_dashed_line(current, target, Color(warning, 0.68), 2.0, 10.0, true)
 	draw_arc(target, TARGET_RADIUS, -PI * 0.5, -PI * 0.5 + TAU * remaining, 32, warning, 4.0)
@@ -442,6 +456,8 @@ func _kind_colors(kind: StringName) -> Array[Color]:
 		return [CINDER_DARK, CINDER]
 	if kind == BOSS_KIND:
 		return [Color("3b1815"), AMBER]
+	if kind == KILNHEART_KIND:
+		return [Color("4c1714"), Color("ff6b2c")]
 	return [RUST, SAND]
 
 

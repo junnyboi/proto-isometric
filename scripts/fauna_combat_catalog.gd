@@ -180,3 +180,64 @@ static func attack_range(kind: StringName, profile: Resource) -> float:
 	if kind == WORM_KIND:
 		return float(profile.get("attack_range"))
 	return value(kind, &"attack_range")
+
+
+static func make_entity(
+	enemy_id: int,
+	kind: StringName,
+	position: Vector2,
+	max_health: int,
+	emerge_seconds: float,
+) -> Dictionary:
+	var initial: StringName = initial_state(kind)
+	return {
+		&"id": enemy_id,
+		&"kind": kind,
+		&"position": position,
+		&"direction": Vector2.DOWN,
+		&"health": max_health,
+		&"age": 0.0,
+		&"hit_flash": 0.0,
+		&"state": initial,
+		&"state_elapsed": 0.0,
+		&"state_remaining": emerge_seconds,
+		&"state_duration": emerge_seconds,
+		&"intercept_start": position,
+		&"committed_target": position,
+		&"attack_serial": 0,
+		&"resolved_attack_serial": 0,
+		&"attack_pattern": attack_pattern(kind),
+		&"strike_targets": [],
+		&"strike_pulses": 0,
+		&"resolved_pulses": 0,
+		&"reward_emitted": false,
+		&"feedback_direction": Vector2.ZERO,
+		&"feedback_time": 0.0,
+		&"feedback_duration": 0.0,
+		&"feedback_strength": 0,
+	}
+
+
+static func salvo_targets(target: Vector2, direction: Vector2) -> Array[Vector2]:
+	var lateral: Vector2 = direction.orthogonal()
+	return [target - lateral * 0.95, target, target + lateral * 0.95]
+
+
+static func distance_to_segment(point: Vector2, start: Vector2, finish: Vector2) -> float:
+	var segment: Vector2 = finish - start
+	if segment.is_zero_approx():
+		return point.distance_to(start)
+	var progress: float = clampf((point - start).dot(segment) / segment.length_squared(), 0.0, 1.0)
+	return point.distance_to(start + segment * progress)
+
+
+static func emerge_seconds(kind: StringName, sandworm_seconds: float) -> float:
+	if kind == &"ironjaw_apex":
+		return 1.0
+	if kind == &"sandworm":
+		return sandworm_seconds
+	if kind == SKIMMER_KIND:
+		return 0.45
+	if kind == RIME_KIND:
+		return 0.6
+	return 0.5

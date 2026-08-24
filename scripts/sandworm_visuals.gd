@@ -343,3 +343,24 @@ static func _draw_boss_health(
 		canvas.draw_line(
 			Vector2(x, position.y - 7.0), Vector2(x, position.y + 7.0), Color.WHITE, 2.0
 		)
+
+
+static func draw_sand_wake(
+	canvas: Node2D,
+	center: Vector2,
+	direction: Vector2,
+	time: float,
+	alpha: float,
+) -> void:
+	var screen_direction: Vector2 = _screen_direction(direction)
+	for mote: int in range(18):
+		var phase: float = float(mote) * 2.399 + time * 4.5
+		var trail: float = float(mote % 7) * 8.0
+		var point: Vector2 = (
+			center - screen_direction * trail + Vector2(cos(phase) * 18.0, sin(phase) * 7.0)
+		)
+		canvas.draw_circle(
+			point,
+			2.0 + float(mote % 3),
+			Color(Color("d69a49"), (0.18 + float(mote % 4) * 0.07) * alpha),
+		)

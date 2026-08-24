@@ -127,18 +127,19 @@ func get_melee_soft_cap() -> int:
 
 
 func _advance_boss(delta: float, player: Vector2) -> void:
-	if (
-		_active_biome != &"desert"
-		or _armed_alert < 3
-		or bool(_worms.call("_is_boss_defeated"))
-		or int(_worms.call("_get_boss_id")) >= 0
-	):
+	if _armed_alert < 3 or _active_biome not in [&"desert", &"lava"]:
+		return
+	var volcanic: bool = _active_biome == &"lava"
+	var defeated_method: StringName = &"_is_kilnheart_defeated" if volcanic else &"_is_boss_defeated"
+	var id_method: StringName = &"_get_kilnheart_id" if volcanic else &"_get_boss_id"
+	if bool(_worms.call(defeated_method)) or int(_worms.call(id_method)) >= 0:
 		return
 	_boss_remaining -= delta
 	if _boss_remaining > 0.0:
 		return
 	var angle: float = _rng.randf_range(0.0, TAU)
-	_worms.call("_spawn_boss", player + Vector2.from_angle(angle) * 6.75, 1.0)
+	var spawn: Vector2 = player + Vector2.from_angle(angle) * 6.75
+	_worms.call(&"_spawn_kilnheart" if volcanic else &"_spawn_boss", spawn, 1.0)
 	_boss_remaining = BOSS_RETRY_SECONDS
 
 

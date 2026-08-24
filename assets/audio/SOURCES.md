@@ -69,3 +69,25 @@ Runtime treatment follows the primary suite’s deterministic loop process, with
 | `bgm_volcanic_alt.ogg` | Low cello, contrabass, bass clarinet, contrabassoon, bowed metal, lava bubbles, ember hiss, and distant rockfall | 91.0 s |
 
 Godot exposes a two-track pool per biome. A seeded shuffle bag randomizes which cue plays first, guarantees both primary and alternate cues are selected once per bag, and prevents immediate repeats across bag boundaries. The existing bounded equal-power Music-bus crossfader handles both biome changes and same-biome track rotation.
+
+
+## Biome enemy movement and attack cues
+
+The twelve files under `assets/audio/enemies/` were generated on 2026-08-25 from original audio-bearing carrier videos created with the built-in video generation service. Each carrier used a 16:9 keyframe assembled from the shipped creature sprite and requested one isolated dry sound effect with no music, ambience, dialogue, or narration. The carriers remain under the ignored `.generated/` working directory. `tools/extract_enemy_sfx_from_carriers.py` deterministically extracts the audio, trims silence, converts it to mono 48 kHz PCM, applies conservative normalization and boundary fades, and enforces the target duration.
+
+| Runtime file | Enemy and trigger | Duration |
+|---|---|---:|
+| `enemies/mob_glassback_move.wav` | Glassback Scarab dry chitin-and-sand movement cadence | 0.75 s |
+| `enemies/mob_glassback_attack.wav` | Glassback Scarab glassy mandible warning and lunge | 0.60 s |
+| `enemies/mob_mire_tick_move.wav` | Mire Tick damp leg taps and mud movement cadence | 0.80 s |
+| `enemies/mob_mire_tick_attack.wav` | Mire Tick wet needle snap warning and bite | 0.65 s |
+| `enemies/mob_rime_shardling_move.wav` | Rime Shardling brittle ice-skitter cadence | 0.80 s |
+| `enemies/mob_rime_shardling_attack.wav` | Rime Shardling crystalline chirp and ice-crack warning | 0.70 s |
+| `enemies/mob_ember_skitter_move.wav` | Ember Skitter coal scrape and ember-hiss cadence | 0.80 s |
+| `enemies/mob_ember_skitter_attack.wav` | Ember Skitter furnace bite and cinder-spit warning | 0.70 s |
+| `enemies/boss_kilnheart_move.wav` | Kilnheart Colossus basalt footfall and furnace movement cadence | 1.25 s |
+| `enemies/boss_kilnheart_forge_sweep.wav` | Kilnheart Forge Sweep warning and release signature | 1.30 s |
+| `enemies/boss_kilnheart_magma_ram.wav` | Kilnheart Magma Ram charge-lane signature | 1.35 s |
+| `enemies/boss_kilnheart_caldera_barrage.wav` | Kilnheart three-pulse Caldera Barrage signature | 1.50 s |
+
+`FaunaTelegraphAudio` routes these files spatially through the existing `Enemy` bus. Tiny-mob movement uses a per-entity staggered cadence and low priority so a pack cannot create an unbounded voice burst. Attack cues are deduplicated by enemy ID and attack serial at the warning transition. Kilnheart movement is emitted only when its combat model reports actual displacement, while its selected attack pattern chooses the corresponding boss cue. Accessibility SFX preferences and the global spatial voice cap remain authoritative.

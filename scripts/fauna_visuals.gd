@@ -1,11 +1,13 @@
 extends RefCounted
 
+const KilnheartVisualsScript: GDScript = preload("res://scripts/kilnheart_visuals.gd")
 const MUD_SKIMMER_TEXTURE: Texture2D = preload("res://assets/enemies/mud_skimmer.png")
 const RIME_STALKER_TEXTURE: Texture2D = preload("res://assets/enemies/rime_stalker.png")
 const CINDER_CRAWLER_TEXTURE: Texture2D = preload("res://assets/enemies/cinder_crawler.png")
 const SKIMMER_KIND: StringName = &"mud_skimmer"
 const RIME_KIND: StringName = &"rime_stalker"
 const CINDER_KIND: StringName = &"cinder_crawler"
+const KILNHEART_KIND: StringName = &"kilnheart_colossus"
 const MUD: Color = Color("2d281f")
 const WETLAND: Color = Color("75a06c")
 const HEALTH: Color = Color("e75d46")
@@ -24,6 +26,11 @@ static func draw_enemy(
 	max_health: int,
 ) -> bool:
 	var kind: StringName = worm.get(&"kind", &"sandworm") as StringName
+	if kind == KILNHEART_KIND:
+		KilnheartVisualsScript.draw_boss(
+			canvas, center, worm, state, progress, alpha, time, hovered_id
+		)
+		return true
 	if kind == SKIMMER_KIND:
 		_draw_skimmer(canvas, center, worm, state, progress, alpha, time, hovered_id, max_health)
 		return true
@@ -153,4 +160,21 @@ static func _draw_health_bar(
 			Rect2(position - Vector2(width * 0.5 - 2.0, 2.0), Vector2((width - 4.0) * ratio, 4.0)),
 			Color(HEALTH, alpha),
 		)
+	)
+
+
+static func feedback_offset(tile_size: Vector2, worm: Dictionary) -> Vector2:
+	if worm.is_empty() or float(worm.get(&"feedback_time", 0.0)) <= 0.0:
+		return Vector2.ZERO
+	var duration: float = maxf(float(worm.get(&"feedback_duration", 0.1)), 0.001)
+	var ratio: float = clampf(float(worm[&"feedback_time"]) / duration, 0.0, 1.0)
+	var direction: Vector2 = worm.get(&"feedback_direction", Vector2.RIGHT) as Vector2
+	var screen_direction: Vector2 = Vector2(
+		(direction.x - direction.y) * tile_size.x * 0.5,
+		(direction.x + direction.y) * tile_size.y * 0.5,
+	).normalized()
+	return (
+		screen_direction
+		* (6.0 + float(worm.get(&"feedback_strength", 0)) * 3.0)
+		* sin(ratio * PI)
 	)

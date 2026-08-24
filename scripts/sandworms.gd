@@ -8,6 +8,7 @@ const FaunaCombatScript: GDScript = preload("res://scripts/fauna_combat_catalog.
 const FaunaTelegraphAudioScript: GDScript = preload("res://scripts/fauna_telegraph_audio.gd")
 const FaunaVisualsScript: GDScript = preload("res://scripts/fauna_visuals.gd")
 const IronjawBossScript: GDScript = preload("res://scripts/ironjaw_boss.gd")
+const KilnheartBossScript: GDScript = preload("res://scripts/kilnheart_boss.gd")
 const MeleePressureScript: GDScript = preload("res://scripts/melee_pressure.gd")
 const PeacefulHerdsScript: GDScript = preload("res://scripts/peaceful_herds.gd")
 const SandwormVisualsScript: GDScript = preload("res://scripts/sandworm_visuals.gd")
@@ -46,9 +47,7 @@ const RIME_KIND: StringName = &"rime_stalker"
 const CINDER_KIND: StringName = &"cinder_crawler"
 const WORM_KIND: StringName = &"sandworm"
 const BOSS_KIND: StringName = &"ironjaw_apex"
-const SKIMMER_EMERGE_SECONDS: float = 0.45
-const RIME_EMERGE_SECONDS: float = 0.6
-const CINDER_EMERGE_SECONDS: float = 0.5
+const KILNHEART_KIND: StringName = &"kilnheart_colossus"
 
 var _tile_size: Vector2 = Vector2(90.0, 45.0)
 var _map_origin: Vector2 = Vector2(760.0, 70.0)
@@ -71,6 +70,7 @@ var _melee_pressure: Node2D
 var _peaceful_herds: Node2D
 var _defeated_peaceful_kinds: Dictionary = {}
 var _boss_defeated: bool = false
+var _kilnheart_defeated: bool = false
 
 
 func _ready() -> void:
@@ -86,7 +86,8 @@ func _on_telegraph_started(kind: StringName, enemy_id: int, attack_serial: int) 
 	var position: Vector2 = (
 		_grid_to_screen(worm[&"position"] as Vector2) if not worm.is_empty() else Vector2.ZERO
 	)
-	_telegraph_audio.call("play_warning", kind, enemy_id, attack_serial, position)
+	var pattern: StringName = worm.get(&"attack_pattern", &"") as StringName
+	_telegraph_audio.call("play_warning", kind, enemy_id, attack_serial, position, pattern)
 
 
 func configure(
@@ -106,7 +107,9 @@ func configure(
 	if _world != null and _melee_pressure == null:
 		_melee_pressure = MeleePressureScript.new() as Node2D
 		_melee_pressure.name = "MeleePressure"
-		_melee_pressure.call("configure", _tile_size, _map_origin, _world)
+		_melee_pressure.call(
+			"configure", _tile_size, _map_origin, _world, _telegraph_audio
+		)
 		_melee_pressure.connect("damage_tick", damage_tick.emit)
 		add_child(_melee_pressure)
 	if _world != null and _peaceful_herds == null:
@@ -195,42 +198,16 @@ func spawn_worm(position: Vector2, emerge_seconds: float = -1.0) -> int:
 		kind = RIME_KIND
 	elif _active_biome == &"lava":
 		kind = CINDER_KIND
-	var default_emerge: float = _initial_state_seconds(kind)
-	var spawn_seconds: float = default_emerge if emerge_seconds < 0.0 else maxf(emerge_seconds, 0.0)
-	var initial_state: StringName = FaunaCombatScript.initial_state(kind)
-	(
-		_worms
-		. append(
-			{
-				&"id": worm_id,
-				&"kind": kind,
-				&"position": position,
-				&"direction": Vector2.DOWN,
-				&"health": _p_int(&"max_health"),
-				&"age": 0.0,
-				&"hit_flash": 0.0,
-				&"state": initial_state,
-				&"state_elapsed": 0.0,
-				&"state_remaining": spawn_seconds,
-				&"state_duration": spawn_seconds,
-				&"intercept_start": position,
-				&"committed_target": position,
-				&"attack_serial": 0,
-				&"resolved_attack_serial": 0,
-				&"resume_state": initial_state,
-				&"resume_remaining": 0.0,
-				&"attack_pattern": FaunaCombatScript.attack_pattern(kind),
-				&"strike_targets": [],
-				&"strike_pulses": 0,
-				&"resolved_pulses": 0,
-				&"reward_emitted": false,
-				&"feedback_direction": Vector2.ZERO,
-				&"feedback_time": 0.0,
-				&"feedback_duration": 0.0,
-				&"feedback_strength": 0,
-			}
-		)
+	var default_emerge: float = FaunaCombatScript.emerge_seconds(
+		kind, _p_float(&"spawn_burrow_seconds")
 	)
+	var spawn_seconds: float = default_emerge if emerge_seconds < 0.0 else emerge_seconds
+	var worm: Dictionary = FaunaCombatScript.make_entity(
+		worm_id, kind, position, _p_int(&"max_health"), maxf(spawn_seconds, 0.0)
+	)
+	worm[&"resume_state"] = worm[&"state"]
+	worm[&"resume_remaining"] = 0.0
+	_worms.append(worm)
 	queue_redraw()
 	return worm_id
 
@@ -246,6 +223,30 @@ func _spawn_boss(position: Vector2, emerge_seconds: float = 1.0) -> int:
 	_worms.append(IronjawBossScript.make_entity(worm_id, position, maxf(emerge_seconds, 0.0)))
 	queue_redraw()
 	return worm_id
+
+
+func _spawn_kilnheart(position: Vector2, emerge_seconds: float = 0.9) -> int:
+	if _kilnheart_defeated:
+		return -1
+	var living_id: int = _get_kilnheart_id()
+	if living_id >= 0:
+		return living_id
+	var enemy_id: int = _next_id
+	_next_id += 1
+	_worms.append(KilnheartBossScript.make_entity(enemy_id, position, emerge_seconds))
+	queue_redraw()
+	return enemy_id
+
+
+func _get_kilnheart_id() -> int:
+	for worm: Dictionary in _worms:
+		if worm.get(&"kind", WORM_KIND) == KILNHEART_KIND:
+			return int(worm[&"id"])
+	return -1
+
+
+func _is_kilnheart_defeated() -> bool:
+	return _kilnheart_defeated
 
 
 func _get_boss_id() -> int:
@@ -342,6 +343,8 @@ func _get_enemy_label(worm_id: int) -> StringName:
 		label = &"enemy.cinder_crawler.name"
 	elif kind == BOSS_KIND:
 		label = &"enemy.ironjaw_apex.name"
+	elif kind == KILNHEART_KIND:
+		label = &"enemy.kilnheart_colossus.name"
 	return label
 
 
@@ -393,8 +396,16 @@ func _get_character_hover_targets() -> Array[Dictionary]:
 					&"hover_radius": 56.0,
 					&"health": int(worm[&"health"]),
 					&"max_health": int(worm.get(&"max_health", _p_int(&"max_health"))),
-					&"attack_damage": FaunaCombatScript.damage(kind, _profile),
-					&"attack_range": FaunaCombatScript.attack_range(kind, _profile),
+					&"attack_damage": (
+						KilnheartBossScript.current_damage(worm)
+						if kind == KILNHEART_KIND
+						else FaunaCombatScript.damage(kind, _profile)
+					),
+					&"attack_range": (
+						KilnheartBossScript.current_range(worm)
+						if kind == KILNHEART_KIND
+						else FaunaCombatScript.attack_range(kind, _profile)
+					),
 				}
 			)
 		)
@@ -479,25 +490,34 @@ func hit_worm(worm_id: int, damage: int = 1) -> bool:
 		return accepted
 	var worm: Dictionary = _find_worm(worm_id)
 	var kind: StringName = worm.get(&"kind", WORM_KIND) as StringName
-	var vulnerable: bool = (
-		worm.get(&"state", &"missing") == STATE_EXPOSE
-		if kind == BOSS_KIND
-		else FaunaCombatScript.vulnerable(kind, worm.get(&"state", &"missing") as StringName)
-	)
+	var state: StringName = worm.get(&"state", &"missing") as StringName
+	var vulnerable: bool = FaunaCombatScript.vulnerable(kind, state)
+	if kind == BOSS_KIND:
+		vulnerable = state == STATE_EXPOSE
+	elif kind == KILNHEART_KIND:
+		vulnerable = KilnheartBossScript.vulnerable(state)
 	if worm.is_empty() or not vulnerable or damage <= 0:
 		return false
-	var boss_damage: Dictionary = (
-		IronjawBossScript.apply_damage(worm, damage) if kind == BOSS_KIND else {}
-	)
-	if kind != BOSS_KIND:
+	var boss_damage: Dictionary = {}
+	if kind == BOSS_KIND:
+		boss_damage = IronjawBossScript.apply_damage(worm, damage)
+	elif kind == KILNHEART_KIND:
+		boss_damage = KilnheartBossScript.apply_damage(worm, damage)
+	else:
 		worm[&"health"] = maxi(int(worm[&"health"]) - damage, 0)
 	worm[&"hit_flash"] = 0.18
 	if int(worm[&"health"]) <= 0:
 		_boss_defeated = _boss_defeated or kind == BOSS_KIND
+		_kilnheart_defeated = _kilnheart_defeated or kind == KILNHEART_KIND
 		if not bool(worm[&"reward_emitted"]):
 			worm[&"reward_emitted"] = true
 			defeated.emit(int(worm[&"id"]), worm[&"position"] as Vector2)
-		_set_state(worm, STATE_DEFEATED, _entity_state_duration(worm, STATE_DEFEATED))
+		var defeated_seconds: float = (
+			1.2 if kind == KILNHEART_KIND else _entity_state_duration(worm, STATE_DEFEATED)
+		)
+		_set_state(worm, STATE_DEFEATED, defeated_seconds)
+	elif kind == KILNHEART_KIND and bool(boss_damage.get(&"phase_changed", false)):
+		KilnheartBossScript.stagger(worm, 0.65)
 	elif bool(boss_damage.get(&"armor_broke", false)):
 		worm[&"resolved_attack_serial"] = int(worm[&"attack_serial"])
 		worm[&"resolved_pulses"] = int(worm[&"strike_pulses"])
@@ -529,7 +549,7 @@ func present_hit_feedback(
 
 
 func get_feedback_offset(worm_id: int) -> Vector2:
-	return _feedback_offset(_find_worm(worm_id))
+	return FaunaVisualsScript.feedback_offset(_tile_size, _find_worm(worm_id))
 
 
 func stagger_worm(worm_id: int, seconds: float = -1.0) -> bool:
@@ -537,6 +557,11 @@ func stagger_worm(worm_id: int, seconds: float = -1.0) -> bool:
 	if worm.is_empty() or worm[&"state"] in [STATE_DISPERSING, STATE_DEFEATED]:
 		return false
 	var requested: float = _p_float(&"stagger_seconds") if seconds < 0.0 else maxf(seconds, 0.0)
+	if worm.get(&"kind", WORM_KIND) == KILNHEART_KIND:
+		var accepted: bool = KilnheartBossScript.stagger(worm, requested)
+		worm[&"hit_flash"] = 0.28 if accepted else float(worm[&"hit_flash"])
+		queue_redraw()
+		return accepted
 	var maximum: float = (
 		IronjawBossScript.max_stagger_seconds(int(worm.get(&"armor_stage", 0)))
 		if worm.get(&"kind", WORM_KIND) == BOSS_KIND
@@ -568,6 +593,27 @@ func _advance_spawner(delta: float) -> void:
 
 
 func _advance_worm(worm: Dictionary, delta: float) -> void:
+	if worm.get(&"kind", WORM_KIND) == KILNHEART_KIND:
+		var result: Dictionary = KilnheartBossScript.advance(
+			worm, delta, _player_position, _player_velocity, _outpost_linked
+		)
+		if bool(result[&"telegraph"]):
+			telegraph_started.emit(KILNHEART_KIND, int(worm[&"id"]), int(worm[&"attack_serial"]))
+		if (
+			_telegraph_audio != null
+			and bool(result[&"movement"])
+			and float(worm[&"move_audio_remaining"]) <= 0.0
+		):
+			worm[&"move_audio_serial"] = int(worm[&"move_audio_serial"]) + 1
+			_telegraph_audio.call(
+				"play_movement", KILNHEART_KIND, int(worm[&"id"]),
+				int(worm[&"move_audio_serial"]), _grid_to_screen(worm[&"position"] as Vector2)
+			)
+			worm[&"move_audio_remaining"] = 0.62
+		for event: Dictionary in result[&"damage_events"] as Array:
+			_last_attack_count += 1
+			damage_tick.emit(int(event[&"amount"]), event[&"source"] as StringName)
+		return
 	var remaining: float = delta
 	var transitions: int = 0
 	var emitted_attack: bool = false
@@ -724,7 +770,9 @@ func _commit_native_warning(worm: Dictionary) -> void:
 	worm[&"committed_target"] = target
 	worm[&"attack_serial"] = int(worm[&"attack_serial"]) + 1
 	worm[&"resolved_pulses"] = 0
-	worm[&"strike_targets"] = _salvo_targets(target, direction) if kind == CINDER_KIND else [target]
+	worm[&"strike_targets"] = (
+		FaunaCombatScript.salvo_targets(target, direction) if kind == CINDER_KIND else [target]
+	)
 	worm[&"strike_pulses"] = 3 if kind == CINDER_KIND else 1
 	var warning_state: StringName = FaunaCombatScript.warning_state(kind)
 	_set_state(worm, warning_state, _state_duration(kind, warning_state))
@@ -752,7 +800,7 @@ func _resolve_attack(worm: Dictionary) -> bool:
 		return true
 	var attack_distance: float = (worm[&"position"] as Vector2).distance_to(_player_position)
 	if kind == SKIMMER_KIND:
-		attack_distance = _distance_to_segment(
+		attack_distance = FaunaCombatScript.distance_to_segment(
 			_player_position,
 			worm[&"intercept_start"] as Vector2,
 			worm[&"committed_target"] as Vector2,
@@ -815,31 +863,6 @@ func _advance_surface_tracking(worm: Dictionary, delta: float) -> void:
 	var speed: float = FaunaCombatScript.value(kind, &"move_speed")
 	var step: float = minf(speed * delta, maxf(to_player.length() - 1.35, 0.0))
 	worm[&"position"] = position + direction * step
-
-
-func _salvo_targets(target: Vector2, direction: Vector2) -> Array[Vector2]:
-	var lateral: Vector2 = direction.orthogonal()
-	return [target - lateral * 0.95, target, target + lateral * 0.95]
-
-
-func _distance_to_segment(point: Vector2, start: Vector2, finish: Vector2) -> float:
-	var segment: Vector2 = finish - start
-	if segment.is_zero_approx():
-		return point.distance_to(start)
-	var progress: float = clampf((point - start).dot(segment) / segment.length_squared(), 0.0, 1.0)
-	return point.distance_to(start + segment * progress)
-
-
-func _initial_state_seconds(kind: StringName) -> float:
-	if kind == BOSS_KIND:
-		return 1.0
-	if kind == WORM_KIND:
-		return _p_float(&"spawn_burrow_seconds")
-	if kind == SKIMMER_KIND:
-		return SKIMMER_EMERGE_SECONDS
-	if kind == RIME_KIND:
-		return RIME_EMERGE_SECONDS
-	return CINDER_EMERGE_SECONDS
 
 
 func _state_duration(kind: StringName, state: StringName) -> float:
@@ -905,31 +928,14 @@ func _grid_to_screen(position: Vector2) -> Vector2:
 	)
 
 
-func _feedback_offset(worm: Dictionary) -> Vector2:
-	if worm.is_empty() or float(worm.get(&"feedback_time", 0.0)) <= 0.0:
-		return Vector2.ZERO
-	var duration: float = maxf(float(worm.get(&"feedback_duration", 0.1)), 0.001)
-	var ratio: float = clampf(float(worm[&"feedback_time"]) / duration, 0.0, 1.0)
-	var direction: Vector2 = worm.get(&"feedback_direction", Vector2.RIGHT) as Vector2
-	var screen_direction: Vector2 = (
-		Vector2(
-			(direction.x - direction.y) * _tile_size.x * 0.5,
-			(direction.x + direction.y) * _tile_size.y * 0.5,
-		)
-		. normalized()
-	)
-	return (
-		screen_direction * (6.0 + float(worm.get(&"feedback_strength", 0)) * 3.0) * sin(ratio * PI)
-	)
-
-
 func _draw() -> void:
 	for worm: Dictionary in _worms:
 		_draw_worm(worm)
 
 
 func _draw_worm(worm: Dictionary) -> void:
-	var center: Vector2 = _grid_to_screen(worm[&"position"] as Vector2) + _feedback_offset(worm)
+	var offset: Vector2 = FaunaVisualsScript.feedback_offset(_tile_size, worm)
+	var center: Vector2 = _grid_to_screen(worm[&"position"] as Vector2) + offset
 	var state: StringName = worm[&"state"] as StringName
 	var progress: float = _state_progress(worm)
 	var alpha: float = 1.0
@@ -952,7 +958,9 @@ func _draw_worm(worm: Dictionary) -> void:
 		)
 	):
 		return
-	_draw_sand_wake(center, worm, alpha)
+	SandwormVisualsScript.draw_sand_wake(
+		self, center, worm[&"direction"] as Vector2, _time, alpha
+	)
 	if SandwormVisualsScript.draw_burrow_transition(self, center, worm, progress, alpha):
 		return
 	_draw_exposed_body(center, worm, alpha)
@@ -982,19 +990,3 @@ func _draw_exposed_body(center: Vector2, worm: Dictionary, alpha: float) -> void
 func _state_progress(worm: Dictionary) -> float:
 	var duration: float = maxf(float(worm[&"state_duration"]), 0.001)
 	return clampf(float(worm[&"state_elapsed"]) / duration, 0.0, 1.0)
-
-
-func _draw_sand_wake(center: Vector2, worm: Dictionary, alpha: float) -> void:
-	var direction: Vector2 = worm[&"direction"] as Vector2
-	var screen_direction: Vector2 = (
-		(_grid_to_screen(direction) - _grid_to_screen(Vector2.ZERO)).normalized()
-	)
-	for mote: int in range(18):
-		var phase: float = float(mote) * 2.399 + _time * 4.5
-		var trail: float = float(mote % 7) * 8.0
-		var point: Vector2 = (
-			center - screen_direction * trail + Vector2(cos(phase) * 18.0, sin(phase) * 7.0)
-		)
-		draw_circle(
-			point, 2.0 + float(mote % 3), Color(SAND, (0.18 + float(mote % 4) * 0.07) * alpha)
-		)

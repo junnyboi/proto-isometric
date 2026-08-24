@@ -73,3 +73,23 @@ The accepted masters remain outside Git. `tools/prepare_sandworm_sprites.py --se
 | `sandworm/ironjaw_burrow_03.png` | High pre-breach crown | `91e170467eca48dc8f485206d6bd682c76811908d938192ead7c274830d92ff3` |
 
 Boss health, armor thresholds, attack selection, telegraph geometry, hit testing, sanctuary cancellation, encounter spawning, and defeat persistence remain deterministic Godot logic; the generated images are presentation assets only.
+
+
+## Kilnheart Colossus volcanic boss
+
+The eight `kilnheart/*.png` sprites were generated with **GPT Image 2** on 2026-08-25 as an original Lava Fields boss. `kilnheart_idle.png` established the six-legged basalt siege-creature identity, exposed furnace core, orange magma seams, broad forelimbs, southeast-facing three-quarter isometric camera, and soft upper-left lighting. The locomotion, windup, attack, cracked, broken, and defeat masters used the accepted idle image as their shared identity and camera reference.
+
+The 1920 × 1920 masters remain outside Git. `tools/prepare_kilnheart_sprites.py` deterministically removes edge-connected temporary backgrounds and green spill, decontaminates alpha edges, trims without cropping anatomy, aligns every standing pose to a common ground contact, centers the complete silhouette, and downsamples to transparent 512 × 512 RGBA runtime sprites. The full combat, animation, prompt, and acceptance contract is recorded in `docs/plans/KILNHEART_COLOSSUS_BOSS_DESIGN.md` and `docs/plans/KILNHEART_BOSS_IMAGE_PROMPTS.md`.
+
+| Runtime file | Animation or damage role | SHA-256 |
+|---|---|---|
+| `kilnheart/kilnheart_idle.png` | Intact idle and recovery anchor | `33ce02ebcce17f025d1e942faed72a900cd0af864031b969610f76c5c2feaf36` |
+| `kilnheart/kilnheart_walk_a.png` | First locomotion contact pose | `b7f997914c997cca7a6b3bdba174978e35eea552e93af45dd31f9a8a598ba6bd` |
+| `kilnheart/kilnheart_walk_b.png` | Complementary locomotion contact pose | `615ffbd42258760ad10b78ed95cdc95b13a884a42d422b7eeb8e6166804cb893` |
+| `kilnheart/kilnheart_windup.png` | Compressed warning pose | `af4fcddc85670c1eec88644d12c575120430a5a9f3d956a47b585f04c2529ec1` |
+| `kilnheart/kilnheart_attack.png` | Attack-release pose | `eadc26306a0bac3b24156dfd1186dbeb68d192cbc14fb6f128cb07edaa461f76` |
+| `kilnheart/kilnheart_cracked.png` | First armor-threshold presentation | `894291bb7cce22672281b0d1c208a58afd6d278793b0e4cca4960709365c375e` |
+| `kilnheart/kilnheart_broken.png` | Final exposed-core presentation | `71dcc0c628cd21f07585172c90f77182d9f4678d4bd040f466c995e508d9f580` |
+| `kilnheart/kilnheart_defeat.png` | Collapsed defeat presentation | `026a4024dbaad2b6ec4d156c05de12f3c6432f57635581f9a1d1e4ef5fe88144` |
+
+Boss health, three-pattern rotation, phase acceleration, warning geometry, damage resolution, biome-exclusive encounter spawning, sound triggers, accessibility behavior, targeting, rewards, and defeat persistence remain deterministic Godot logic; the generated images are presentation assets only.

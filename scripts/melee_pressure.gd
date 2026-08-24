@@ -108,14 +108,18 @@ var _active_kind: StringName = GLASSBACK_SCARAB_KIND
 var _hovered_id: int = -1
 var _last_attack_count: int = 0
 var _total_spawned: int = 0
+var _enemy_audio: Node
 
 
-func configure(tile_size: Vector2, map_origin: Vector2, world: RefCounted) -> bool:
+func configure(
+	tile_size: Vector2, map_origin: Vector2, world: RefCounted, enemy_audio: Node = null
+) -> bool:
 	if world == null or not world.has_method("is_walkable"):
 		return false
 	_tile_size = tile_size
 	_map_origin = map_origin
 	_world = world
+	_enemy_audio = enemy_audio
 	return true
 
 
@@ -189,6 +193,8 @@ func spawn_pack(center: Vector2, count: int) -> int:
 					&"committed_target": center,
 					&"attack_serial": 0,
 					&"attack_cooldown": 0.25 + float(member) * 0.11,
+					&"move_audio_remaining": 0.12 + float(member % 4) * 0.09,
+					&"move_audio_serial": 0,
 				}
 			)
 		)
@@ -207,7 +213,9 @@ func advance(delta: float) -> void:
 	for index: int in range(_mites.size() - 1, -1, -1):
 		var mite: Dictionary = _mites[index]
 		mite[&"attack_cooldown"] = maxf(float(mite[&"attack_cooldown"]) - step, 0.0)
+		var before: Vector2 = mite[&"position"] as Vector2
 		_advance_mite(mite, step)
+		_advance_audio(mite, step, before)
 		if mite[&"state"] == STATE_DISPERSING and float(mite[&"state_remaining"]) <= 0.0:
 			_mites.remove_at(index)
 	queue_redraw()
@@ -366,6 +374,11 @@ func _advance_mite(mite: Dictionary, delta: float) -> void:
 				STATE_WARNING,
 				_profile_float(kind, &"warning_seconds", WARNING_SECONDS),
 			)
+			if _enemy_audio != null:
+				_enemy_audio.call(
+					"play_attack", kind, int(mite[&"id"]), int(mite[&"attack_serial"]),
+					_grid_to_screen(mite[&"position"] as Vector2)
+				)
 		return
 	if state == STATE_WARNING:
 		mite[&"state_remaining"] = float(mite[&"state_remaining"]) - delta
@@ -441,6 +454,25 @@ func _resolve_attack(mite: Dictionary) -> void:
 	_last_attack_count += 1
 	var kind: StringName = mite.get(&"kind", GLASSBACK_SCARAB_KIND) as StringName
 	damage_tick.emit(_profile_int(kind, &"attack_damage", ATTACK_DAMAGE), kind)
+
+
+func _advance_audio(mite: Dictionary, delta: float, before: Vector2) -> void:
+	mite[&"move_audio_remaining"] = float(mite[&"move_audio_remaining"]) - delta
+	if (
+		_enemy_audio == null
+		or mite[&"state"] not in [STATE_ADVANCE, STATE_RECOVER, STATE_DISPERSING]
+		or (mite[&"position"] as Vector2).distance_to(before) <= 0.001
+		or float(mite[&"move_audio_remaining"]) > 0.0
+	):
+		return
+	mite[&"move_audio_serial"] = int(mite[&"move_audio_serial"]) + 1
+	var serial: int = int(mite[&"move_audio_serial"])
+	var kind: StringName = mite.get(&"kind", GLASSBACK_SCARAB_KIND) as StringName
+	_enemy_audio.call(
+		"play_movement", kind, int(mite[&"id"]), serial,
+		_grid_to_screen(mite[&"position"] as Vector2)
+	)
+	mite[&"move_audio_remaining"] = 0.42 + float((int(mite[&"id"]) + serial) % 4) * 0.06
 
 
 func _profile_float(kind: StringName, property: StringName, fallback: float) -> float:
