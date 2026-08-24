@@ -31,6 +31,12 @@ $HOME/bin/godot --path .
 ./verify.sh
 ```
 
+`verify.sh` includes a Python batch gate that decodes all four biome Ogg files, checks their cyclic waveform boundaries, and asks Godot to seek each imported stream across its loop point. Run that gate directly when iterating on music assets:
+
+```bash
+python3 test/test_bgm_loops.py --godot "$HOME/.local/bin/godot"
+```
+
 For a clean no-threads Web release:
 
 ```bash

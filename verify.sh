@@ -17,17 +17,22 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/user-data"
 
-printf '[1/3] import\n'
+printf '[1/4] import\n'
 timeout 30s "$GODOT" --headless --path . --import >"$tmp/import.log" 2>&1
 if grep -E 'ERROR:|SCRIPT ERROR:' "$tmp/import.log"; then
   cat "$tmp/import.log" >&2
   exit 1
 fi
 
-printf '[2/3] lint + smoke\n'
+printf '[2/4] lint + BGM loop gate\n'
 mapfile -d '' gd_files < <(find scripts test -type f -name '*.gd' -print0 | sort -z)
 ((${#gd_files[@]} > 0))
 gdlint "${gd_files[@]}"
+python3 test/test_bgm_loops.py \
+  --godot "$GODOT" \
+  --json-report "$tmp/bgm-loops.json"
+
+printf '[3/4] smoke\n'
 timeout 30s env XDG_DATA_HOME="$tmp/user-data" "$GODOT" \
   --headless --path . -s test/smoke.gd >"$tmp/smoke.log" 2>&1
 cat "$tmp/smoke.log"
@@ -36,7 +41,7 @@ if grep -E 'ERROR:|SCRIPT ERROR:' "$tmp/smoke.log"; then
   exit 1
 fi
 
-printf '[3/3] boot\n'
+printf '[4/4] boot\n'
 timeout 20s "$GODOT" --headless --path . --quit-after 2 >"$tmp/boot.log" 2>&1
 grep -F '[PROTO_ISOMETRIC_READY]' "$tmp/boot.log" >/dev/null
 if grep -E 'ERROR:|SCRIPT ERROR:' "$tmp/boot.log"; then
