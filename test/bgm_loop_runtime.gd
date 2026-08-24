@@ -78,8 +78,9 @@ func _test_track(path: String) -> void:
 		)
 	player.stop()
 	player.stream = null
+	root.remove_child(player)
 	player.free()
 	ogg_stream = null
 	stream = null
-	await process_frame
-	await process_frame
+	for _index: int in range(10):
+		await process_frame

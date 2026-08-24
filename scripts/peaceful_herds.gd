@@ -2,7 +2,6 @@ extends Node2D
 
 signal defeated(creature_id: int, position: Vector2, resource_amount: int)
 
-const PeacefulHerdAudioScript: GDScript = preload("res://scripts/peaceful_herd_audio.gd")
 const DUNE_GRAZER_TEXTURE: Texture2D = preload("res://assets/fauna/dune_grazer.png")
 const REEDBACK_TEXTURE: Texture2D = preload("res://assets/fauna/reedback.png")
 const RIMEHORN_TEXTURE: Texture2D = preload("res://assets/fauna/rimehorn.png")
@@ -63,7 +62,6 @@ var _next_herd_id: int = 1
 var _time: float = 0.0
 var _auto_spawn: bool = true
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
-var _audio: Node
 
 
 func _ready() -> void:
@@ -86,7 +84,6 @@ func configure(
 	_map_origin = map_origin
 	_world = world
 	_drop_callback = drop_callback
-	_ensure_audio()
 	return true
 
 
@@ -119,15 +116,11 @@ func advance(delta: float) -> void:
 	var centers: Dictionary = _herd_centers()
 	for creature: Dictionary in _creatures:
 		_advance_creature(creature, centers, step)
-	if _audio != null:
-		_audio.call("advance", step, _creatures, Callable(self, "_grid_to_screen"))
 	queue_redraw()
 
 
 func clear() -> void:
 	_creatures.clear()
-	if _audio != null:
-		_audio.call("reset_schedule")
 	queue_redraw()
 
 
@@ -201,13 +194,8 @@ func hit_creature(creature_id: int, damage: int = 1) -> bool:
 		if int(creature[&"id"]) != creature_id:
 			continue
 		var position: Vector2 = creature[&"position"] as Vector2
-		var kind: StringName = creature[&"kind"] as StringName
 		var amount: int = resource_amount(creature[&"kind"] as StringName)
 		_creatures.remove_at(index)
-		if _audio != null:
-			_audio.call(
-				"play_defeat", kind, position, Callable(self, "_grid_to_screen")
-			)
 		if _drop_callback.is_valid():
 			_drop_callback.call(position, amount)
 		defeated.emit(creature_id, position, amount)
@@ -238,18 +226,6 @@ static func facing_left(direction: Vector2) -> bool:
 
 static func bounce_offset(time: float, phase: float) -> float:
 	return absf(sin(time * BOUNCE_RATE + phase)) * BOUNCE_HEIGHT
-
-
-func _get_audio_metrics() -> Dictionary:
-	return _audio.call("get_metrics") as Dictionary if _audio != null else {}
-
-
-func _ensure_audio() -> void:
-	if _audio != null:
-		return
-	_audio = PeacefulHerdAudioScript.new() as Node
-	_audio.name = "PeacefulHerdAudio"
-	add_child(_audio)
 
 
 func _spawn_biome_herds() -> void:
