@@ -300,7 +300,8 @@ func _advance_recovery(mite: Dictionary, delta: float) -> void:
 
 func _resolve_attack(mite: Dictionary) -> void:
 	if (
-		_shared_damage_remaining > 0.0
+		_sanctuary_active
+		or _shared_damage_remaining > 0.0
 		or (mite[&"position"] as Vector2).distance_to(_player_position) > ATTACK_RANGE
 	):
 		return

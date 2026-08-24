@@ -14,7 +14,6 @@ const DEPLOYMENT_CELL: Vector2i = Vector2i(8, 10)
 const STARTER_SIZE: Vector2i = Vector2i(18, 18)
 const STARTER_RELAY: Vector2i = Vector2i(12, 6)
 const SANCTUARY_RADIUS: float = 2.5
-const SANCTUARY_OUTPOST_DIVISOR: int = 4
 const SAFE_STARTER_OUTPOST: Vector2i = Vector2i(1, 10)
 
 const STARTER_ROCKS: Array[Vector2i] = [
@@ -244,11 +243,7 @@ func _is_in_sanctuary(position: Vector2, radius: float = SANCTUARY_RADIUS) -> bo
 
 
 func _is_sanctuary_outpost(cell: Vector2i) -> bool:
-	if not _is_outpost(cell):
-		return false
-	if cell in STARTER_OUTPOSTS:
-		return cell == SAFE_STARTER_OUTPOST
-	return posmod(_cell_hash(cell, 0x5AFE), SANCTUARY_OUTPOST_DIVISOR) == 0
+	return _is_outpost(cell)
 
 
 func is_cell_loaded(cell: Vector2i) -> bool:

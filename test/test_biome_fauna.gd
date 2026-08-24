@@ -22,6 +22,9 @@ static func evaluate(runtime: Node = null) -> Array[Dictionary]:
 	_test_native_cycle(
 		cases, &"lava", &"cinder_crawler", &"brace", &"salvo_warning", &"ember_salvo", 5
 	)
+	_test_sanctuary_damage_guard(cases, &"oasis", &"mud_skimmer")
+	_test_sanctuary_damage_guard(cases, &"frozen", &"rime_stalker")
+	_test_sanctuary_damage_guard(cases, &"lava", &"cinder_crawler")
 	_test_unique_telegraphs(cases)
 	_test_large_delta_salvo_bound(cases)
 	if runtime != null:
@@ -197,6 +200,24 @@ static func _test_native_cycle(
 		"%s sanctuary dispersal expires cleanly" % kind,
 		int(enemies.call("get_worm_count")) == 0,
 	)
+	enemies.free()
+
+
+static func _test_sanctuary_damage_guard(
+	cases: Array[Dictionary], biome: StringName, kind: StringName
+) -> void:
+	var enemies: Node2D = _make_enemies(biome)
+	var hits: Array[int] = []
+	enemies.connect("damage_tick", func(_amount: int, _source: StringName) -> void: hits.append(1))
+	enemies.call("set_player_position", Vector2.ZERO)
+	var enemy_id: int = int(enemies.call("spawn_worm", Vector2(2.0, 0.0), 0.0))
+	enemies.call("advance", 0.001)
+	var warning: Dictionary = enemies.call("get_combat_snapshot", enemy_id) as Dictionary
+	enemies.call("advance", float(warning[&"state_remaining"]))
+	var attack: Dictionary = enemies.call("get_combat_snapshot", enemy_id) as Dictionary
+	enemies.set("_outpost_linked", true)
+	enemies.call("advance", float(attack[&"state_remaining"]))
+	_add(cases, "%s committed attack cannot damage inside sanctuary" % kind, hits.is_empty())
 	enemies.free()
 
 

@@ -278,8 +278,10 @@ func get_health(worm_id: int) -> int:
 	if worm_id >= PeacefulHerdsScript.CREATURE_ID_BASE:
 		return (
 			1
-			if _peaceful_herds != null
-			and not (_peaceful_herds.call("get_snapshot", worm_id) as Dictionary).is_empty()
+			if (
+				_peaceful_herds != null
+				and not (_peaceful_herds.call("get_snapshot", worm_id) as Dictionary).is_empty()
+			)
 			else 0
 		)
 	var worm: Dictionary = _find_worm(worm_id)
@@ -298,9 +300,10 @@ func _get_enemy_kind(worm_id: int) -> StringName:
 		return MeleePressureScript.KIND
 	if worm_id >= PeacefulHerdsScript.CREATURE_ID_BASE:
 		var snapshot: Dictionary = _peaceful_herds.call("get_snapshot", worm_id) as Dictionary
-		return snapshot.get(
-			&"kind", _defeated_peaceful_kinds.get(worm_id, &"dune_grazer")
-		) as StringName
+		return (
+			snapshot.get(&"kind", _defeated_peaceful_kinds.get(worm_id, &"dune_grazer"))
+			as StringName
+		)
 	var worm: Dictionary = _find_worm(worm_id)
 	return worm.get(&"kind", WORM_KIND) as StringName
 
@@ -378,9 +381,7 @@ func _get_character_hover_targets() -> Array[Dictionary]:
 	return targets
 
 
-func _on_peaceful_defeated(
-	creature_id: int, position: Vector2, resource_amount: int
-) -> void:
+func _on_peaceful_defeated(creature_id: int, position: Vector2, resource_amount: int) -> void:
 	peaceful_defeated.emit(creature_id, position, resource_amount)
 
 
@@ -681,7 +682,7 @@ func _resolve_attack(worm: Dictionary) -> bool:
 			worm[&"intercept_start"] as Vector2,
 			worm[&"committed_target"] as Vector2,
 		)
-	if attack_distance > FaunaCombatScript.attack_range(kind, _profile):
+	if _outpost_linked or attack_distance > FaunaCombatScript.attack_range(kind, _profile):
 		return false
 	_last_attack_count += 1
 	damage_tick.emit(FaunaCombatScript.damage(kind, _profile), kind)
@@ -689,6 +690,8 @@ func _resolve_attack(worm: Dictionary) -> bool:
 
 
 func _resolve_salvo_pulses(worm: Dictionary, elapsed_before: float, elapsed_after: float) -> bool:
+	if _outpost_linked:
+		worm[&"resolved_pulses"] = int(worm[&"strike_pulses"])
 	var duration: float = maxf(float(worm[&"state_duration"]), 0.001)
 	var before: int = mini(floori(elapsed_before / duration * 3.0), 3)
 	var after: int = mini(floori((elapsed_after + 0.00001) / duration * 3.0), 3)
@@ -696,7 +699,7 @@ func _resolve_salvo_pulses(worm: Dictionary, elapsed_before: float, elapsed_afte
 	var targets: Array = worm[&"strike_targets"] as Array
 	for pulse: int in range(maxi(before, int(worm[&"resolved_pulses"])), after):
 		worm[&"resolved_pulses"] = pulse + 1
-		if pulse >= targets.size() or emitted:
+		if _outpost_linked or pulse >= targets.size() or emitted:
 			continue
 		if (
 			(targets[pulse] as Vector2).distance_to(_player_position)

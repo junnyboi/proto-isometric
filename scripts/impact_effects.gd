@@ -430,13 +430,14 @@ func _emit_directional_contact(event: Dictionary, count: int) -> void:
 
 func _emit_surface_wake(event: Dictionary, count: int) -> void:
 	var position: Vector2 = event.get(&"position", Vector2.ZERO) as Vector2
+	var contact_position: Vector2 = position + Vector2(0.0, -6.0)
 	var material: StringName = event.get(&"material", &"sand") as StringName
 	var color: Color = _surface_color(material)
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = int(event.get(&"sequence_id", 0)) * 16127
 	for index: int in range(_scaled_particle_count(clampi(count, 0, 8))):
 		_spawn_particle(
-			position + Vector2(rng.randf_range(-12.0, 12.0), rng.randf_range(6.0, 14.0)),
+			contact_position + Vector2(rng.randf_range(-12.0, 12.0), rng.randf_range(-3.0, 3.0)),
 			Vector2(rng.randf_range(-28.0, 28.0), rng.randf_range(-34.0, -12.0)),
 			rng.randf_range(0.16, 0.3),
 			0.3,
@@ -492,7 +493,17 @@ func _emit_semantic_burst(event: Dictionary, profile: Dictionary) -> void:
 		return
 	var burst: Dictionary = acquired as Dictionary
 	var duration: float = float(spec[&"duration"])
-	burst[&"position"] = event.get(&"position", Vector2.ZERO) as Vector2
+	var event_id: StringName = event.get(&"event_id", &"") as StringName
+	var burst_position: Vector2 = event.get(&"position", Vector2.ZERO) as Vector2
+	if (
+		event_id
+		in [
+			RuntimeIdsScript.EVENT_LOCOMOTION_WALK_CONTACT,
+			RuntimeIdsScript.EVENT_LOCOMOTION_RUN_CONTACT,
+		]
+	):
+		burst_position += Vector2(0.0, -6.0)
+	burst[&"position"] = burst_position
 	burst[&"life"] = duration
 	burst[&"maximum_life"] = duration
 	burst[&"size"] = spec[&"size"] as Vector2

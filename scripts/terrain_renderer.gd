@@ -2,6 +2,7 @@ extends RefCounted
 
 const TERRAIN_TEXTURE_PERIOD_CELLS: float = 4.0
 const TERRAIN_UV_VARIATION: float = 0.035
+const WALKER_FOOT_SAMPLE_OFFSETS: Array[Vector2] = [Vector2(-24.0, 0.0), Vector2(24.0, 0.0)]
 const SAND: Color = Color("d79a45")
 const SAND_LIGHT: Color = Color("e8b861")
 const SALT: Color = Color("d8d0b5")
@@ -59,6 +60,17 @@ func grid_to_screen(cell: Vector2i) -> Vector2:
 			float(cell.x + cell.y) * _tile_size.y * 0.5 - elevation_pixels,
 		)
 	)
+
+
+static func occupied_cells_for(position: Vector2, screen_to_grid: Callable) -> Array[Vector2i]:
+	var occupied: Array[Vector2i] = []
+	if not screen_to_grid.is_valid():
+		return occupied
+	for offset: Vector2 in WALKER_FOOT_SAMPLE_OFFSETS:
+		var cell: Vector2i = screen_to_grid.call(position + offset) as Vector2i
+		if cell not in occupied:
+			occupied.append(cell)
+	return occupied
 
 
 func draw_tile(canvas: Node2D, cell: Vector2i) -> void:

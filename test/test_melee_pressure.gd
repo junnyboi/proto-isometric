@@ -60,8 +60,26 @@ static func evaluate() -> Array[Dictionary]:
 		int(pressure.call("spawn_pack", Vector2(10.0, 20.0), 4)) == 0,
 	)
 	pressure.free()
+	_test_sanctuary_damage_guard(cases, world)
 	_test_shared_targeting(cases, world)
 	return cases
+
+
+static func _test_sanctuary_damage_guard(cases: Array[Dictionary], world: RefCounted) -> void:
+	var pressure: Node2D = MeleePressureScript.new() as Node2D
+	pressure.call("configure", Vector2(90.0, 45.0), Vector2.ZERO, world)
+	pressure.call("set_player_position", Vector2(10.0, 20.0))
+	pressure.call("spawn_pack", Vector2(10.0, 20.0), 1)
+	var mites: Array = pressure.get("_mites") as Array
+	var mite: Dictionary = mites[0] as Dictionary
+	mite[&"position"] = Vector2(10.0, 20.0)
+	pressure.call("_set_state", mite, MeleePressureScript.STATE_WARNING, 0.01)
+	var hits: Array[int] = []
+	pressure.connect("damage_tick", func(_amount: int, _source: StringName) -> void: hits.append(1))
+	pressure.set("_sanctuary_active", true)
+	pressure.call("advance", 0.02)
+	_add(cases, "committed Razor Mite attack cannot damage inside sanctuary", hits.is_empty())
+	pressure.free()
 
 
 static func _test_shared_targeting(cases: Array[Dictionary], world: RefCounted) -> void:

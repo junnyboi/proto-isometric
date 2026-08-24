@@ -242,6 +242,8 @@ func _draw() -> void:
 		_velocity,
 		_is_running
 	)
+
+
 func grid_to_screen(cell: Vector2i) -> Vector2:
 	return _terrain_renderer.call("grid_to_screen", cell) as Vector2
 
@@ -257,8 +259,8 @@ func is_walkable(cell: Vector2i) -> bool:
 	return _world != null and bool(_world.call("is_walkable", cell))
 
 
-func update_drive(screen_direction: Vector2i, delta: float, running: bool = false) -> bool:
-	return _update_drive_vector(Vector2(screen_direction), delta, running)
+func update_drive(screen_direction: Vector2, delta: float, running: bool = false) -> bool:
+	return _update_drive_vector(screen_direction, delta, running)
 
 
 func _update_drive_vector(screen_direction: Vector2, delta: float, running: bool = false) -> bool:
@@ -269,9 +271,15 @@ func _update_drive_vector(screen_direction: Vector2, delta: float, running: bool
 		return false
 	var step_delta: float = minf(maxf(delta, 0.0), 0.05)
 	var analog_direction: Vector2 = screen_direction.limit_length(1.0)
-	analog_direction = _drive_input_buffer.call(
-		"resolve", analog_direction, running, _avatar != null and bool(_avatar.call("is_attacking"))
-	) as Vector2
+	analog_direction = (
+		_drive_input_buffer.call(
+			"resolve",
+			analog_direction,
+			running,
+			_avatar != null and bool(_avatar.call("is_attacking"))
+		)
+		as Vector2
+	)
 	running = bool(_drive_input_buffer.call("is_running"))
 	var quantized_direction: Vector2i = Vector2i(
 		0 if absf(analog_direction.x) < 0.28 else (1 if analog_direction.x > 0.0 else -1),
@@ -283,14 +291,6 @@ func _update_drive_vector(screen_direction: Vector2, delta: float, running: bool
 	if has_input:
 		_last_screen_direction = quantized_direction
 		_facing = IsometricControlsScript.direction_name(quantized_direction)
-		if not _can_move_screen_direction(quantized_direction):
-			if not ModuleEffectsScript.try_ram(self, quantized_direction):
-				_velocity = Vector2.ZERO
-				_is_moving = false
-				_feedback_router.call("notify_blocked")
-				_update_status(StatusLocalizerScript.vector_blocked(_facing, _scrap_count))
-				_sync_avatar()
-				return false
 		var maximum_speed: float = (
 			WALK_SPEED * analog_direction.length() * (RUN_MULTIPLIER if running else 1.0)
 		)
@@ -307,7 +307,7 @@ func _update_drive_vector(screen_direction: Vector2, delta: float, running: bool
 		)
 	)
 	_is_moving = not _velocity.is_zero_approx()
-	var moved: bool = _move_velocity(step_delta)
+	var moved: bool = _move_velocity(step_delta, quantized_direction)
 	if _impact_charge != null:
 		_impact_charge.call("advance_drive", get_speed_ratio(), _is_running, step_delta)
 	_update_drive_status()
@@ -348,6 +348,7 @@ func attack() -> bool:
 	_update_status(StatusLocalizerScript.impact_windup(band_name, _scrap_count))
 	_avatar.call("play_attack")
 	return not _pending_impact_rock_cells.is_empty() or not _pending_impact_worm_ids.is_empty()
+
 
 func _on_avatar_impact_frame() -> void:
 	if _pending_impact_cell == INVALID_CELL:
@@ -558,6 +559,12 @@ func get_robot_position() -> Vector2:
 	return _robot_visual_position
 
 
+func get_robot_occupied_cells() -> Array[Vector2i]:
+	return TerrainRendererScript.occupied_cells_for(
+		_robot_visual_position, Callable(self, "screen_to_grid")
+	)
+
+
 func get_velocity() -> Vector2:
 	return _velocity
 
@@ -667,39 +674,24 @@ func _update_camera_follow(delta: float) -> void:
 	_camera.position = _camera.position.lerp(get_camera_target(), blend)
 
 
-func _move_velocity(delta: float) -> bool:
-	if _velocity.is_zero_approx() or delta <= 0.0:
-		return false
-	var candidate: Vector2 = _robot_visual_position + _velocity * delta
-	var candidate_grid: Vector2i = screen_to_grid(candidate)
-	if candidate_grid != _robot_grid and not _can_transition(_robot_grid, candidate_grid):
-		_velocity = Vector2.ZERO
-		_is_moving = false
-		return false
-	_robot_visual_position = candidate
-	if candidate_grid != _robot_grid:
-		_robot_grid = candidate_grid
-		_stream_world()
-		_collect_scrap_near(_robot_grid)
-	return true
+func _move_velocity(delta: float, input_direction: Vector2i = Vector2i.ZERO) -> bool:
+	return SurfaceDriveScript.advance_map(self, delta, input_direction)
 
 
 func _can_transition(from: Vector2i, target: Vector2i) -> bool:
-	if not is_walkable(target):
-		return false
-	var delta: Vector2i = target - from
-	if absi(delta.x) > 1 or absi(delta.y) > 1:
-		return false
-	if delta.x != 0 and delta.y != 0:
-		return is_walkable(from + Vector2i(delta.x, 0)) and is_walkable(from + Vector2i(0, delta.y))
-	return true
+	return SurfaceDriveScript.can_transition(self, from, target)
 
 
 func _collect_scrap_near(cell: Vector2i, radius_cells: int = RESOURCE_MAGNET_RADIUS_CELLS) -> int:
 	if _shutdown:
 		return 0
 	var total: int = ResourceMagnetScript.collect_and_emit(
-		_world, _effects, Callable(self, "grid_to_screen"), _robot_visual_position, cell, radius_cells
+		_world,
+		_effects,
+		Callable(self, "grid_to_screen"),
+		_robot_visual_position,
+		cell,
+		radius_cells
 	)
 	if total <= 0:
 		return 0
@@ -865,8 +857,15 @@ func _build_sandworms() -> void:
 	_sandworms.connect("damage_tick", Callable(self, "_apply_chassis_damage"))
 	_object_layer.add_child(_sandworms)
 	_feedback_router = FeedbackRouterScript.install(
-		self, _camera, _effects, _avatar, _sandworms, _performance_sampler,
-		Callable(self, "grid_to_screen"), _impact_charge, _world
+		self,
+		_camera,
+		_effects,
+		_avatar,
+		_sandworms,
+		_performance_sampler,
+		Callable(self, "grid_to_screen"),
+		_impact_charge,
+		_world
 	)
 	_world_objects.call("build_run_pickups", _world, _run_coordinator, _sandworms)
 	_world_objects.call("build_encounter_director", _world, _run_coordinator, _sandworms, _hazards)
@@ -921,6 +920,8 @@ func _sync_avatar() -> void:
 		return
 	_avatar.position = _robot_visual_position
 	_avatar.call("set_motion", _facing, _is_moving, get_speed_ratio())
+	if _world_objects != null:
+		_world_objects.call("set_occupied_cells", get_robot_occupied_cells())
 	if _impact_charge != null:
 		_impact_charge.call("set_visual_position", _robot_visual_position)
 
@@ -933,7 +934,8 @@ func _build_interface() -> void:
 	add_child(_hud)
 	_hud.call("set_performance_sampler", _performance_sampler)
 	_hud.call(
-		"configure_character_hover", _avatar, _sandworms, WALK_SPEED, WALK_SPEED * RUN_MULTIPLIER)
+		"configure_character_hover", _avatar, _sandworms, WALK_SPEED, WALK_SPEED * RUN_MULTIPLIER
+	)
 	_mobile_controls.call("set_character_dossier", _hud.call("get_character_hover_card"))
 	_terminal_flow = RunTerminalFlowScript.new() as CanvasLayer
 	add_child(_terminal_flow)

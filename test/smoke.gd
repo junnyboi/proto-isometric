@@ -3,6 +3,7 @@ extends SceneTree
 const ContractTestsScript: GDScript = preload("res://test/test_contracts.gd")
 const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 const SmokeHelpersScript: GDScript = preload("res://test/smoke_helpers.gd")
+const WalkerSpatialTestsScript: GDScript = preload("res://test/test_walker_spatial.gd")
 
 var _checks: int = 0
 var _failures: int = 0
@@ -171,8 +172,10 @@ func _test_isometric_map() -> void:
 	touch_avatar.call("_process", float(touch_avatar.call("get_attack_contact_time")) + 0.01)
 	var touch_recovery_position: Vector2 = map.call("get_robot_position") as Vector2
 	_check(
-		not bool(map.call("_update_drive_vector", touch_drive, 0.05, false))
-		and map.call("get_robot_position") == touch_recovery_position,
+		(
+			not bool(map.call("_update_drive_vector", touch_drive, 0.05, false))
+			and map.call("get_robot_position") == touch_recovery_position
+		),
 		"mobile drive stays locked through attack recovery",
 	)
 	touch_avatar.call("_process", float(touch_avatar.call("get_attack_duration")))
@@ -554,12 +557,13 @@ func _test_isometric_map() -> void:
 	}
 	for direction: Variant in directions:
 		var screen_direction: Vector2i = direction as Vector2i
+		var drive_direction: Vector2 = Vector2(screen_direction).normalized()
 		var label: StringName = directions[direction] as StringName
 		_check(bool(map.call("place_robot", Vector2i(8, 8))), "place Walker for %s" % label)
 		var start_position: Vector2 = map.call("get_robot_position") as Vector2
 		_check(
-			bool(map.call("update_drive", screen_direction, 0.05, false)),
-			"%s weighted movement succeeds" % label,
+			bool(map.call("update_drive", drive_direction, 0.05, false)),
+			"%s normalized public drive input succeeds" % label,
 		)
 		var motion: Vector2 = (map.call("get_robot_position") as Vector2) - start_position
 		_check(
@@ -568,7 +572,6 @@ func _test_isometric_map() -> void:
 		)
 		_check(map.call("get_facing") == label, "%s facing" % label)
 		_check(avatar.call("get_facing") == label, "%s animation facing" % label)
-
 	_check(bool(map.call("place_robot", Vector2i(8, 8))), "place Walker for inertia test")
 	map.call("update_drive", Vector2i(1, 0), 0.05, false)
 	var first_speed: float = (map.call("get_velocity") as Vector2).length()
@@ -636,15 +639,10 @@ func _test_isometric_map() -> void:
 		"camera leads movement direction",
 	)
 
-	_check(bool(map.call("place_robot", Vector2i(3, 4))), "place Walker beside rock")
-	_check(bool(map.call("has_destructible_rock", Vector2i(4, 4))), "destructible rock exists")
-	_check(not bool(heat_haze.call("has_haze_at", Vector2i(4, 4))), "intact rock masks haze")
-	var blocked_position: Vector2 = map.call("get_robot_position") as Vector2
-	_check(
-		not bool(map.call("update_drive", Vector2i(1, 1), 0.05, false)),
-		"rock blocks direct drive",
-	)
-	_check(map.call("get_robot_position") == blocked_position, "blocked drive does not move")
+	for spatial_case: Dictionary in WalkerSpatialTestsScript.evaluate_live(
+		map, world_objects, heat_haze
+	):
+		_check(bool(spatial_case[&"passed"]), str(spatial_case[&"label"]))
 	var effects: Node2D = map.get_node("WorldEffectsLayer/ImpactEffects") as Node2D
 	_check(effects != null, "impact effects controller exists")
 	var scrap_before_rock: int = int(map.call("get_scrap_count"))
@@ -669,8 +667,10 @@ func _test_isometric_map() -> void:
 	)
 	var recovery_position: Vector2 = map.call("get_robot_position") as Vector2
 	_check(
-		not bool(map.call("update_drive", Vector2i(1, 1), 0.05, false))
-		and map.call("get_robot_position") == recovery_position,
+		(
+			not bool(map.call("update_drive", Vector2i(1, 1), 0.05, false))
+			and map.call("get_robot_position") == recovery_position
+		),
 		"Walker stays braced through attack recovery",
 	)
 	avatar.call("_process", float(avatar.call("get_attack_duration")))

@@ -45,13 +45,15 @@ static func evaluate(world: RefCounted) -> Array[Dictionary]:
 	)
 	_add(
 		cases,
-		"three starter services expose only one sanctuary boundary",
-		int(renderer.call("get_visible_sanctuary_count")) == 1,
+		"all three labeled starter services expose sanctuary boundaries",
+		int(renderer.call("get_visible_sanctuary_count")) == 3,
 	)
 	_add(
 		cases,
-		"procedural sanctuary policy retains exactly one quarter of outposts",
-		InfiniteWorldScript.SANCTUARY_OUTPOST_DIVISOR == 4,
+		"every starter outpost is a gameplay sanctuary",
+		InfiniteWorldScript.STARTER_OUTPOSTS.all(
+			func(cell: Vector2i) -> bool: return bool(world.call("_is_sanctuary_outpost", cell))
+		),
 	)
 	var points: PackedVector2Array = renderer.call("get_sanctuary_boundary_points", outpost)
 	var center: Vector2 = projection.call(outpost) as Vector2
@@ -80,9 +82,20 @@ static func evaluate(world: RefCounted) -> Array[Dictionary]:
 	)
 	_add(
 		cases,
-		"service-only starter outpost does not suppress enemies",
-		not bool(world.call("_is_in_sanctuary", Vector2(service_only))),
+		"every labeled starter outpost suppresses enemies within the radius",
+		bool(world.call("_is_in_sanctuary", Vector2(service_only))),
 	)
+	for biome: StringName in [&"oasis", &"frozen", &"lava"]:
+		var biome_outpost: Vector2i = _find_biome_outpost(world, biome)
+		_add(cases, "%s biome owns a procedural outpost" % biome, biome_outpost != Vector2i.MAX)
+		_add(
+			cases,
+			"%s outpost center is protected by a real sanctuary radius" % biome,
+			(
+				biome_outpost != Vector2i.MAX
+				and bool(world.call("_is_in_sanctuary", Vector2(biome_outpost)))
+			),
+		)
 	var culled_cells: Array[Vector2i] = []
 	renderer.call("set_visible_cells", culled_cells)
 	_add(
@@ -92,6 +105,16 @@ static func evaluate(world: RefCounted) -> Array[Dictionary]:
 	)
 	renderer.free()
 	return cases
+
+
+static func _find_biome_outpost(world: RefCounted, biome: StringName) -> Vector2i:
+	var extent: int = InfiniteWorldScript.PLAYABLE_HALF_EXTENT
+	for y: int in range(-extent, extent + 1):
+		for x: int in range(-extent, extent + 1):
+			var cell: Vector2i = Vector2i(x, y)
+			if world.call("_biome_at", cell) == biome and bool(world.call("_is_outpost", cell)):
+				return cell
+	return Vector2i.MAX
 
 
 static func _add(cases: Array[Dictionary], label: String, passed: bool) -> void:
