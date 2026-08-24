@@ -18,15 +18,12 @@ const SANCTUARY_FILL: Color = Color(0.16, 0.78, 0.72, 0.09)
 const SANCTUARY_GLOW: Color = Color(0.30, 0.96, 0.88, 0.26)
 const SANCTUARY_LINE: Color = Color(0.34, 1.0, 0.91, 0.88)
 const SANCTUARY_SEGMENTS: int = 48
-const OCCUPIED_TILE_GOLD: Color = Color("ffc247")
-const OCCUPIED_TILE_GLOW: Color = Color(1.0, 0.64, 0.12, 0.28)
 const OUTPOST_LABEL_MARGIN: Vector2 = Vector2(-39.0, -22.0)
 
 var _destructible_rocks: Dictionary = {}
 var _scrap: Dictionary = {}
 var _outposts: Dictionary = {}
 var _visible_cells: Array[Vector2i] = []
-var _occupied_cells: Array[Vector2i] = []
 var _grid_to_screen: Callable
 var _save_callback: Callable
 var _tile_size: Vector2 = Vector2(90.0, 45.0)
@@ -81,30 +78,6 @@ func set_visible_cells(cells: Array[Vector2i]) -> void:
 	if _outpost_energy != null:
 		_outpost_energy.call("set_visible_cells", cells)
 	invalidate_static_objects()
-
-
-func set_occupied_cells(cells: Array[Vector2i]) -> void:
-	if _occupied_cells == cells:
-		return
-	_occupied_cells = cells.duplicate()
-	invalidate_static_objects()
-
-
-func get_occupied_cells() -> Array[Vector2i]:
-	return _occupied_cells.duplicate()
-
-
-func get_occupied_tile_border_points(cell: Vector2i) -> PackedVector2Array:
-	var center: Vector2 = _grid_to_screen.call(cell) as Vector2
-	var half: Vector2 = _tile_size * 0.5
-	return PackedVector2Array(
-		[
-			center + Vector2(0.0, -half.y),
-			center + Vector2(half.x, 0.0),
-			center + Vector2(0.0, half.y),
-			center + Vector2(-half.x, 0.0),
-		]
-	)
 
 
 func get_visible_cell_count() -> int:
@@ -216,24 +189,10 @@ func _draw() -> void:
 			_draw_sanctuary_boundary(outpost_cell)
 	for cell: Vector2i in _visible_cells:
 		_draw_cell_objects(cell)
-	_draw_occupied_tile_borders()
 	for value: Variant in _outposts:
 		var outpost_cell: Vector2i = value as Vector2i
 		if bool(_outposts[outpost_cell]) and outpost_cell in _visible_cells:
 			_draw_sanctuary_label(outpost_cell)
-
-
-func _draw_occupied_tile_borders() -> void:
-	for cell: Vector2i in _occupied_cells:
-		if cell not in _visible_cells:
-			continue
-		var points: PackedVector2Array = get_occupied_tile_border_points(cell)
-		points.append(points[0])
-		draw_polyline(points, Color(INK, 0.82), 7.0, true)
-		draw_polyline(points, OCCUPIED_TILE_GLOW, 5.0, true)
-		draw_polyline(points, OCCUPIED_TILE_GOLD, 2.5, true)
-		for index: int in range(4):
-			draw_circle(points[index], 3.5, OCCUPIED_TILE_GOLD)
 
 
 func _draw_sanctuary_boundary(outpost_cell: Vector2i) -> void:

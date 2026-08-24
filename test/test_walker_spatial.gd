@@ -4,13 +4,15 @@ extends RefCounted
 static func evaluate_live(map: Node, world_objects: Node2D, heat_haze: Node2D) -> Array[Dictionary]:
 	var cases: Array[Dictionary] = []
 	var occupied: Array[Vector2i] = map.call("get_robot_occupied_cells") as Array[Vector2i]
-	var overlay: Array[Vector2i] = world_objects.call("get_occupied_cells") as Array[Vector2i]
 	_add(cases, "Walker exposes at least one occupied foot tile", not occupied.is_empty())
-	_add(cases, "gold border follows Walker occupied foot tiles", overlay == occupied)
-	var border: PackedVector2Array = (
-		world_objects.call("get_occupied_tile_border_points", occupied[0]) as PackedVector2Array
+	_add(
+		cases,
+		"occupied footprint remains gameplay-only without a debug renderer",
+		(
+			not world_objects.has_method("set_occupied_cells")
+			and not world_objects.has_method("_draw_occupied_tile_borders")
+		),
 	)
-	_add(cases, "occupied tile border uses four isometric corners", border.size() == 4)
 	var avatar: Node2D = map.get("_avatar") as Node2D
 	var foot_offset: Vector2 = avatar.call("get_visual_foot_offset") as Vector2
 	_add(

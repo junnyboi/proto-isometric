@@ -921,8 +921,6 @@ func _sync_avatar() -> void:
 		return
 	_avatar.position = _robot_visual_position
 	_avatar.call("set_motion", _facing, _is_moving, get_speed_ratio())
-	if _world_objects != null:
-		_world_objects.call("set_occupied_cells", get_robot_occupied_cells())
 	if _impact_charge != null:
 		_impact_charge.call("set_visual_position", _robot_visual_position)
 
