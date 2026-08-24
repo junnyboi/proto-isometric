@@ -22,12 +22,16 @@ const PERSONAL_ATTACK_COOLDOWN: float = 1.15
 const SPAWN_RADIUS: float = 5.4
 const ORBIT_RADIUS: float = 0.82
 const SEPARATION_RADIUS: float = 0.68
+const EMERGE_SECONDS: float = 0.72
+const EMERGE_DEPTH: float = 18.0
+const BOUNCE_HEIGHT: float = 3.0
+const BOUNCE_RATE: float = 8.6
+const STATE_EMERGE: StringName = &"swarm_emerge"
 const STATE_ADVANCE: StringName = &"swarm_advance"
 const STATE_WARNING: StringName = &"swarm_warning"
 const STATE_RECOVER: StringName = &"swarm_recover"
 const STATE_DISPERSING: StringName = &"dispersing"
 const MISSING_POSITION: Vector2 = Vector2(-9999.0, -9999.0)
-const WARNING: Color = Color("f5a62d")
 const MOB_DRAW_SIZE: Vector2 = Vector2(54.0, 54.0)
 
 const GLASSBACK_SCARAB_TEXTURE: Texture2D = preload(
@@ -127,6 +131,17 @@ static func _texture_for(kind: StringName) -> Texture2D:
 	return TEXTURES.get(kind, GLASSBACK_SCARAB_TEXTURE) as Texture2D
 
 
+static func _emergence_progress(remaining: float) -> float:
+	var linear: float = 1.0 - clampf(remaining / EMERGE_SECONDS, 0.0, 1.0)
+	return smoothstep(0.0, 1.0, linear)
+
+
+static func _bounce_offset(time: float, phase: float, state: StringName) -> float:
+	if state not in [STATE_ADVANCE, STATE_RECOVER, STATE_DISPERSING]:
+		return 0.0
+	return absf(sin(time * BOUNCE_RATE + phase)) * BOUNCE_HEIGHT
+
+
 func _set_active_biome(biome: StringName) -> void:
 	_active_biome = biome if BIOME_KINDS.has(biome) else &"desert"
 	_active_kind = _kind_for_biome(_active_biome)
@@ -167,9 +182,9 @@ func spawn_pack(center: Vector2, count: int) -> int:
 					&"kind": _active_kind,
 					&"position": position,
 					&"direction": (center - position).normalized(),
-					&"state": STATE_ADVANCE,
-					&"state_remaining": 0.0,
-					&"state_duration": 0.0,
+					&"state": STATE_EMERGE,
+					&"state_remaining": EMERGE_SECONDS,
+					&"state_duration": EMERGE_SECONDS,
 					&"phase": angle,
 					&"committed_target": center,
 					&"attack_serial": 0,
@@ -243,7 +258,7 @@ func find_target(target_cell: Vector2i) -> int:
 	var best_id: int = -1
 	var best_distance: float = 0.86
 	for mite: Dictionary in _mites:
-		if mite[&"state"] == STATE_DISPERSING:
+		if mite[&"state"] in [STATE_EMERGE, STATE_DISPERSING]:
 			continue
 		var distance: float = (mite[&"position"] as Vector2).distance_to(target)
 		if distance <= best_distance:
@@ -256,7 +271,10 @@ func hit_mite(mite_id: int, damage: int = 1) -> bool:
 	if damage <= 0:
 		return false
 	for index: int in range(_mites.size()):
-		if int(_mites[index][&"id"]) != mite_id or _mites[index][&"state"] == STATE_DISPERSING:
+		if (
+			int(_mites[index][&"id"]) != mite_id
+			or _mites[index][&"state"] in [STATE_EMERGE, STATE_DISPERSING]
+		):
 			continue
 		_mites.remove_at(index)
 		if _hovered_id == mite_id:
@@ -303,7 +321,7 @@ func get_combat_snapshots() -> Array[Dictionary]:
 func get_hover_targets() -> Array[Dictionary]:
 	var targets: Array[Dictionary] = []
 	for mite: Dictionary in _mites:
-		if mite[&"state"] == STATE_DISPERSING:
+		if mite[&"state"] in [STATE_EMERGE, STATE_DISPERSING]:
 			continue
 		var kind: StringName = mite.get(&"kind", GLASSBACK_SCARAB_KIND) as StringName
 		(
@@ -330,6 +348,11 @@ func get_hover_targets() -> Array[Dictionary]:
 func _advance_mite(mite: Dictionary, delta: float) -> void:
 	var state: StringName = mite[&"state"] as StringName
 	var kind: StringName = mite.get(&"kind", GLASSBACK_SCARAB_KIND) as StringName
+	if state == STATE_EMERGE:
+		mite[&"state_remaining"] = float(mite[&"state_remaining"]) - delta
+		if float(mite[&"state_remaining"]) <= 0.0:
+			_set_state(mite, STATE_ADVANCE, 0.0)
+		return
 	if state == STATE_ADVANCE:
 		_advance_encirclement(mite, delta)
 		if (
@@ -499,17 +522,21 @@ func _draw_mite(mite: Dictionary) -> void:
 		(_grid_to_screen(direction) - _grid_to_screen(Vector2.ZERO)).normalized()
 	)
 	var state: StringName = mite[&"state"] as StringName
-	var alpha: float = (
-		clampf(float(mite[&"state_remaining"]) / DISPERSE_SECONDS, 0.0, 1.0)
-		if state == STATE_DISPERSING
-		else 1.0
+	var emergence: float = (
+		_emergence_progress(float(mite[&"state_remaining"])) if state == STATE_EMERGE else 1.0
 	)
+	var alpha: float = emergence
+	if state == STATE_DISPERSING:
+		alpha = clampf(float(mite[&"state_remaining"]) / DISPERSE_SECONDS, 0.0, 1.0)
+	center.y += (1.0 - emergence) * EMERGE_DEPTH
+	center.y -= _bounce_offset(_time, float(mite[&"phase"]), state)
 	var kind: StringName = mite.get(&"kind", GLASSBACK_SCARAB_KIND) as StringName
 	var texture: Texture2D = _texture_for(kind)
 	var tint: Color = Color("ffd27a") if int(mite[&"id"]) == _hovered_id else Color.WHITE
 	tint.a = alpha
 	var scale_x: float = -1.0 if screen_direction.x < -0.05 else 1.0
-	draw_set_transform(center, 0.0, Vector2(scale_x, 1.0))
+	var scale_y: float = lerpf(0.62, 1.0, emergence)
+	draw_set_transform(center, 0.0, Vector2(scale_x, scale_y))
 	draw_texture_rect(
 		texture,
 		Rect2(-MOB_DRAW_SIZE * Vector2(0.5, 0.68), MOB_DRAW_SIZE),
@@ -517,10 +544,3 @@ func _draw_mite(mite: Dictionary) -> void:
 		tint,
 	)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	if state == STATE_WARNING:
-		var target: Vector2 = _grid_to_screen(mite[&"committed_target"] as Vector2)
-		var duration: float = maxf(float(mite[&"state_duration"]), 0.001)
-		var ratio: float = clampf(float(mite[&"state_remaining"]) / duration, 0.0, 1.0)
-		draw_dashed_line(center, target, Color(WARNING, 0.8), 2.0, 7.0, true)
-		draw_arc(target, 19.0, -PI * 0.5, -PI * 0.5 + TAU * ratio, 28, WARNING, 4.0)
-		draw_circle(center + Vector2(0.0, -24.0), 4.0 + (1.0 - ratio) * 3.0, WARNING)

@@ -37,6 +37,7 @@ static func evaluate() -> Array[Dictionary]:
 	var world: RefCounted = InfiniteWorldScript.new() as RefCounted
 	world.call("configure", {}, {}, {}, {}, {}, {})
 	_test_biome_roster(cases, world)
+	_test_emergence_and_bounce(cases, world)
 	var pressure: Node2D = MeleePressureScript.new() as Node2D
 	_add(
 		cases,
@@ -67,7 +68,7 @@ static func evaluate() -> Array[Dictionary]:
 		pressure.call("advance", 0.1)
 		for snapshot: Dictionary in pressure.call("get_combat_snapshots") as Array[Dictionary]:
 			warning_seen = warning_seen or snapshot[&"state"] == MeleePressureScript.STATE_WARNING
-	_add(cases, "tiny mobs telegraph before contact damage", warning_seen)
+	_add(cases, "tiny mobs preserve a warning delay before contact damage", warning_seen)
 	var damage_events_are_valid: bool = not damage_events.is_empty() and damage_events.size() <= 7
 	for event: Dictionary in damage_events:
 		damage_events_are_valid = (
@@ -107,6 +108,12 @@ static func _test_biome_roster(cases: Array[Dictionary], world: RefCounted) -> v
 		var snapshots: Array[Dictionary] = (
 			pressure.call("get_combat_snapshots") as Array[Dictionary]
 		)
+		var emerging_cell: Vector2i = Vector2i((snapshots[0][&"position"] as Vector2).round())
+		var hidden_while_emerging: bool = (
+			(pressure.call("get_hover_targets") as Array[Dictionary]).is_empty()
+			and int(pressure.call("find_target", emerging_cell)) == -1
+		)
+		_finish_emergence(pressure)
 		var hover_targets: Array[Dictionary] = pressure.call("get_hover_targets") as Array[Dictionary]
 		var expected_kind: StringName = config[&"kind"] as StringName
 		var texture: Texture2D = MeleePressureScript._texture_for(expected_kind)
@@ -117,6 +124,7 @@ static func _test_biome_roster(cases: Array[Dictionary], world: RefCounted) -> v
 				pressure.call("_get_active_kind") == expected_kind
 				and snapshots.size() == 1
 				and snapshots[0][&"kind"] == expected_kind
+				and hidden_while_emerging
 			),
 		)
 		_add(
@@ -134,6 +142,56 @@ static func _test_biome_roster(cases: Array[Dictionary], world: RefCounted) -> v
 			),
 		)
 		pressure.free()
+
+
+static func _test_emergence_and_bounce(cases: Array[Dictionary], world: RefCounted) -> void:
+	var pressure: Node2D = MeleePressureScript.new() as Node2D
+	pressure.call("configure", Vector2(90.0, 45.0), Vector2.ZERO, world)
+	pressure.call("set_player_position", Vector2(10.0, 20.0))
+	pressure.call("spawn_pack", Vector2(10.0, 20.0), 1)
+	var snapshot: Dictionary = (pressure.call("get_combat_snapshots") as Array[Dictionary])[0]
+	_add(
+		cases,
+		"new tiny mobs begin in a noninteractive emergence state",
+		(
+			snapshot[&"state"] == MeleePressureScript.STATE_EMERGE
+			and (pressure.call("get_hover_targets") as Array[Dictionary]).is_empty()
+		),
+	)
+	var start: float = MeleePressureScript._emergence_progress(MeleePressureScript.EMERGE_SECONDS)
+	var middle: float = MeleePressureScript._emergence_progress(
+		MeleePressureScript.EMERGE_SECONDS * 0.5
+	)
+	var finish: float = MeleePressureScript._emergence_progress(0.0)
+	_add(
+		cases,
+		"burrow emergence fades smoothly from hidden to visible",
+		is_zero_approx(start) and middle > start and middle < finish and is_equal_approx(finish, 1.0),
+	)
+	var idle_bounce: float = MeleePressureScript._bounce_offset(
+		0.2, 0.0, MeleePressureScript.STATE_EMERGE
+	)
+	var moving_bounce: float = MeleePressureScript._bounce_offset(
+		PI / (2.0 * MeleePressureScript.BOUNCE_RATE),
+		0.0,
+		MeleePressureScript.STATE_ADVANCE,
+	)
+	_add(
+		cases,
+		"tiny-mob bounce is subtle and limited to locomotion",
+		(
+			is_zero_approx(idle_bounce)
+			and moving_bounce > 0.0
+			and moving_bounce <= MeleePressureScript.BOUNCE_HEIGHT
+		),
+	)
+	_finish_emergence(pressure)
+	_add(
+		cases,
+		"emergence transitions into active movement",
+		pressure.call("get_state", int(snapshot[&"id"])) == MeleePressureScript.STATE_ADVANCE,
+	)
+	pressure.free()
 
 
 static func _test_sanctuary_damage_guard(cases: Array[Dictionary], world: RefCounted) -> void:
@@ -163,6 +221,7 @@ static func _test_shared_targeting(cases: Array[Dictionary], world: RefCounted) 
 		int(enemies.call("_spawn_melee_pack", Vector2(20.0, 20.0), 4)) == 4,
 	)
 	var pressure: Node2D = enemies.call("_get_melee_pressure") as Node2D
+	_finish_emergence(pressure)
 	var first: Dictionary = (pressure.call("get_combat_snapshots") as Array[Dictionary])[0]
 	var target_cell: Vector2i = Vector2i((first[&"position"] as Vector2).round())
 	var target_id: int = int(enemies.call("find_target", target_cell))
@@ -227,6 +286,11 @@ static func _test_ember_damage_profile(cases: Array[Dictionary], world: RefCount
 		),
 	)
 	pressure.free()
+
+
+static func _finish_emergence(pressure: Node2D) -> void:
+	for _step: int in range(ceili(MeleePressureScript.EMERGE_SECONDS / 0.1) + 1):
+		pressure.call("advance", 0.1)
 
 
 static func _covers_four_flanks(snapshots: Array[Dictionary], center: Vector2) -> bool:

@@ -4,7 +4,6 @@ signal damage_tick(amount: int, source: StringName)
 signal defeated(worm_id: int, position: Vector2)
 signal telegraph_started(kind: StringName, worm_id: int, attack_serial: int)
 signal peaceful_defeated(creature_id: int, position: Vector2, resource_amount: int)
-
 const FaunaCombatScript: GDScript = preload("res://scripts/fauna_combat_catalog.gd")
 const FaunaTelegraphAudioScript: GDScript = preload("res://scripts/fauna_telegraph_audio.gd")
 const MeleePressureScript: GDScript = preload("res://scripts/melee_pressure.gd")
@@ -844,6 +843,7 @@ func _draw_worm(worm: Dictionary) -> void:
 	if state in [STATE_DISPERSING, STATE_DEFEATED]:
 		alpha = 1.0 - progress
 	var kind: StringName = worm.get(&"kind", WORM_KIND) as StringName
+	center.y -= FaunaCombatScript.bounce_offset(_time, int(worm[&"id"]), kind, state)
 	if kind == SKIMMER_KIND:
 		_draw_skimmer(center, worm, state, progress, alpha)
 		return

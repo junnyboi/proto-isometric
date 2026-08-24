@@ -21,6 +21,6 @@ The 512 × 512 runtime derivatives preserve all four complete silhouettes and re
 
 ## Windowed/Xvfb verification
 
-A 1280 × 720 windowed OpenGL compatibility run under Xvfb exercised the real `MeleePressure` renderer with six spawned mobs per biome and one active contact telegraph in each panel. All four packs render without missing textures, clipping, opaque backgrounds, or key-color remnants. The small silhouettes are immediately separable by palette and shape, horizontal facing flips work across the encirclement positions, and the original warning line, target ring, and countdown marker remain readable above the new art.
+A 1280 × 720 windowed OpenGL compatibility run under Xvfb initially exercised the real `MeleePressure` renderer with six spawned mobs per biome. A later motion-polish pass removed the tiny mobs’ direction line, target circle, and countdown marker; combat timing remains authoritative but is no longer drawn around these low-threat units.
 
-Verification capture: `/home/ubuntu/biome-mob-work/biome_mob_visual.png` (SHA-256 `ba5d3d419bb73c61d2fb1784d4509cd9623a8eede402858419778eef4dbf743b`).
+The final motion verification uses two real-renderer captures. `entity_bounce_comparison.png` compares ground and mid-step positions for all four tiny mobs, all three walking hostile-fauna species, and all four peaceful herd species. `tiny_mob_emergence.png` shows each tiny mob at early, midpoint, and completed emergence with a clear fade-and-rise progression and no direction or circle overlays.

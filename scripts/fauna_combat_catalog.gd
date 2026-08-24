@@ -27,6 +27,8 @@ const PATTERN_BREACH: StringName = &"breach"
 const PATTERN_WAKE_LINE: StringName = &"wake_line"
 const PATTERN_FROST_POUNCE: StringName = &"frost_pounce"
 const PATTERN_EMBER_SALVO: StringName = &"ember_salvo"
+const BOUNCE_HEIGHT: float = 4.0
+const BOUNCE_RATE: float = 5.6
 
 const FAUNA: Dictionary = {
 	SKIMMER_KIND:
@@ -115,6 +117,12 @@ static func attack_pattern(kind: StringName) -> StringName:
 
 static func tracking_state(kind: StringName, state: StringName) -> bool:
 	return state == initial_state(kind)
+
+
+static func bounce_offset(time: float, enemy_id: int, kind: StringName, state: StringName) -> float:
+	if kind == WORM_KIND or not tracking_state(kind, state):
+		return 0.0
+	return absf(sin(time * BOUNCE_RATE + float(enemy_id) * 0.73)) * BOUNCE_HEIGHT
 
 
 static func warning(kind: StringName, state: StringName) -> bool:

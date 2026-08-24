@@ -12,6 +12,7 @@ const MAP_ORIGIN: Vector2 = Vector2(760.0, 70.0)
 static func evaluate(runtime: Node = null) -> Array[Dictionary]:
 	var cases: Array[Dictionary] = []
 	_test_catalog(cases)
+	_test_locomotion_bounce(cases)
 	_test_balance_budget(cases)
 	_test_telegraph_audio(cases)
 	_test_sandworm_audio_signal(cases)
@@ -49,6 +50,32 @@ static func _test_catalog(cases: Array[Dictionary]) -> void:
 			"%s owns one explicit warning state" % kind,
 			FaunaCombatScript.legal_primary_state(kind, FaunaCombatScript.warning_state(kind)),
 		)
+
+
+static func _test_locomotion_bounce(cases: Array[Dictionary]) -> void:
+	var peak_time: float = PI / (2.0 * FaunaCombatScript.BOUNCE_RATE)
+	for kind: StringName in [&"mud_skimmer", &"rime_stalker", &"cinder_crawler"]:
+		var tracking_state: StringName = FaunaCombatScript.initial_state(kind)
+		var moving: float = FaunaCombatScript.bounce_offset(peak_time, 0, kind, tracking_state)
+		var warning: float = FaunaCombatScript.bounce_offset(
+			peak_time, 0, kind, FaunaCombatScript.warning_state(kind)
+		)
+		_add(
+			cases,
+			"%s bounce is subtle and limited to locomotion" % kind,
+			(
+				moving > 0.0
+				and moving <= FaunaCombatScript.BOUNCE_HEIGHT
+				and is_zero_approx(warning)
+			),
+		)
+	_add(
+		cases,
+		"burrowing Sandworm does not use a walking bounce",
+		is_zero_approx(
+			FaunaCombatScript.bounce_offset(peak_time, 0, &"sandworm", &"burrow")
+		),
+	)
 
 
 static func _test_balance_budget(cases: Array[Dictionary]) -> void:
