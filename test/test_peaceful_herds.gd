@@ -168,37 +168,44 @@ static func _test_avoidance_and_presentation(cases: Array[Dictionary]) -> void:
 
 
 static func _test_one_hit_reward(cases: Array[Dictionary]) -> void:
-	var world: FakeWorld = FakeWorld.new()
-	world.biome = &"oasis"
-	var herds: Node2D = _make_herds(world)
-	herds.call("set_auto_spawn", false)
-	herds.call("set_active_biome", &"oasis")
-	herds.call("spawn_herd", Vector2(6.0, 6.0), 1, &"oasis")
-	var snapshot: Dictionary = (herds.call("get_snapshots") as Array[Dictionary])[0]
-	var creature_id: int = int(snapshot[&"id"])
-	var rewards: Array[Dictionary] = []
-	herds.connect(
-		"defeated",
-		func(id: int, position: Vector2, amount: int) -> void:
-			rewards.append({&"id": id, &"position": position, &"amount": amount})
-	)
-	var accepted: bool = bool(herds.call("hit_creature", creature_id, 1))
-	_add(
-		cases,
-		"one Impact kills a peaceful creature",
-		accepted and int(herds.call("get_creature_count")) == 0,
-	)
-	_add(
-		cases,
-		"defeated peaceful fauna emits one biome reward",
-		rewards.size() == 1 and int(rewards[0][&"amount"]) == 2,
-	)
-	_add(
-		cases,
-		"dead peaceful fauna cannot pay twice",
-		not bool(herds.call("hit_creature", creature_id, 1)) and rewards.size() == 1,
-	)
-	herds.free()
+	for biome: StringName in [&"desert", &"oasis", &"frozen", &"lava"]:
+		var world: FakeWorld = FakeWorld.new()
+		world.biome = biome
+		var herds: Node2D = _make_herds(world)
+		herds.call("set_auto_spawn", false)
+		herds.call("set_active_biome", biome)
+		herds.call("spawn_herd", Vector2(6.0, 6.0), 1, biome)
+		var snapshot: Dictionary = (herds.call("get_snapshots") as Array[Dictionary])[0]
+		var creature_id: int = int(snapshot[&"id"])
+		var expected_amount: int = HerdsScript.resource_amount(snapshot[&"kind"] as StringName)
+		var rewards: Array[Dictionary] = []
+		herds.connect(
+			"defeated",
+			func(id: int, position: Vector2, amount: int) -> void:
+				rewards.append({&"id": id, &"position": position, &"amount": amount})
+		)
+		_add(
+			cases,
+			"%s herd members expose one hit point" % biome,
+			int(snapshot[&"health"]) == 1 and int(snapshot[&"max_health"]) == 1,
+		)
+		var accepted: bool = bool(herds.call("hit_creature", creature_id, 1))
+		_add(
+			cases,
+			"one Impact defeats a %s herd member" % biome,
+			accepted and int(herds.call("get_creature_count")) == 0,
+		)
+		_add(
+			cases,
+			"%s herd defeat emits its resource drop exactly once" % biome,
+			(
+				rewards.size() == 1
+				and int(rewards[0][&"amount"]) == expected_amount
+				and not bool(herds.call("hit_creature", creature_id, 1))
+				and rewards.size() == 1
+			),
+		)
+		herds.free()
 
 
 static func _test_fauna_and_pickup_integration(cases: Array[Dictionary]) -> void:

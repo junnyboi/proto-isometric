@@ -49,6 +49,7 @@ const TARGET_RADIUS: float = 0.82
 const SPAWN_MIN_RADIUS: float = 6.0
 const SPAWN_MAX_RADIUS: float = 10.0
 const CREATURE_ID_BASE: int = 100_000
+const CREATURE_HIT_POINTS: int = 1
 
 var _tile_size: Vector2 = Vector2(90.0, 45.0)
 var _map_origin: Vector2 = Vector2(760.0, 70.0)
@@ -149,6 +150,8 @@ func spawn_herd(center: Vector2, count: int, biome: StringName = &"") -> int:
 				&"velocity": heading * MOVE_SPEED,
 				&"direction": heading,
 				&"phase": float(member) * 0.83 + float(herd_id) * 0.41,
+				&"health": CREATURE_HIT_POINTS,
+				&"max_health": CREATURE_HIT_POINTS,
 			}
 		)
 		_next_creature_id += 1
@@ -193,6 +196,10 @@ func hit_creature(creature_id: int, damage: int = 1) -> bool:
 		var creature: Dictionary = _creatures[index]
 		if int(creature[&"id"]) != creature_id:
 			continue
+		creature[&"health"] = maxi(int(creature.get(&"health", CREATURE_HIT_POINTS)) - damage, 0)
+		if int(creature[&"health"]) > 0:
+			_creatures[index] = creature
+			return true
 		var position: Vector2 = creature[&"position"] as Vector2
 		var amount: int = resource_amount(creature[&"kind"] as StringName)
 		_creatures.remove_at(index)

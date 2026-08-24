@@ -13,7 +13,6 @@ const RefitServiceScript: GDScript = preload("res://scripts/refit_service.gd")
 const FIELD_THEME: Resource = preload("res://data/field_hud_theme.tres")
 const AMBER: Color = Color("f5a62d")
 const TEAL: Color = Color("4eb6aa")
-const MUTED: Color = Color("9f9787")
 const HUD_PULSE_SECONDS: float = 0.18
 
 var _state: RefCounted
@@ -28,6 +27,7 @@ var _relay_label: Label
 var _mobile_charge_panel: ColorRect
 var _mobile_charge_fill: ColorRect
 var _outpost_interface: Control
+var _accessibility: CanvasLayer
 var _refit_service: RefCounted
 var _ui_scale: float = 1.0
 var _onboarding: CanvasLayer
@@ -37,10 +37,8 @@ var _radar_contacts_source: Node
 var _performance_sampler: Node
 var _left_handed: bool = false
 var _vfx_intensity: float = 1.0
-var _panel_title: Label
-var _panel_subtitle: Label
-var _strike_instruction: Label
-var _drive_instruction: Label
+var _objectives_header: Label
+var _resource_goal_label: Label
 var _state_apply_count: int = 0
 var _state_skip_count: int = 0
 var _layout_apply_count: int = 0
@@ -60,10 +58,10 @@ func _ready() -> void:
 	_outpost_interface.connect("repair_requested", func() -> void: repair_requested.emit())
 	_outpost_interface.connect("refit_requested", _on_refit_requested)
 	add_child(_outpost_interface)
-	var accessibility: CanvasLayer = AccessibilityPanelScript.new() as CanvasLayer
-	accessibility.connect("preferences_changed", _on_preferences_changed)
-	add_child(accessibility)
-	_on_preferences_changed(accessibility.call("get_preferences") as Dictionary)
+	_accessibility = AccessibilityPanelScript.new() as CanvasLayer
+	_accessibility.connect("preferences_changed", _on_preferences_changed)
+	add_child(_accessibility)
+	_on_preferences_changed(_accessibility.call("get_preferences") as Dictionary)
 	_onboarding = OnboardingOverlayScript.new() as CanvasLayer
 	add_child(_onboarding)
 	_radar = ExpeditionRadarScript.new() as Control
@@ -142,10 +140,8 @@ func apply_state(state: RefCounted) -> bool:
 			&"debug_cell",
 			&"debug_facing",
 			&"debug_speed_ratio",
-			&"chassis",
-			&"max_chassis",
-			&"run_scrap",
-			&"worm_cores",
+				&"chassis",
+				&"max_chassis",
 		]
 	):
 		_apply_status()
@@ -167,8 +163,12 @@ func apply_state(state: RefCounted) -> bool:
 			&"relay_progress",
 			&"completed_relays",
 			&"total_relays",
-			&"alert_level",
-			&"objective_guidance",
+				&"alert_level",
+				&"objective_guidance",
+				&"run_scrap",
+				&"worm_cores",
+				&"scrap_goal",
+				&"core_goal",
 		]
 	):
 		_apply_objective()
@@ -250,6 +250,12 @@ func apply_layout(viewport_size: Vector2, mobile: bool, force: bool = false) -> 
 		_layout[&"mobile_charge"] as Rect2,
 		float(_layout[&"mobile_charge_scale"]) * _ui_scale,
 	)
+	if _accessibility != null:
+		var settings_clearance: float = 0.0
+		if mobile:
+			var charge_rect: Rect2 = _layout[&"mobile_charge"] as Rect2
+			settings_clearance = viewport_size.y - charge_rect.position.y + 16.0
+		_accessibility.call("set_trigger_bottom_clearance", settings_clearance)
 	return true
 
 
@@ -291,6 +297,14 @@ func get_impact_text() -> String:
 
 func get_relay_text() -> String:
 	return _relay_label.text if _relay_label != null else ""
+
+
+func get_objectives_text() -> String:
+	return _resource_goal_label.text if _resource_goal_label != null else ""
+
+
+func get_accessibility_panel() -> CanvasLayer:
+	return _accessibility
 
 
 func get_outpost_interface() -> Control:
@@ -366,7 +380,7 @@ func _present_state_deltas(previous: Dictionary, candidate: Dictionary) -> void:
 	var deltas: Dictionary = state_reward_deltas(previous, candidate)
 	if int(deltas[&"scrap"]) > 0 or int(deltas[&"cores"]) > 0:
 		_reward_pulse_count += 1
-		_pulse_control(_status_label, 1.025, TEAL)
+		_pulse_control(_resource_goal_label, 1.04, TEAL)
 	if int(deltas[&"relays"]) > 0:
 		_reward_pulse_count += 1
 		_pulse_control(_relay_label, 1.06, TEAL)
@@ -430,8 +444,6 @@ func _apply_status() -> void:
 				"debug": debug,
 				"chassis": "%03d" % int(_state.call("get_value", &"chassis")),
 				"max_chassis": "%03d" % int(_state.call("get_value", &"max_chassis")),
-				"scrap": "%03d" % int(_state.call("get_value", &"run_scrap")),
-				"cores": "%03d" % int(_state.call("get_value", &"worm_cores")),
 			}
 		)
 	)
@@ -487,6 +499,18 @@ func _apply_objective() -> void:
 				}
 			)
 		)
+	_resource_goal_label.text = (
+		LocalizationScript
+		. t(
+			&"hud.resource_goals",
+			{
+				"scrap": "%03d" % int(_state.call("get_value", &"run_scrap")),
+				"scrap_goal": "%03d" % int(_state.call("get_value", &"scrap_goal")),
+				"cores": "%02d" % int(_state.call("get_value", &"worm_cores")),
+				"core_goal": "%02d" % int(_state.call("get_value", &"core_goal")),
+			}
+		)
+	)
 
 
 func _apply_outpost() -> void:
@@ -559,52 +583,42 @@ func _build_drive_panel() -> void:
 	_drive_panel.size = Vector2(430.0, 294.0)
 	_drive_panel.color = Color(0.04, 0.055, 0.06, 0.9)
 	add_child(_drive_panel)
-	_panel_title = _make_label(
-		LocalizationScript.t(&"hud.panel_title"), Vector2(24.0, 18.0), 30, AMBER
-	)
-	_drive_panel.add_child(_panel_title)
-	_panel_subtitle = _make_label(
-		LocalizationScript.t(&"hud.panel_subtitle"), Vector2(25.0, 66.0), 18, Color("d8d0b5")
-	)
-	_panel_subtitle.size.y = 54.0
-	_drive_panel.add_child(_panel_subtitle)
 	_status_label = _make_label(
-		LocalizationScript.t(&"status.heavy_frame_online"), Vector2(25.0, 124.0), 12, TEAL
+		LocalizationScript.t(&"status.heavy_frame_online"), Vector2(25.0, 18.0), 16, TEAL
 	)
-	_status_label.size = Vector2(390.0, 38.0)
+	_status_label.size = Vector2(390.0, 50.0)
 	_drive_panel.add_child(_status_label)
 	var charge_back: ColorRect = ColorRect.new()
-	charge_back.position = Vector2(25.0, 165.0)
-	charge_back.size = Vector2(304.0, 14.0)
+	charge_back.position = Vector2(25.0, 77.0)
+	charge_back.size = Vector2(304.0, 16.0)
 	charge_back.color = TEAL.darkened(0.72)
 	_drive_panel.add_child(charge_back)
 	_charge_fill = ColorRect.new()
 	_charge_fill.position = Vector2(2.0, 2.0)
-	_charge_fill.size = Vector2(0.0, 10.0)
+	_charge_fill.size = Vector2(0.0, 12.0)
 	_charge_fill.color = TEAL
 	charge_back.add_child(_charge_fill)
-	_charge_label = _make_label("", Vector2(25.0, 183.0), 13, AMBER)
+	_charge_label = _make_label("", Vector2(25.0, 101.0), 16, AMBER)
+	_charge_label.size = Vector2(390.0, 30.0)
 	_drive_panel.add_child(_charge_label)
-	_relay_label = _make_label("", Vector2(25.0, 211.0), 13, TEAL)
-	_relay_label.size.x = 390.0
+	_relay_label = _make_label("", Vector2(25.0, 135.0), 16, TEAL)
+	_relay_label.size = Vector2(390.0, 48.0)
 	_drive_panel.add_child(_relay_label)
-	_strike_instruction = _make_label(
-		LocalizationScript.t(&"hud.strike_instruction"), Vector2(25.0, 241.0), 14, AMBER
+	_objectives_header = _make_label(
+		LocalizationScript.t(&"hud.objectives"), Vector2(25.0, 196.0), 19, AMBER
 	)
-	_drive_panel.add_child(_strike_instruction)
-	_drive_instruction = _make_label(
-		LocalizationScript.t(&"hud.drive_instruction"), Vector2(25.0, 271.0), 11, MUTED
-	)
-	_drive_panel.add_child(_drive_instruction)
+	_drive_panel.add_child(_objectives_header)
+	_resource_goal_label = _make_label("", Vector2(25.0, 226.0), 16, Color("d8d0b5"))
+	_resource_goal_label.size = Vector2(390.0, 58.0)
+	_drive_panel.add_child(_resource_goal_label)
 
 
 func _refresh_static_text() -> void:
-	if _panel_title == null:
+	if _objectives_header == null:
 		return
-	_panel_title.text = LocalizationScript.t(&"hud.panel_title")
-	_panel_subtitle.text = LocalizationScript.t(&"hud.panel_subtitle")
-	_strike_instruction.text = LocalizationScript.t(&"hud.strike_instruction")
-	_drive_instruction.text = LocalizationScript.t(&"hud.drive_instruction")
+	_objectives_header.text = LocalizationScript.t(&"hud.objectives")
+	if _state != null:
+		_apply_objective()
 
 
 func _build_mobile_charge() -> void:

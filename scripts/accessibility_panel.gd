@@ -14,6 +14,7 @@ var _vfx_label: Label
 var _vfx_slider: HSlider
 var _audio_labels: Dictionary = {}
 var _audio_sliders: Dictionary = {}
+var _trigger_bottom_clearance: float = 0.0
 
 
 func _ready() -> void:
@@ -39,6 +40,7 @@ func is_panel_visible() -> bool:
 
 func _toggle_panel() -> void:
 	_panel.visible = not _panel.visible
+	_apply_layout()
 	if _panel.visible:
 		(_audio_sliders[&"master_volume"] as HSlider).grab_focus()
 
@@ -218,6 +220,15 @@ func get_audio_volume_slider(key: StringName) -> HSlider:
 	return _audio_sliders.get(key) as HSlider
 
 
+func get_trigger_button() -> Button:
+	return _access_button
+
+
+func set_trigger_bottom_clearance(clearance: float) -> void:
+	_trigger_bottom_clearance = maxf(clearance, 0.0)
+	_apply_layout()
+
+
 func blocks_world_touch(position: Vector2) -> bool:
 	if _access_button != null and _access_button.get_global_rect().has_point(position):
 		return true
@@ -229,9 +240,9 @@ func _build_interface() -> void:
 	_access_button = access
 	access.name = "AccessibilityButton"
 	access.text = LocalizationScript.t(&"access.button")
-	access.position = Vector2(1072.0, 18.0)
+	access.position = Vector2(1072.0, 660.0)
 	access.size = Vector2(190.0, 42.0)
-	access.add_theme_font_size_override("font_size", 14)
+	access.add_theme_font_size_override("font_size", 17)
 	access.add_theme_color_override("font_color", Color("a9b5b5"))
 	access.add_theme_color_override("font_hover_color", Color("f3a21e"))
 	access.add_theme_color_override("font_focus_color", Color("f3a21e"))
@@ -269,7 +280,7 @@ func _build_interface() -> void:
 	_title_label.name = "AccessibilityTitle"
 	_title_label.position = Vector2(28.0, 20.0)
 	_title_label.size = Vector2(380.0, 44.0)
-	_title_label.add_theme_font_size_override("font_size", 26)
+	_title_label.add_theme_font_size_override("font_size", 29)
 	_panel.add_child(_title_label)
 	_add_audio_slider(&"master_volume", &"access.master_volume", 78.0)
 	_add_audio_slider(&"sfx_volume", &"access.sfx_volume", 136.0)
@@ -293,7 +304,7 @@ func _add_audio_slider(key: StringName, label_key: StringName, y: float) -> void
 	label.position = Vector2(28.0, y)
 	label.size = Vector2(228.0, 46.0)
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 17)
+	label.add_theme_font_size_override("font_size", 19)
 	_panel.add_child(label)
 	_audio_labels[key] = label
 	var slider: HSlider = HSlider.new()
@@ -317,7 +328,7 @@ func _add_vfx_slider(y: float) -> void:
 	_vfx_label.position = Vector2(28.0, y)
 	_vfx_label.size = Vector2(228.0, 46.0)
 	_vfx_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_vfx_label.add_theme_font_size_override("font_size", 17)
+	_vfx_label.add_theme_font_size_override("font_size", 19)
 	_panel.add_child(_vfx_label)
 	_vfx_slider = HSlider.new()
 	_vfx_slider.name = "VfxIntensitySlider"
@@ -337,8 +348,7 @@ func _add_button(key: StringName, y: float, callback: Callable) -> void:
 	button.name = String(key).to_pascal_case()
 	button.position = Vector2(28.0, y)
 	button.size = Vector2(386.0, 46.0)
-	if key == &"locale":
-		button.add_theme_font_size_override("font_size", 18)
+	button.add_theme_font_size_override("font_size", 18)
 	button.pressed.connect(callback)
 	_panel.add_child(button)
 	_buttons[key] = button
@@ -352,7 +362,25 @@ func _apply_layout() -> void:
 	var scale_factor: float = minf(1.0, minf(viewport_size.x / 470.0, available_height / 898.0))
 	_panel.scale = Vector2.ONE * scale_factor
 	_panel.position = Vector2(viewport_size.x - _panel.size.x * scale_factor - 18.0, 72.0)
-	_access_button.position = Vector2(viewport_size.x - _access_button.size.x - 18.0, 18.0)
+	_access_button.position = trigger_rect_for(
+		viewport_size,
+		_trigger_bottom_clearance,
+		_panel.visible,
+	).position
+
+
+static func trigger_rect_for(
+	viewport_size: Vector2,
+	bottom_clearance: float = 0.0,
+	panel_visible: bool = false,
+) -> Rect2:
+	var button_size: Vector2 = Vector2(190.0, 42.0)
+	var button_x: float = maxf(viewport_size.x - button_size.x - 18.0, 0.0)
+	var button_y: float = 18.0
+	if not panel_visible:
+		button_y = viewport_size.y - button_size.y - 18.0 - maxf(bottom_clearance, 0.0)
+	button_y = clampf(button_y, 0.0, maxf(viewport_size.y - button_size.y, 0.0))
+	return Rect2(Vector2(button_x, button_y), button_size)
 
 
 func _make_access_style(color: Color, border_color: Color, border_width: int) -> StyleBoxFlat:
