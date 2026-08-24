@@ -1,6 +1,7 @@
 extends RefCounted
 
 const BiomeDestructiblesScript: GDScript = preload("res://scripts/biome_destructibles.gd")
+const BiomeMusicScript: GDScript = preload("res://scripts/biome_music.gd")
 const BiomeSoundscapeScript: GDScript = preload("res://scripts/biome_soundscape.gd")
 const ImpactEffectsScript: GDScript = preload("res://scripts/impact_effects.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
@@ -29,6 +30,72 @@ static func evaluate() -> Array[Dictionary]:
 			and BiomeSoundscapeScript.normalize_biome(&"lava") == &"volcanic"
 		),
 	)
+	var music_paths: Array[String] = [
+		BiomeMusicScript.stream_path_for(&"sand"),
+		BiomeMusicScript.stream_path_for(&"mud"),
+		BiomeMusicScript.stream_path_for(&"snow"),
+		BiomeMusicScript.stream_path_for(&"volcanic"),
+	]
+	_add(
+		cases,
+		"four distinct long-form biome BGM tracks load",
+		(
+			music_paths.size() == 4
+			and _unique_count(music_paths) == 4
+			and _all_runtime_oggs(music_paths)
+			and _all_tracks_long_form(music_paths)
+		),
+	)
+	_add(
+		cases,
+		"biome music normalization covers every terrain family",
+		(
+			BiomeMusicScript.normalize_biome(&"sand") == &"sand"
+			and BiomeMusicScript.normalize_biome(&"water") == &"wetland"
+			and BiomeMusicScript.normalize_biome(&"blue_ice") == &"frozen"
+			and BiomeMusicScript.normalize_biome(&"lava") == &"volcanic"
+		),
+	)
+	var music: Node = BiomeMusicScript.new() as Node
+	(Engine.get_main_loop() as SceneTree).root.add_child(music)
+	var music_changed: bool = bool(music.call("set_biome", &"lava"))
+	var music_metrics: Dictionary = music.call("get_metrics") as Dictionary
+	var music_players: Array = music.get("_players") as Array
+	_add(
+		cases,
+		"biome BGM starts a bounded Music-bus crossfade",
+		(
+			music_changed
+			and music_metrics[&"biome"] == &"volcanic"
+			and music_metrics[&"stream_path"] == BiomeMusicScript.stream_path_for(&"lava")
+			and int(music_metrics[&"capacity"]) == 2
+			and bool(music_metrics[&"crossfading"])
+			and music_players.size() == 2
+			and (music_players[0] as AudioStreamPlayer).bus == &"Music"
+			and (music_players[1] as AudioStreamPlayer).bus == &"Music"
+		),
+	)
+	music.call("_process", BiomeMusicScript.CROSSFADE_SECONDS * 0.5)
+	var music_midpoint: Dictionary = music.call("get_metrics") as Dictionary
+	var music_gains: Array = music_midpoint[&"voice_gains"] as Array
+	_add(
+		cases,
+		"biome BGM midpoint uses equal-power gains without a silent gap",
+		(
+			bool(music_midpoint[&"crossfading"])
+			and absf(float(music_gains[0]) - sqrt(0.5)) < 0.001
+			and absf(float(music_gains[1]) - sqrt(0.5)) < 0.001
+		),
+	)
+	music.call("set_volume", 0.0)
+	music.call("set_enabled", false)
+	var muted_music: Dictionary = music.call("get_metrics") as Dictionary
+	_add(
+		cases,
+		"muted biome BGM performs true-zero playback",
+		not bool(muted_music[&"enabled"]) and float(muted_music[&"volume"]) == 0.0,
+	)
+	music.free()
 	var soundscape: Node = BiomeSoundscapeScript.new() as Node
 	(Engine.get_main_loop() as SceneTree).root.add_child(soundscape)
 	var changed: bool = bool(soundscape.call("set_biome", &"mud"))
@@ -151,6 +218,21 @@ static func _is_runtime_wav(path: String) -> bool:
 static func _all_runtime_wavs(paths: Array[String]) -> bool:
 	for path: String in paths:
 		if not _is_runtime_wav(path):
+			return false
+	return true
+
+
+static func _all_runtime_oggs(paths: Array[String]) -> bool:
+	for path: String in paths:
+		if not path.begins_with("res://assets/audio/bgm_") or not path.ends_with(".ogg"):
+			return false
+	return true
+
+
+static func _all_tracks_long_form(paths: Array[String]) -> bool:
+	for path: String in paths:
+		var stream: AudioStream = load(path) as AudioStream
+		if stream == null or stream.get_length() < 80.0:
 			return false
 	return true
 

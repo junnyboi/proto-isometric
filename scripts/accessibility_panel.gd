@@ -73,19 +73,12 @@ func _cycle_effects_quality() -> void:
 	_commit()
 
 
-func _cycle_sfx_volume() -> void:
-	var volume: float = float(get_preferences()[&"sfx_volume"]) + 0.25
-	if volume > 1.0:
-		volume = 0.0
-	_preferences.call("set_value", &"sfx_volume", volume)
-	_preferences.call("set_value", &"sfx_enabled", volume > 0.0)
-	_commit()
-
-
 func _set_audio_volume(percent: float, key: StringName) -> void:
 	var volume: float = snappedf(clampf(percent, 0.0, 100.0) / 100.0, 0.05)
 	if not bool(_preferences.call("set_value", key, volume)):
 		return
+	if key == &"sfx_volume":
+		_preferences.call("set_value", &"sfx_enabled", volume > 0.0)
 	_commit()
 
 
@@ -132,6 +125,7 @@ func _refresh() -> void:
 	_access_button.text = LocalizationScript.t(&"access.button")
 	_title_label.text = LocalizationScript.t(&"access.title")
 	_refresh_audio_slider(snapshot, &"master_volume", &"access.master_volume")
+	_refresh_audio_slider(snapshot, &"sfx_volume", &"access.sfx_volume")
 	_refresh_audio_slider(snapshot, &"music_volume", &"access.music_volume")
 	_refresh_audio_slider(snapshot, &"ambience_volume", &"access.ambience_volume")
 	var vfx_percent: int = roundi(float(snapshot[&"vfx_intensity"]) * 100.0)
@@ -164,9 +158,6 @@ func _refresh() -> void:
 	(_buttons[&"left_handed"] as Button).text = LocalizationScript.t(
 		&"access.left_handed", {"state": _on_off(snapshot, &"left_handed")}
 	)
-	(_buttons[&"sfx_enabled"] as Button).text = LocalizationScript.t(
-		&"access.sfx_volume", {"percent": roundi(float(snapshot[&"sfx_volume"]) * 100.0)}
-	)
 	(_buttons[&"audio_defaults"] as Button).text = LocalizationScript.t(
 		&"access.reset_audio_defaults"
 	)
@@ -182,7 +173,10 @@ func _refresh() -> void:
 
 
 func _refresh_audio_slider(snapshot: Dictionary, key: StringName, label_key: StringName) -> void:
-	var percent: int = roundi(float(snapshot[key]) * 100.0)
+	var volume: float = float(snapshot[key])
+	if key == &"sfx_volume" and not bool(snapshot.get(&"sfx_enabled", true)):
+		volume = 0.0
+	var percent: int = roundi(volume * 100.0)
 	var label: Label = _audio_labels[key] as Label
 	var slider: HSlider = _audio_sliders[key] as HSlider
 	label.text = LocalizationScript.t(label_key, {"percent": percent})
@@ -278,19 +272,19 @@ func _build_interface() -> void:
 	_title_label.add_theme_font_size_override("font_size", 26)
 	_panel.add_child(_title_label)
 	_add_audio_slider(&"master_volume", &"access.master_volume", 78.0)
-	_add_audio_slider(&"music_volume", &"access.music_volume", 136.0)
-	_add_audio_slider(&"ambience_volume", &"access.ambience_volume", 194.0)
-	_add_button(&"audio_defaults", 252.0, _reset_audio_defaults)
-	_add_vfx_slider(310.0)
-	_add_button(&"ui_scale", 380.0, _cycle_scale)
-	_add_button(&"camera_shake", 436.0, _cycle_intensity.bind(&"camera_shake_intensity"))
-	_add_button(&"reduced_flash", 492.0, _toggle_boolean.bind(&"reduced_flash"))
-	_add_button(&"effects_quality", 548.0, _cycle_effects_quality)
-	_add_button(&"haptics", 604.0, _cycle_intensity.bind(&"haptic_intensity"))
-	_add_button(&"left_handed", 660.0, _toggle_boolean.bind(&"left_handed"))
-	_add_button(&"sfx_enabled", 716.0, _cycle_sfx_volume)
-	_add_button(&"locale", 772.0, _cycle_locale)
-	_add_button(&"onboarding_seen", 828.0, _reset_training)
+	_add_audio_slider(&"sfx_volume", &"access.sfx_volume", 136.0)
+	_add_audio_slider(&"music_volume", &"access.music_volume", 194.0)
+	_add_audio_slider(&"ambience_volume", &"access.ambience_volume", 252.0)
+	_add_button(&"audio_defaults", 310.0, _reset_audio_defaults)
+	_add_vfx_slider(368.0)
+	_add_button(&"ui_scale", 438.0, _cycle_scale)
+	_add_button(&"camera_shake", 494.0, _cycle_intensity.bind(&"camera_shake_intensity"))
+	_add_button(&"reduced_flash", 550.0, _toggle_boolean.bind(&"reduced_flash"))
+	_add_button(&"effects_quality", 606.0, _cycle_effects_quality)
+	_add_button(&"haptics", 662.0, _cycle_intensity.bind(&"haptic_intensity"))
+	_add_button(&"left_handed", 718.0, _toggle_boolean.bind(&"left_handed"))
+	_add_button(&"locale", 774.0, _cycle_locale)
+	_add_button(&"onboarding_seen", 830.0, _reset_training)
 
 
 func _add_audio_slider(key: StringName, label_key: StringName, y: float) -> void:

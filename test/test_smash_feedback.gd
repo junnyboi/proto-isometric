@@ -220,6 +220,40 @@ static func _test_router_channels(cases: Array[Dictionary]) -> void:
 		"generated Smash contact bursts cull and return to idle",
 		int(effects.call("_get_burst_count")) == 0,
 	)
+	var biome_contact: Dictionary = (
+		FeedbackEventScript
+		. create(
+			RuntimeIdsScript.EVENT_LOCOMOTION_WALK_CONTACT,
+			Vector2.ZERO,
+			Vector2.RIGHT,
+			0,
+			&"water",
+		)
+	)
+	_add(
+		cases,
+		"biome contact submits for soundtrack routing",
+		bool(router.call("submit", biome_contact)),
+	)
+	var biome_metrics: Dictionary = router.call("get_metrics") as Dictionary
+	_add(
+		cases,
+		"locomotion biome changes route to matching BGM and ambience",
+		(
+			(biome_metrics[&"music"] as Dictionary)[&"biome"] == &"wetland"
+			and (biome_metrics[&"soundscape"] as Dictionary)[&"biome"] == &"wetland"
+		),
+	)
+	router.call("apply_preferences", {&"music_volume": 0.0, &"ambience_volume": 1.0})
+	var music_muted: Dictionary = router.call("get_metrics") as Dictionary
+	_add(
+		cases,
+		"zero Music preference disables BGM without muting biome ambience",
+		(
+			not bool((music_muted[&"music"] as Dictionary)[&"enabled"])
+			and bool((music_muted[&"soundscape"] as Dictionary)[&"enabled"])
+		),
+	)
 	router.free()
 	camera.free()
 	effects.free()
