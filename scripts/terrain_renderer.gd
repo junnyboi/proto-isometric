@@ -27,8 +27,18 @@ const EDGE_NEIGHBORS: Array[Vector2i] = [
 ]
 const TRANSITION_DEPTHS: Array[float] = [0.28, 0.18, 0.09]
 const TRANSITION_ALPHAS: Array[float] = [0.07, 0.12, 0.20]
+const TRANSITION_SEGMENTS: int = 6
+const TRANSITION_IRREGULARITY: float = 0.34
 const HAZARD_TRANSITION_DEPTH_SCALE: float = 0.68
 const HAZARD_TRANSITION_ALPHA_SCALE: float = 0.70
+const EDGE_DECAL_COUNTS: Dictionary = {
+	&"wetland": 5,
+	&"frost": 4,
+	&"salt": 5,
+	&"volcanic": 4,
+	&"ember": 4,
+	&"neutral": 3,
+}
 const TERRAIN_BLEND_COLORS: Dictionary = {
 	&"sand": Color("c67832"),
 	&"salt": Color("d9cfbd"),
@@ -179,19 +189,163 @@ func draw_tile_transitions(canvas: Node2D, cell: Vector2i) -> void:
 	var points: PackedVector2Array = tile_points(cell)
 	for transition: Dictionary in transition_descriptors_for(cell):
 		var edge: int = int(transition[&"edge"])
+		var neighbor: Vector2i = transition[&"neighbor"] as Vector2i
+		var neighbor_points: PackedVector2Array = tile_points(neighbor)
+		var opposite_edge: int = (edge + 2) % 4
 		var scale: float = float(transition[&"scale"])
-		var color: Color = transition[&"color"] as Color
+		var source_color: Color = transition[&"source_color"] as Color
+		var neighbor_color: Color = transition[&"neighbor_color"] as Color
+		var seed: int = int(transition[&"seed"])
 		for index: int in range(TRANSITION_DEPTHS.size()):
-			var band: PackedVector2Array = transition_band_points(
-				points, edge, TRANSITION_DEPTHS[index] * scale
+			var depth: float = TRANSITION_DEPTHS[index] * scale
+			var source_band: PackedVector2Array = transition_mask_points(
+				points, edge, depth, seed, false
 			)
+			var neighbor_band: PackedVector2Array = transition_mask_points(
+				neighbor_points, opposite_edge, depth, seed, true
+			)
+			var alpha: float = TRANSITION_ALPHAS[index] * float(transition[&"alpha_scale"])
+			canvas.draw_colored_polygon(source_band, Color(neighbor_color, alpha))
+			canvas.draw_colored_polygon(neighbor_band, Color(source_color, alpha))
+
+
+func draw_tile_edge_decals(canvas: Node2D, cell: Vector2i) -> void:
+	var points: PackedVector2Array = tile_points(cell)
+	var center: Vector2 = grid_to_screen(cell)
+	for transition: Dictionary in transition_descriptors_for(cell):
+		var edge: int = int(transition[&"edge"])
+		var start: Vector2 = points[edge]
+		var finish: Vector2 = points[(edge + 1) % 4]
+		var tangent: Vector2 = (finish - start).normalized()
+		var inward: Vector2 = (center - (start + finish) * 0.5).normalized()
+		var family: StringName = transition[&"decal_family"] as StringName
+		var neighbor: Vector2i = transition[&"neighbor"] as Vector2i
+		var specs: Array[Dictionary] = edge_decal_specs_for(cell, neighbor, family)
+		for index: int in range(specs.size()):
+			var spec: Dictionary = specs[index]
+			var position: Vector2 = start.lerp(finish, float(spec[&"t"]))
+			position += inward * float(spec[&"offset"]) * float(spec[&"side"])
+			_draw_edge_decal(canvas, family, position, tangent, inward, spec, index)
+
+
+func _draw_edge_decal(
+	canvas: Node2D,
+	family: StringName,
+	position: Vector2,
+	tangent: Vector2,
+	inward: Vector2,
+	spec: Dictionary,
+	index: int,
+) -> void:
+	var size: float = float(spec[&"size"])
+	var lean: float = float(spec[&"lean"])
+	var direction: Vector2 = inward.rotated(lean)
+	match family:
+		&"wetland":
+			if index % 2 == 0:
+				var reed_size: float = size * 1.35
+				(
+					canvas
+					. draw_line(
+						position - direction * reed_size * 0.25,
+						position + direction * reed_size,
+						Color(0.34, 0.42, 0.18, 0.58),
+						1.6,
+					)
+				)
+				(
+					canvas
+					. draw_line(
+						position,
+						position + direction.rotated(-0.42) * reed_size * 0.74,
+						Color(0.47, 0.51, 0.23, 0.42),
+						1.2,
+					)
+				)
+			else:
+				canvas.draw_circle(position, size * 0.34, Color(0.12, 0.09, 0.06, 0.44))
+		&"frost":
 			(
 				canvas
 				. draw_colored_polygon(
-					band,
-					Color(color, TRANSITION_ALPHAS[index] * float(transition[&"alpha_scale"])),
+					PackedVector2Array(
+						[
+							position - tangent * size * 0.48,
+							position + direction * size,
+							position + tangent * size * 0.38,
+						]
+					),
+					Color(0.78, 0.92, 0.97, 0.52),
 				)
 			)
+			(
+				canvas
+				. draw_line(
+					position,
+					position + direction * size * 0.72,
+					Color(0.28, 0.67, 0.82, 0.58),
+					1.0,
+				)
+			)
+		&"salt":
+			(
+				canvas
+				. draw_colored_polygon(
+					PackedVector2Array(
+						[
+							position - tangent * size * 0.55,
+							position - direction * size * 0.28,
+							position + tangent * size * 0.45,
+							position + direction * size * 0.32,
+						]
+					),
+					Color(0.91, 0.86, 0.74, 0.58),
+				)
+			)
+			if index % 2 == 0:
+				(
+					canvas
+					. draw_line(
+						position - tangent * size,
+						position + tangent * size * 0.8,
+						Color(0.72, 0.62, 0.44, 0.38),
+						0.9,
+					)
+				)
+		&"ember":
+			_draw_volcanic_fragment(canvas, position, tangent, direction, size)
+			if index % 2 == 0:
+				(
+					canvas
+					. draw_circle(
+						position + direction * size * 0.52,
+						maxf(1.0, size * 0.18),
+						Color(1.0, 0.43, 0.08, 0.72),
+					)
+				)
+		&"volcanic":
+			_draw_volcanic_fragment(canvas, position, tangent, direction, size)
+		_:
+			canvas.draw_circle(position, size * 0.32, Color(0.33, 0.29, 0.25, 0.42))
+
+
+func _draw_volcanic_fragment(
+	canvas: Node2D, position: Vector2, tangent: Vector2, direction: Vector2, size: float
+) -> void:
+	(
+		canvas
+		. draw_colored_polygon(
+			PackedVector2Array(
+				[
+					position - tangent * size * 0.52,
+					position + direction * size * 0.46,
+					position + tangent * size * 0.44,
+					position - direction * size * 0.25,
+				]
+			),
+			Color(0.11, 0.11, 0.13, 0.62),
+		)
+	)
 
 
 func draw_tile_details(canvas: Node2D, cell: Vector2i) -> void:
@@ -227,6 +381,8 @@ func transition_descriptors_for(cell: Vector2i) -> Array[Dictionary]:
 		var neighbor_id: StringName = display_terrain_at(neighbor_cell)
 		if neighbor_id == terrain_id or neighbor_id == &"rock":
 			continue
+		if not cell_precedes(cell, neighbor_cell):
+			continue
 		var hazard: bool = terrain_id == &"lava" or neighbor_id == &"lava"
 		(
 			transitions
@@ -234,8 +390,12 @@ func transition_descriptors_for(cell: Vector2i) -> Array[Dictionary]:
 				{
 					&"edge": edge,
 					&"neighbor": neighbor_cell,
-					&"terrain": neighbor_id,
-					&"color": TERRAIN_BLEND_COLORS.get(neighbor_id, Color.WHITE),
+					&"source_terrain": terrain_id,
+					&"neighbor_terrain": neighbor_id,
+					&"source_color": TERRAIN_BLEND_COLORS.get(terrain_id, Color.WHITE),
+					&"neighbor_color": TERRAIN_BLEND_COLORS.get(neighbor_id, Color.WHITE),
+					&"decal_family": edge_decal_family_for(terrain_id, neighbor_id),
+					&"seed": shared_edge_seed(cell, neighbor_cell),
 					&"scale": HAZARD_TRANSITION_DEPTH_SCALE if hazard else 1.0,
 					&"alpha_scale": HAZARD_TRANSITION_ALPHA_SCALE if hazard else 1.0,
 				}
@@ -257,17 +417,104 @@ func tile_points(cell: Vector2i) -> PackedVector2Array:
 	)
 
 
-static func transition_band_points(
-	points: PackedVector2Array, edge: int, depth: float
+static func transition_mask_points(
+	points: PackedVector2Array,
+	edge: int,
+	depth: float,
+	seed: int,
+	reverse_profile: bool = false,
 ) -> PackedVector2Array:
 	if points.size() != 4 or edge < 0 or edge >= 4:
 		return PackedVector2Array()
 	var center: Vector2 = (points[0] + points[1] + points[2] + points[3]) * 0.25
 	var start: Vector2 = points[edge]
 	var finish: Vector2 = points[(edge + 1) % 4]
-	return PackedVector2Array(
-		[start, finish, finish.lerp(center, depth), start.lerp(center, depth)]
+	var result: PackedVector2Array = PackedVector2Array()
+	var inner: PackedVector2Array = PackedVector2Array()
+	for index: int in range(TRANSITION_SEGMENTS + 1):
+		var t: float = float(index) / float(TRANSITION_SEGMENTS)
+		var profile_index: int = TRANSITION_SEGMENTS - index if reverse_profile else index
+		var edge_point: Vector2 = start.lerp(finish, t)
+		var shaped_depth: float = depth * transition_depth_multiplier(seed, profile_index)
+		result.append(edge_point)
+		inner.append(edge_point.lerp(center, shaped_depth))
+	for index: int in range(inner.size() - 1, -1, -1):
+		result.append(inner[index])
+	return result
+
+
+static func transition_depth_multiplier(seed: int, sample_index: int) -> float:
+	var t: float = float(sample_index) / float(TRANSITION_SEGMENTS)
+	var envelope: float = sin(t * PI)
+	var phase_a: float = seeded_unit(seed, 41) * TAU
+	var phase_b: float = seeded_unit(seed, 67) * TAU
+	var waves: float = sin(t * TAU + phase_a) * 0.18
+	waves += sin(t * TAU * 2.0 + phase_b) * 0.08
+	var jitter: float = (seeded_unit(seed, sample_index + 3) - 0.5) * TRANSITION_IRREGULARITY
+	return clampf(1.0 + (waves + jitter) * envelope, 0.68, 1.36)
+
+
+static func edge_decal_family_for(first: StringName, second: StringName) -> StringName:
+	if first == &"lava" or second == &"lava":
+		return &"ember"
+	if first in [&"lava_basalt", &"volcanic_ash"] or second in [&"lava_basalt", &"volcanic_ash"]:
+		return &"volcanic"
+	if first in [&"snow", &"blue_ice"] or second in [&"snow", &"blue_ice"]:
+		return &"frost"
+	if first in [&"wetland", &"mud"] or second in [&"wetland", &"mud"]:
+		return &"wetland"
+	if first == &"salt" or second == &"salt":
+		return &"salt"
+	return &"neutral"
+
+
+static func edge_decal_specs_for(
+	cell: Vector2i, neighbor: Vector2i, family: StringName
+) -> Array[Dictionary]:
+	var specs: Array[Dictionary] = []
+	var seed: int = shared_edge_seed(cell, neighbor)
+	var count: int = int(EDGE_DECAL_COUNTS.get(family, EDGE_DECAL_COUNTS[&"neutral"]))
+	for index: int in range(count):
+		var interval: float = 1.0 / float(count)
+		var jitter: float = (seeded_unit(seed, 101 + index) - 0.5) * interval * 0.62
+		var t: float = clampf((float(index) + 0.5) * interval + jitter, 0.08, 0.92)
+		(
+			specs
+			. append(
+				{
+					&"t": t,
+					&"side": 1.0 if seeded_unit(seed, 151 + index) >= 0.5 else -1.0,
+					&"offset": 2.5 + seeded_unit(seed, 201 + index) * 4.5,
+					&"size": 2.4 + seeded_unit(seed, 251 + index) * 3.8,
+					&"lean": (seeded_unit(seed, 301 + index) - 0.5) * 0.86,
+				}
+			)
+		)
+	return specs
+
+
+static func cell_precedes(first: Vector2i, second: Vector2i) -> bool:
+	return first.x < second.x or (first.x == second.x and first.y < second.y)
+
+
+static func shared_edge_seed(first: Vector2i, second: Vector2i) -> int:
+	var low: Vector2i = first if cell_precedes(first, second) else second
+	var high: Vector2i = second if low == first else first
+	return posmod(
+		(
+			(low.x + 257) * 73856093
+			+ (low.y + 257) * 19349663
+			+ (high.x + 257) * 83492791
+			+ (high.y + 257) * 297121507
+		),
+		2147483647,
 	)
+
+
+static func seeded_unit(seed: int, channel: int) -> float:
+	var value: int = posmod(seed + (channel + 1) * 104729, 2147483647)
+	value = posmod(value * 48271, 2147483647)
+	return float(value) / 2147483647.0
 
 
 func obstacle_palette_at(cell: Vector2i) -> Dictionary:

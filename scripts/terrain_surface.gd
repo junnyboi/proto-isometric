@@ -63,4 +63,6 @@ func _draw() -> void:
 	for cell: Vector2i in _visible_cells:
 		_renderer.call("draw_tile_transitions", self, cell)
 	for cell: Vector2i in _visible_cells:
+		_renderer.call("draw_tile_edge_decals", self, cell)
+	for cell: Vector2i in _visible_cells:
 		_renderer.call("draw_tile_details", self, cell)
