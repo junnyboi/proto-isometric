@@ -2,7 +2,12 @@ extends Node2D
 
 signal damage_tick(amount: int, source: StringName)
 
-const KIND: StringName = &"razor_mite"
+const GLASSBACK_SCARAB_KIND: StringName = &"glassback_scarab"
+const MIRE_TICK_KIND: StringName = &"mire_tick"
+const RIME_SHARDLING_KIND: StringName = &"rime_shardling"
+const EMBER_SKITTER_KIND: StringName = &"ember_skitter"
+# Compatibility alias for systems that use the desert swarm kind as the ID-range sentinel.
+const KIND: StringName = GLASSBACK_SCARAB_KIND
 const ID_BASE: int = 900_000
 const MAX_MITES: int = 12
 const MAX_HEALTH: int = 1
@@ -22,10 +27,68 @@ const STATE_WARNING: StringName = &"swarm_warning"
 const STATE_RECOVER: StringName = &"swarm_recover"
 const STATE_DISPERSING: StringName = &"dispersing"
 const MISSING_POSITION: Vector2 = Vector2(-9999.0, -9999.0)
-const CARAPACE: Color = Color("b84f3d")
-const CARAPACE_DARK: Color = Color("341b1b")
 const WARNING: Color = Color("f5a62d")
-const JOINT: Color = Color("d69a49")
+const MOB_DRAW_SIZE: Vector2 = Vector2(54.0, 54.0)
+
+const GLASSBACK_SCARAB_TEXTURE: Texture2D = preload(
+	"res://assets/enemies/tiny_mobs/glassback_scarab.png"
+)
+const MIRE_TICK_TEXTURE: Texture2D = preload("res://assets/enemies/tiny_mobs/mire_tick.png")
+const RIME_SHARDLING_TEXTURE: Texture2D = preload(
+	"res://assets/enemies/tiny_mobs/rime_shardling.png"
+)
+const EMBER_SKITTER_TEXTURE: Texture2D = preload(
+	"res://assets/enemies/tiny_mobs/ember_skitter.png"
+)
+
+const BIOME_KINDS: Dictionary = {
+	&"desert": GLASSBACK_SCARAB_KIND,
+	&"oasis": MIRE_TICK_KIND,
+	&"frozen": RIME_SHARDLING_KIND,
+	&"lava": EMBER_SKITTER_KIND,
+}
+const NAME_KEYS: Dictionary = {
+	GLASSBACK_SCARAB_KIND: &"enemy.glassback_scarab.name",
+	MIRE_TICK_KIND: &"enemy.mire_tick.name",
+	RIME_SHARDLING_KIND: &"enemy.rime_shardling.name",
+	EMBER_SKITTER_KIND: &"enemy.ember_skitter.name",
+}
+const TEXTURES: Dictionary = {
+	GLASSBACK_SCARAB_KIND: GLASSBACK_SCARAB_TEXTURE,
+	MIRE_TICK_KIND: MIRE_TICK_TEXTURE,
+	RIME_SHARDLING_KIND: RIME_SHARDLING_TEXTURE,
+	EMBER_SKITTER_KIND: EMBER_SKITTER_TEXTURE,
+}
+const MOB_PROFILES: Dictionary = {
+	GLASSBACK_SCARAB_KIND: {
+		&"move_speed": 1.46,
+		&"orbit_radius": 0.82,
+		&"warning_seconds": 0.44,
+		&"recover_seconds": 0.58,
+		&"attack_damage": 2,
+	},
+	MIRE_TICK_KIND: {
+		&"move_speed": 1.30,
+		&"orbit_radius": 0.74,
+		&"warning_seconds": 0.52,
+		&"recover_seconds": 0.54,
+		&"attack_damage": 2,
+	},
+	RIME_SHARDLING_KIND: {
+		&"move_speed": 1.62,
+		&"orbit_radius": 0.94,
+		&"warning_seconds": 0.46,
+		&"recover_seconds": 0.68,
+		&"attack_damage": 2,
+	},
+	EMBER_SKITTER_KIND: {
+		&"move_speed": 1.34,
+		&"orbit_radius": 0.84,
+		&"warning_seconds": 0.58,
+		&"recover_seconds": 0.72,
+		&"attack_damage": 3,
+	},
+}
 
 var _tile_size: Vector2 = Vector2(90.0, 45.0)
 var _map_origin: Vector2 = Vector2(760.0, 70.0)
@@ -36,6 +99,8 @@ var _next_id: int = ID_BASE
 var _time: float = 0.0
 var _shared_damage_remaining: float = 0.0
 var _sanctuary_active: bool = false
+var _active_biome: StringName = &"desert"
+var _active_kind: StringName = GLASSBACK_SCARAB_KIND
 var _hovered_id: int = -1
 var _last_attack_count: int = 0
 var _total_spawned: int = 0
@@ -48,6 +113,27 @@ func configure(tile_size: Vector2, map_origin: Vector2, world: RefCounted) -> bo
 	_map_origin = map_origin
 	_world = world
 	return true
+
+
+static func _kind_for_biome(biome: StringName) -> StringName:
+	return BIOME_KINDS.get(biome, GLASSBACK_SCARAB_KIND) as StringName
+
+
+static func _name_key(kind: StringName) -> StringName:
+	return NAME_KEYS.get(kind, NAME_KEYS[GLASSBACK_SCARAB_KIND]) as StringName
+
+
+static func _texture_for(kind: StringName) -> Texture2D:
+	return TEXTURES.get(kind, GLASSBACK_SCARAB_TEXTURE) as Texture2D
+
+
+func _set_active_biome(biome: StringName) -> void:
+	_active_biome = biome if BIOME_KINDS.has(biome) else &"desert"
+	_active_kind = _kind_for_biome(_active_biome)
+
+
+func _get_active_kind() -> StringName:
+	return _active_kind
 
 
 func set_player_position(position: Vector2) -> void:
@@ -78,6 +164,7 @@ func spawn_pack(center: Vector2, count: int) -> int:
 			. append(
 				{
 					&"id": mite_id,
+					&"kind": _active_kind,
 					&"position": position,
 					&"direction": (center - position).normalized(),
 					&"state": STATE_ADVANCE,
@@ -143,6 +230,10 @@ func get_mite_position(mite_id: int) -> Vector2:
 	return _find_mite(mite_id).get(&"position", MISSING_POSITION) as Vector2
 
 
+func get_mite_kind(mite_id: int) -> StringName:
+	return _find_mite(mite_id).get(&"kind", GLASSBACK_SCARAB_KIND) as StringName
+
+
 func get_state(mite_id: int) -> StringName:
 	return _find_mite(mite_id).get(&"state", &"missing") as StringName
 
@@ -188,7 +279,7 @@ func get_combat_snapshot(mite_id: int) -> Dictionary:
 		return {}
 	return {
 		&"id": int(mite[&"id"]),
-		&"kind": KIND,
+		&"kind": mite.get(&"kind", GLASSBACK_SCARAB_KIND),
 		&"state": mite[&"state"],
 		&"position": mite[&"position"],
 		&"direction": mite[&"direction"],
@@ -214,20 +305,21 @@ func get_hover_targets() -> Array[Dictionary]:
 	for mite: Dictionary in _mites:
 		if mite[&"state"] == STATE_DISPERSING:
 			continue
+		var kind: StringName = mite.get(&"kind", GLASSBACK_SCARAB_KIND) as StringName
 		(
 			targets
 			. append(
 				{
 					&"id": int(mite[&"id"]),
-					&"kind": KIND,
-					&"name_key": &"enemy.razor_mite.name",
+					&"kind": kind,
+					&"name_key": _name_key(kind),
 					&"state": mite[&"state"],
 					&"screen_position":
 					_grid_to_screen(mite[&"position"] as Vector2) + Vector2(0.0, -18.0),
 					&"hover_radius": 34.0,
 					&"health": MAX_HEALTH,
 					&"max_health": MAX_HEALTH,
-					&"attack_damage": ATTACK_DAMAGE,
+					&"attack_damage": _profile_int(kind, &"attack_damage", ATTACK_DAMAGE),
 					&"attack_range": ATTACK_RANGE,
 				}
 			)
@@ -237,6 +329,7 @@ func get_hover_targets() -> Array[Dictionary]:
 
 func _advance_mite(mite: Dictionary, delta: float) -> void:
 	var state: StringName = mite[&"state"] as StringName
+	var kind: StringName = mite.get(&"kind", GLASSBACK_SCARAB_KIND) as StringName
 	if state == STATE_ADVANCE:
 		_advance_encirclement(mite, delta)
 		if (
@@ -245,13 +338,21 @@ func _advance_mite(mite: Dictionary, delta: float) -> void:
 		):
 			mite[&"committed_target"] = _player_position
 			mite[&"attack_serial"] = int(mite[&"attack_serial"]) + 1
-			_set_state(mite, STATE_WARNING, WARNING_SECONDS)
+			_set_state(
+				mite,
+				STATE_WARNING,
+				_profile_float(kind, &"warning_seconds", WARNING_SECONDS),
+			)
 		return
 	if state == STATE_WARNING:
 		mite[&"state_remaining"] = float(mite[&"state_remaining"]) - delta
 		if float(mite[&"state_remaining"]) <= 0.0:
 			_resolve_attack(mite)
-			_set_state(mite, STATE_RECOVER, RECOVER_SECONDS)
+			_set_state(
+				mite,
+				STATE_RECOVER,
+				_profile_float(kind, &"recover_seconds", RECOVER_SECONDS),
+			)
 		return
 	if state == STATE_RECOVER:
 		mite[&"state_remaining"] = float(mite[&"state_remaining"]) - delta
@@ -265,13 +366,18 @@ func _advance_mite(mite: Dictionary, delta: float) -> void:
 		var away: Vector2 = (mite[&"position"] as Vector2) - _player_position
 		away = Vector2.RIGHT if away.is_zero_approx() else away.normalized()
 		mite[&"direction"] = away
-		mite[&"position"] = (mite[&"position"] as Vector2) + away * MOVE_SPEED * 2.0 * delta
+		mite[&"position"] = (
+			(mite[&"position"] as Vector2)
+			+ away * _profile_float(kind, &"move_speed", MOVE_SPEED) * 2.0 * delta
+		)
 
 
 func _advance_encirclement(mite: Dictionary, delta: float) -> void:
 	var position: Vector2 = mite[&"position"] as Vector2
+	var kind: StringName = mite.get(&"kind", GLASSBACK_SCARAB_KIND) as StringName
 	var phase: float = float(mite[&"phase"]) + _time * 0.34
-	var slot: Vector2 = _player_position + Vector2.from_angle(phase) * ORBIT_RADIUS
+	var orbit_radius: float = _profile_float(kind, &"orbit_radius", ORBIT_RADIUS)
+	var slot: Vector2 = _player_position + Vector2.from_angle(phase) * orbit_radius
 	var to_slot: Vector2 = slot - position
 	var to_player: Vector2 = _player_position - position
 	var steering: Vector2 = to_slot.normalized() + _separation_for(mite) * 0.82
@@ -280,7 +386,8 @@ func _advance_encirclement(mite: Dictionary, delta: float) -> void:
 	if steering.is_zero_approx():
 		return
 	var direction: Vector2 = steering.normalized()
-	var candidate: Vector2 = position + direction * MOVE_SPEED * delta
+	var move_speed: float = _profile_float(kind, &"move_speed", MOVE_SPEED)
+	var candidate: Vector2 = position + direction * move_speed * delta
 	if _position_is_valid(candidate):
 		mite[&"position"] = candidate
 		mite[&"direction"] = direction
@@ -288,11 +395,13 @@ func _advance_encirclement(mite: Dictionary, delta: float) -> void:
 
 func _advance_recovery(mite: Dictionary, delta: float) -> void:
 	var position: Vector2 = mite[&"position"] as Vector2
+	var kind: StringName = mite.get(&"kind", GLASSBACK_SCARAB_KIND) as StringName
 	var away: Vector2 = position - _player_position
 	if away.length() >= 1.2:
 		return
 	away = Vector2.RIGHT if away.is_zero_approx() else away.normalized()
-	var candidate: Vector2 = position + away * MOVE_SPEED * 0.58 * delta
+	var move_speed: float = _profile_float(kind, &"move_speed", MOVE_SPEED)
+	var candidate: Vector2 = position + away * move_speed * 0.58 * delta
 	if _position_is_valid(candidate):
 		mite[&"position"] = candidate
 		mite[&"direction"] = away
@@ -307,7 +416,18 @@ func _resolve_attack(mite: Dictionary) -> void:
 		return
 	_shared_damage_remaining = SHARED_DAMAGE_COOLDOWN
 	_last_attack_count += 1
-	damage_tick.emit(ATTACK_DAMAGE, KIND)
+	var kind: StringName = mite.get(&"kind", GLASSBACK_SCARAB_KIND) as StringName
+	damage_tick.emit(_profile_int(kind, &"attack_damage", ATTACK_DAMAGE), kind)
+
+
+func _profile_float(kind: StringName, property: StringName, fallback: float) -> float:
+	var profile: Dictionary = MOB_PROFILES.get(kind, MOB_PROFILES[GLASSBACK_SCARAB_KIND])
+	return float(profile.get(property, fallback))
+
+
+func _profile_int(kind: StringName, property: StringName, fallback: int) -> int:
+	var profile: Dictionary = MOB_PROFILES.get(kind, MOB_PROFILES[GLASSBACK_SCARAB_KIND])
+	return int(profile.get(property, fallback))
 
 
 func _set_state(mite: Dictionary, state: StringName, duration: float) -> void:
@@ -378,31 +498,25 @@ func _draw_mite(mite: Dictionary) -> void:
 	var screen_direction: Vector2 = (
 		(_grid_to_screen(direction) - _grid_to_screen(Vector2.ZERO)).normalized()
 	)
-	var side: Vector2 = screen_direction.orthogonal()
 	var state: StringName = mite[&"state"] as StringName
 	var alpha: float = (
 		clampf(float(mite[&"state_remaining"]) / DISPERSE_SECONDS, 0.0, 1.0)
 		if state == STATE_DISPERSING
 		else 1.0
 	)
-	var shell: Color = Color("ffd27a") if int(mite[&"id"]) == _hovered_id else CARAPACE
-	shell.a = alpha
-	for leg_side: float in [-1.0, 1.0]:
-		for leg: int in range(3):
-			var root: Vector2 = center - screen_direction * float(leg - 1) * 5.0
-			var knee: Vector2 = root + side * leg_side * (9.0 + float(leg % 2) * 3.0)
-			draw_line(root, knee, Color(JOINT, alpha), 2.0)
-			draw_line(knee, knee - screen_direction * 6.0, Color(CARAPACE_DARK, alpha), 2.0)
-	var body: PackedVector2Array = PackedVector2Array(
-		[
-			center + screen_direction * 11.0,
-			center + side * 8.0,
-			center - screen_direction * 10.0,
-			center - side * 8.0,
-		]
+	var kind: StringName = mite.get(&"kind", GLASSBACK_SCARAB_KIND) as StringName
+	var texture: Texture2D = _texture_for(kind)
+	var tint: Color = Color("ffd27a") if int(mite[&"id"]) == _hovered_id else Color.WHITE
+	tint.a = alpha
+	var scale_x: float = -1.0 if screen_direction.x < -0.05 else 1.0
+	draw_set_transform(center, 0.0, Vector2(scale_x, 1.0))
+	draw_texture_rect(
+		texture,
+		Rect2(-MOB_DRAW_SIZE * Vector2(0.5, 0.68), MOB_DRAW_SIZE),
+		false,
+		tint,
 	)
-	draw_colored_polygon(body, shell)
-	draw_circle(center + screen_direction * 5.0, 2.5, Color(CARAPACE_DARK, alpha))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	if state == STATE_WARNING:
 		var target: Vector2 = _grid_to_screen(mite[&"committed_target"] as Vector2)
 		var duration: float = maxf(float(mite[&"state_duration"]), 0.001)

@@ -1,4 +1,5 @@
 .godot/
+.generated/
 artifacts/
 build/
 .DS_Store

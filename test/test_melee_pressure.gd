@@ -4,11 +4,39 @@ const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const MeleePressureScript: GDScript = preload("res://scripts/melee_pressure.gd")
 const SandwormsScript: GDScript = preload("res://scripts/sandworms.gd")
 
+const BIOME_CASES: Array[Dictionary] = [
+	{
+		&"biome": &"desert",
+		&"kind": &"glassback_scarab",
+		&"name_key": &"enemy.glassback_scarab.name",
+		&"damage": 2,
+	},
+	{
+		&"biome": &"oasis",
+		&"kind": &"mire_tick",
+		&"name_key": &"enemy.mire_tick.name",
+		&"damage": 2,
+	},
+	{
+		&"biome": &"frozen",
+		&"kind": &"rime_shardling",
+		&"name_key": &"enemy.rime_shardling.name",
+		&"damage": 2,
+	},
+	{
+		&"biome": &"lava",
+		&"kind": &"ember_skitter",
+		&"name_key": &"enemy.ember_skitter.name",
+		&"damage": 3,
+	},
+]
+
 
 static func evaluate() -> Array[Dictionary]:
 	var cases: Array[Dictionary] = []
 	var world: RefCounted = InfiniteWorldScript.new() as RefCounted
 	world.call("configure", {}, {}, {}, {}, {}, {})
+	_test_biome_roster(cases, world)
 	var pressure: Node2D = MeleePressureScript.new() as Node2D
 	_add(
 		cases,
@@ -19,7 +47,7 @@ static func evaluate() -> Array[Dictionary]:
 	var spawned: int = int(pressure.call("spawn_pack", Vector2(10.0, 20.0), 99))
 	_add(
 		cases,
-		"Razor Mite population is hard-capped at twelve",
+		"tiny-mob population is hard-capped at twelve",
 		spawned == MeleePressureScript.MAX_MITES and int(pressure.call("get_count")) == 12,
 	)
 	var snapshots: Array[Dictionary] = pressure.call("get_combat_snapshots") as Array[Dictionary]
@@ -28,27 +56,29 @@ static func evaluate() -> Array[Dictionary]:
 		"melee pack enters from multiple flanks",
 		_covers_four_flanks(snapshots, Vector2(10.0, 20.0))
 	)
-	var damage_events: Array[int] = []
+	var damage_events: Array[Dictionary] = []
 	pressure.connect(
 		"damage_tick",
-		func(amount: int, _source: StringName) -> void: damage_events.append(amount),
+		func(amount: int, source: StringName) -> void:
+			damage_events.append({&"amount": amount, &"source": source}),
 	)
 	var warning_seen: bool = false
 	for _step: int in range(70):
 		pressure.call("advance", 0.1)
 		for snapshot: Dictionary in pressure.call("get_combat_snapshots") as Array[Dictionary]:
 			warning_seen = warning_seen or snapshot[&"state"] == MeleePressureScript.STATE_WARNING
-	_add(cases, "Razor Mites telegraph before contact damage", warning_seen)
+	_add(cases, "tiny mobs telegraph before contact damage", warning_seen)
+	var damage_events_are_valid: bool = not damage_events.is_empty() and damage_events.size() <= 7
+	for event: Dictionary in damage_events:
+		damage_events_are_valid = (
+			damage_events_are_valid
+			and int(event[&"amount"]) == MeleePressureScript.ATTACK_DAMAGE
+			and event[&"source"] == MeleePressureScript.GLASSBACK_SCARAB_KIND
+		)
 	_add(
 		cases,
 		"shared damage token prevents pack-size burst damage",
-		(
-			not damage_events.is_empty()
-			and damage_events.size() <= 7
-			and damage_events.all(
-				func(amount: int) -> bool: return amount == MeleePressureScript.ATTACK_DAMAGE
-			)
-		),
+		damage_events_are_valid,
 	)
 	pressure.call("set_sanctuary_active", true)
 	for _step: int in range(12):
@@ -62,7 +92,48 @@ static func evaluate() -> Array[Dictionary]:
 	pressure.free()
 	_test_sanctuary_damage_guard(cases, world)
 	_test_shared_targeting(cases, world)
+	_test_biome_transition(cases, world)
+	_test_ember_damage_profile(cases, world)
 	return cases
+
+
+static func _test_biome_roster(cases: Array[Dictionary], world: RefCounted) -> void:
+	for config: Dictionary in BIOME_CASES:
+		var pressure: Node2D = MeleePressureScript.new() as Node2D
+		pressure.call("configure", Vector2(90.0, 45.0), Vector2.ZERO, world)
+		pressure.call("_set_active_biome", config[&"biome"])
+		pressure.call("set_player_position", Vector2(10.0, 20.0))
+		pressure.call("spawn_pack", Vector2(10.0, 20.0), 1)
+		var snapshots: Array[Dictionary] = (
+			pressure.call("get_combat_snapshots") as Array[Dictionary]
+		)
+		var hover_targets: Array[Dictionary] = pressure.call("get_hover_targets") as Array[Dictionary]
+		var expected_kind: StringName = config[&"kind"] as StringName
+		var texture: Texture2D = MeleePressureScript._texture_for(expected_kind)
+		_add(
+			cases,
+			"%s selects its native tiny-mob kind" % String(config[&"biome"]),
+			(
+				pressure.call("_get_active_kind") == expected_kind
+				and snapshots.size() == 1
+				and snapshots[0][&"kind"] == expected_kind
+			),
+		)
+		_add(
+			cases,
+			"%s tiny-mob sprite imports at 512 pixels" % String(expected_kind),
+			texture != null and texture.get_size() == Vector2(512.0, 512.0),
+		)
+		_add(
+			cases,
+			"%s exposes localized identity and tuned damage" % String(expected_kind),
+			(
+				hover_targets.size() == 1
+				and hover_targets[0][&"name_key"] == config[&"name_key"]
+				and int(hover_targets[0][&"attack_damage"]) == int(config[&"damage"])
+			),
+		)
+		pressure.free()
 
 
 static func _test_sanctuary_damage_guard(cases: Array[Dictionary], world: RefCounted) -> void:
@@ -78,7 +149,7 @@ static func _test_sanctuary_damage_guard(cases: Array[Dictionary], world: RefCou
 	pressure.connect("damage_tick", func(_amount: int, _source: StringName) -> void: hits.append(1))
 	pressure.set("_sanctuary_active", true)
 	pressure.call("advance", 0.02)
-	_add(cases, "committed Razor Mite attack cannot damage inside sanctuary", hits.is_empty())
+	_add(cases, "committed tiny-mob attack cannot damage inside sanctuary", hits.is_empty())
 	pressure.free()
 
 
@@ -95,7 +166,7 @@ static func _test_shared_targeting(cases: Array[Dictionary], world: RefCounted) 
 	var first: Dictionary = (pressure.call("get_combat_snapshots") as Array[Dictionary])[0]
 	var target_cell: Vector2i = Vector2i((first[&"position"] as Vector2).round())
 	var target_id: int = int(enemies.call("find_target", target_cell))
-	_add(cases, "Smash targeting acquires Razor Mites", target_id >= MeleePressureScript.ID_BASE)
+	_add(cases, "Smash targeting acquires tiny mobs", target_id >= MeleePressureScript.ID_BASE)
 	_add(
 		cases,
 		"one accepted impact destroys melee fodder",
@@ -105,6 +176,57 @@ static func _test_shared_targeting(cases: Array[Dictionary], world: RefCounted) 
 		),
 	)
 	enemies.free()
+
+
+static func _test_biome_transition(cases: Array[Dictionary], world: RefCounted) -> void:
+	var enemies: Node2D = SandwormsScript.new() as Node2D
+	enemies.call("configure", Vector2(90.0, 45.0), Vector2.ZERO, null, world)
+	enemies.call("_set_active_biome", &"oasis")
+	enemies.call("_spawn_melee_pack", Vector2(20.0, 20.0), 1)
+	var pressure: Node2D = enemies.call("_get_melee_pressure") as Node2D
+	var wetland: Dictionary = (pressure.call("get_combat_snapshots") as Array[Dictionary])[0]
+	enemies.call("_set_active_biome", &"frozen")
+	var cleared: bool = int(pressure.call("get_count")) == 0
+	enemies.call("_spawn_melee_pack", Vector2(20.0, 20.0), 1)
+	var frozen: Dictionary = (pressure.call("get_combat_snapshots") as Array[Dictionary])[0]
+	_add(
+		cases,
+		"biome transition clears old mobs and switches native kind",
+		(
+			wetland[&"kind"] == MeleePressureScript.MIRE_TICK_KIND
+			and cleared
+			and frozen[&"kind"] == MeleePressureScript.RIME_SHARDLING_KIND
+		),
+	)
+	enemies.free()
+
+
+static func _test_ember_damage_profile(cases: Array[Dictionary], world: RefCounted) -> void:
+	var pressure: Node2D = MeleePressureScript.new() as Node2D
+	pressure.call("configure", Vector2(90.0, 45.0), Vector2.ZERO, world)
+	pressure.call("_set_active_biome", &"lava")
+	pressure.call("set_player_position", Vector2(10.0, 20.0))
+	pressure.call("spawn_pack", Vector2(10.0, 20.0), 1)
+	var mite: Dictionary = (pressure.get("_mites") as Array)[0] as Dictionary
+	mite[&"position"] = Vector2(10.0, 20.0)
+	pressure.call("_set_state", mite, MeleePressureScript.STATE_WARNING, 0.01)
+	var events: Array[Dictionary] = []
+	pressure.connect(
+		"damage_tick",
+		func(amount: int, source: StringName) -> void:
+			events.append({&"amount": amount, &"source": source}),
+	)
+	pressure.call("advance", 0.02)
+	_add(
+		cases,
+		"Ember Skitter emits its heavier biome-specific contact damage",
+		(
+			events.size() == 1
+			and int(events[0][&"amount"]) == 3
+			and events[0][&"source"] == MeleePressureScript.EMBER_SKITTER_KIND
+		),
+	)
+	pressure.free()
 
 
 static func _covers_four_flanks(snapshots: Array[Dictionary], center: Vector2) -> bool:

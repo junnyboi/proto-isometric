@@ -134,8 +134,8 @@ func _set_active_biome(biome: StringName) -> void:
 	if biome != _active_biome:
 		clear_worms()
 		_active_biome = biome
-		if _peaceful_herds != null:
-			_peaceful_herds.call("set_active_biome", biome)
+		if _melee_pressure != null: _melee_pressure.call("_set_active_biome", biome)
+		if _peaceful_herds != null: _peaceful_herds.call("set_active_biome", biome)
 
 
 func set_player_position(position: Vector2, velocity: Vector2 = Vector2.ZERO) -> void:
@@ -297,7 +297,7 @@ func get_worm_position(worm_id: int) -> Vector2:
 
 func _get_enemy_kind(worm_id: int) -> StringName:
 	if worm_id >= MeleePressureScript.ID_BASE:
-		return MeleePressureScript.KIND
+		return _melee_pressure.call("get_mite_kind", worm_id) as StringName
 	if worm_id >= PeacefulHerdsScript.CREATURE_ID_BASE:
 		var snapshot: Dictionary = _peaceful_herds.call("get_snapshot", worm_id) as Dictionary
 		return (
@@ -310,8 +310,8 @@ func _get_enemy_kind(worm_id: int) -> StringName:
 
 func _get_enemy_label(worm_id: int) -> StringName:
 	var kind: StringName = _get_enemy_kind(worm_id)
-	if kind == MeleePressureScript.KIND:
-		return &"enemy.razor_mite.name"
+	if worm_id >= MeleePressureScript.ID_BASE:
+		return MeleePressureScript._name_key(kind)
 	if worm_id >= PeacefulHerdsScript.CREATURE_ID_BASE:
 		return PeacefulHerdsScript.name_key(kind)
 	if kind == SKIMMER_KIND:
