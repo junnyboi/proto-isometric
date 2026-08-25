@@ -12,6 +12,9 @@ const FarmStateScript: GDScript = preload("res://scripts/farm_state.gd")
 const InteractionControllerScript: GDScript = preload(
 	"res://scripts/harvest_interaction_controller.gd"
 )
+const InteractionTargetBridgeScript: GDScript = preload(
+	"res://scripts/harvest_interaction_target_bridge.gd"
+)
 const InventoryServiceScript: GDScript = preload("res://scripts/inventory_service.gd")
 const MachineServiceScript: GDScript = preload("res://scripts/machine_service.gd")
 const ResolverScript: GDScript = preload("res://scripts/interaction_resolver.gd")
@@ -123,6 +126,7 @@ func _bootstrap() -> void:
 				Callable(camera, "adjust_user_zoom"),
 				Callable(self, "_target_snapshot"),
 				Callable(self, "_execute_productive_action"),
+				Callable(self, "_menu_target_snapshot"),
 			)
 		)
 	):
@@ -261,8 +265,15 @@ func _target_snapshot(cell: Vector2i) -> Dictionary:
 	}
 
 
+func _menu_target_snapshot(cell: Vector2i) -> Dictionary:
+	return InteractionTargetBridgeScript.project(cell, _target_snapshot(cell))
+
+
 func _execute_productive_action(
-	intent: StringName, tool_id: StringName, resolved: Dictionary
+	intent: StringName,
+	tool_id: StringName,
+	resolved: Dictionary,
+	option: Dictionary = {},
 ) -> Dictionary:
 	if _farm_runtime == null or not bool(resolved.get(&"valid", false)):
 		return {&"ok": false, &"reason": &"farm_unavailable"}
@@ -274,7 +285,9 @@ func _execute_productive_action(
 		if tool_id not in [ToolServiceScript.TOOL_HOE, ToolServiceScript.TOOL_WATERING]:
 			return {&"ok": false, &"reason": &"tool_has_no_phase_three_target"}
 	else:
-		operation = _context_operation(cell)
+		operation = option.get(&"operation", _context_operation(cell)) as StringName
+		arguments = (option.get(&"arguments", arguments) as Dictionary).duplicate(true)
+		arguments[&"cell"] = cell
 		if operation in [&"facility_repair", &"facility_power"]:
 			arguments[&"facility_id"] = HomesteadServiceScript.facility_id_at(cell)
 		if operation == &"plant":

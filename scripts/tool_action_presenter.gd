@@ -61,6 +61,17 @@ func is_playing() -> bool:
 	return _remaining > 0.0
 
 
+func cancel_tool() -> bool:
+	if _remaining <= 0.0:
+		return false
+	_remaining = 0.0
+	_contact_emitted = false
+	_pending_result.clear()
+	_sprite.visible = false
+	tool_action_finished.emit()
+	return true
+
+
 func get_contact_frame() -> int:
 	return CONTACT_FRAME
 

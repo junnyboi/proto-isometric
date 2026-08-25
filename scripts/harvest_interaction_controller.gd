@@ -1,11 +1,19 @@
 extends Node2D
 
 signal menu_intent_requested(action: StringName)
+signal menu_snapshot_opened(snapshot: Dictionary)
+signal menu_snapshot_refreshed(snapshot: Dictionary)
+signal menu_snapshot_closed
 signal tool_preview_contact(result: Dictionary)
 
+const CatalogScript: GDScript = preload("res://scripts/interaction_option_catalog.gd")
 const CommandsScript: GDScript = preload("res://scripts/harvest_command_intents.gd")
+const MenuScript: GDScript = preload("res://scripts/interaction_menu_snapshot.gd")
 const ResolverScript: GDScript = preload("res://scripts/interaction_resolver.gd")
 const ReticleScript: GDScript = preload("res://scripts/target_reticle.gd")
+const TargetBridgeScript: GDScript = preload(
+	"res://scripts/harvest_interaction_target_bridge.gd"
+)
 const ToolPresenterScript: GDScript = preload("res://scripts/tool_action_presenter.gd")
 const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
 
@@ -18,6 +26,7 @@ var _player_cell: Callable
 var _facing: Callable
 var _zoom: Callable
 var _target_query: Callable
+var _menu_target_query: Callable
 var _productive_action: Callable
 var _reticle: Node2D
 var _tool_presenter: Node2D
@@ -26,6 +35,10 @@ var _last_target: Dictionary = {}
 var _avatar_was_visible: bool = true
 var _held_tool_msec: int = 0
 var _repeat_count: int = 0
+var _menu_snapshot: Dictionary = {}
+var _selected_index: int = -1
+var _selected_action_id: StringName = &""
+var _executing: bool = false
 
 
 func _ready() -> void:
@@ -46,6 +59,8 @@ func _process(delta: float) -> void:
 	if _world == null:
 		return
 	_sync_target()
+	if is_menu_open():
+		return
 	_update_hold_repeat(delta)
 	for action: StringName in CommandsScript.action_ids():
 		if (
@@ -66,6 +81,7 @@ func configure(
 	zoom: Callable,
 	target_query: Callable,
 	productive_action: Callable = Callable(),
+	menu_target_query: Callable = Callable(),
 ) -> bool:
 	if (
 		world == null
@@ -84,6 +100,7 @@ func configure(
 	_zoom = zoom
 	_target_query = target_query
 	_productive_action = productive_action
+	_menu_target_query = menu_target_query
 	_reticle.call("configure", grid_to_screen)
 	_sync_target()
 	return true
@@ -94,6 +111,12 @@ func handle_touch_command(action: StringName) -> bool:
 		return false
 	if action in [CommandsScript.RUN, CommandsScript.COMBAT_ATTACK]:
 		return false
+	if is_menu_open():
+		if action == CommandsScript.CONTEXT:
+			return confirm_menu()
+		if action == CommandsScript.CANCEL:
+			return close_menu()
+		return true
 	_dispatch(action)
 	return true
 
@@ -114,18 +137,142 @@ func get_tool_presenter() -> Node2D:
 	return _tool_presenter
 
 
+func is_menu_open() -> bool:
+	return MenuScript.validate(_menu_snapshot)
+
+
+func get_menu_snapshot() -> Dictionary:
+	return _menu_snapshot.duplicate(true)
+
+
+func get_selected_menu_index() -> int:
+	return _selected_index
+
+
+func get_selected_action_id() -> StringName:
+	return _selected_action_id
+
+
+func open_menu() -> bool:
+	var result: Dictionary = _resolve(ResolverScript.ACTION_CONTEXT)
+	_reticle.call("present", result, true)
+	_last_target = result
+	if not bool(result[&"valid"]):
+		close_menu()
+		return false
+	cancel_pending_tool()
+	var snapshot: Dictionary = _build_menu(result[&"target_cell"] as Vector2i)
+	if not MenuScript.validate(snapshot):
+		close_menu()
+		return false
+	_menu_snapshot = snapshot.duplicate(true)
+	_select_first_enabled()
+	menu_snapshot_opened.emit(_menu_snapshot.duplicate(true))
+	return true
+
+
+func close_menu() -> bool:
+	var was_open: bool = is_menu_open()
+	_menu_snapshot.clear()
+	_selected_index = -1
+	_selected_action_id = &""
+	_executing = false
+	if was_open:
+		menu_snapshot_closed.emit()
+	return was_open
+
+
+func navigate_menu(direction: int) -> bool:
+	if not is_menu_open() or direction == 0:
+		return false
+	var options: Array = _menu_snapshot[&"options"] as Array
+	var next_index: int = clampi(_selected_index + signi(direction), 0, options.size() - 1)
+	if next_index == _selected_index:
+		return false
+	_selected_index = next_index
+	_selected_action_id = (options[_selected_index] as Dictionary)[&"action_id"] as StringName
+	return true
+
+
+func refresh_menu_if_stale() -> bool:
+	if not is_menu_open():
+		return false
+	var selected: StringName = _selected_action_id
+	var cell: Vector2i = _menu_snapshot[&"target_cell"] as Vector2i
+	var current: Dictionary = _build_menu(cell)
+	if not MenuScript.validate(current):
+		close_menu()
+		return false
+	if current[&"snapshot_id"] == _menu_snapshot[&"snapshot_id"]:
+		return false
+	_menu_snapshot = current.duplicate(true)
+	_restore_selection(selected)
+	menu_snapshot_refreshed.emit(_menu_snapshot.duplicate(true))
+	return true
+
+
+func confirm_menu() -> bool:
+	if not is_menu_open() or _executing or _selected_index < 0:
+		return false
+	if refresh_menu_if_stale():
+		return false
+	if not is_menu_open() or _selected_index < 0:
+		return false
+	var option: Dictionary = (_menu_snapshot[&"options"] as Array)[_selected_index] as Dictionary
+	if not bool(option[&"enabled"]):
+		return false
+	var resolved: Dictionary = _resolve(ResolverScript.ACTION_CONTEXT)
+	if not bool(resolved[&"valid"]):
+		close_menu()
+		return false
+	_executing = true
+	var result: Dictionary = {&"ok": true, &"reason": &"preview_only"}
+	if option[&"operation"] != &"inspect" and _productive_action.is_valid():
+		result = _productive_action.call(
+			ResolverScript.ACTION_CONTEXT,
+			ToolServiceScript.TOOL_CONTEXT,
+			resolved,
+			option.duplicate(true),
+		) as Dictionary
+	_executing = false
+	if bool(result.get(&"ok", false)):
+		if option[&"close_behavior"] in [&"always", &"on_success"]:
+			close_menu()
+		else:
+			refresh_menu_if_stale()
+	elif option[&"close_behavior"] == &"always":
+		close_menu()
+	else:
+		refresh_menu_if_stale()
+	return bool(result.get(&"ok", false))
+
+
+func cancel_pending_tool() -> bool:
+	_held_tool_msec = 0
+	_repeat_count = 0
+	if _tool_presenter == null or not bool(_tool_presenter.call("is_playing")):
+		return false
+	_tool_presenter.call("cancel_tool")
+	if _avatar != null:
+		_avatar.visible = _avatar_was_visible
+	return true
+
+
 func _dispatch(action: StringName) -> void:
 	match action:
 		CommandsScript.CONTEXT:
-			_present_context()
+			open_menu()
 		CommandsScript.TOOL_ACTION:
 			_attempt_tool()
 		CommandsScript.PREVIOUS_TOOL:
 			_selected_tool = posmod(_selected_tool - 1, TOOLS.size())
 		CommandsScript.NEXT_TOOL:
 			_selected_tool = posmod(_selected_tool + 1, TOOLS.size())
-		CommandsScript.INVENTORY, CommandsScript.JOURNAL_MAP, CommandsScript.CANCEL:
+		CommandsScript.INVENTORY, CommandsScript.JOURNAL_MAP:
 			menu_intent_requested.emit(action)
+		CommandsScript.CANCEL:
+			if not close_menu():
+				menu_intent_requested.emit(action)
 		CommandsScript.ZOOM_IN:
 			if _zoom.is_valid():
 				_zoom.call(1)
@@ -134,17 +281,9 @@ func _dispatch(action: StringName) -> void:
 				_zoom.call(-1)
 
 
-func _present_context() -> void:
-	var result: Dictionary = _resolve(ResolverScript.ACTION_CONTEXT)
-	_reticle.call("present", result, true)
-	_last_target = result
-	if bool(result[&"valid"]) and _productive_action.is_valid():
-		_productive_action.call(
-			ResolverScript.ACTION_CONTEXT, ToolServiceScript.TOOL_CONTEXT, result
-		)
-
-
 func _attempt_tool() -> void:
+	if is_menu_open():
+		return
 	var result: Dictionary = _resolve(ResolverScript.ACTION_TOOL)
 	_reticle.call("present", result, false)
 	_last_target = result
@@ -173,6 +312,35 @@ func _resolve(intent: StringName) -> Dictionary:
 	var cell: Vector2i = ResolverScript.adjacent_cell(origin, facing)
 	var targets: Dictionary = _target_query.call(cell) as Dictionary
 	return ResolverScript.resolve(origin, facing, ResolverScript.MASK_ALL, targets, intent)
+
+
+func _build_menu(cell: Vector2i) -> Dictionary:
+	var target: Dictionary = {}
+	if _menu_target_query.is_valid():
+		target = _menu_target_query.call(cell) as Dictionary
+	else:
+		target = TargetBridgeScript.project(cell, _target_query.call(cell))
+	return CatalogScript.build_menu(target)
+
+
+func _select_first_enabled() -> void:
+	_selected_index = 0
+	var options: Array = _menu_snapshot[&"options"] as Array
+	for index: int in options.size():
+		if bool((options[index] as Dictionary)[&"enabled"]):
+			_selected_index = index
+			break
+	_selected_action_id = (options[_selected_index] as Dictionary)[&"action_id"] as StringName
+
+
+func _restore_selection(action_id: StringName) -> void:
+	var options: Array = _menu_snapshot[&"options"] as Array
+	for index: int in options.size():
+		if (options[index] as Dictionary)[&"action_id"] == action_id:
+			_selected_index = index
+			_selected_action_id = action_id
+			return
+	_select_first_enabled()
 
 
 func _on_tool_contact(result: Dictionary) -> void:
