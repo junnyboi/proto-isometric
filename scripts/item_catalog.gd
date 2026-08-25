@@ -146,6 +146,13 @@ const DEFINITIONS: Array[Dictionary] = [
 		&"sell_price": 60
 	},
 	{
+		&"item_id": &"item.part.iron_ingot",
+		&"category": CATEGORY_PART,
+		&"stack_limit": 99,
+		&"buy_price": 0,
+		&"sell_price": 28
+	},
+	{
 		&"item_id": &"item.tool.hoe",
 		&"category": CATEGORY_TOOL,
 		&"stack_limit": 1,

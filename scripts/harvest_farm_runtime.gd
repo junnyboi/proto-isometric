@@ -6,6 +6,7 @@ const EconomyServiceScript: GDScript = preload("res://scripts/economy_service.gd
 const FarmSaveSchemaScript: GDScript = preload("res://scripts/farm_save_schema.gd")
 const FarmStateScript: GDScript = preload("res://scripts/farm_state.gd")
 const InventoryServiceScript: GDScript = preload("res://scripts/inventory_service.gd")
+const MachineServiceScript: GDScript = preload("res://scripts/machine_service.gd")
 const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
 
 var _farm: Dictionary = {}
@@ -23,6 +24,7 @@ func configure(farm: Dictionary, commit_candidate: Callable, world_seed: int = 0
 	initialized = CalendarStateScript.ensure_default(initialized, _world_seed)
 	initialized = ToolServiceScript.ensure_default(initialized)
 	initialized = EconomyServiceScript.ensure_default(initialized)
+	initialized = MachineServiceScript.ensure_default(initialized)
 	var normalized: Dictionary = FarmSaveSchemaScript.validate(initialized)
 	if normalized.is_empty():
 		return false

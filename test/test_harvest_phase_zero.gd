@@ -30,7 +30,7 @@ static func _test_legacy_ids(cases: Array[Dictionary]) -> void:
 			RuntimeIdsScript.legacy_ids().size() == LEGACY_ID_COUNT
 			and fingerprint == LEGACY_ID_FINGERPRINT
 			and RuntimeIdsScript.LEGACY_REGISTRY_VERSION == 6
-			and RuntimeIdsScript.REGISTRY_VERSION == 7
+			and RuntimeIdsScript.REGISTRY_VERSION == 8
 		),
 	)
 

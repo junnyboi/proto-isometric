@@ -1,6 +1,7 @@
 extends Node
 
 const AudioServiceScript: GDScript = preload("res://scripts/audio_service.gd")
+const CrossDomainTransactionScript: GDScript = preload("res://scripts/cross_domain_transaction.gd")
 const FarmRendererScript: GDScript = preload("res://scripts/farm_render_adapter.gd")
 const FarmRuntimeScript: GDScript = preload("res://scripts/harvest_farm_runtime.gd")
 const FarmStateScript: GDScript = preload("res://scripts/farm_state.gd")
@@ -8,6 +9,7 @@ const InteractionControllerScript: GDScript = preload(
 	"res://scripts/harvest_interaction_controller.gd"
 )
 const InventoryServiceScript: GDScript = preload("res://scripts/inventory_service.gd")
+const MachineServiceScript: GDScript = preload("res://scripts/machine_service.gd")
 const ResolverScript: GDScript = preload("res://scripts/interaction_resolver.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
@@ -16,9 +18,13 @@ const WoodlandClearingScript: GDScript = preload("res://scripts/woodland_clearin
 const SHIPPING_CELL: Vector2i = Vector2i(7, 7)
 const STORAGE_CELL: Vector2i = Vector2i(8, 7)
 const WORKSHOP_CELL: Vector2i = Vector2i(9, 7)
+const FURNACE_CELL: Vector2i = Vector2i(6, 7)
+const IRRIGATION_CELL: Vector2i = Vector2i(10, 6)
 const SHIPPING_TEXTURE: Texture2D = preload("res://assets/props/farm_shipping_bin.png")
 const STORAGE_TEXTURE: Texture2D = preload("res://assets/props/home_storage_crate.png")
 const WORKSHOP_TEXTURE: Texture2D = preload("res://assets/props/tool_upgrade_bench.png")
+const FURNACE_TEXTURE: Texture2D = preload("res://assets/props/machine_furnace.png")
+const IRRIGATION_TEXTURE: Texture2D = preload("res://assets/props/machine_irrigation_pump.png")
 const HOE_SFX: AudioStream = preload("res://assets/audio/harvest/hoe_soil.wav")
 const WATER_SFX: AudioStream = preload("res://assets/audio/harvest/water_pour.wav")
 const HARVEST_SFX: AudioStream = preload("res://assets/audio/harvest/harvest_pluck.wav")
@@ -28,6 +34,7 @@ var _map: Node2D
 var _controller: Node2D
 var _farm_renderer: Node2D
 var _farm_runtime: RefCounted
+var _transactions: RefCounted
 var _ready_for_commands: bool = false
 
 
@@ -50,6 +57,10 @@ func get_farm_renderer() -> Node2D:
 
 func get_farm_runtime() -> RefCounted:
 	return _farm_runtime
+
+
+func get_transaction_boundary() -> RefCounted:
+	return _transactions
 
 
 func is_ready_for_commands() -> bool:
@@ -110,6 +121,34 @@ func _initialize_farm_runtime() -> void:
 		or repository.call("get_gameplay_mode") != RuntimeIdsScript.MODE_FRESH_FARM
 	):
 		return
+	var source_envelope: Dictionary = {
+		&"save_format_version": repository.FORMAT_VERSION,
+		&"metadata":
+		{
+			&"build_id": str(ProjectSettings.get_setting("application/config/version", "development")),
+			&"world_generation_version": repository.WORLD_GENERATION_VERSION,
+			&"write_sequence": int(repository.call("get_write_sequence")),
+			&"saved_at_unix": 0,
+			&"migration_source": 0,
+		},
+		&"world": (_map.get("_world") as RefCounted).call("make_snapshot"),
+		&"active_run": (_map.get("_run_coordinator") as RefCounted).call("get_run_snapshot"),
+		&"profile": (_map.get("_run_coordinator") as RefCounted).call("get_profile_snapshot"),
+		&"farm": repository.call("get_default_farm"),
+	}
+	_transactions = CrossDomainTransactionScript.new() as RefCounted
+	if not bool(
+		_transactions.call(
+			"configure",
+			source_envelope,
+			repository,
+			_map.get("_world") as RefCounted,
+			Callable(self, "_publish_envelope"),
+			WoodlandClearingScript.DEFAULT_SEED,
+		)
+	):
+		push_error("PH-21 cross-domain transaction boundary rejected the live envelope.")
+		_transactions = null
 	_farm_runtime = FarmRuntimeScript.new() as RefCounted
 	if not bool(
 		(
@@ -127,21 +166,25 @@ func _initialize_farm_runtime() -> void:
 
 
 func _commit_farm_candidate(candidate: Dictionary) -> bool:
-	var repository: RefCounted = _map.get("_state_store") as RefCounted
+	if _transactions == null:
+		return false
+	var result: Dictionary = _transactions.call(
+		"transact", &"farm_candidate", {&"farm": candidate}
+	) as Dictionary
+	return bool(result.get(&"ok", false))
+
+
+func _publish_envelope(envelope: Dictionary) -> bool:
 	var world: RefCounted = _map.get("_world") as RefCounted
 	var coordinator: RefCounted = _map.get("_run_coordinator") as RefCounted
-	if repository == null or world == null or coordinator == null:
+	if world == null or coordinator == null:
 		return false
+	var world_snapshot: Dictionary = (envelope[&"world"] as Dictionary).duplicate(true)
+	world_snapshot[&"schema"] = 2
+	world.call("apply_snapshot", world_snapshot)
 	return bool(
-		(
-			repository
-			. call(
-				"save_state",
-				world.call("make_snapshot"),
-				coordinator.call("get_run_snapshot"),
-				coordinator.call("get_profile_snapshot"),
-				candidate,
-			)
+		coordinator.call(
+			"restore_persisted_state", envelope[&"active_run"], envelope[&"profile"]
 		)
 	)
 
@@ -284,7 +327,25 @@ func _refresh_render_indexes() -> void:
 		_append_structure(indexes, SHIPPING_CELL, &"shipping_bin", SHIPPING_TEXTURE)
 		_append_structure(indexes, STORAGE_CELL, &"storage_crate", STORAGE_TEXTURE)
 		_append_structure(indexes, WORKSHOP_CELL, &"workshop_bench", WORKSHOP_TEXTURE)
+		var farm: Dictionary = _farm_runtime.call("get_snapshot") as Dictionary
+		if _has_machine(farm, MachineServiceScript.FURNACE_ID):
+			_append_structure(indexes, FURNACE_CELL, &"furnace", FURNACE_TEXTURE)
+		if _has_upgrade(farm, &"upgrade.irrigation.grid_radius"):
+			_append_structure(indexes, IRRIGATION_CELL, &"irrigation_pump", IRRIGATION_TEXTURE)
 	_farm_renderer.call("consume_indexes", indexes)
+
+
+func _has_machine(farm: Dictionary, machine_id: StringName) -> bool:
+	for machine: Dictionary in farm.get(&"machines", []) as Array[Dictionary]:
+		if StringName(machine[&"machine_id"]) == machine_id:
+			return true
+	return false
+
+
+func _has_upgrade(farm: Dictionary, upgrade_id: StringName) -> bool:
+	return String(upgrade_id) in (
+		(farm.get(&"tools", {}) as Dictionary).get(&"upgrade_ids", []) as Array
+	)
 
 
 func _append_structure(

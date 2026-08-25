@@ -1,7 +1,7 @@
 extends RefCounted
 
 const LEGACY_REGISTRY_VERSION: int = 6
-const REGISTRY_VERSION: int = 7
+const REGISTRY_VERSION: int = 8
 
 const DOMAIN_FIELD_COMPOSITION: StringName = &"domain.field_composition"
 const DOMAIN_MOVEMENT: StringName = &"domain.movement"
@@ -23,6 +23,9 @@ const DOMAIN_INVENTORY_ECONOMY: StringName = &"domain.inventory_economy"
 const DOMAIN_HOMESTEAD_SETTLEMENT: StringName = &"domain.homestead_settlement"
 const DOMAIN_TOOLS_INTERACTIONS: StringName = &"domain.tools_interactions"
 const DOMAIN_ECOLOGY: StringName = &"domain.ecology"
+const DOMAIN_WORLD_MUTATIONS: StringName = &"domain.world_mutations"
+const DOMAIN_CRAFTING_MACHINES: StringName = &"domain.crafting_machines"
+const DOMAIN_DURABLE_UPGRADES: StringName = &"domain.durable_upgrades"
 
 const OWNER_FIELD_COMPOSITION: StringName = &"owner.field_composition"
 const OWNER_UNASSIGNED: StringName = &"owner.unassigned"
@@ -44,6 +47,9 @@ const OWNER_INVENTORY_ECONOMY: StringName = &"owner.inventory_economy"
 const OWNER_HOMESTEAD_SETTLEMENT: StringName = &"owner.homestead_settlement"
 const OWNER_TOOL_INTERACTION: StringName = &"owner.tool_interaction"
 const OWNER_ECOLOGY: StringName = &"owner.ecology"
+const OWNER_WORLD_MUTATION_LEDGER: StringName = &"owner.world_mutation_ledger"
+const OWNER_CRAFTING_MACHINES: StringName = &"owner.crafting_machines"
+const OWNER_DURABLE_UPGRADES: StringName = &"owner.durable_upgrades"
 
 const RUN_PHASE_BOOTSTRAP: StringName = &"run_phase.bootstrap"
 const RUN_PHASE_HUNT: StringName = &"run_phase.hunt"
@@ -118,8 +124,11 @@ static func catalog() -> Dictionary:
 			DOMAIN_CALENDAR_WEATHER,
 			DOMAIN_INVENTORY_ECONOMY,
 			DOMAIN_HOMESTEAD_SETTLEMENT,
-			DOMAIN_TOOLS_INTERACTIONS,
-			DOMAIN_ECOLOGY,
+				DOMAIN_TOOLS_INTERACTIONS,
+				DOMAIN_ECOLOGY,
+				DOMAIN_WORLD_MUTATIONS,
+				DOMAIN_CRAFTING_MACHINES,
+				DOMAIN_DURABLE_UPGRADES,
 		],
 		&"owners":
 		[
@@ -141,8 +150,11 @@ static func catalog() -> Dictionary:
 			OWNER_CALENDAR_WEATHER,
 			OWNER_INVENTORY_ECONOMY,
 			OWNER_HOMESTEAD_SETTLEMENT,
-			OWNER_TOOL_INTERACTION,
-			OWNER_ECOLOGY,
+				OWNER_TOOL_INTERACTION,
+				OWNER_ECOLOGY,
+				OWNER_WORLD_MUTATION_LEDGER,
+				OWNER_CRAFTING_MACHINES,
+				OWNER_DURABLE_UPGRADES,
 		],
 		&"run_phases":
 		[

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/durable_upgrade_definition.gd" id="1_upgrade"]
+
+[resource]
+script = ExtResource("1_upgrade")
+upgrade_id = &"upgrade.storage.home_expansion"
+family = &"upgrade_family.storage"
+prerequisites = Array[StringName]([])
+money_cost = 150
+item_costs = Array[Dictionary]([{
+"count": 8,
+"item_id": "item.material.wood"
+}])
+capabilities = Array[StringName]([&"capability.storage.home_slots_plus_twelve"])

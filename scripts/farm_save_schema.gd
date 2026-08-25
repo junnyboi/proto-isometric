@@ -2,30 +2,52 @@ extends RefCounted
 
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const CropCatalogScript: GDScript = preload("res://scripts/crop_catalog.gd")
+const DurableUpgradeCatalogScript: GDScript = preload("res://scripts/durable_upgrade_catalog.gd")
 const ItemCatalogScript: GDScript = preload("res://scripts/item_catalog.gd")
-const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
+const RecipeCatalogScript: GDScript = preload("res://scripts/recipe_catalog.gd")
 
 const STATE_VERSION: int = 1
 const MAX_YEAR: int = 9_999
 const MAX_DAY: int = 366
 const MAX_MINUTE_OF_DAY: int = 1_439
 const MAX_MONEY: int = 1_000_000_000
-const MAX_PLOTS: int = 100_000
-const MAX_INVENTORIES: int = 1_024
-const MAX_SHIPPING_ENTRIES: int = 10_000
-const MAX_PLACED_ENTITIES: int = 100_000
-const MAX_MACHINES: int = 10_000
-const MAX_FACILITIES: int = 1_024
-const MAX_RESIDENTS: int = 1_024
-const MAX_RUINS: int = 10_000
-const MAX_TOOL_UPGRADES: int = 1_024
-const MAX_ECOLOGY_DELTAS: int = 100_000
-const MAX_BOSS_CLEARS: int = 1_024
+const MAX_PLOTS: int = 4_096
+const MAX_INVENTORIES: int = 2
+const MAX_SHIPPING_ENTRIES: int = 64
+const MAX_PLACED_ENTITIES: int = 4_096
+const MAX_MACHINES: int = 128
+const MAX_FACILITIES: int = 64
+const MAX_RESIDENTS: int = 64
+const MAX_RUINS: int = 1_024
+const MAX_TOOL_UPGRADES: int = 64
+const MAX_ECOLOGY_DELTAS: int = 4_096
+const MAX_BOSS_CLEARS: int = 256
 const MAX_MIGRATION_TOKENS: int = 8
 const MAX_DAY_TOKENS: int = 64
 const MAX_STACKS_PER_INVENTORY: int = 256
 const MAX_STAMINA: int = 100_000
 const MAX_GROWTH_POINTS: int = 100_000
+const MAX_MACHINE_TOKENS: int = 64
+const MAX_ABSOLUTE_DAY: int = MAX_YEAR * 4 * 14
+
+const MACHINE_STATES: Array[StringName] = [
+	&"machine.idle", &"machine.running", &"machine.complete"
+]
+const MACHINE_STATIONS: Dictionary = {
+	"machine.home.workbench": "station.workbench",
+	"machine.home.furnace": "station.furnace",
+}
+const MACHINE_KEYS: Array[StringName] = [
+	&"machine_id",
+	&"station_tag",
+	&"cell",
+	&"state",
+	&"recipe_id",
+	&"start_day",
+	&"complete_day",
+	&"operation_token",
+	&"claimed_tokens",
+]
 
 const SEASON_NEUTRAL: String = "season.neutral"
 const WEATHER_NEUTRAL: String = "weather.neutral"
@@ -143,7 +165,7 @@ static func validate(snapshot: Variant) -> Dictionary:
 	var plots: Variant = _normalize_plots(farm.get(&"plots"))
 	var inventories: Variant = _normalize_inventories(farm.get(&"inventories"))
 	var placed: Variant = _normalize_empty_array(farm.get(&"placed_entities"), MAX_PLACED_ENTITIES)
-	var machines: Variant = _normalize_empty_array(farm.get(&"machines"), MAX_MACHINES)
+	var machines: Variant = _normalize_machines(farm.get(&"machines"))
 	var migration_tokens: Variant = _normalize_migration_tokens(farm.get(&"migration_tokens"))
 	var day_tokens: Variant = _normalize_tokens(farm.get(&"day_tokens"), MAX_DAY_TOKENS, "day:")
 	if (
@@ -540,12 +562,104 @@ static func _normalize_upgrade_ids(value: Variant) -> Variant:
 	var result: Array[String] = []
 	for raw_upgrade: Variant in value as Array:
 		if (
-			not raw_upgrade is String
-			or raw_upgrade != String(ToolServiceScript.UPGRADE_WATER_EFFICIENCY)
-			or raw_upgrade in result
+			(not raw_upgrade is String and not raw_upgrade is StringName)
+			or StringName(str(raw_upgrade)) not in DurableUpgradeCatalogScript.ids()
+			or str(raw_upgrade) in result
 		):
 			return null
 		result.append(str(raw_upgrade))
+	result.sort()
+	return result
+
+
+static func _normalize_machines(value: Variant) -> Variant:
+	if not value is Array or (value as Array).size() > MAX_MACHINES:
+		return null
+	var result: Array[Dictionary] = []
+	var seen_ids: Dictionary = {}
+	var seen_cells: Dictionary = {}
+	for raw_machine: Variant in value as Array:
+		var machine: Dictionary = raw_machine as Dictionary if raw_machine is Dictionary else {}
+		if not _exact_keys(machine, MACHINE_KEYS):
+			return null
+		var machine_id: String = str(machine[&"machine_id"])
+		var station_tag: StringName = StringName(str(machine[&"station_tag"]))
+		var state: StringName = StringName(str(machine[&"state"]))
+		var recipe_id: StringName = StringName(str(machine[&"recipe_id"]))
+		var cell: Variant = _normalize_cell(machine[&"cell"])
+		var start_day: Variant = _json_integer(machine[&"start_day"], 0, MAX_ABSOLUTE_DAY)
+		var complete_day: Variant = _json_integer(machine[&"complete_day"], 0, MAX_ABSOLUTE_DAY)
+		var operation_token: Variant = machine[&"operation_token"]
+		var claimed_tokens: Variant = _normalize_machine_tokens(machine[&"claimed_tokens"])
+		if (
+			not MACHINE_STATIONS.has(machine_id)
+			or seen_ids.has(machine_id)
+			or station_tag not in RecipeCatalogScript.STATION_TAGS
+			or StringName(MACHINE_STATIONS[machine_id]) != station_tag
+			or state not in MACHINE_STATES
+			or cell == null
+			or start_day == null
+			or complete_day == null
+			or not operation_token is String
+			or (operation_token as String).length() > 128
+			or claimed_tokens == null
+		):
+			return null
+		var cell_key: String = "%d,%d" % [int(cell[0]), int(cell[1])]
+		if seen_cells.has(cell_key):
+			return null
+		var is_idle: bool = state == &"machine.idle"
+		var recipe: Dictionary = RecipeCatalogScript.definition(recipe_id)
+		var expected_token: String = "%s:%d:%s" % [machine_id, int(start_day), String(recipe_id)]
+		if is_idle:
+			if recipe_id != &"" or int(start_day) != 0 or int(complete_day) != 0 or operation_token != "":
+				return null
+		elif (
+			recipe.is_empty()
+			or StringName(recipe[&"station_tag"]) != station_tag
+			or int(start_day) <= 0
+			or int(complete_day) != int(start_day) + int(recipe[&"duration_days"])
+			or str(operation_token).is_empty()
+			or str(operation_token) != expected_token
+			or operation_token in (claimed_tokens as Array)
+		):
+			return null
+		seen_ids[machine_id] = true
+		seen_cells[cell_key] = true
+		result.append(
+			{
+				&"machine_id": machine_id,
+				&"station_tag": String(station_tag),
+				&"cell": cell,
+				&"state": String(state),
+				&"recipe_id": String(recipe_id),
+				&"start_day": int(start_day),
+				&"complete_day": int(complete_day),
+				&"operation_token": str(operation_token),
+				&"claimed_tokens": claimed_tokens,
+			}
+		)
+	result.sort_custom(
+		func(a: Dictionary, b: Dictionary) -> bool:
+			return str(a[&"machine_id"]) < str(b[&"machine_id"])
+	)
+	return result
+
+
+static func _normalize_machine_tokens(value: Variant) -> Variant:
+	if not value is Array or (value as Array).size() > MAX_MACHINE_TOKENS:
+		return null
+	var result: Array[String] = []
+	for raw_token: Variant in value as Array:
+		if (
+			not raw_token is String
+			or str(raw_token).is_empty()
+			or str(raw_token).length() > 128
+			or raw_token in result
+		):
+			return null
+		result.append(str(raw_token))
+	result.sort()
 	return result
 
 

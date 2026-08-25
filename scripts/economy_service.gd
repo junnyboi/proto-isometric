@@ -1,5 +1,6 @@
 extends RefCounted
 
+const DurableUpgradeServiceScript: GDScript = preload("res://scripts/durable_upgrade_service.gd")
 const InventoryServiceScript: GDScript = preload("res://scripts/inventory_service.gd")
 const ItemCatalogScript: GDScript = preload("res://scripts/item_catalog.gd")
 const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
@@ -102,25 +103,7 @@ static func buy_seed(farm: Dictionary, seed_item_id: StringName, count: int) -> 
 
 
 static func purchase_workshop_upgrade(farm: Dictionary) -> Dictionary:
-	var tools: Dictionary = farm[&"tools"] as Dictionary
-	if String(ToolServiceScript.UPGRADE_WATER_EFFICIENCY) in (tools[&"upgrade_ids"] as Array):
-		return _result(false, farm, &"upgrade_already_owned")
-	var economy: Dictionary = farm[&"economy"] as Dictionary
-	if int(economy[&"money"]) < UPGRADE_PRICE:
-		return _result(false, farm, &"insufficient_money")
-	var removed: Dictionary = InventoryServiceScript.remove_across(
-		farm, &"item.material.wood", UPGRADE_WOOD_COST
-	)
-	if not bool(removed[&"ok"]):
-		return _result(false, farm, &"missing_materials")
-	var candidate: Dictionary = removed[&"candidate"] as Dictionary
-	(candidate[&"economy"] as Dictionary)[&"money"] = int(economy[&"money"]) - UPGRADE_PRICE
-	tools = candidate[&"tools"] as Dictionary
-	var upgrades: Array = (tools[&"upgrade_ids"] as Array).duplicate()
-	upgrades.append(String(ToolServiceScript.UPGRADE_WATER_EFFICIENCY))
-	tools[&"upgrade_ids"] = upgrades
-	candidate[&"tools"] = tools
-	return _result(true, candidate, &"")
+	return DurableUpgradeServiceScript.purchase(farm, ToolServiceScript.UPGRADE_WATER_EFFICIENCY)
 
 
 static func _result(ok: bool, farm: Dictionary, reason: StringName) -> Dictionary:

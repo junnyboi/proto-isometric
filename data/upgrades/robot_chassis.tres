@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/durable_upgrade_definition.gd" id="1_upgrade"]
+
+[resource]
+script = ExtResource("1_upgrade")
+upgrade_id = &"upgrade.robot.chassis_capacity"
+family = &"upgrade_family.robot"
+prerequisites = Array[StringName]([])
+money_cost = 180
+item_costs = Array[Dictionary]([{
+"count": 3,
+"item_id": "item.material.scrap"
+}])
+capabilities = Array[StringName]([&"capability.robot.chassis_plus_twenty"])

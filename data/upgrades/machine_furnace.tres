@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/durable_upgrade_definition.gd" id="1_upgrade"]
+
+[resource]
+script = ExtResource("1_upgrade")
+upgrade_id = &"upgrade.machine.furnace"
+family = &"upgrade_family.machine"
+prerequisites = Array[StringName]([&"upgrade.safehouse.power_capacity"])
+money_cost = 300
+item_costs = Array[Dictionary]([{
+"count": 4,
+"item_id": "item.material.stone"
+}, {
+"count": 2,
+"item_id": "item.part.irrigation_coil"
+}])
+capabilities = Array[StringName]([&"capability.machine.furnace"])

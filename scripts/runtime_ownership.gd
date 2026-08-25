@@ -14,6 +14,9 @@ const SCOPE_INVENTORY_ECONOMY: StringName = &"inventory_economy"
 const SCOPE_HOMESTEAD_SETTLEMENT: StringName = &"homestead_settlement"
 const SCOPE_TOOLS_INTERACTIONS: StringName = &"tools_interactions"
 const SCOPE_ECOLOGY: StringName = &"ecology"
+const SCOPE_WORLD_MUTATIONS: StringName = &"world_mutations"
+const SCOPE_CRAFTING_MACHINES: StringName = &"crafting_machines"
+const SCOPE_DURABLE_UPGRADES: StringName = &"durable_upgrades"
 
 const POLICY_AUTHORITATIVE: StringName = &"authoritative"
 const POLICY_COMPOSITION_ONLY: StringName = &"composition_only"
@@ -172,6 +175,27 @@ static func contracts() -> Array[Dictionary]:
 			"",
 			"res://scripts/ecology_service.gd",
 		),
+		_stable_contract(
+			RuntimeIdsScript.DOMAIN_WORLD_MUTATIONS,
+			RuntimeIdsScript.OWNER_WORLD_MUTATION_LEDGER,
+			SCOPE_WORLD_MUTATIONS,
+			POLICY_AUTHORITATIVE,
+			"res://scripts/world_mutation_ledger.gd",
+		),
+		_stable_contract(
+			RuntimeIdsScript.DOMAIN_CRAFTING_MACHINES,
+			RuntimeIdsScript.OWNER_CRAFTING_MACHINES,
+			SCOPE_CRAFTING_MACHINES,
+			POLICY_AUTHORITATIVE,
+			"res://scripts/machine_service.gd",
+		),
+		_stable_contract(
+			RuntimeIdsScript.DOMAIN_DURABLE_UPGRADES,
+			RuntimeIdsScript.OWNER_DURABLE_UPGRADES,
+			SCOPE_DURABLE_UPGRADES,
+			POLICY_AUTHORITATIVE,
+			"res://scripts/durable_upgrade_service.gd",
+		),
 	]
 
 
@@ -235,6 +259,9 @@ static func validate() -> bool:
 		SCOPE_HOMESTEAD_SETTLEMENT,
 		SCOPE_TOOLS_INTERACTIONS,
 		SCOPE_ECOLOGY,
+		SCOPE_WORLD_MUTATIONS,
+		SCOPE_CRAFTING_MACHINES,
+		SCOPE_DURABLE_UPGRADES,
 	]
 	for contract: Dictionary in contracts():
 		var domain_id: StringName = contract[&"domain_id"] as StringName

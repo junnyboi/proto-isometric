@@ -6,6 +6,7 @@ const RunStateScript: GDScript = preload("res://scripts/run_state.gd")
 const ProfileStateScript: GDScript = preload("res://scripts/profile_state.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const FarmSaveSchemaScript: GDScript = preload("res://scripts/farm_save_schema.gd")
+const WorldMutationLedgerScript: GDScript = preload("res://scripts/world_mutation_ledger.gd")
 
 const FORMAT_VERSION: int = 4
 const LEGACY_FORMAT_VERSION: int = 3
@@ -518,9 +519,14 @@ func _normalize_world(value: Variant, robot_cell: Vector2i) -> Dictionary:
 	if not value is Dictionary:
 		return {}
 	var world: Dictionary = value as Dictionary
+	var world_keys: Array[StringName] = [
+		&"destroyed_rocks", &"placed_rocks", &"dropped_scrap", &"collected_scrap"
+	]
+	if world.has(&"mutation_ledger"):
+		world_keys.append(&"mutation_ledger")
 	if not _exact_keys(
 		world,
-		[&"destroyed_rocks", &"placed_rocks", &"dropped_scrap", &"collected_scrap"],
+		world_keys,
 	):
 		return {}
 	var destroyed: Variant = _normalize_cells(world.get(&"destroyed_rocks"))
@@ -541,11 +547,33 @@ func _normalize_world(value: Variant, robot_cell: Vector2i) -> Dictionary:
 		&"dropped_scrap": dropped,
 		&"collected_scrap": collected,
 	}
+	if world.has(&"mutation_ledger"):
+		var with_ledger: Dictionary = _normalize_mutation_ledger(normalized, world[&"mutation_ledger"])
+		if with_ledger.is_empty():
+			return {}
+		normalized = with_ledger
 	var legacy_view: Dictionary = normalized.duplicate(true)
+	legacy_view.erase(&"mutation_ledger")
 	legacy_view[&"schema"] = 2
 	if not bool(_world_validator.call("is_valid_snapshot", legacy_view, robot_cell)):
-		return {}
+		normalized.clear()
 	return normalized
+
+
+func _normalize_mutation_ledger(normalized: Dictionary, value: Variant) -> Dictionary:
+	var ledger: Dictionary = WorldMutationLedgerScript.validate(value)
+	if ledger.is_empty():
+		return {}
+	var adapted: Dictionary = WorldMutationLedgerScript.legacy_arrays_exact(normalized, ledger)
+	if (
+		adapted.is_empty()
+		or adapted[&"destroyed_rocks"] != normalized[&"destroyed_rocks"]
+		or adapted[&"placed_rocks"] != normalized[&"placed_rocks"]
+	):
+		return {}
+	var result: Dictionary = normalized.duplicate(true)
+	result[&"mutation_ledger"] = ledger
+	return result
 
 
 func _normalize_run(value: Variant) -> Variant:

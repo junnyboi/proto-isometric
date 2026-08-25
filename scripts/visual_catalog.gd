@@ -57,6 +57,8 @@ const REQUIRED_PATHS: Array[String] = [
 	"res://assets/props/farm_shipping_bin.png",
 	"res://assets/props/home_storage_crate.png",
 	"res://assets/props/tool_upgrade_bench.png",
+	"res://assets/props/machine_furnace.png",
+	"res://assets/props/machine_irrigation_pump.png",
 ]
 
 

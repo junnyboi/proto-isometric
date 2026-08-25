@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/durable_upgrade_definition.gd" id="1_upgrade"]
+
+[resource]
+script = ExtResource("1_upgrade")
+upgrade_id = &"upgrade.irrigation.grid_radius"
+family = &"upgrade_family.irrigation"
+prerequisites = Array[StringName]([&"upgrade.tool.watering_efficiency"])
+money_cost = 250
+item_costs = Array[Dictionary]([{
+"count": 2,
+"item_id": "item.part.irrigation_coil"
+}])
+capabilities = Array[StringName]([&"capability.irrigation.radius_two"])

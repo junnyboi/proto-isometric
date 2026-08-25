@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/recipe_definition.gd" id="1_recipe"]
+
+[resource]
+script = ExtResource("1_recipe")
+recipe_id = &"recipe.workbench.irrigation_coil"
+station_tag = &"station.workbench"
+duration_days = 1
+ingredients = Array[Dictionary]([{
+"count": 2,
+"item_id": "item.material.wood"
+}, {
+"count": 1,
+"item_id": "item.material.scrap"
+}])
+outputs = Array[Dictionary]([{
+"count": 1,
+"item_id": "item.part.irrigation_coil"
+}])
