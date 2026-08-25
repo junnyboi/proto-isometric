@@ -241,20 +241,22 @@ static func _test_router_channels(cases: Array[Dictionary]) -> void:
 	var biome_metrics: Dictionary = router.call("get_metrics") as Dictionary
 	_add(
 		cases,
-		"locomotion biome changes route to matching BGM and ambience",
+		"locomotion biome changes route to BGM, ambience, and weather",
 		(
 			(biome_metrics[&"music"] as Dictionary)[&"biome"] == &"wetland"
 			and (biome_metrics[&"soundscape"] as Dictionary)[&"biome"] == &"wetland"
+			and (biome_metrics[&"weather"] as Dictionary)[&"biome"] == &"wetland"
 		),
 	)
 	router.call("apply_preferences", {&"music_volume": 0.0, &"ambience_volume": 1.0})
 	var music_muted: Dictionary = router.call("get_metrics") as Dictionary
 	_add(
 		cases,
-		"zero Music preference disables BGM without muting biome ambience",
+		"zero Music preference leaves ambience and weather enabled",
 		(
 			not bool((music_muted[&"music"] as Dictionary)[&"enabled"])
 			and bool((music_muted[&"soundscape"] as Dictionary)[&"enabled"])
+			and bool((music_muted[&"weather"] as Dictionary)[&"enabled"])
 		),
 	)
 	router.free()

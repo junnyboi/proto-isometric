@@ -1,5 +1,7 @@
 extends Node
 
+signal cue_played(category: StringName, kind: StringName)
+
 const AudioServiceScript: GDScript = preload("res://scripts/audio_service.gd")
 const MAX_VOICES: int = AudioServiceScript.SPATIAL_VOICE_COUNT
 const MAX_HISTORY: int = 64
@@ -83,6 +85,7 @@ var _last_position: Vector2 = Vector2.ZERO
 
 
 func _ready() -> void:
+	add_to_group("enemy_audio_router")
 	call_deferred("_bind_accessibility")
 
 
@@ -94,7 +97,7 @@ func play_warning(
 	pattern: StringName = &"",
 ) -> bool:
 	_warning_count += 1
-	return _play_once(
+	var accepted: bool = _play_once(
 		attack_stream_for(kind, pattern) if kind == KILNHEART_KIND else stream_for(kind),
 		kind,
 		"warning:%s:%d:%d" % [kind, enemy_id, attack_serial],
@@ -104,6 +107,9 @@ func play_warning(
 		3,
 		1800.0,
 	)
+	if accepted:
+		cue_played.emit(&"warning", kind)
+	return accepted
 
 
 func play_movement(
@@ -114,7 +120,7 @@ func play_movement(
 ) -> bool:
 	_movement_count += 1
 	var pitch: float = 1.0 + float((movement_serial % 3) - 1) * 0.025
-	return _play_once(
+	var accepted: bool = _play_once(
 		movement_stream_for(kind),
 		kind,
 		"move:%s:%d:%d" % [kind, enemy_id, movement_serial],
@@ -124,6 +130,9 @@ func play_movement(
 		1 if kind != KILNHEART_KIND else 3,
 		1250.0 if kind != KILNHEART_KIND else 1900.0,
 	)
+	if accepted:
+		cue_played.emit(&"movement", kind)
+	return accepted
 
 
 func play_attack(
@@ -134,7 +143,7 @@ func play_attack(
 	pattern: StringName = &"",
 ) -> bool:
 	_attack_count += 1
-	return _play_once(
+	var accepted: bool = _play_once(
 		attack_stream_for(kind, pattern),
 		kind,
 		"attack:%s:%d:%d" % [kind, enemy_id, attack_serial],
@@ -144,6 +153,9 @@ func play_attack(
 		3,
 		1500.0 if kind != KILNHEART_KIND else 1900.0,
 	)
+	if accepted:
+		cue_played.emit(&"attack", kind)
+	return accepted
 
 
 func set_enabled(enabled: bool) -> void:

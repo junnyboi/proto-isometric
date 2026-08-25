@@ -91,3 +91,19 @@ The twelve files under `assets/audio/enemies/` were generated on 2026-08-25 from
 | `enemies/boss_kilnheart_caldera_barrage.wav` | Kilnheart three-pulse Caldera Barrage signature | 1.50 s |
 
 `FaunaTelegraphAudio` routes these files spatially through the existing `Enemy` bus. Tiny-mob movement uses a per-entity staggered cadence and low priority so a pack cannot create an unbounded voice burst. Attack cues are deduplicated by enemy ID and attack serial at the warning transition. Kilnheart movement is emitted only when its combat model reports actual displacement, while its selected attack pattern chooses the corresponding boss cue. Accessibility SFX preferences and the global spatial voice cap remain authoritative.
+
+
+## Biome weather ambience layers
+
+The four files under `assets/audio/weather/` were generated on 2026-08-25 from original ten-second audio-bearing weather carriers created with the built-in video generation service. Each carrier used a generated 16:9 environment reference and requested one continuous biome-specific weather texture with no dialogue, narration, music, rhythm, animals, UI, or combat effects. Carrier videos and references remain under the ignored `.generated/weather_audio/` workspace and do not ship.
+
+`tools/extract_weather_audio_from_carriers.py` takes a stable interior source window, converts it to mono 48 kHz PCM, constructs an exact eight-second cyclic loop by equal-power tail-to-head overlap, matches −34 LUFS integrated through deterministic constant gain, and validates sample count, channel count, distinct hashes, nonzero energy, conservative peaks, edge-energy compatibility, and seam discontinuity. Godot 4.7.2 loads all four outputs as `AudioStreamWAV` resources and enables forward looping at runtime.
+
+| Runtime file | Weather identity | Duration | Integrated loudness | Seam jump | SHA-256 |
+|---|---|---:|---:|---:|---|
+| `weather/weather_desert_glasswind.wav` | Dry crosswind and fine granular sand hiss | 8.000 s | −34.0 LUFS | 0.001617 | `409d58cc0a1ac807fc19e711ea5168250cc02f8fc5a3ef963d3fb2f592299818` |
+| `weather/weather_wetland_reedrain.wav` | Light rain on reeds and shallow water | 8.000 s | −34.0 LUFS | 0.004639 | `a9c5cae6482e13da601fec402a3927a25ef0ecf7d23f9402fb8bdb8c7dbf529b` |
+| `weather/weather_frozen_whiteout.wav` | Airy blizzard wash and ice-crystal skitter | 8.000 s | −34.0 LUFS | 0.000885 | `9bdae6d7f88eb133e5b1b79ca90c996ffc791552d88b3b249215dbbfb4e29d52` |
+| `weather/weather_volcanic_ashfall.wav` | Ash wind, geothermal rumble, and sparse ember crackle | 8.000 s | −34.0 LUFS | 0.000336 | `4fc6a3f6030140831661b024b058a0c56e4a5f74cda1fc00ee43940655d01e95` |
+
+These loops form a second environmental layer beneath actionable `Enemy`-bus cues. They share the existing `Ambient` bus and Ambience accessibility preference, use a hard two-voice crossfade cap, raise intensity only for matching live hazard activity, and apply a bounded duck when enemy warnings or attacks play.

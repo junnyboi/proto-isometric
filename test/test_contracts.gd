@@ -6,6 +6,9 @@ const BalanceTestsScript: GDScript = preload("res://test/test_balance.gd")
 const BiomeDestructibleTestsScript: GDScript = preload("res://test/test_biome_destructibles.gd")
 const BiomeFaunaTestsScript: GDScript = preload("res://test/test_biome_fauna.gd")
 const BiomeIntelPanelTestsScript: GDScript = preload("res://test/test_biome_intel_panel.gd")
+const BiomeWeatherAudioTestsScript: GDScript = preload(
+	"res://test/test_biome_weather_audio.gd"
+)
 const CameraZoomTestsScript: GDScript = preload("res://test/test_camera_zoom.gd")
 const CharacterHoverTestsScript: GDScript = preload("res://test/test_character_hover.gd")
 const DeepBiomeHazardTestsScript: GDScript = preload("res://test/test_deep_biome_hazards.gd")
@@ -64,6 +67,7 @@ static func evaluate(
 	cases.append_array(BiomeDestructibleTestsScript.evaluate())
 	cases.append_array(BiomeFaunaTestsScript.evaluate(runtime))
 	cases.append_array(BiomeIntelPanelTestsScript.evaluate(runtime))
+	cases.append_array(BiomeWeatherAudioTestsScript.evaluate())
 	cases.append_array(CameraZoomTestsScript.evaluate())
 	cases.append_array(StateTestsScript.evaluate(coordinator))
 	cases.append_array(TerminalFlowTestsScript.evaluate())

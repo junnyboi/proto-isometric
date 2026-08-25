@@ -70,6 +70,7 @@ var _event_rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 
 func _ready() -> void:
+	add_to_group("weather_audio_source")
 	_rng.seed = 0xCA7D1A1
 	_event_rng.seed = 0xD33F71E
 

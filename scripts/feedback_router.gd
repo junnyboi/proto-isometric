@@ -2,6 +2,7 @@ extends Node
 
 const BiomeMusicScript: GDScript = preload("res://scripts/biome_music.gd")
 const BiomeSoundscapeScript: GDScript = preload("res://scripts/biome_soundscape.gd")
+const BiomeWeatherAudioScript: GDScript = preload("res://scripts/biome_weather_audio.gd")
 const CameraImpulseMixerScript: GDScript = preload("res://scripts/camera_impulse_mixer.gd")
 const FeedbackAudioScript: GDScript = preload("res://scripts/feedback_audio.gd")
 const FeedbackEventScript: GDScript = preload("res://scripts/feedback_event.gd")
@@ -26,6 +27,7 @@ var _haptics: RefCounted = HapticRouterScript.new() as RefCounted
 var _audio: Node
 var _music: Node
 var _soundscape: Node
+var _weather: Node
 var _locomotion_feedback: Node
 var _seen_sequences: Dictionary = {}
 var _history: Array[Dictionary] = []
@@ -59,6 +61,7 @@ func _ready() -> void:
 	_ensure_audio()
 	_ensure_music()
 	_ensure_soundscape()
+	_ensure_weather()
 	call_deferred("_bind_accessibility")
 
 
@@ -170,6 +173,7 @@ func get_metrics() -> Dictionary:
 		&"audio": _audio.call("get_metrics") if _audio != null else {},
 		&"music": _music.call("get_metrics") if _music != null else {},
 		&"soundscape": _soundscape.call("get_metrics") if _soundscape != null else {},
+		&"weather": _weather.call("get_metrics") if _weather != null else {},
 		&"haptics": _haptics.call("get_metrics"),
 		&"reactions": int(_reactions.call("get_presentation_count")),
 	}
@@ -188,11 +192,15 @@ func notify_blocked() -> bool:
 func present_biome(biome: StringName) -> bool:
 	_ensure_music()
 	_ensure_soundscape()
+	_ensure_weather()
 	var music_changed: bool = bool(_music.call("set_biome", biome)) if _music != null else false
 	var ambience_changed: bool = (
 		bool(_soundscape.call("set_biome", biome)) if _soundscape != null else false
 	)
-	return music_changed or ambience_changed
+	var weather_changed: bool = (
+		bool(_weather.call("set_biome", biome)) if _weather != null else false
+	)
+	return music_changed or ambience_changed or weather_changed
 
 
 func apply_preferences(snapshot: Dictionary) -> void:
@@ -228,9 +236,14 @@ func apply_preferences(snapshot: Dictionary) -> void:
 		_music.call("set_volume", 1.0)
 		_music.call("set_enabled", float(snapshot.get(&"music_volume", 1.0)) > 0.0)
 	_ensure_soundscape()
+	_ensure_weather()
+	var ambience_enabled: bool = float(snapshot.get(&"ambience_volume", 1.0)) > 0.0
 	if _soundscape != null:
 		_soundscape.call("set_volume", 1.0)
-		_soundscape.call("set_enabled", float(snapshot.get(&"ambience_volume", 1.0)) > 0.0)
+		_soundscape.call("set_enabled", ambience_enabled)
+	if _weather != null:
+		_weather.call("set_volume", 1.0)
+		_weather.call("set_enabled", ambience_enabled)
 
 
 func _present_outcome(
@@ -271,6 +284,9 @@ func _dispatch(event: Dictionary, profile: Dictionary) -> void:
 	_ensure_soundscape()
 	if _soundscape != null:
 		_soundscape.call("present", event)
+	_ensure_weather()
+	if _weather != null:
+		_weather.call("present", event)
 	_ensure_audio()
 	if _audio != null:
 		_audio.call("play_event", event)
@@ -301,6 +317,14 @@ func _ensure_soundscape() -> void:
 	add_child(_soundscape)
 
 
+func _ensure_weather() -> void:
+	if _weather != null:
+		return
+	_weather = BiomeWeatherAudioScript.new() as Node
+	_weather.name = "BiomeWeatherAudio"
+	add_child(_weather)
+
+
 func _bind_accessibility() -> void:
 	var panel: Node = get_tree().get_first_node_in_group("accessibility_panel")
 	if panel == null:
@@ -323,6 +347,7 @@ func _sync_metrics() -> void:
 	var soundscape: Dictionary = (
 		_soundscape.call("get_metrics") as Dictionary if _soundscape != null else {}
 	)
+	var weather: Dictionary = _weather.call("get_metrics") as Dictionary if _weather != null else {}
 	_performance_sampler.call("set_gauge", &"feedback.history", float(_history.size()))
 	_performance_sampler.call("set_gauge", &"feedback.camera_active", float(camera[&"active"]))
 	_performance_sampler.call("set_gauge", &"feedback.audio_active", float(audio.get(&"active", 0)))
@@ -331,4 +356,7 @@ func _sync_metrics() -> void:
 	)
 	_performance_sampler.call(
 		"set_gauge", &"feedback.ambience_active", float(soundscape.get(&"active", 0))
+	)
+	_performance_sampler.call(
+		"set_gauge", &"feedback.weather_active", float(weather.get(&"active", 0))
 	)
