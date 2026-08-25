@@ -65,6 +65,7 @@ var _restart_count: int = 0
 
 
 func _ready() -> void:
+	add_to_group("weather_audio_layer")
 	_ensure_players()
 	_start_biome(_current_biome, true)
 	call_deferred("_bind_runtime_sources")

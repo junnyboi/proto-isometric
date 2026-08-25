@@ -18,6 +18,7 @@ static func evaluate() -> Array[Dictionary]:
 		),
 	)
 	var atmosphere: Node2D = AtmosphereScript.new() as Node2D
+	var full_marks: int = int(atmosphere.call("get_visible_mark_count"))
 	var maximum: float = 0.0
 	for _index: int in range(120):
 		atmosphere.call("advance", 0.05)
@@ -25,16 +26,16 @@ static func evaluate() -> Array[Dictionary]:
 	_add(cases, "ambient punctuation breathes without spawning new nodes", maximum > 0.9)
 	_add(
 		cases,
-		"ambient punctuation keeps the fixed 96-mark budget",
-		int(atmosphere.call("get_particle_count")) == 96
+		"ambient punctuation keeps the fixed 128-mark budget",
+		int(atmosphere.call("get_particle_count")) == 128
 	)
 	atmosphere.call("_apply_preferences", {&"vfx_intensity": 0.5})
 	_add(
 		cases,
 		"half VFX intensity halves visible ambient marks without changing the fixed budget",
 		(
-			int(atmosphere.call("get_visible_mark_count")) == 48
-			and int(atmosphere.call("get_particle_count")) == 96
+			int(atmosphere.call("get_visible_mark_count")) == roundi(float(full_marks) * 0.5)
+			and int(atmosphere.call("get_particle_count")) == 128
 		),
 	)
 	atmosphere.call("_apply_preferences", {&"vfx_intensity": 0.0})
