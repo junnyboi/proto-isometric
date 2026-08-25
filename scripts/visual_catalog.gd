@@ -41,6 +41,13 @@ const REQUIRED_PATHS: Array[String] = [
 	"res://assets/vfx/juice/charge_ready.png",
 	"res://assets/vfx/juice/relay_flare.png",
 	"res://assets/vfx/juice/pickup_spark.png",
+	"res://assets/tools/protos_hoe_spritesheet.png",
+	"res://assets/tools/protos_water_spritesheet.png",
+	"res://assets/ui/tools/icon_hoe.png",
+	"res://assets/ui/tools/icon_watering_tool.png",
+	"res://assets/ui/tools/icon_axe.png",
+	"res://assets/ui/tools/icon_pick.png",
+	"res://assets/ui/tools/icon_seed_pouch.png",
 ]
 
 

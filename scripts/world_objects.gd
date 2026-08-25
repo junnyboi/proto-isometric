@@ -3,6 +3,7 @@ extends Node2D
 const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 
 const BiomeDestructiblesScript: GDScript = preload("res://scripts/biome_destructibles.gd")
+const DiagonalDepthScript: GDScript = preload("res://scripts/diagonal_depth.gd")
 const EncounterDirectorScript: GDScript = preload("res://scripts/encounter_director.gd")
 const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const LavaContactScript: GDScript = preload("res://scripts/lava_contact.gd")
@@ -74,9 +75,22 @@ func advance_lava(position: Vector2, delta: float) -> void:
 
 
 func set_visible_cells(cells: Array[Vector2i]) -> void:
-	_visible_cells = cells
+	var ordered: Array[Vector2i] = cells.duplicate()
+	ordered.sort_custom(
+		func(first: Vector2i, second: Vector2i) -> bool:
+			var first_bucket: int = DiagonalDepthScript.bucket_for(first)
+			var second_bucket: int = DiagonalDepthScript.bucket_for(second)
+			return (
+				first_bucket < second_bucket
+				or (first_bucket == second_bucket and first.y < second.y)
+				or (first_bucket == second_bucket and first.y == second.y and first.x < second.x)
+			)
+	)
+	if ordered == _visible_cells:
+		return
+	_visible_cells = ordered
 	if _outpost_energy != null:
-		_outpost_energy.call("set_visible_cells", cells)
+		_outpost_energy.call("set_visible_cells", ordered)
 	invalidate_static_objects()
 
 

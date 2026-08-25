@@ -1,5 +1,7 @@
 extends RefCounted
 
+const HarvestCommandsScript: GDScript = preload("res://scripts/harvest_command_intents.gd")
+const FACING_NAMES: Array[StringName] = [&"N", &"NE", &"E", &"SE", &"S", &"SW", &"W", &"NW"]
 const CONTROLLER_DEAD_ZONE: float = 0.16
 const CONTROLLER_RESPONSE_EXPONENT: float = 1.15
 const CONTROLLER_ACTIVITY_THRESHOLD: float = 0.08
@@ -53,10 +55,17 @@ static func facing_to_screen_direction(facing: StringName) -> Vector2i:
 	return directions.get(facing, Vector2i.ZERO) as Vector2i
 
 
+static func facing_names() -> Array[StringName]:
+	return FACING_NAMES.duplicate()
+
+
 static func read_drive_vector() -> Vector2:
 	var keyboard: Vector2i = read_screen_direction()
 	if keyboard != Vector2i.ZERO:
 		return Vector2(keyboard).normalized()
+	var remapped: Vector2 = HarvestCommandsScript.read_move_vector()
+	if not remapped.is_zero_approx():
+		return remapped
 	return read_controller_vector()
 
 
@@ -101,7 +110,7 @@ static func shape_controller_vector(
 
 
 static func is_run_pressed() -> bool:
-	if Input.is_key_pressed(KEY_SHIFT):
+	if HarvestCommandsScript.is_pressed(HarvestCommandsScript.RUN):
 		return true
 	for device: int in Input.get_connected_joypads():
 		if (
@@ -115,7 +124,8 @@ static func is_run_pressed() -> bool:
 
 static func is_attack_pressed() -> bool:
 	if (
-		Input.is_key_pressed(KEY_SPACE)
+		HarvestCommandsScript.is_pressed(HarvestCommandsScript.COMBAT_ATTACK)
+		or Input.is_key_pressed(KEY_SPACE)
 		or Input.is_physical_key_pressed(KEY_J)
 		or Input.is_physical_key_pressed(KEY_K)
 	):

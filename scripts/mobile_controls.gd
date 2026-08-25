@@ -1,7 +1,9 @@
 extends CanvasLayer
 
 signal smash_pressed
+signal command_pressed(action: StringName)
 
+const HarvestCommandsScript: GDScript = preload("res://scripts/harvest_command_intents.gd")
 const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 const FIELD_THEME: Resource = preload("res://data/field_hud_theme.tres")
 const PlayerPreferencesScript: GDScript = preload("res://scripts/player_preferences.gd")
@@ -29,6 +31,8 @@ var _layout: Dictionary = {}
 var _touch_exclusions: Array[Rect2] = []
 var _joystick: Control
 var _smash_button: Button
+var _command_dock: Control
+var _command_buttons: Dictionary = {}
 var _run_intent: bool = false
 var _left_handed: bool = false
 var _haptics: bool = true
@@ -43,6 +47,7 @@ func _ready() -> void:
 	_mobile_device = _detect_mobile_device()
 	_build_joystick()
 	_build_smash_button()
+	_build_command_dock()
 	add_to_group("localization_listeners")
 	_apply_preferences(
 		(PlayerPreferencesScript.new() as RefCounted).call("load_preferences") as Dictionary
@@ -105,6 +110,7 @@ func apply_layout(viewport_size: Vector2) -> bool:
 		_smash_button.position = smash.position
 		_smash_button.size = smash.size
 		_smash_button.pivot_offset = smash.size * 0.5
+	_layout_command_dock(viewport_size, smash)
 	_cancel_touch_interactions()
 	return true
 
@@ -201,6 +207,11 @@ func trigger_smash() -> void:
 		smash_pressed.emit()
 
 
+func trigger_command(action: StringName) -> void:
+	if _mobile_device and _controls_enabled and action in HarvestCommandsScript.action_ids():
+		command_pressed.emit(action)
+
+
 func _detect_mobile_device() -> bool:
 	if OS.has_feature("mobile"):
 		return true
@@ -255,6 +266,39 @@ func _build_smash_button() -> void:
 	add_child(_smash_button)
 
 
+func _build_command_dock() -> void:
+	_command_dock = Control.new()
+	_command_dock.name = "HarvestCommandDock"
+	_command_dock.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_command_dock)
+	var definitions: Array[Dictionary] = [
+		{&"action": HarvestCommandsScript.CONTEXT, &"label": "USE"},
+		{&"action": HarvestCommandsScript.TOOL_ACTION, &"label": "TOOL"},
+		{&"action": HarvestCommandsScript.PREVIOUS_TOOL, &"label": "◀"},
+		{&"action": HarvestCommandsScript.NEXT_TOOL, &"label": "▶"},
+		{&"action": HarvestCommandsScript.INVENTORY, &"label": "BAG"},
+		{&"action": HarvestCommandsScript.JOURNAL_MAP, &"label": "MAP"},
+		{&"action": HarvestCommandsScript.CANCEL, &"label": "×"},
+	]
+	for definition: Dictionary in definitions:
+		var button: Button = Button.new()
+		var action: StringName = definition[&"action"] as StringName
+		button.name = "%sButton" % String(action).to_pascal_case()
+		button.text = str(definition[&"label"])
+		button.focus_mode = Control.FOCUS_NONE
+		button.add_theme_font_size_override("font_size", 13)
+		button.add_theme_color_override("font_color", Color("fff4dc"))
+		button.add_theme_stylebox_override(
+			"normal", _button_style(Color(INK, 0.82), TEAL, 3.0)
+		)
+		button.add_theme_stylebox_override(
+			"pressed", _button_style(Color(TEAL, 0.9), Color.WHITE, 4.0)
+		)
+		button.pressed.connect(trigger_command.bind(action))
+		_command_dock.add_child(button)
+		_command_buttons[action] = button
+
+
 func _button_style(fill: Color, border: Color, width: float) -> StyleBoxFlat:
 	var style: StyleBoxFlat = StyleBoxFlat.new()
 	style.bg_color = fill
@@ -276,6 +320,8 @@ func _apply_visibility() -> void:
 			_smash_button.scale = Vector2.ONE
 	if _joystick != null and (not _mobile_device or not _controls_enabled):
 		_joystick.visible = false
+	if _command_dock != null:
+		_command_dock.visible = _mobile_device and _controls_enabled
 
 
 func _clamp_origin(position: Vector2) -> Vector2:
@@ -298,6 +344,35 @@ func _point_is_in_drive_zone(position: Vector2) -> bool:
 		split = safe.position.x + safe.size.x * (1.0 - DRIVE_ZONE_FRACTION)
 		return position.x >= split
 	return position.x <= split
+
+
+func _layout_command_dock(viewport_size: Vector2, smash: Rect2) -> void:
+	if _command_dock == null:
+		return
+	const COLUMNS: int = 4
+	const CELL: Vector2 = Vector2(56.0, 46.0)
+	const GAP: float = 6.0
+	var width: float = float(COLUMNS) * CELL.x + float(COLUMNS - 1) * GAP
+	var height: float = CELL.y * 2.0 + GAP
+	var x: float = smash.position.x - width - 14.0
+	if _left_handed:
+		x = smash.end.x + 14.0
+	x = clampf(x, 10.0, viewport_size.x - width - 10.0)
+	var y: float = clampf(
+		smash.get_center().y - height * 0.5,
+		10.0,
+		viewport_size.y - height - 10.0,
+	)
+	_command_dock.position = Vector2(x, y)
+	_command_dock.size = Vector2(width, height)
+	var actions: Array = _command_buttons.keys()
+	for index: int in range(actions.size()):
+		var button: Button = _command_buttons[actions[index]] as Button
+		button.position = Vector2(
+			float(index % COLUMNS) * (CELL.x + GAP),
+			float(index / COLUMNS) * (CELL.y + GAP),
+		)
+		button.size = CELL
 
 
 func _on_viewport_resized() -> void:

@@ -432,7 +432,7 @@ This plan is the executable source of truth for the approved Protos Harvest pivo
 |---|---|---|---|
 | **Phase 0 — Baseline, identity seams, and compatibility** | **Complete** | Revision `4c986fa`; baseline and post-change `./verify.sh --release` passed on Godot 4.7.2; Phase 0 focused suite passed **83/83**; exact exported PCK booted successfully | Added stable domain ownership, additive schema 4, neutral farm state, v1/v2/v3 migration compatibility, and explicit fresh-farm / legacy-expedition mode seams. |
 | **Phase 1 — Safe woodland clearing** | **Complete** | Phase 1 focused suite passed **32/32**; full smoke passed **1,981/1,981**; 1,000-seed generation invariants, seven-day safety soak, landscape/portrait Xvfb checks, `./verify.sh --release`, Web export, and exact PCK boot all passed | Safe woodland clearing, fixed home and pond, deterministic tree belt, central safety, stateful remote ruins, calm home intel, and legacy compatibility are certified. |
-| **Phase 2 — Interaction and rendering seam** | Pending | GPT Image 2 plus video-carrier hoe and watering animation candidates prepared outside the repository | Begins only after Phase 1 is pushed. |
+| **Phase 2 — Interaction and rendering seam** | **Complete** | Phase 2 focused suite passed **19/19**; full smoke passed **1,981/1,981**; landscape/portrait Xvfb checks, `./verify.sh --release`, Web export, and exact PCK boot all passed | Stable cross-device commands, exact adjacent targeting, protected friendly targets, separate chore lifecycle, dirty-indexed farm rendering, and diagonal depth seams are certified. |
 | **Phase 3 — Day-one farm proof** | Pending | Mirelo-style chore SFX carrier production prepared outside the repository | Begins only after Phase 2 is pushed. |
 | **Phase 4 — Authoritative persistence and economy** | Pending | — | Begins only after Phase 3 is pushed. |
 | **Phase 5 — Lovable homestead** | Pending | — | Begins only after Phase 4 is pushed. |
@@ -458,3 +458,11 @@ This plan is the executable source of truth for the approved Protos Harvest pivo
 **PH-07** centralizes safe-home decisions in `WorldSafety`. Spawn, pursuit, projectile, moving hazard, deep weather, and lava adapters all deny harm inside the home boundary; a bounded seven-day-equivalent soak reports zero home violations while legacy expeditions retain their original danger model.
 
 **PH-08** establishes the starting safehouse as discovered, repaired, powered, and service-active. Remote ruins remain landmarks until both repaired and powered, then provide sanctuary and services through explicit state. Legacy starter outposts keep their previous active semantics.
+
+### Phase 2 implementation evidence
+
+**PH-09 / PH-10** add fifteen stable keyboard, controller, and touch intents while retaining the original WASD, Shift, Space/J/K, X/shoulder, Smash, joystick, and camera behavior. A pure resolver maps all eight facings to one exact adjacent cell, applies deterministic target priority, and returns sealed valid/rejected results. The live field composes the target controller through a separate bridge so the capped map authority remains unchanged.
+
+**PH-11** separates tool preview/contact from Walker combat impact. GPT Image 2 anchor art and locked-camera video carriers supply eight-frame hoe and watering sheets; their presenter emits one contact frame, hides/restores the base Walker cleanly, consumes no resources, and mutates no farm state. Explicit policy denies tool damage against crops, residents, friendly fauna, machines, and the home.
+
+**PH-12 / PH-13** add a future farm renderer that consumes chunk-indexed immutable records, redraws only on visible invalidation, allocates no per-crop Nodes, and renders only registered textures. Stable diagonal depth keys cover one-cell tree/crop/resident/Walker foot anchors and multi-cell structures; the existing world-object batch now traverses cells in the same deterministic order.
