@@ -44,6 +44,7 @@ fi
 printf '[4/4] boot\n'
 timeout 20s "$GODOT" --headless --path . --quit-after 2 >"$tmp/boot.log" 2>&1
 grep -F '[PROTO_ISOMETRIC_READY]' "$tmp/boot.log" >/dev/null
+grep -F '[TITLE_MUSIC_READY]' "$tmp/boot.log" >/dev/null
 if grep -E 'ERROR:|SCRIPT ERROR:' "$tmp/boot.log"; then
   cat "$tmp/boot.log" >&2
   exit 1
@@ -62,9 +63,26 @@ if [[ "$MODE" == "--release" ]]; then
     echo 'Non-shipping files entered the Web export' >&2
     exit 1
   fi
+  python3 tools/prepare_web_shell.py \
+    --html "$WEB_OUT/proto-isometric.html" \
+    --desktop-source assets/title/protos_harvest_title_desktop.png \
+    --mobile-source assets/title/protos_harvest_title_mobile.png
   for ext in html js wasm pck; do
     test -s "$WEB_OUT/proto-isometric.$ext"
   done
+  for loader in \
+    proto-isometric.loader-desktop.webp \
+    proto-isometric.loader-mobile.webp; do
+    test -s "$WEB_OUT/$loader"
+  done
+  grep -F 'proto-isometric.loader-desktop.webp' "$WEB_OUT/proto-isometric.html" >/dev/null
+  grep -F 'proto-isometric.loader-mobile.webp' "$WEB_OUT/proto-isometric.html" >/dev/null
+  grep -F 'Restoring the clearing' "$WEB_OUT/proto-isometric.html" >/dev/null
+  grep -F '#status-progress' "$WEB_OUT/proto-isometric.html" >/dev/null
+  if grep -F 'src="proto-isometric.png"' "$WEB_OUT/proto-isometric.html"; then
+    echo 'Generic Godot Web splash survived postprocessing' >&2
+    exit 1
+  fi
   printf '[release] exported PCK boot\n'
   (
     cd "$tmp"

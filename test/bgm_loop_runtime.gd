@@ -1,6 +1,7 @@
 extends SceneTree
 
 const TRACK_PATHS: Array[String] = [
+	"res://assets/audio/bgm_title.ogg",
 	"res://assets/audio/bgm_desert.ogg",
 	"res://assets/audio/bgm_desert_alt.ogg",
 	"res://assets/audio/bgm_wetland.ogg",

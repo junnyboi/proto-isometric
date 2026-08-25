@@ -7,6 +7,7 @@ const TitleScreenScript: GDScript = preload("res://scripts/title_screen.gd")
 
 const DESKTOP_ART: String = "res://assets/title/protos_harvest_title_desktop.png"
 const MOBILE_ART: String = "res://assets/title/protos_harvest_title_mobile.png"
+const TITLE_MUSIC_PATH: String = "res://assets/audio/bgm_title.ogg"
 
 
 static func evaluate() -> Array[Dictionary]:
@@ -76,6 +77,21 @@ static func evaluate() -> Array[Dictionary]:
 		cases,
 		"desktop and mobile Signal-First artwork load",
 		load(DESKTOP_ART) is Texture2D and load(MOBILE_ART) is Texture2D,
+	)
+	var title_music: AudioStream = load(TITLE_MUSIC_PATH) as AudioStream
+	var title_music_metrics: Dictionary = title.call("get_title_music_metrics") as Dictionary
+	_add(
+		cases,
+		"title briefing owns a long-form original Music-bus loop with bounded handoff",
+		(
+			title_music is AudioStreamOggVorbis
+			and title_music.get_length() >= 80.0
+			and title_music_metrics[&"stream_path"] == TITLE_MUSIC_PATH
+			and title_music_metrics[&"bus"] == &"Music"
+			and float(title_music_metrics[&"volume_db"]) <= -6.0
+			and float(title_music_metrics[&"fade_seconds"]) > 0.0
+			and float(title_music_metrics[&"fade_seconds"]) <= 1.0
+		),
 	)
 	language.pressed.emit()
 	title.call("_refresh_localized_text")

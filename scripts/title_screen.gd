@@ -18,6 +18,10 @@ const TITLE_MOBILE: Texture2D = preload(
 	"res://assets/title/protos_harvest_title_mobile.png"
 )
 const BEGIN_CUE: AudioStream = preload("res://assets/audio/ui_begin.wav")
+const TITLE_MUSIC: AudioStream = preload("res://assets/audio/bgm_title.ogg")
+const TITLE_MUSIC_VOLUME_DB: float = -9.0
+const TITLE_MUSIC_FADE_SECONDS: float = 0.65
+const SILENT_VOLUME_DB: float = -80.0
 
 const AMBER: Color = Color("f3a21e")
 const AMBER_HOVER: Color = Color("ffc35c")
@@ -45,10 +49,12 @@ var _language_toggle: Button
 var _layout: Dictionary = {}
 var _field_visible: bool = false
 var _audio_trigger_count: int = 0
+var _title_music_player: AudioStreamPlayer
 
 
 func _ready() -> void:
 	_build_interface()
+	_start_title_music()
 	add_to_group("localization_listeners")
 	add_child(AccessibilityPanelScript.new())
 	_apply_save_metadata()
@@ -639,8 +645,9 @@ func _on_begin_pressed() -> void:
 	if _field_visible:
 		return
 	_prepare_field_entry()
-	_enter_field()
 	_trigger_begin_audio()
+	await _fade_out_title_music()
+	_enter_field()
 
 
 func _prepare_field_entry() -> void:
@@ -774,15 +781,80 @@ func get_language_toggle() -> Button:
 
 
 func is_audio_ready() -> bool:
-	return BEGIN_CUE != null and get_node_or_null("/root/AudioService") != null
+	return (
+		BEGIN_CUE != null
+		and TITLE_MUSIC != null
+		and get_node_or_null("/root/AudioService") != null
+	)
 
 
 func get_audio_trigger_count() -> int:
 	return _audio_trigger_count
 
 
+func get_title_music_metrics() -> Dictionary:
+	return {
+		&"stream_path": TITLE_MUSIC.resource_path,
+		&"bus": AudioServiceScript.BUS_MUSIC,
+		&"volume_db": TITLE_MUSIC_VOLUME_DB,
+		&"fade_seconds": TITLE_MUSIC_FADE_SECONDS,
+		&"looping": bool(TITLE_MUSIC.get("loop")),
+		&"playing": (
+			is_instance_valid(_title_music_player)
+			and _title_music_player.playing
+		),
+	}
+
+
 func prepare_for_shutdown() -> void:
-	pass
+	if is_instance_valid(_title_music_player):
+		_title_music_player.stop()
+
+
+func _start_title_music() -> void:
+	if TITLE_MUSIC == null or not is_inside_tree() or is_instance_valid(_title_music_player):
+		return
+	TITLE_MUSIC.set("loop", true)
+	_title_music_player = AudioStreamPlayer.new()
+	_title_music_player.name = "TitleMusic"
+	_title_music_player.stream = TITLE_MUSIC
+	_title_music_player.bus = AudioServiceScript.BUS_MUSIC
+	_title_music_player.volume_db = TITLE_MUSIC_VOLUME_DB
+	add_child(_title_music_player)
+	if DisplayServer.get_name() != "headless":
+		_title_music_player.play()
+	print(
+		"[TITLE_MUSIC_READY] path=%s length=%.3f loop=%s"
+		% [
+			TITLE_MUSIC.resource_path,
+			TITLE_MUSIC.get_length(),
+			str(bool(TITLE_MUSIC.get("loop"))),
+		]
+	)
+
+
+func _fade_out_title_music() -> void:
+	if (
+		DisplayServer.get_name() == "headless"
+		or not is_instance_valid(_title_music_player)
+		or not _title_music_player.playing
+	):
+		return
+	var tween: Tween = create_tween()
+	(
+		tween
+		. tween_property(
+			_title_music_player,
+			"volume_db",
+			SILENT_VOLUME_DB,
+			TITLE_MUSIC_FADE_SECONDS,
+		)
+		. set_trans(Tween.TRANS_SINE)
+		. set_ease(Tween.EASE_IN_OUT)
+	)
+	await tween.finished
+	if is_instance_valid(_title_music_player):
+		_title_music_player.stop()
 
 
 func _trigger_begin_audio() -> void:

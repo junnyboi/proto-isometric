@@ -24,6 +24,7 @@ from collections.abc import Sequence
 SAMPLE_RATE = 48_000
 CHANNELS = 2
 EXPECTED_TRACK_NAMES = (
+    "bgm_title.ogg",
     "bgm_desert.ogg",
     "bgm_desert_alt.ogg",
     "bgm_wetland.ogg",
