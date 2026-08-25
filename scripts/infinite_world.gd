@@ -6,6 +6,7 @@ const LavaFieldsScript: GDScript = preload("res://scripts/lava_fields.gd")
 const RuinRegistryScript: GDScript = preload("res://scripts/ruin_registry.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const WoodlandClearingScript: GDScript = preload("res://scripts/woodland_clearing.gd")
+const WorldMutationLedgerScript: GDScript = preload("res://scripts/world_mutation_ledger.gd")
 const WorldSafetyScript: GDScript = preload("res://scripts/world_safety.gd")
 
 const CHUNK_SIZE: int = 8
@@ -54,6 +55,7 @@ var _destroyed_rocks: Dictionary = {}
 var _placed_rocks: Dictionary = {}
 var _dropped_scrap: Dictionary = {}
 var _collected_scrap: Dictionary = {}
+var _mutation_ledger: Dictionary = {&"cleared": [], &"placed": []}
 var _gameplay_mode: StringName = RuntimeIdsScript.MODE_LEGACY_EXPEDITION
 var _world_seed: int = WoodlandClearingScript.DEFAULT_SEED
 var _ruin_registry: RefCounted = RuinRegistryScript.new() as RefCounted
@@ -312,6 +314,8 @@ func _is_home_inner(position: Vector2) -> bool:
 func _tree_kind_at(cell: Vector2i) -> StringName:
 	if not _is_fresh_farm() or _is_outpost(cell):
 		return &""
+	if WorldMutationLedgerScript.is_cleared(_mutation_ledger, &"object.tree", cell):
+		return &""
 	return WoodlandClearingScript.tree_kind_at(cell, _world_seed)
 
 
@@ -340,12 +344,15 @@ func chunk_for_cell(cell: Vector2i) -> Vector2i:
 
 
 func make_snapshot() -> Dictionary:
-	return {
+	var snapshot: Dictionary = {
 		"destroyed_rocks": _encode_cells(_destroyed_rocks),
 		"placed_rocks": _encode_cells(_placed_rocks),
 		"dropped_scrap": _encode_amounts(_dropped_scrap),
 		"collected_scrap": _encode_cells(_collected_scrap),
 	}
+	_mutation_ledger = _synchronized_ledger(snapshot)
+	snapshot[&"mutation_ledger"] = _mutation_ledger.duplicate(true)
+	return snapshot
 
 
 func is_valid_snapshot(snapshot: Dictionary, robot_cell: Vector2i) -> bool:
@@ -354,11 +361,22 @@ func is_valid_snapshot(snapshot: Dictionary, robot_cell: Vector2i) -> bool:
 		return _legacy_snapshot_is_valid(snapshot, robot_cell)
 	if schema != 2:
 		return false
-	return (
+	var arrays_valid: bool = (
 		_cell_array_is_valid(snapshot.get("destroyed_rocks", null))
 		and _cell_array_is_valid(snapshot.get("placed_rocks", null), robot_cell)
 		and _cell_array_is_valid(snapshot.get("collected_scrap", null))
 		and _amount_array_is_valid(snapshot.get("dropped_scrap", null))
+	)
+	if not arrays_valid or not snapshot.has("mutation_ledger"):
+		return arrays_valid
+	var ledger: Dictionary = WorldMutationLedgerScript.validate(snapshot["mutation_ledger"])
+	if ledger.is_empty():
+		return false
+	var legacy: Dictionary = WorldMutationLedgerScript.legacy_arrays_exact(snapshot, ledger)
+	return (
+		not legacy.is_empty()
+		and legacy[&"destroyed_rocks"] == snapshot[&"destroyed_rocks"]
+		and legacy[&"placed_rocks"] == snapshot[&"placed_rocks"]
 	)
 
 
@@ -367,6 +385,7 @@ func apply_snapshot(snapshot: Dictionary) -> void:
 	_placed_rocks.clear()
 	_dropped_scrap.clear()
 	_collected_scrap.clear()
+	_mutation_ledger = {&"cleared": [], &"placed": []}
 	if int(snapshot.get("schema", -1)) == 1:
 		_apply_legacy_snapshot(snapshot)
 	else:
@@ -374,7 +393,26 @@ func apply_snapshot(snapshot: Dictionary) -> void:
 		_decode_cells(snapshot["placed_rocks"] as Array, _placed_rocks)
 		_decode_cells(snapshot["collected_scrap"] as Array, _collected_scrap)
 		_decode_amounts(snapshot["dropped_scrap"] as Array, _dropped_scrap)
+		_mutation_ledger = (
+			WorldMutationLedgerScript.validate(snapshot["mutation_ledger"])
+			if snapshot.has("mutation_ledger")
+			else WorldMutationLedgerScript.from_legacy(snapshot)
+		)
 	_clear_active_chunks()
+
+
+func _synchronized_ledger(snapshot: Dictionary) -> Dictionary:
+	var synchronized: Dictionary = {&"cleared": [], &"placed": []}
+	var current: Dictionary = WorldMutationLedgerScript.validate(_mutation_ledger)
+	for collection: StringName in [&"cleared", &"placed"]:
+		for record: Dictionary in current.get(collection, []) as Array[Dictionary]:
+			if record[&"kind"] != "object.rock":
+				(synchronized[collection] as Array).append(record.duplicate(true))
+	var legacy: Dictionary = WorldMutationLedgerScript.from_legacy(snapshot)
+	for collection: StringName in [&"cleared", &"placed"]:
+		for record: Dictionary in legacy[collection] as Array[Dictionary]:
+			(synchronized[collection] as Array).append(record.duplicate(true))
+	return WorldMutationLedgerScript.validate(synchronized)
 
 
 func decode_cell(value: Variant) -> Vector2i:
@@ -635,6 +673,7 @@ func _apply_legacy_snapshot(snapshot: Dictionary) -> void:
 		var cell: Vector2i = value as Vector2i
 		if not _dropped_scrap.has(cell):
 			_collected_scrap[cell] = true
+	_mutation_ledger = WorldMutationLedgerScript.from_legacy(make_snapshot())
 
 
 func _decode_cells(values: Array, target: Dictionary) -> void:

@@ -101,6 +101,17 @@ static func clear(ledger: Dictionary, record: Dictionary) -> Dictionary:
 	)
 
 
+static func is_cleared(ledger: Dictionary, kind: StringName, anchor: Vector2i) -> bool:
+	var normalized: Dictionary = validate(ledger)
+	if normalized.is_empty() or kind not in VALID_KINDS:
+		return false
+	var identifier: String = String(stable_id(kind, anchor))
+	for record: Dictionary in normalized[&"cleared"] as Array[Dictionary]:
+		if str(record[&"stable_id"]) == identifier:
+			return true
+	return false
+
+
 static func build_chunk_indexes(ledger: Dictionary) -> Dictionary:
 	var normalized: Dictionary = validate(ledger)
 	var indexes: Dictionary = {}

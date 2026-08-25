@@ -53,6 +53,15 @@ func get_snapshot() -> Dictionary:
 	return _farm.duplicate(true)
 
 
+func sync_committed(farm: Dictionary) -> bool:
+	var normalized: Dictionary = FarmSaveSchemaScript.validate(farm)
+	if normalized.is_empty():
+		return false
+	_farm = normalized
+	_last_error = &""
+	return true
+
+
 func get_render_indexes() -> Dictionary:
 	return FarmStateScript.build_chunk_indexes(_farm)
 

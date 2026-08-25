@@ -12,6 +12,9 @@ const FarmStateScript: GDScript = preload("res://scripts/farm_state.gd")
 const InteractionControllerScript: GDScript = preload(
 	"res://scripts/harvest_interaction_controller.gd"
 )
+const InteractionPhaseBServiceScript: GDScript = preload(
+	"res://scripts/harvest_interaction_phase_b_service.gd"
+)
 const InteractionTargetBridgeScript: GDScript = preload(
 	"res://scripts/harvest_interaction_target_bridge.gd"
 )
@@ -44,6 +47,7 @@ var _controller: Node2D
 var _farm_renderer: Node2D
 var _farm_runtime: RefCounted
 var _transactions: RefCounted
+var _interaction_phase_b_service: RefCounted
 var _wilderness_runtime: RefCounted
 var _ready_for_commands: bool = false
 var _last_presentation_signature: int = 0
@@ -79,6 +83,10 @@ func get_transaction_boundary() -> RefCounted:
 	return _transactions
 
 
+func get_interaction_phase_b_service() -> RefCounted:
+	return _interaction_phase_b_service
+
+
 func get_wilderness_runtime() -> RefCounted:
 	return _wilderness_runtime
 
@@ -110,6 +118,7 @@ func _bootstrap() -> void:
 		push_error("PH-09 interaction bridge could not bind the field authorities.")
 		return
 	_initialize_farm_runtime()
+	_initialize_interaction_phase_b_service()
 	_controller = InteractionControllerScript.new() as Node2D
 	_controller.name = "HarvestInteractionController"
 	_map.add_child(_controller)
@@ -205,6 +214,24 @@ func _initialize_farm_runtime() -> void:
 		_farm_runtime = null
 
 
+func _initialize_interaction_phase_b_service() -> void:
+	if _farm_runtime == null or _transactions == null:
+		return
+	var service: RefCounted = InteractionPhaseBServiceScript.new() as RefCounted
+	if not bool(
+		service.call(
+			"configure",
+			_map,
+			_farm_runtime,
+			_transactions,
+			Callable(self, "_on_phase_b_committed"),
+		)
+	):
+		push_error("Phase B interaction service rejected live authorities.")
+		return
+	_interaction_phase_b_service = service
+
+
 func _commit_farm_candidate(candidate: Dictionary) -> bool:
 	if _transactions == null:
 		return false
@@ -228,6 +255,8 @@ func _publish_envelope(envelope: Dictionary) -> bool:
 
 
 func _target_snapshot(cell: Vector2i) -> Dictionary:
+	if _interaction_phase_b_service != null:
+		return _interaction_phase_b_service.call("resolver_snapshot", cell) as Dictionary
 	var world: RefCounted = _map.get("_world") as RefCounted
 	if world == null or not bool(world.call("is_valid_cell", cell)):
 		return {&"kinds": [], &"out_of_bounds": true}
@@ -266,6 +295,9 @@ func _target_snapshot(cell: Vector2i) -> Dictionary:
 
 
 func _menu_target_snapshot(cell: Vector2i) -> Dictionary:
+	if _interaction_phase_b_service != null:
+		var selected_tool: StringName = _controller.call("get_selected_tool") as StringName
+		return _interaction_phase_b_service.call("project", cell, selected_tool) as Dictionary
 	return InteractionTargetBridgeScript.project(cell, _target_snapshot(cell))
 
 
@@ -275,6 +307,10 @@ func _execute_productive_action(
 	resolved: Dictionary,
 	option: Dictionary = {},
 ) -> Dictionary:
+	if _interaction_phase_b_service != null:
+		return _interaction_phase_b_service.call(
+			"execute", intent, tool_id, resolved, option
+		) as Dictionary
 	if _farm_runtime == null or not bool(resolved.get(&"valid", false)):
 		return {&"ok": false, &"reason": &"farm_unavailable"}
 	var cell: Vector2i = resolved[&"target_cell"] as Vector2i
@@ -310,6 +346,24 @@ func _execute_productive_action(
 		_sync_clearing_music()
 		_play_action_sfx(operation, cell)
 	return result
+
+
+func _on_phase_b_committed(
+	operation: StringName, cell: Vector2i, result: Dictionary
+) -> void:
+	var dirty: Array[Vector2i] = []
+	for value: Variant in result.get(&"dirty_cells", []):
+		if value is Vector2i:
+			dirty.append(value as Vector2i)
+	if operation == &"world_clear_reward":
+		dirty.append(cell)
+		var objects: Node2D = _map.get("_world_objects") as Node2D
+		if objects != null:
+			objects.call("invalidate_static_objects")
+	_refresh_render_indexes(dirty)
+	_sync_ruin_registry()
+	_sync_clearing_music()
+	_play_action_sfx(operation, cell)
 
 
 func _context_operation(cell: Vector2i) -> StringName:

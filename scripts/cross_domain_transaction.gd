@@ -16,6 +16,7 @@ const ProfileStateScript: GDScript = preload("res://scripts/profile_state.gd")
 const RelationshipServiceScript: GDScript = preload("res://scripts/relationship_service.gd")
 const RunStateScript: GDScript = preload("res://scripts/run_state.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
+const WorldOperationScript: GDScript = preload("res://scripts/harvest_world_operation_adapter.gd")
 const WorldMutationLedgerScript: GDScript = preload("res://scripts/world_mutation_ledger.gd")
 
 var _envelope: Dictionary = {}
@@ -205,6 +206,8 @@ func _build(source: Dictionary, operation: StringName, arguments: Dictionary) ->
 				&"candidate": normalized_farm,
 				&"reason": &"invalid_farm_candidate",
 			}
+		&"world_clear_reward":
+			return WorldOperationScript.build(candidate, arguments)
 		&"placement":
 			return _build_placement(candidate, arguments)
 		&"expedition_return":
