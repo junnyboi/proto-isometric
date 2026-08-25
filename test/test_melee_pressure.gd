@@ -241,19 +241,54 @@ static func _test_biome_transition(cases: Array[Dictionary], world: RefCounted) 
 	var enemies: Node2D = SandwormsScript.new() as Node2D
 	enemies.call("configure", Vector2(90.0, 45.0), Vector2.ZERO, null, world)
 	enemies.call("_set_active_biome", &"oasis")
-	enemies.call("_spawn_melee_pack", Vector2(20.0, 20.0), 1)
 	var pressure: Node2D = enemies.call("_get_melee_pressure") as Node2D
+	var player: Vector2 = Vector2(20.0, 20.0)
+	pressure.call("set_player_position", player)
+	enemies.call("_spawn_melee_pack", player, 1)
+	_finish_emergence(pressure)
 	var wetland: Dictionary = (pressure.call("get_combat_snapshots") as Array[Dictionary])[0]
+	var wetland_id: int = int(wetland[&"id"])
+	var chase_position: Vector2 = wetland[&"position"] as Vector2
 	enemies.call("_set_active_biome", &"frozen")
-	var cleared: bool = int(pressure.call("get_count")) == 0
-	enemies.call("_spawn_melee_pack", Vector2(20.0, 20.0), 1)
+	var leaving: Dictionary = pressure.call("get_combat_snapshot", wetland_id) as Dictionary
+	var duration: float = float(leaving[&"state_duration"])
+	_add(
+		cases,
+		"biome transition makes old tiny mobs disengage without vanishing",
+		(
+			int(pressure.call("get_count")) == 1
+			and leaving[&"kind"] == MeleePressureScript.MIRE_TICK_KIND
+			and leaving[&"state"] == MeleePressureScript.STATE_DISPERSING
+			and is_equal_approx(MeleePressureScript.dispersal_alpha(duration, duration), 1.0)
+		),
+	)
+	_advance_for(pressure, duration * 0.5)
+	var retreating: Dictionary = pressure.call("get_combat_snapshot", wetland_id) as Dictionary
+	var retreat_position: Vector2 = retreating[&"position"] as Vector2
+	var away: Vector2 = (chase_position - player).normalized()
+	var halfway_alpha: float = MeleePressureScript.dispersal_alpha(
+		float(retreating[&"state_remaining"]), duration
+	)
+	_add(
+		cases,
+		"old tiny mobs turn away, retreat, and fade before culling",
+		(
+			(retreating[&"direction"] as Vector2).dot(away) > 0.95
+			and retreat_position.distance_to(player) > chase_position.distance_to(player)
+			and halfway_alpha > 0.0
+			and halfway_alpha < 1.0
+		),
+	)
+	_advance_for(pressure, duration)
+	var culled: bool = int(pressure.call("get_count")) == 0
+	enemies.call("_spawn_melee_pack", player, 1)
 	var frozen: Dictionary = (pressure.call("get_combat_snapshots") as Array[Dictionary])[0]
 	_add(
 		cases,
-		"biome transition clears old mobs and switches native kind",
+		"biome transition culls faded mobs and switches the native kind",
 		(
 			wetland[&"kind"] == MeleePressureScript.MIRE_TICK_KIND
-			and cleared
+			and culled
 			and frozen[&"kind"] == MeleePressureScript.RIME_SHARDLING_KIND
 		),
 	)
@@ -291,6 +326,12 @@ static func _test_ember_damage_profile(cases: Array[Dictionary], world: RefCount
 static func _finish_emergence(pressure: Node2D) -> void:
 	for _step: int in range(ceili(MeleePressureScript.EMERGE_SECONDS / 0.1) + 1):
 		pressure.call("advance", 0.1)
+
+
+static func _advance_for(pressure: Node2D, seconds: float) -> void:
+	for _step: int in range(ceili(seconds / 0.1)):
+		pressure.call("advance", minf(seconds, 0.1))
+		seconds -= 0.1
 
 
 static func _covers_four_flanks(snapshots: Array[Dictionary], center: Vector2) -> bool:

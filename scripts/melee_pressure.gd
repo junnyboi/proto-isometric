@@ -19,6 +19,7 @@ const MOVE_SPEED: float = 1.46
 const WARNING_SECONDS: float = 0.44
 const RECOVER_SECONDS: float = 0.58
 const DISPERSE_SECONDS: float = 1.1
+const DISPERSE_OPAQUE_FRACTION: float = 0.18
 const SHARED_DAMAGE_COOLDOWN: float = 0.62
 const PERSONAL_ATTACK_COOLDOWN: float = 1.15
 const SPAWN_RADIUS: float = 5.4
@@ -146,6 +147,16 @@ static func _bounce_offset(time: float, phase: float, state: StringName) -> floa
 	if state not in [STATE_ADVANCE, STATE_RECOVER, STATE_DISPERSING]:
 		return 0.0
 	return absf(sin(time * BOUNCE_RATE + phase)) * BOUNCE_HEIGHT
+
+
+static func dispersal_alpha(remaining: float, duration: float) -> float:
+	var progress: float = 1.0 - clampf(remaining / maxf(duration, 0.001), 0.0, 1.0)
+	var fade_progress: float = clampf(
+		(progress - DISPERSE_OPAQUE_FRACTION) / (1.0 - DISPERSE_OPAQUE_FRACTION),
+		0.0,
+		1.0,
+	)
+	return 1.0 - smoothstep(0.0, 1.0, fade_progress)
 
 
 func _set_active_biome(biome: StringName) -> void:
@@ -573,7 +584,9 @@ func _draw_mite(mite: Dictionary) -> void:
 	)
 	var alpha: float = emergence
 	if state == STATE_DISPERSING:
-		alpha = clampf(float(mite[&"state_remaining"]) / DISPERSE_SECONDS, 0.0, 1.0)
+		alpha = dispersal_alpha(
+			float(mite[&"state_remaining"]), float(mite[&"state_duration"])
+		)
 	center.y += (1.0 - emergence) * EMERGE_DEPTH
 	center.y -= _bounce_offset(_time, float(mite[&"phase"]), state)
 	var kind: StringName = mite.get(&"kind", GLASSBACK_SCARAB_KIND) as StringName

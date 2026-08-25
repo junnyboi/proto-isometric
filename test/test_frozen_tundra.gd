@@ -144,9 +144,14 @@ static func _test_frozen_hunter(cases: Array[Dictionary], world: RefCounted) -> 
 			hunters.call("_get_enemy_kind", enemy_id) == &"rime_stalker"
 		)
 		hunters.call("set_player_position", Vector2(8, 10))
+		var leaving: Dictionary = hunters.call("get_combat_snapshot", enemy_id) as Dictionary
 		_add(
-			cases, "leaving Frozen removes Rime Stalkers", int(hunters.call("get_worm_count")) == 0
+			cases,
+			"leaving Frozen makes Rime Stalkers disengage",
+			leaving[&"state"] == &"dispersing" and int(hunters.call("get_worm_count")) == 1,
 		)
+		hunters.call("advance", float(leaving[&"state_duration"]))
+		_add(cases, "Frozen retirees cull after fading", int(hunters.call("get_worm_count")) == 0)
 	hunters.free()
 	hazards.free()
 	director.free()

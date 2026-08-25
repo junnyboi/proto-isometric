@@ -14,6 +14,7 @@ static func evaluate(runtime: Node = null) -> Array[Dictionary]:
 	_test_catalog(cases)
 	_test_locomotion_bounce(cases)
 	_test_balance_budget(cases)
+	_test_biome_exit_disengagement(cases)
 	_test_telegraph_audio(cases)
 	_test_sandworm_audio_signal(cases)
 	_test_native_cycle(cases, &"oasis", &"mud_skimmer", &"skim", &"wake_warning", &"wake_sweep", 6)
@@ -110,6 +111,72 @@ static func _test_balance_budget(cases: Array[Dictionary]) -> void:
 			"%s worst-case pressure stays below three chassis per second" % kind,
 			worst_cycle_damage / cycle_seconds < 3.0,
 		)
+
+
+static func _test_biome_exit_disengagement(cases: Array[Dictionary]) -> void:
+	var enemies: Node2D = _make_enemies(&"oasis")
+	var player: Vector2 = Vector2.ZERO
+	enemies.call("set_player_position", player)
+	var enemy_id: int = int(enemies.call("spawn_worm", Vector2(2.0, 0.0), 1.0))
+	enemies.call("advance", 0.1)
+	var chasing: Dictionary = enemies.call("get_combat_snapshot", enemy_id) as Dictionary
+	var chase_position: Vector2 = chasing[&"position"] as Vector2
+	var chase_direction: Vector2 = chasing[&"direction"] as Vector2
+	_add(
+		cases,
+		"biome fauna visibly chases before the player crosses a boundary",
+		chase_direction.dot((player - chase_position).normalized()) > 0.2,
+	)
+	enemies.call("_set_active_biome", &"frozen")
+	var leaving: Dictionary = enemies.call("get_combat_snapshot", enemy_id) as Dictionary
+	var duration: float = float(leaving[&"state_duration"])
+	_add(
+		cases,
+		"biome exit preserves the previous fauna long enough to disengage",
+		(
+			int(enemies.call("get_worm_count")) == 1
+			and leaving[&"kind"] == &"mud_skimmer"
+			and leaving[&"state"] == &"dispersing"
+		),
+	)
+	_add(
+		cases,
+		"biome-exit fauna begins fully visible for a readable turn-away beat",
+		is_equal_approx(FaunaCombatScript.dispersal_alpha(duration, duration), 1.0),
+	)
+	enemies.call("advance", duration * 0.5)
+	var retreating: Dictionary = enemies.call("get_combat_snapshot", enemy_id) as Dictionary
+	var retreat_position: Vector2 = retreating[&"position"] as Vector2
+	var away: Vector2 = (chase_position - player).normalized()
+	var halfway_alpha: float = FaunaCombatScript.dispersal_alpha(
+		float(retreating[&"state_remaining"]), duration
+	)
+	_add(
+		cases,
+		"biome-exit fauna turns around and walks away instead of chasing",
+		(
+			(retreating[&"direction"] as Vector2).dot(away) > 0.95
+			and retreat_position.distance_to(player) > chase_position.distance_to(player)
+		),
+	)
+	_add(
+		cases,
+		"biome-exit fauna fades gradually while retreating",
+		halfway_alpha > 0.0 and halfway_alpha < 1.0,
+	)
+	enemies.call("advance", duration)
+	_add(
+		cases,
+		"biome-exit fauna is culled only after its retreat fade completes",
+		int(enemies.call("get_worm_count")) == 0,
+	)
+	var next_enemy: int = int(enemies.call("spawn_worm", Vector2(2.0, 0.0), 1.0))
+	_add(
+		cases,
+		"new spawns use the entered biome while previous fauna retires",
+		enemies.call("_get_enemy_kind", next_enemy) == &"rime_stalker",
+	)
+	enemies.free()
 
 
 static func _test_native_cycle(

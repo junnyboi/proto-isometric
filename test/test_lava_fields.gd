@@ -139,9 +139,14 @@ static func _test_lava_hunter(cases: Array[Dictionary], world: RefCounted) -> vo
 			hunters.call("_get_enemy_kind", enemy_id) == &"cinder_crawler"
 		)
 		hunters.call("set_player_position", Vector2(8, 10))
+		var leaving: Dictionary = hunters.call("get_combat_snapshot", enemy_id) as Dictionary
 		_add(
-			cases, "leaving Lava removes Cinder Crawlers", int(hunters.call("get_worm_count")) == 0
+			cases,
+			"leaving Lava makes Cinder Crawlers disengage",
+			leaving[&"state"] == &"dispersing" and int(hunters.call("get_worm_count")) == 1,
 		)
+		hunters.call("advance", float(leaving[&"state_duration"]))
+		_add(cases, "Lava retirees cull after fading", int(hunters.call("get_worm_count")) == 0)
 	hunters.free()
 	hazards.free()
 	director.free()

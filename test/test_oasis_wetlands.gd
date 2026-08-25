@@ -106,24 +106,41 @@ static func _test_oasis_hunter(cases: Array[Dictionary], world: RefCounted) -> v
 	var director: Node = EncounterDirectorScript.new() as Node
 	director.call("configure", coordinator, world, worms, hazards)
 	director.call("_process", 4.1)
-	var enemy_id: int = int((worms.call("get_combat_snapshots") as Array)[0][&"id"])
+	var snapshots: Array = worms.call("get_combat_snapshots") as Array
+	var desert_id: int = -1
+	var oasis_id: int = -1
+	for snapshot: Dictionary in snapshots:
+		var enemy_id: int = int(snapshot[&"id"])
+		var kind: StringName = worms.call("_get_enemy_kind", enemy_id) as StringName
+		if kind == &"sandworm":
+			desert_id = enemy_id
+		elif kind == &"mud_skimmer":
+			oasis_id = enemy_id
 	_add(cases, "Oasis removes all desert weather", int(hazards.call("get_hazard_count")) == 0)
 	_add(
 		cases,
-		"Oasis pressure spawns one biome-native hunter",
-		int(worms.call("get_worm_count")) == 1
+		"Oasis preserves the retreating desert hunter while spawning native pressure",
+		(
+			int(worms.call("get_worm_count")) == 2
+			and desert_id >= 0
+			and worms.call("get_state", desert_id) == &"dispersing"
+			and oasis_id >= 0
+		),
 	)
 	_add(
 		cases,
 		"Oasis hunter is a Mud Skimmer, never a sandworm",
-		worms.call("_get_enemy_kind", enemy_id) == &"mud_skimmer"
+		worms.call("_get_enemy_kind", oasis_id) == &"mud_skimmer",
 	)
 	worms.call("set_player_position", Vector2(8, 10))
+	var leaving: Dictionary = worms.call("get_combat_snapshot", oasis_id) as Dictionary
 	_add(
 		cases,
-		"leaving Oasis removes Mud Skimmers at the boundary",
-		int(worms.call("get_worm_count")) == 0
+		"leaving Oasis makes Mud Skimmers disengage at the boundary",
+		leaving[&"state"] == &"dispersing" and int(worms.call("get_worm_count")) == 2,
 	)
+	worms.call("advance", float(leaving[&"state_duration"]))
+	_add(cases, "Oasis retirees cull after fading", int(worms.call("get_worm_count")) == 0)
 	worms.free()
 	hazards.free()
 	director.free()

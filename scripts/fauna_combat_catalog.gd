@@ -29,6 +29,7 @@ const PATTERN_FROST_POUNCE: StringName = &"frost_pounce"
 const PATTERN_EMBER_SALVO: StringName = &"ember_salvo"
 const BOUNCE_HEIGHT: float = 4.0
 const BOUNCE_RATE: float = 5.6
+const DISPERSE_OPAQUE_FRACTION: float = 0.18
 
 const FAUNA: Dictionary = {
 	SKIMMER_KIND:
@@ -123,6 +124,16 @@ static func bounce_offset(time: float, enemy_id: int, kind: StringName, state: S
 	if kind == WORM_KIND or not tracking_state(kind, state):
 		return 0.0
 	return absf(sin(time * BOUNCE_RATE + float(enemy_id) * 0.73)) * BOUNCE_HEIGHT
+
+
+static func dispersal_alpha(remaining: float, duration: float) -> float:
+	var progress: float = 1.0 - clampf(remaining / maxf(duration, 0.001), 0.0, 1.0)
+	var fade_progress: float = clampf(
+		(progress - DISPERSE_OPAQUE_FRACTION) / (1.0 - DISPERSE_OPAQUE_FRACTION),
+		0.0,
+		1.0,
+	)
+	return 1.0 - smoothstep(0.0, 1.0, fade_progress)
 
 
 static func warning(kind: StringName, state: StringName) -> bool:

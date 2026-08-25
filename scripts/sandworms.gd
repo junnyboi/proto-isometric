@@ -124,7 +124,7 @@ func set_auto_spawn(enabled: bool) -> void:
 
 func _set_active_biome(biome: StringName) -> void:
 	if biome != _active_biome:
-		clear_worms()
+		disperse_all()
 		_active_biome = biome
 		if _melee_pressure != null:
 			_melee_pressure.call("_set_active_biome", biome)
@@ -943,7 +943,11 @@ func _draw_worm(worm: Dictionary) -> void:
 	var state: StringName = worm[&"state"] as StringName
 	var progress: float = _state_progress(worm)
 	var alpha: float = 1.0
-	if state in [STATE_DISPERSING, STATE_DEFEATED]:
+	if state == STATE_DISPERSING:
+		alpha = FaunaCombatScript.dispersal_alpha(
+			float(worm[&"state_remaining"]), float(worm[&"state_duration"])
+		)
+	elif state == STATE_DEFEATED:
 		alpha = 1.0 - progress
 	var kind: StringName = worm.get(&"kind", WORM_KIND) as StringName
 	center.y -= FaunaCombatScript.bounce_offset(_time, int(worm[&"id"]), kind, state)
