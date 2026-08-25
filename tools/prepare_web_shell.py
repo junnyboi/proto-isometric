@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -188,9 +189,18 @@ def main() -> int:
     encode_webp(ffmpeg, args.mobile_source, mobile_output, 720, 1280)
 
     html = args.html.read_text(encoding="utf-8")
-    html = replace_once(html, "</style>", LOADER_CSS + "\n</style>", "style terminator")
+    html, style_count = re.subn(
+        r"^[ \t]*</style>",
+        LOADER_CSS.strip("\n") + "\n</style>",
+        html,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    if style_count != 1:
+        raise RuntimeError(f"Expected one style terminator; found {style_count}")
     original_splash = '<img id="status-splash" class="show-image--true fullsize--true use-filter--true" src="proto-isometric.png" alt="">'
     html = replace_once(html, original_splash, PICTURE_HTML, "generated splash image")
+    html = html.rstrip() + "\n"
     args.html.write_text(html, encoding="utf-8")
     (output_dir / "proto-isometric.png").unlink(missing_ok=True)
 
