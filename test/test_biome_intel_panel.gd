@@ -67,6 +67,8 @@ static func _test_catalog(cases: Array[Dictionary]) -> void:
 		&"lava",
 		&"volcanic_ash",
 		&"lava_basalt",
+		&"woodland_grass",
+		&"farm_soil",
 		&"void",
 	]
 	var all_surfaces_supported: bool = true
@@ -220,6 +222,31 @@ static func _test_panel_modes(cases: Array[Dictionary]) -> void:
 			and "CORES" in intel_text
 			and str(field_case[&"fauna"]) in intel_text,
 		)
+	panel.call("set_location_context", &"woodland", &"woodland_grass")
+	panel.call(
+		"set_state",
+		false,
+		0,
+		0,
+		100,
+		100,
+		[RuntimeIdsScript.MODULE_WORN_PLATES],
+		false,
+		RuntimeIdsScript.MODIFIER_NEUTRAL,
+	)
+	var woodland_text: String = str(panel.call("get_intel_text"))
+	_add(
+		cases,
+		"woodland field mode reports the secure home clearing without false threats",
+		(
+			str(panel.call("get_title_text")) == "HOME CLEARING"
+			and "HOME PERIMETER SECURE" in woodland_text
+			and "DANGER BEGINS BEYOND THE TREE BELT" in woodland_text
+			and "SANDWORM" not in woodland_text
+			and "SIGNATURES DETECTED" not in woodland_text
+			and (panel.call("get_threat_color") as Color).is_equal_approx(Color("4eb6aa"))
+		),
+	)
 	panel.call("set_location_context", &"desert", &"sand", &"ancient_ruin")
 	panel.call(
 		"set_state",

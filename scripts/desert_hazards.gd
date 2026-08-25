@@ -3,6 +3,8 @@ extends Node2D
 signal damage_tick(amount: int, source: StringName)
 signal deep_event_started(kind: StringName, biome: StringName, cell: Vector2i)
 
+const WorldSafetyScript: GDScript = preload("res://scripts/world_safety.gd")
+
 const TORNADO_FORMATION_SECONDS: float = 3.0
 const TORNADO_LIFETIME_SECONDS: float = 20.0
 const TORNADO_DAMAGE_PER_SECOND: float = 6.0
@@ -147,6 +149,8 @@ func spawn_tornado(
 	lifetime_seconds: float = TORNADO_LIFETIME_SECONDS,
 	speed: float = TORNADO_SPEED,
 ) -> int:
+	if not WorldSafetyScript.allows_spawn(Vector2(cell), _world):
+		return -1
 	var hazard_id: int = _take_id()
 	(
 		_hazards
@@ -177,7 +181,11 @@ func spawn_sandstorm(
 	speed: float = SANDSTORM_SPEED,
 ) -> int:
 	var normalized: Vector2i = Vector2i(signi(direction.x), signi(direction.y))
-	if normalized == Vector2i.ZERO or (normalized.x != 0 and normalized.y != 0):
+	if (
+		normalized == Vector2i.ZERO
+		or (normalized.x != 0 and normalized.y != 0)
+		or not WorldSafetyScript.allows_spawn(Vector2(origin), _world)
+	):
 		return -1
 	var hazard_id: int = _take_id()
 	(
@@ -279,7 +287,9 @@ static func profile_for_biome(biome: StringName) -> Dictionary:
 
 func force_deep_event(biome: StringName, cell: Vector2i) -> int:
 	var profile: Dictionary = profile_for_biome(biome)
-	return -1 if profile.is_empty() else _spawn_deep_event(biome, cell, profile)
+	if profile.is_empty() or not WorldSafetyScript.allows_deep_event(cell, _world):
+		return -1
+	return _spawn_deep_event(biome, cell, profile)
 
 
 func _handle_player_cell_entry(cell: Vector2i) -> void:
@@ -302,7 +312,10 @@ func _handle_player_cell_entry(cell: Vector2i) -> void:
 		_world.call("_is_in_sanctuary", Vector2(cell))
 	):
 		return
-	if _event_rng.randf() > DEEP_TRIGGER_CHANCE:
+	if (
+		not WorldSafetyScript.allows_deep_event(cell, _world)
+		or _event_rng.randf() > DEEP_TRIGGER_CHANCE
+	):
 		return
 	var profile: Dictionary = profile_for_biome(biome)
 	if not profile.is_empty():
@@ -310,7 +323,10 @@ func _handle_player_cell_entry(cell: Vector2i) -> void:
 
 
 func _spawn_deep_event(biome: StringName, cell: Vector2i, profile: Dictionary) -> int:
-	if _deep_events.size() >= MAX_DEEP_EVENTS:
+	if (
+		_deep_events.size() >= MAX_DEEP_EVENTS
+		or not WorldSafetyScript.allows_deep_event(cell, _world)
+	):
 		return -1
 	var event_id: int = _take_id()
 	var kind: StringName = profile[&"kind"] as StringName
@@ -341,7 +357,10 @@ func _advance_deep_events(delta: float) -> void:
 		if not bool(event[&"resolved"]) and float(event[&"age"]) >= float(event[&"telegraph"]):
 			event[&"resolved"] = true
 			var distance: float = _player_position.distance_to(Vector2(event[&"cell"]))
-			if distance <= float(event[&"radius"]):
+			if (
+				distance <= float(event[&"radius"])
+				and WorldSafetyScript.allows_hazard_damage(_player_position, _world)
+			):
 				damage_tick.emit(int(event[&"damage"]), event[&"kind"] as StringName)
 		if float(event[&"age"]) >= float(event[&"lifetime"]):
 			_deep_events.remove_at(index)
@@ -455,6 +474,8 @@ func _advance_tornado(hazard: Dictionary, delta: float) -> void:
 	var position: Vector2 = hazard["position"] as Vector2
 	position += (hazard["direction"] as Vector2) * float(hazard["speed"]) * delta
 	hazard["position"] = position
+	if not WorldSafetyScript.allows_spawn(position, _world):
+		hazard["expired"] = true
 
 
 func _advance_sandstorm(hazard: Dictionary, delta: float) -> void:
@@ -462,11 +483,22 @@ func _advance_sandstorm(hazard: Dictionary, delta: float) -> void:
 		(hazard["position"] as Vector2)
 		+ (hazard["direction"] as Vector2) * float(hazard["speed"]) * delta
 	)
-	if _sandstorm_is_outside(hazard):
+	if _sandstorm_is_outside(hazard) or _sandstorm_intersects_safety(hazard):
 		hazard["expired"] = true
 
 
+func _sandstorm_intersects_safety(hazard: Dictionary) -> bool:
+	for cell: Vector2i in _sandstorm_cells(hazard):
+		if not WorldSafetyScript.allows_spawn(Vector2(cell), _world):
+			return true
+	return false
+
+
 func _apply_contact_damage(hazard: Dictionary, delta: float) -> void:
+	if not WorldSafetyScript.allows_weather_damage(_player_position, _world):
+		hazard["contact_time"] = 0.0
+		hazard["contacting"] = false
+		return
 	var source: StringName = hazard["kind"] as StringName
 	var overlapping: bool = (
 		_tornado_overlaps_player(hazard)

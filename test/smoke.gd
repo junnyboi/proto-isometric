@@ -62,6 +62,7 @@ func _test_isometric_map() -> void:
 	SmokeHelpersScript.clear_test_save(malformed_path)
 	SmokeHelpersScript.clear_test_save(incompatible_path)
 	var map: Node = packed_map.instantiate()
+	map.set("new_gameplay_mode", &"gameplay_mode.legacy_expedition")
 	map.set("save_path", save_path)
 	get_root().add_child(map)
 	await process_frame
@@ -417,23 +418,23 @@ func _test_isometric_map() -> void:
 	_check(worm_telegraph.z_index < sandworms.z_index, "worm telegraphs render beneath worm bodies")
 	sandworms.call("set_auto_spawn", false)
 	sandworms.call("clear_worms")
-	_check(bool(map.call("place_robot", Vector2i(6, 6))), "place Walker for sandworm pursuit")
-	var chase_worm: int = int(sandworms.call("spawn_worm", Vector2(9.0, 6.0), 0.0))
+	_check(bool(map.call("place_robot", Vector2i(4, 8))), "place Walker for sandworm pursuit")
+	var chase_worm: int = int(sandworms.call("spawn_worm", Vector2(7.0, 8.0), 0.0))
 	var chase_start: Vector2 = sandworms.call("get_worm_position", chase_worm) as Vector2
 	sandworms.call("advance", 0.5)
 	_check(sandworms.call("get_state", chase_worm) == &"intercept", "sandworm commits an Intercept")
 	_check(
 		(
 			(sandworms.call("get_worm_position", chase_worm) as Vector2).distance_to(
-				Vector2(6.0, 6.0)
+				Vector2(4.0, 8.0)
 			)
-			< chase_start.distance_to(Vector2(6.0, 6.0))
+			< chase_start.distance_to(Vector2(4.0, 8.0))
 		),
 		"sandworm Intercept closes on its committed target",
 	)
 	sandworms.call("clear_worms")
 	var worm_damage_start: int = int(map.call("_get_chassis"))
-	var attacking_worm: int = int(sandworms.call("spawn_worm", Vector2(6.0, 6.0), 0.0))
+	var attacking_worm: int = int(sandworms.call("spawn_worm", Vector2(4.0, 8.0), 0.0))
 	sandworms.call("advance", 0.65)
 	_check(
 		int(map.call("_get_chassis")) == worm_damage_start - 10,
@@ -446,9 +447,9 @@ func _test_isometric_map() -> void:
 		"one committed Intercept cannot attack twice",
 	)
 	sandworms.call("clear_worms")
-	_check(bool(map.call("place_robot", Vector2i(6, 6))), "place Walker for worm melee")
+	_check(bool(map.call("place_robot", Vector2i(4, 8))), "place Walker for worm melee")
 	map.set("_facing", &"E")
-	var melee_worm: int = int(sandworms.call("spawn_worm", Vector2(7.0, 5.0), 0.0))
+	var melee_worm: int = int(sandworms.call("spawn_worm", Vector2(5.0, 7.0), 0.0))
 	SmokeHelpersScript.advance_worm_to_expose(sandworms, melee_worm)
 	for hit: int in range(1, 5):
 		_check(bool(map.call("attack")), "melee strike %d targets sandworm" % hit)
@@ -466,10 +467,10 @@ func _test_isometric_map() -> void:
 	sandworms.call("advance", 0.65)
 	_check(int(sandworms.call("get_worm_count")) == 0, "defeated worm presentation expires")
 	sandworms.call("clear_worms")
-	_check(bool(map.call("place_robot", Vector2i(6, 6))), "place Walker for shock line")
+	_check(bool(map.call("place_robot", Vector2i(4, 8))), "place Walker for shock line")
 	map.set("_facing", &"E")
 	map.call("_set_impact_charge", 0.5)
-	var line_worm: int = int(sandworms.call("spawn_worm", Vector2(8.0, 4.0), 0.0))
+	var line_worm: int = int(sandworms.call("spawn_worm", Vector2(6.0, 6.0), 0.0))
 	SmokeHelpersScript.advance_worm_to_expose(sandworms, line_worm)
 	_check(bool(map.call("attack")), "mid charge reaches a worm two cells ahead")
 	avatar.call("_process", float(avatar.call("get_attack_contact_time")) + 0.01)
@@ -479,7 +480,7 @@ func _test_isometric_map() -> void:
 	avatar.call("_process", float(avatar.call("get_attack_duration")))
 	sandworms.call("clear_worms")
 	map.call("_set_impact_charge", 0.9)
-	var fan_worm: int = int(sandworms.call("spawn_worm", Vector2(7.0, 6.0), 0.0))
+	var fan_worm: int = int(sandworms.call("spawn_worm", Vector2(5.0, 8.0), 0.0))
 	SmokeHelpersScript.advance_worm_to_expose(sandworms, fan_worm)
 	var charge_effects: Node2D = map.get_node("WorldEffectsLayer/ImpactEffects") as Node2D
 	var charged_emissions: int = int(charge_effects.call("get_aftershock_emission_count"))
@@ -537,7 +538,7 @@ func _test_isometric_map() -> void:
 	map.call("_refresh_outpost_interface")
 	_check("ALERT 1" in str(field_hud.call("get_relay_text")), "HUD reports completed relay alert")
 	sandworms.call("clear_worms")
-	var safe_worm: int = int(sandworms.call("spawn_worm", Vector2(3.0, 10.0), 0.0))
+	var safe_worm: int = int(sandworms.call("spawn_worm", Vector2(4.0, 10.0), 0.0))
 	_check(bool(map.call("place_robot", Vector2i(1, 10))), "place Walker at linked outpost")
 	_check(sandworms.call("get_state", safe_worm) == &"dispersing", "outpost link disperses worms")
 	sandworms.call("advance", 1.3)
@@ -689,7 +690,7 @@ func _test_isometric_map() -> void:
 			and live_envelope.has("active_run")
 			and live_envelope.has("profile")
 			and live_envelope.has("farm")
-			and (live_envelope["farm"] as Dictionary)["mode"] == "gameplay_mode.fresh_farm"
+			and (live_envelope["farm"] as Dictionary)["mode"] == "gameplay_mode.legacy_expedition"
 		),
 		"live field writes a complete schema-4 envelope",
 	)
@@ -697,7 +698,6 @@ func _test_isometric_map() -> void:
 		"module.worn_plates" in (live_envelope["active_run"] as Dictionary)["active_module_ids"],
 		"live schema-four save persists Worn Plates",
 	)
-
 	map.free()
 	await process_frame
 	map = packed_map.instantiate()
@@ -802,7 +802,7 @@ func _test_isometric_map() -> void:
 	_check(bool(map.call("_is_at_outpost")), "outpost position persists")
 
 	world = map.get("_world") as RefCounted
-	var far_cell: Vector2i = Vector2i(-32, -24)
+	var far_cell: Vector2i = Vector2i(-28, -24)
 	_check(bool(map.call("place_robot", far_cell)), "Walker crosses the compact field")
 	_check(not bool(map.call("place_robot", Vector2i(73, 0))), "Walker cannot leave world bounds")
 	var far_terrain: StringName = world.call("terrain_at", far_cell) as StringName
@@ -909,13 +909,13 @@ func _test_isometric_map() -> void:
 		not bool(map.call("update_drive", Vector2i.RIGHT, 0.05, false)),
 		"restored shutdown remains immobile",
 	)
-
 	map.free()
 	await process_frame
 	var malformed: FileAccess = FileAccess.open(malformed_path, FileAccess.WRITE)
 	malformed.store_string("{not valid world state")
 	malformed.close()
 	map = packed_map.instantiate()
+	map.set("new_gameplay_mode", &"gameplay_mode.legacy_expedition")
 	map.set("save_path", malformed_path)
 	get_root().add_child(map)
 	await process_frame

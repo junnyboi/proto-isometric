@@ -9,6 +9,7 @@ const LavaContactScript: GDScript = preload("res://scripts/lava_contact.gd")
 const OutpostEnergyScript: GDScript = preload("res://scripts/outpost_energy.gd")
 const OutpostVisualsScript: GDScript = preload("res://scripts/outpost_visuals.gd")
 const RunPickupsScript: GDScript = preload("res://scripts/run_pickups.gd")
+const WoodlandVisualsScript: GDScript = preload("res://scripts/woodland_visuals.gd")
 
 const TEAL: Color = Color("4eb6aa")
 const AMBER: Color = Color("f5a62d")
@@ -91,6 +92,8 @@ func get_destructible_kind(cell: Vector2i) -> StringName:
 
 
 func get_outpost_kind(cell: Vector2i) -> StringName:
+	if _world != null and _world.has_method("_outpost_kind_at"):
+		return _world.call("_outpost_kind_at", cell) as StringName
 	return OutpostVisualsScript.kind_for(cell)
 
 
@@ -154,7 +157,13 @@ func _build_outpost_energy() -> void:
 	_outpost_energy.name = "OutpostEnergy"
 	_outpost_energy.z_index = 2
 	add_child(_outpost_energy)
-	_outpost_energy.call("configure", _outposts, _grid_to_screen)
+	_outpost_energy.call(
+		"configure",
+		_outposts,
+		_grid_to_screen,
+		Callable(self, "_outpost_has_sanctuary"),
+		Callable(self, "get_outpost_kind"),
+	)
 	_outpost_energy.call("set_visible_cells", _visible_cells)
 
 
@@ -190,7 +199,11 @@ func _draw() -> void:
 		_draw_cell_objects(cell)
 	for value: Variant in _outposts:
 		var outpost_cell: Vector2i = value as Vector2i
-		if bool(_outposts[outpost_cell]) and outpost_cell in _visible_cells:
+		if (
+			bool(_outposts[outpost_cell])
+			and outpost_cell in _visible_cells
+			and _outpost_has_sanctuary(outpost_cell)
+		):
 			_draw_sanctuary_label(outpost_cell)
 
 
@@ -228,9 +241,16 @@ func _draw_sanctuary_label(outpost_cell: Vector2i) -> void:
 
 func _draw_cell_objects(cell: Vector2i) -> void:
 	var center: Vector2 = _grid_to_screen.call(cell) as Vector2
+	if _world != null and bool(_world.call("_is_pond", cell)):
+		_draw_woodland_object(WoodlandVisualsScript.KIND_POND, center)
 	if bool(_outposts.get(cell, false)):
 		_draw_outpost(cell, center)
-	if bool(_destructible_rocks.get(cell, false)):
+	var tree_kind: StringName = (
+		_world.call("_tree_kind_at", cell) as StringName if _world != null else &""
+	)
+	if tree_kind != &"":
+		_draw_woodland_object(tree_kind, center)
+	elif bool(_destructible_rocks.get(cell, false)):
 		_draw_destructible(cell, center)
 	if int(_scrap.get(cell, 0)) > 0:
 		_draw_scrap(center, int(_scrap[cell]))
@@ -244,6 +264,15 @@ func _draw_destructible(cell: Vector2i, center: Vector2) -> void:
 		return
 	var bottom_center: Vector2 = center + Vector2(0.0, 12.0)
 	var rect: Rect2 = Rect2(bottom_center - Vector2(size.x * 0.5, size.y), size)
+	draw_texture_rect(texture, rect, false)
+
+
+func _draw_woodland_object(kind: StringName, center: Vector2) -> void:
+	var texture: Texture2D = WoodlandVisualsScript.texture_for(kind)
+	var size: Vector2 = WoodlandVisualsScript.display_size_for(kind)
+	if texture == null or size.x <= 0.0 or size.y <= 0.0:
+		return
+	var rect: Rect2 = Rect2(center + WoodlandVisualsScript.draw_offset_for(kind), size)
 	draw_texture_rect(texture, rect, false)
 
 

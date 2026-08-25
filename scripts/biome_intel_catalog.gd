@@ -1,6 +1,7 @@
 extends RefCounted
 
 const REGION_KEYS: Dictionary = {
+	&"woodland": &"field_intel.region.woodland",
 	&"desert": &"field_intel.region.desert",
 	&"oasis": &"field_intel.region.oasis",
 	&"frozen": &"field_intel.region.frozen",
@@ -43,6 +44,8 @@ const SURFACE_KEYS: Dictionary = {
 	&"lava": &"field_intel.surface.lava",
 	&"volcanic_ash": &"field_intel.surface.volcanic_ash",
 	&"lava_basalt": &"field_intel.surface.lava_basalt",
+	&"woodland_grass": &"field_intel.surface.woodland_grass",
+	&"farm_soil": &"field_intel.surface.farm_soil",
 	&"void": &"field_intel.surface.void",
 }
 
@@ -58,6 +61,8 @@ static func supports_outpost(biome: StringName, outpost_kind: StringName) -> boo
 static func outpost_name_key(biome: StringName, outpost_kind: StringName) -> StringName:
 	if not supports_outpost(biome, outpost_kind):
 		return &""
+	if biome == &"woodland":
+		return &"outpost.name.woodland.ruin"
 	return StringName("outpost.name.%s.%s" % [biome, outpost_kind])
 
 
@@ -67,9 +72,10 @@ static func snapshot(biome: StringName, surface: StringName) -> Dictionary:
 	return {
 		&"biome": biome,
 		&"surface": surface,
+		&"safe_home": biome == &"woodland",
 		&"region_key": REGION_KEYS[biome],
 		&"surface_key": SURFACE_KEYS[surface],
-		&"primary_threat_key": PRIMARY_THREAT_KEYS[biome],
-		&"swarm_threat_key": SWARM_THREAT_KEYS[biome],
-		&"resource_fauna_key": RESOURCE_FAUNA_KEYS[biome],
+		&"primary_threat_key": PRIMARY_THREAT_KEYS.get(biome, &""),
+		&"swarm_threat_key": SWARM_THREAT_KEYS.get(biome, &""),
+		&"resource_fauna_key": RESOURCE_FAUNA_KEYS.get(biome, &""),
 	}

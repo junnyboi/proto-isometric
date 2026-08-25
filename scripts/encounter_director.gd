@@ -29,6 +29,14 @@ const MELEE_PER_ALERT: int = 2
 const MELEE_PACK_SIZE: int = 4
 const BOSS_INITIAL_SECONDS: float = 2.4
 const BOSS_RETRY_SECONDS: float = 5.0
+const HUNTER_OFFSETS: Array[Vector2] = [
+	Vector2(5.0, -2.0),
+	Vector2(5.0, 3.0),
+	Vector2(-5.0, 3.0),
+	Vector2(-5.0, -3.0),
+	Vector2(7.0, 0.0),
+	Vector2(0.0, 7.0),
+]
 
 var _coordinator: RefCounted
 var _world: RefCounted
@@ -245,14 +253,14 @@ func _spawn_composition(alert: int, player: Vector2) -> void:
 		for index: int in range(native_count):
 			if int(_worms.call("get_worm_count")) >= get_worm_soft_cap():
 				break
-			_worms.call("spawn_worm", player + Vector2(4.0 + index * 1.5, -2.0), 0.45)
+			_spawn_alert_hunter(player, index, 0.45)
 		return
 	for index: int in range(
 		RunModifierEffectsScript.worm_count(int(profile.get("worm_count")), modifier)
 	):
 		if int(_worms.call("get_worm_count")) >= get_worm_soft_cap():
 			break
-		_worms.call("spawn_worm", player + Vector2(5.0 + index * 2.0, -2.0), 0.8)
+		_spawn_alert_hunter(player, index, 0.8)
 	for index: int in range(int(profile.get("tornado_count"))):
 		var offset: Vector2i = Vector2i(-5 + index * 10, -4 if index == 0 else 5)
 		_hazards.call("spawn_tornado", Vector2i(player.round()) + offset)
@@ -260,6 +268,15 @@ func _spawn_composition(alert: int, player: Vector2) -> void:
 		_hazards.call(
 			"spawn_sandstorm", Vector2i(player.round()) + Vector2i(-16, -1), Vector2i.RIGHT
 		)
+
+
+func _spawn_alert_hunter(player: Vector2, index: int, emerge_seconds: float) -> int:
+	for attempt: int in range(HUNTER_OFFSETS.size()):
+		var offset: Vector2 = HUNTER_OFFSETS[posmod(index + attempt, HUNTER_OFFSETS.size())]
+		var enemy_id: int = int(_worms.call("spawn_worm", player + offset, emerge_seconds))
+		if enemy_id >= 0:
+			return enemy_id
+	return -1
 
 
 func _sync_biome(player: Vector2) -> void:

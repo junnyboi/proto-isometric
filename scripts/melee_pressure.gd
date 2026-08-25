@@ -2,6 +2,8 @@ extends Node2D
 
 signal damage_tick(amount: int, source: StringName)
 
+const WorldSafetyScript: GDScript = preload("res://scripts/world_safety.gd")
+
 const GLASSBACK_SCARAB_KIND: StringName = &"glassback_scarab"
 const MIRE_TICK_KIND: StringName = &"mire_tick"
 const RIME_SHARDLING_KIND: StringName = &"rime_shardling"
@@ -166,7 +168,12 @@ func set_sanctuary_active(active: bool) -> void:
 
 
 func spawn_pack(center: Vector2, count: int) -> int:
-	if _world == null or _sanctuary_active or count <= 0:
+	if (
+		_world == null
+		or _sanctuary_active
+		or count <= 0
+		or not WorldSafetyScript.allows_spawn(center, _world)
+	):
 		return 0
 	var added: int = 0
 	var bounded: int = mini(count, MAX_MITES - _mites.size())
@@ -210,6 +217,8 @@ func advance(delta: float) -> void:
 		return
 	_time += step
 	_shared_damage_remaining = maxf(_shared_damage_remaining - step, 0.0)
+	if not WorldSafetyScript.allows_pursuit(_player_position, _world):
+		disperse_all()
 	for index: int in range(_mites.size() - 1, -1, -1):
 		var mite: Dictionary = _mites[index]
 		mite[&"attack_cooldown"] = maxf(float(mite[&"attack_cooldown"]) - step, 0.0)
@@ -362,6 +371,9 @@ func _advance_mite(mite: Dictionary, delta: float) -> void:
 			_set_state(mite, STATE_ADVANCE, 0.0)
 		return
 	if state == STATE_ADVANCE:
+		if not WorldSafetyScript.allows_pursuit(_player_position, _world):
+			_set_state(mite, STATE_DISPERSING, DISPERSE_SECONDS)
+			return
 		_advance_encirclement(mite, delta)
 		if (
 			(mite[&"position"] as Vector2).distance_to(_player_position) <= ATTACK_RANGE
@@ -446,6 +458,7 @@ func _advance_recovery(mite: Dictionary, delta: float) -> void:
 func _resolve_attack(mite: Dictionary) -> void:
 	if (
 		_sanctuary_active
+		or not WorldSafetyScript.allows_damage(_player_position, _world)
 		or _shared_damage_remaining > 0.0
 		or (mite[&"position"] as Vector2).distance_to(_player_position) > ATTACK_RANGE
 	):
@@ -518,6 +531,7 @@ func _find_walkable(origin: Vector2) -> Vector2:
 func _position_is_valid(position: Vector2) -> bool:
 	return (
 		bool(_world.call("is_walkable", Vector2i(position.round())))
+		and WorldSafetyScript.allows_spawn(position, _world)
 		and (
 			not _world.has_method("_is_in_sanctuary")
 			or not bool(_world.call("_is_in_sanctuary", position))

@@ -1,6 +1,7 @@
 extends RefCounted
 
 const LavaFieldsScript: GDScript = preload("res://scripts/lava_fields.gd")
+const WorldSafetyScript: GDScript = preload("res://scripts/world_safety.gd")
 
 var _world: RefCounted
 var _touching_lava: bool = false
@@ -18,6 +19,9 @@ func advance(position: Vector2, delta: float, shutdown: bool = false) -> int:
 		reset()
 		return 0
 	var cell: Vector2i = Vector2i(position.round())
+	if not WorldSafetyScript.allows_lava_damage(position, _world):
+		reset()
+		return 0
 	if _world.call("terrain_at", cell) != &"lava":
 		reset()
 		return 0

@@ -16,6 +16,7 @@ const BLUE_ICE: Color = Color("36a8c8")
 const LAVA_BASALT: Color = Color("252326")
 const VOLCANIC_ASH: Color = Color("8c8a86")
 const LAVA: Color = Color("ff5a12")
+const WOODLAND_GRASS: Color = Color("738b4d")
 const TEAL: Color = Color("4eb6aa")
 const AMBER: Color = Color("f5a62d")
 const GRID_LINE: Color = Color(0.18, 0.12, 0.08, 0.32)
@@ -50,6 +51,8 @@ const TERRAIN_BLEND_COLORS: Dictionary = {
 	&"lava_basalt": Color("28292b"),
 	&"volcanic_ash": Color("7e7e7d"),
 	&"lava": Color("8c2511"),
+	&"woodland_grass": Color("647e43"),
+	&"farm_soil": Color("5c3b2b"),
 }
 const TEXTURES: Dictionary = {
 	&"sand": preload("res://assets/textures/terrain/desert_sand.png"),
@@ -62,6 +65,8 @@ const TEXTURES: Dictionary = {
 	&"lava_basalt": preload("res://assets/textures/terrain/lava_basalt.png"),
 	&"volcanic_ash": preload("res://assets/textures/terrain/volcanic_ash.png"),
 	&"lava": preload("res://assets/textures/terrain/lava_flow.png"),
+	&"woodland_grass": preload("res://assets/textures/terrain/woodland_grass.png"),
+	&"farm_soil": preload("res://assets/textures/terrain/farm_soil.png"),
 }
 
 var _terrain: Dictionary
@@ -138,6 +143,8 @@ func draw_tile(canvas: Node2D, cell: Vector2i) -> void:
 		color = VOLCANIC_ASH
 	elif terrain_id == &"lava":
 		color = LAVA
+	elif terrain_id == &"woodland_grass":
+		color = WOODLAND_GRASS
 
 	if height > 0.0:
 		(

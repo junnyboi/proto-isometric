@@ -12,6 +12,7 @@ const KilnheartBossScript: GDScript = preload("res://scripts/kilnheart_boss.gd")
 const MeleePressureScript: GDScript = preload("res://scripts/melee_pressure.gd")
 const PeacefulHerdsScript: GDScript = preload("res://scripts/peaceful_herds.gd")
 const SandwormVisualsScript: GDScript = preload("res://scripts/sandworm_visuals.gd")
+const WorldSafetyScript: GDScript = preload("res://scripts/world_safety.gd")
 const DEFAULT_PROFILE: Resource = preload("res://data/combat/sandworm_default.tres")
 const MAX_HEALTH: int = 4
 const ATTACK_DAMAGE: int = 10
@@ -72,14 +73,12 @@ var _defeated_peaceful_kinds: Dictionary = {}
 var _boss_defeated: bool = false
 var _kilnheart_defeated: bool = false
 
-
 func _ready() -> void:
 	_rng.seed = 0x5A6D701
 	_telegraph_audio = FaunaTelegraphAudioScript.new() as Node
 	_telegraph_audio.name = "FaunaTelegraphAudio"
 	add_child(_telegraph_audio)
 	telegraph_started.connect(_on_telegraph_started)
-
 
 func _on_telegraph_started(kind: StringName, enemy_id: int, attack_serial: int) -> void:
 	var worm: Dictionary = _find_worm(enemy_id)
@@ -88,7 +87,6 @@ func _on_telegraph_started(kind: StringName, enemy_id: int, attack_serial: int) 
 	)
 	var pattern: StringName = worm.get(&"attack_pattern", &"") as StringName
 	_telegraph_audio.call("play_warning", kind, enemy_id, attack_serial, position, pattern)
-
 
 func configure(
 	tile_size: Vector2,
@@ -121,10 +119,8 @@ func configure(
 		add_child(_peaceful_herds)
 	return true
 
-
 func set_auto_spawn(enabled: bool) -> void:
 	_auto_spawn = enabled
-
 
 func _set_active_biome(biome: StringName) -> void:
 	if biome != _active_biome:
@@ -135,7 +131,6 @@ func _set_active_biome(biome: StringName) -> void:
 		if _peaceful_herds != null:
 			_peaceful_herds.call("set_active_biome", biome)
 
-
 func set_player_position(position: Vector2, velocity: Vector2 = Vector2.ZERO) -> void:
 	_sync_biome(position)
 	_player_position = position
@@ -144,7 +139,6 @@ func set_player_position(position: Vector2, velocity: Vector2 = Vector2.ZERO) ->
 		_melee_pressure.call("set_player_position", position)
 	if _peaceful_herds != null:
 		_peaceful_herds.call("set_player_position", position)
-
 
 func set_outpost_linked(linked: bool) -> void:
 	if _world != null:
@@ -155,14 +149,12 @@ func set_outpost_linked(linked: bool) -> void:
 	if _melee_pressure != null:
 		_melee_pressure.call("set_sanctuary_active", linked)
 
-
 func disperse_all() -> void:
 	for worm: Dictionary in _worms:
 		_set_state(worm, STATE_DISPERSING, _p_float(&"disperse_seconds"))
 	if _melee_pressure != null:
 		_melee_pressure.call("disperse_all")
 	queue_redraw()
-
 
 func advance(delta: float) -> void:
 	var step: float = maxf(delta, 0.0)
@@ -185,9 +177,11 @@ func advance(delta: float) -> void:
 		_melee_pressure.call("advance", step)
 	queue_redraw()
 
-
 func spawn_worm(position: Vector2, emerge_seconds: float = -1.0) -> int:
-	if _worms.size() >= _p_int(&"max_worms"):
+	if (
+		_worms.size() >= _p_int(&"max_worms")
+		or not WorldSafetyScript.allows_spawn(position, _world)
+	):
 		return -1
 	var worm_id: int = _next_id
 	_next_id += 1
@@ -211,9 +205,8 @@ func spawn_worm(position: Vector2, emerge_seconds: float = -1.0) -> int:
 	queue_redraw()
 	return worm_id
 
-
 func _spawn_boss(position: Vector2, emerge_seconds: float = 1.0) -> int:
-	if _boss_defeated:
+	if _boss_defeated or not WorldSafetyScript.allows_spawn(position, _world):
 		return -1
 	var living_id: int = _get_boss_id()
 	if living_id >= 0:
@@ -224,9 +217,8 @@ func _spawn_boss(position: Vector2, emerge_seconds: float = 1.0) -> int:
 	queue_redraw()
 	return worm_id
 
-
 func _spawn_kilnheart(position: Vector2, emerge_seconds: float = 0.9) -> int:
-	if _kilnheart_defeated:
+	if _kilnheart_defeated or not WorldSafetyScript.allows_spawn(position, _world):
 		return -1
 	var living_id: int = _get_kilnheart_id()
 	if living_id >= 0:
@@ -237,17 +229,14 @@ func _spawn_kilnheart(position: Vector2, emerge_seconds: float = 0.9) -> int:
 	queue_redraw()
 	return enemy_id
 
-
 func _get_kilnheart_id() -> int:
 	for worm: Dictionary in _worms:
 		if worm.get(&"kind", WORM_KIND) == KILNHEART_KIND:
 			return int(worm[&"id"])
 	return -1
 
-
 func _is_kilnheart_defeated() -> bool:
 	return _kilnheart_defeated
-
 
 func _get_boss_id() -> int:
 	for worm: Dictionary in _worms:
@@ -255,10 +244,8 @@ func _get_boss_id() -> int:
 			return int(worm[&"id"])
 	return -1
 
-
 func _is_boss_defeated() -> bool:
 	return _boss_defeated
-
 
 func clear_worms() -> void:
 	_worms.clear()
@@ -267,14 +254,11 @@ func clear_worms() -> void:
 	_hovered_enemy_id = -1
 	queue_redraw()
 
-
 func get_worm_count() -> int:
 	return _worms.size()
 
-
 func _spawn_melee_pack(center: Vector2, count: int) -> int:
 	return int(_melee_pressure.call("spawn_pack", center, count)) if _melee_pressure != null else 0
-
 
 func _get_melee_count() -> int:
 	return int(_melee_pressure.call("get_count")) if _melee_pressure != null else 0
@@ -593,6 +577,11 @@ func _advance_spawner(delta: float) -> void:
 
 
 func _advance_worm(worm: Dictionary, delta: float) -> void:
+	if (
+		not WorldSafetyScript.allows_pursuit(_player_position, _world)
+		and worm[&"state"] not in [STATE_DISPERSING, STATE_DEFEATED]
+	):
+		_set_state(worm, STATE_DISPERSING, _p_float(&"disperse_seconds"))
 	if worm.get(&"kind", WORM_KIND) == KILNHEART_KIND:
 		var result: Dictionary = KilnheartBossScript.advance(
 			worm, delta, _player_position, _player_velocity, _outpost_linked
@@ -611,6 +600,8 @@ func _advance_worm(worm: Dictionary, delta: float) -> void:
 			)
 			worm[&"move_audio_remaining"] = 0.62
 		for event: Dictionary in result[&"damage_events"] as Array:
+			if not WorldSafetyScript.allows_damage(_player_position, _world):
+				continue
 			_last_attack_count += 1
 			damage_tick.emit(int(event[&"amount"]), event[&"source"] as StringName)
 		return
@@ -636,7 +627,7 @@ func _advance_worm(worm: Dictionary, delta: float) -> void:
 			emitted_attack = IronjawBossScript.resolve_ring_pulses(
 				worm, elapsed_before, elapsed_before + consumed, _player_position, _outpost_linked
 			)
-			if emitted_attack:
+			if emitted_attack and WorldSafetyScript.allows_damage(_player_position, _world):
 				_last_attack_count += 1
 				damage_tick.emit(IronjawBossScript.ATTACK_DAMAGE, BOSS_KIND)
 		remaining -= consumed
@@ -661,7 +652,10 @@ func _advance_state_motion(worm: Dictionary, state: StringName, delta: float) ->
 			worm[&"committed_target"] as Vector2, progress
 		)
 	elif FaunaCombatScript.tracking_state(kind, state) and not _is_burrow_kind(kind):
-		_advance_surface_tracking(worm, delta)
+		if WorldSafetyScript.allows_pursuit(_player_position, _world):
+			_advance_surface_tracking(worm, delta)
+		else:
+			_set_state(worm, STATE_DISPERSING, _p_float(&"disperse_seconds"))
 	elif state == STATE_DISPERSING:
 		var away: Vector2 = (worm[&"position"] as Vector2) - _player_position
 		if away.is_zero_approx():
@@ -735,6 +729,9 @@ func _transition_native_state(worm: Dictionary, state: StringName, may_attack: b
 
 
 func _commit_intercept(worm: Dictionary) -> void:
+	if not WorldSafetyScript.allows_pursuit(_player_position, _world):
+		_set_state(worm, STATE_DISPERSING, _p_float(&"disperse_seconds"))
+		return
 	if worm.get(&"kind", WORM_KIND) == BOSS_KIND:
 		IronjawBossScript.commit_attack(worm, _player_position, _player_velocity)
 		_set_state(worm, STATE_INTERCEPT, _entity_state_duration(worm, STATE_INTERCEPT))
@@ -754,6 +751,9 @@ func _commit_intercept(worm: Dictionary) -> void:
 
 
 func _commit_native_warning(worm: Dictionary) -> void:
+	if not WorldSafetyScript.allows_pursuit(_player_position, _world):
+		_set_state(worm, STATE_DISPERSING, _p_float(&"disperse_seconds"))
+		return
 	var kind: StringName = worm.get(&"kind", WORM_KIND) as StringName
 	var position: Vector2 = worm[&"position"] as Vector2
 	var lead_seconds: float = FaunaCombatScript.value(kind, &"lead_seconds")
@@ -793,7 +793,11 @@ func _resolve_attack(worm: Dictionary) -> bool:
 	worm[&"resolved_attack_serial"] = attack_serial
 	var kind: StringName = worm.get(&"kind", WORM_KIND) as StringName
 	if kind == BOSS_KIND:
-		if _outpost_linked or not IronjawBossScript.committed_attack_hits(worm, _player_position):
+		if (
+			not WorldSafetyScript.allows_damage(_player_position, _world)
+			or _outpost_linked
+			or not IronjawBossScript.committed_attack_hits(worm, _player_position)
+		):
 			return false
 		_last_attack_count += 1
 		damage_tick.emit(IronjawBossScript.ATTACK_DAMAGE, BOSS_KIND)
@@ -805,7 +809,11 @@ func _resolve_attack(worm: Dictionary) -> bool:
 			worm[&"intercept_start"] as Vector2,
 			worm[&"committed_target"] as Vector2,
 		)
-	if _outpost_linked or attack_distance > FaunaCombatScript.attack_range(kind, _profile):
+	if (
+		not WorldSafetyScript.allows_damage(_player_position, _world)
+		or _outpost_linked
+		or attack_distance > FaunaCombatScript.attack_range(kind, _profile)
+	):
 		return false
 	_last_attack_count += 1
 	damage_tick.emit(FaunaCombatScript.damage(kind, _profile), kind)
@@ -813,7 +821,7 @@ func _resolve_attack(worm: Dictionary) -> bool:
 
 
 func _resolve_salvo_pulses(worm: Dictionary, elapsed_before: float, elapsed_after: float) -> bool:
-	if _outpost_linked:
+	if _outpost_linked or not WorldSafetyScript.allows_projectile_target(_player_position, _world):
 		worm[&"resolved_pulses"] = int(worm[&"strike_pulses"])
 	var duration: float = maxf(float(worm[&"state_duration"]), 0.001)
 	var before: int = mini(floori(elapsed_before / duration * 3.0), 3)

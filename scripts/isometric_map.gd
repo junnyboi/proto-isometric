@@ -1,5 +1,4 @@
 extends Node2D
-
 const WalkerAvatarScript: GDScript = preload("res://scripts/walker_avatar.gd")
 const ChassisFeedbackScript: GDScript = preload("res://scripts/chassis_feedback.gd")
 const DesertAtmosphereScript: GDScript = preload("res://scripts/desert_atmosphere.gd")
@@ -33,6 +32,7 @@ const WormTelegraphScript: GDScript = preload("res://scripts/worm_telegraph.gd")
 const WorldObjectsScript: GDScript = preload("res://scripts/world_objects.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const WebSceneStateScript: GDScript = preload("res://scripts/web_scene_state.gd")
+const WorldSafetyScript: GDScript = preload("res://scripts/world_safety.gd")
 const TILE_SIZE: Vector2 = Vector2(90.0, 45.0)
 const MAP_ORIGIN: Vector2 = Vector2(760.0, 70.0)
 const START_CELL: Vector2i = InfiniteWorldScript.DEPLOYMENT_CELL
@@ -51,6 +51,7 @@ const REPAIR_COST: int = 5
 const REPAIR_AMOUNT: int = 35
 const RESOURCE_MAGNET_RADIUS_CELLS: int = 2
 @export var save_path: String = DEFAULT_SAVE_PATH
+@export var new_gameplay_mode: StringName = RuntimeIdsScript.MODE_FRESH_FARM
 var _terrain: Dictionary = {}
 var _elevation: Dictionary = {}
 var _blocked: Dictionary = {}
@@ -123,7 +124,6 @@ var _worm_telegraph: Node2D
 var _world: RefCounted
 var _world_objects: Node2D
 
-
 func _ready() -> void:
 	WebSceneStateScript.set_state("field-building")
 	add_to_group("localization_listeners")
@@ -164,7 +164,6 @@ func _ready() -> void:
 	WebSceneStateScript.set_state("field-ready")
 	_performance_sampler.call("set_phase", &"field_ready")
 	print("[ISOMETRIC_MAP_READY]")
-
 
 func _process(delta: float) -> void:
 	var terminal: bool = _terminal_flow != null and bool(_terminal_flow.call("is_summary_visible"))
@@ -227,11 +226,9 @@ func _process(delta: float) -> void:
 	_refresh_outpost_interface()
 	queue_redraw()
 
-
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
 		get_tree().change_scene_to_file("res://scenes/title_screen.tscn")
-
 
 func _draw() -> void:
 	_terrain_renderer.call(
@@ -243,10 +240,8 @@ func _draw() -> void:
 		_is_running
 	)
 
-
 func grid_to_screen(cell: Vector2i) -> Vector2:
 	return _terrain_renderer.call("grid_to_screen", cell) as Vector2
-
 
 func screen_to_grid(point: Vector2) -> Vector2i:
 	var local: Vector2 = point - MAP_ORIGIN
@@ -254,14 +249,11 @@ func screen_to_grid(point: Vector2) -> Vector2i:
 	var grid_y: float = local.y / TILE_SIZE.y - local.x / TILE_SIZE.x
 	return Vector2i(roundi(grid_x), roundi(grid_y))
 
-
 func is_walkable(cell: Vector2i) -> bool:
 	return _world != null and bool(_world.call("is_walkable", cell))
 
-
 func update_drive(screen_direction: Vector2, delta: float, running: bool = false) -> bool:
 	return _update_drive_vector(screen_direction, delta, running)
-
 
 func _update_drive_vector(screen_direction: Vector2, delta: float, running: bool = false) -> bool:
 	if _shutdown:
@@ -314,13 +306,11 @@ func _update_drive_vector(screen_direction: Vector2, delta: float, running: bool
 	_sync_avatar()
 	return moved
 
-
 func _can_move_screen_direction(screen_direction: Vector2i) -> bool:
 	var delta: Vector2i = IsometricControlsScript.screen_to_grid_delta(screen_direction)
 	if delta == Vector2i.ZERO:
 		return false
 	return _can_transition(_robot_grid, _robot_grid + delta)
-
 
 func attack() -> bool:
 	if _shutdown or _avatar == null or bool(_avatar.call("is_attacking")):
@@ -359,7 +349,6 @@ func attack() -> bool:
 		)
 		_update_status(StatusLocalizerScript.rock_salvaged(broken_props.size(), _scrap_count))
 	return not broken_props.is_empty() or not _pending_impact_worm_ids.is_empty()
-
 
 func _on_avatar_impact_frame() -> void:
 	if _pending_impact_cell == INVALID_CELL:
@@ -453,6 +442,8 @@ func _get_chassis() -> int:
 
 
 func _apply_chassis_damage(amount: int, source: StringName = &"hazard") -> int:
+	if _world != null and not WorldSafetyScript.allows_damage(Vector2(_robot_grid), _world):
+		return 0
 	var adjusted: int = ModuleEffectsScript.mitigate_damage(
 		_run_coordinator, amount, source, _is_running
 	)
@@ -506,7 +497,14 @@ func _apply_shutdown_presentation(source: StringName) -> void:
 
 
 func _is_at_outpost() -> bool:
-	return bool(_outposts.get(_robot_grid, false))
+	return (
+		bool(_outposts.get(_robot_grid, false))
+		and (
+			_world == null
+			or not _world.has_method("_is_outpost_service_active")
+			or bool(_world.call("_is_outpost_service_active", _robot_grid))
+		)
+	)
 
 
 func _repair_chassis() -> bool:
@@ -621,7 +619,7 @@ func _build_save_repository(path: String) -> void:
 	var build_id: String = str(
 		ProjectSettings.get_setting("application/config/version", "development")
 	)
-	if not bool(_state_store.call("configure", path, _world, build_id)):
+	if not bool(_state_store.call("configure", path, _world, build_id, new_gameplay_mode)):
 		push_error("WW-03 save repository failed configuration.")
 
 
@@ -638,6 +636,8 @@ func _load_world_state() -> bool:
 	):
 		push_error("Validated save state could not be applied.")
 		return false
+	if envelope.has(&"farm"):
+		_world.call("_set_generation_context", StringName((envelope[&"farm"] as Dictionary)[&"mode"]))
 	if not bool(_world.call("is_valid_cell", _robot_grid)):
 		_robot_grid = START_CELL
 	var world_snapshot: Dictionary = (envelope[&"world"] as Dictionary).duplicate(true)
@@ -710,6 +710,7 @@ func _collect_scrap_near(cell: Vector2i, radius_cells: int = RESOURCE_MAGNET_RAD
 
 func _build_world_stream() -> void:
 	_world = InfiniteWorldScript.new() as RefCounted
+	_world.call("_set_generation_context", new_gameplay_mode)
 	_terrain_renderer = TerrainRendererScript.new() as RefCounted
 	_terrain_renderer.call(
 		"configure", _terrain, _elevation, _terrain_textures, TILE_SIZE, MAP_ORIGIN

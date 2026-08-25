@@ -38,9 +38,15 @@ var _migration_source: int = 0
 var _quarantine_paths: Array[String] = []
 var _writes_blocked: bool = false
 var _default_farm: Dictionary = {}
+var _configured_default_mode: StringName = RuntimeIdsScript.MODE_FRESH_FARM
 
 
-func configure(path: String, world_validator: RefCounted, build_id: String = "development") -> bool:
+func configure(
+	path: String,
+	world_validator: RefCounted,
+	build_id: String = "development",
+	default_gameplay_mode: StringName = RuntimeIdsScript.MODE_FRESH_FARM,
+) -> bool:
 	_path = path
 	_world_validator = world_validator
 	_build_id = build_id.left(64) if not build_id.is_empty() else "development"
@@ -50,11 +56,13 @@ func configure(path: String, world_validator: RefCounted, build_id: String = "de
 		path.is_empty()
 		or world_validator == null
 		or not world_validator.has_method("is_valid_snapshot")
+		or default_gameplay_mode not in RuntimeIdsScript.gameplay_mode_ids()
 		or not bool(_file_store.call("configure", path))
 		or not bool(_migrator.call("configure", world_validator, 100))
 	):
 		_last_error = "Save repository configuration failed."
 		return false
+	_configured_default_mode = default_gameplay_mode
 	_reset_result()
 	return true
 
@@ -921,4 +929,4 @@ func _reset_result() -> void:
 	_migration_source = 0
 	_quarantine_paths.clear()
 	_writes_blocked = false
-	_default_farm = FarmSaveSchemaScript.make_neutral(RuntimeIdsScript.MODE_FRESH_FARM)
+	_default_farm = FarmSaveSchemaScript.make_neutral(_configured_default_mode)

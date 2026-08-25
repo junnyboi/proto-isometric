@@ -101,7 +101,9 @@ func _build_interface() -> void:
 	_label.size = Vector2(556.0, 36.0)
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_label.add_theme_color_override("font_color", Color("f5a62d"))
+	_label.add_theme_font_size_override("font_size", 18)
 	_panel.add_child(_label)
 
 

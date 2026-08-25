@@ -3,6 +3,10 @@ extends RefCounted
 const OasisWetlandsScript: GDScript = preload("res://scripts/oasis_wetlands.gd")
 const FrozenTundraScript: GDScript = preload("res://scripts/frozen_tundra.gd")
 const LavaFieldsScript: GDScript = preload("res://scripts/lava_fields.gd")
+const RuinRegistryScript: GDScript = preload("res://scripts/ruin_registry.gd")
+const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
+const WoodlandClearingScript: GDScript = preload("res://scripts/woodland_clearing.gd")
+const WorldSafetyScript: GDScript = preload("res://scripts/world_safety.gd")
 
 const CHUNK_SIZE: int = 8
 const STREAM_RADIUS: int = 2
@@ -50,6 +54,9 @@ var _destroyed_rocks: Dictionary = {}
 var _placed_rocks: Dictionary = {}
 var _dropped_scrap: Dictionary = {}
 var _collected_scrap: Dictionary = {}
+var _gameplay_mode: StringName = RuntimeIdsScript.MODE_LEGACY_EXPEDITION
+var _world_seed: int = WoodlandClearingScript.DEFAULT_SEED
+var _ruin_registry: RefCounted = RuinRegistryScript.new() as RefCounted
 
 
 func configure(
@@ -66,6 +73,37 @@ func configure(
 	_rocks = rocks
 	_scrap = scrap
 	_outposts = outposts
+
+
+func _set_generation_context(
+	gameplay_mode: StringName, world_seed: int = WoodlandClearingScript.DEFAULT_SEED
+) -> bool:
+	if gameplay_mode not in RuntimeIdsScript.gameplay_mode_ids():
+		return false
+	_gameplay_mode = gameplay_mode
+	_world_seed = world_seed
+	_clear_active_chunks()
+	return true
+
+
+func _get_generation_precedence() -> Array[StringName]:
+	return [
+		&"base_terrain",
+		&"biome",
+		&"clearing",
+		&"protected_paths_apron",
+		&"obstacles",
+		&"mutations",
+		&"structures",
+	]
+
+
+func _get_gameplay_mode() -> StringName:
+	return _gameplay_mode
+
+
+func _get_ruin_registry() -> RefCounted:
+	return _ruin_registry
 
 
 func stream_around(center: Vector2i) -> bool:
@@ -117,6 +155,8 @@ func terrain_at(cell: Vector2i) -> StringName:
 
 
 func _biome_at(cell: Vector2i) -> StringName:
+	if _is_fresh_farm() and WoodlandClearingScript.contains(cell):
+		return WoodlandClearingScript.BIOME_WOODLAND
 	if FrozenTundraScript.contains(cell):
 		return FrozenTundraScript.BIOME_FROZEN
 	if LavaFieldsScript.contains(cell):
@@ -133,7 +173,14 @@ func _is_blue_ice(cell: Vector2i) -> bool:
 
 
 func place_rock(cell: Vector2i, robot_cell: Vector2i) -> bool:
-	if not is_valid_cell(cell) or cell == robot_cell or _is_outpost(cell):
+	if (
+		not is_valid_cell(cell)
+		or cell == robot_cell
+		or _is_outpost(cell)
+		or _is_protected_clearing_cell(cell)
+		or _tree_kind_at(cell) != &""
+		or _is_pond(cell)
+	):
 		return false
 	_ensure_cell(cell)
 	_placed_rocks[cell] = true
@@ -232,6 +279,12 @@ func _relay_candidate_is_valid(cell: Vector2i) -> bool:
 
 
 func _is_in_sanctuary(position: Vector2, radius: float = SANCTUARY_RADIUS) -> bool:
+	if _is_fresh_farm() and WorldSafetyScript.is_home_safe(position):
+		return true
+	return _is_remote_sanctuary(position, radius)
+
+
+func _is_remote_sanctuary(position: Vector2, radius: float = SANCTUARY_RADIUS) -> bool:
 	var center: Vector2i = Vector2i(position.round())
 	var extent: int = ceili(maxf(radius, 0.0))
 	for y: int in range(center.y - extent, center.y + extent + 1):
@@ -243,7 +296,37 @@ func _is_in_sanctuary(position: Vector2, radius: float = SANCTUARY_RADIUS) -> bo
 
 
 func _is_sanctuary_outpost(cell: Vector2i) -> bool:
-	return _is_outpost(cell)
+	if not _is_outpost(cell):
+		return false
+	return not _is_fresh_farm() or bool(_ruin_registry.call("is_sanctuary_active", cell))
+
+
+func _is_home_safe(position: Vector2) -> bool:
+	return _is_fresh_farm() and WorldSafetyScript.is_home_safe(position)
+
+
+func _is_home_inner(position: Vector2) -> bool:
+	return _is_fresh_farm() and WorldSafetyScript.is_home_inner(position)
+
+
+func _tree_kind_at(cell: Vector2i) -> StringName:
+	if not _is_fresh_farm() or _is_outpost(cell):
+		return &""
+	return WoodlandClearingScript.tree_kind_at(cell, _world_seed)
+
+
+func _is_pond(cell: Vector2i) -> bool:
+	return _is_fresh_farm() and cell == WoodlandClearingScript.POND_CELL
+
+
+func _outpost_kind_at(cell: Vector2i) -> StringName:
+	return _ruin_registry.call("legacy_kind_for", cell) as StringName
+
+
+func _is_outpost_service_active(cell: Vector2i) -> bool:
+	return _is_outpost(cell) and (
+		not _is_fresh_farm() or bool(_ruin_registry.call("is_service_active", cell))
+	)
 
 
 func is_cell_loaded(cell: Vector2i) -> bool:
@@ -350,16 +433,27 @@ func _generate_cell(cell: Vector2i) -> void:
 	if _destroyed_rocks.has(cell) and base_terrain == &"rock":
 		base_terrain = &"sand"
 	var terrain_id: StringName = _surface_for(cell, base_terrain)
-	if _placed_rocks.has(cell):
+	if _is_fresh_farm() and WoodlandClearingScript.contains(cell):
+		terrain_id = WoodlandClearingScript.SURFACE_GRASS
+	if _is_protected_clearing_cell(cell):
+		terrain_id = WoodlandClearingScript.SURFACE_GRASS
+	var generated_tree: bool = _tree_kind_at(cell) != &""
+	if _placed_rocks.has(cell) and not _is_protected_clearing_cell(cell):
 		terrain_id = &"rock"
 	_terrain[cell] = terrain_id
 	_elevation[cell] = 2 if terrain_id == &"rock" else 0
 	if terrain_id == &"rock":
 		_rocks[cell] = true
 		_blocked[cell] = true
+	if generated_tree or _is_pond(cell):
+		_blocked[cell] = true
 	if _is_outpost(cell):
 		_outposts[cell] = true
-		_terrain[cell] = &"ruin"
+		_terrain[cell] = (
+			WoodlandClearingScript.SURFACE_GRASS
+			if _is_fresh_farm() and WoodlandClearingScript.contains(cell)
+			else &"ruin"
+		)
 		_elevation[cell] = 0
 		_rocks.erase(cell)
 		_blocked.erase(cell)
@@ -404,6 +498,10 @@ func _surface_for(cell: Vector2i, base_terrain: StringName) -> StringName:
 
 
 func _is_outpost(cell: Vector2i) -> bool:
+	if _is_fresh_farm() and cell == WoodlandClearingScript.HOME_CELL:
+		return true
+	if _is_fresh_farm() and WoodlandClearingScript.is_farm_apron(cell):
+		return false
 	return (
 		cell in STARTER_OUTPOSTS
 		or (not _is_starter_region(cell) and posmod(_cell_hash(cell, 0x0A77), 257) == 0)
@@ -411,6 +509,8 @@ func _is_outpost(cell: Vector2i) -> bool:
 
 
 func _generated_scrap_amount(cell: Vector2i) -> int:
+	if _is_fresh_farm() and WoodlandClearingScript.contains(cell):
+		return 0
 	if STARTER_SCRAP.has(cell):
 		return int(STARTER_SCRAP[cell])
 	if _is_starter_region(cell) or _base_terrain(cell) == &"rock" or _is_outpost(cell):
@@ -424,6 +524,14 @@ func _generated_scrap_amount(cell: Vector2i) -> int:
 
 func _is_starter_region(cell: Vector2i) -> bool:
 	return cell.x >= 0 and cell.y >= 0 and cell.x < STARTER_SIZE.x and cell.y < STARTER_SIZE.y
+
+
+func _is_fresh_farm() -> bool:
+	return _gameplay_mode == RuntimeIdsScript.MODE_FRESH_FARM
+
+
+func _is_protected_clearing_cell(cell: Vector2i) -> bool:
+	return _is_fresh_farm() and WoodlandClearingScript.is_protected_path(cell)
 
 
 func _cell_hash(cell: Vector2i, salt: int) -> int:

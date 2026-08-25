@@ -33,6 +33,7 @@ var _weather_audio: Node
 var _effects_quality: StringName = &"full"
 var _vfx_intensity: float = 1.0
 var _redraw_request_count: int = 0
+var _suppressed: bool = false
 
 
 func _ready() -> void:
@@ -77,6 +78,8 @@ func get_particle_count() -> int:
 
 
 func get_visible_mark_count() -> int:
+	if _suppressed:
+		return 0
 	var quality: float = float(QUALITY_MULTIPLIERS.get(_effects_quality, 1.0))
 	var density: float = lerpf(0.62, 1.0, clampf(_weather_intensity, 0.0, 1.0))
 	return clampi(
@@ -100,6 +103,10 @@ func get_profile() -> StringName:
 
 func get_weather_intensity() -> float:
 	return _weather_intensity
+
+
+func is_suppressed() -> bool:
+	return _suppressed
 
 
 func get_profile_counts() -> Dictionary:
@@ -150,6 +157,10 @@ func _bind_runtime_sources() -> void:
 
 
 func _sync_weather_authority() -> void:
+	_suppressed = false
+	if _field != null and _world != null:
+		var player_cell: Vector2i = _field.call("get_robot_grid") as Vector2i
+		_suppressed = _world.call("_biome_at", player_cell) == &"woodland"
 	if is_instance_valid(_weather_audio):
 		var metrics: Dictionary = _weather_audio.call("get_metrics") as Dictionary
 		set_profile(metrics.get(&"biome", &"sand") as StringName)

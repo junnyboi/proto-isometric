@@ -27,3 +27,15 @@ The generated assets are original production derivatives for Walker's Wake. Geom
 | `lava_basalt.png` | `d2327cfea86c29f3133eaac03a12583d7ae04ce9adbf427da72afc02b8d3967d` |
 | `volcanic_ash.png` | `8d4352bf34aea0d6c6200cb1d51f858556db2010c78dd93f3b40510977d017c9` |
 | `lava_flow.png` | `2c317efc3b1ae9c8853d14e6b3d5e990b5309880598a15e822f3b5804f433247` |
+
+
+## Protos Harvest woodland clearing
+
+`woodland_grass.png` and `farm_soil.png` were generated with **GPT Image 2** on 2026-08-25 to match the repository's painterly 2:1 isometric terrain grammar. The 512×512 RGB runtime candidates were downsampled with Lanczos filtering and inspected for readable grass/loam identity at gameplay scale. `farm_soil.png` is registered in Phase 1 for export and later plot rendering; Phase 1 does not create mutable farm plots.
+
+| Runtime file | SHA-256 |
+|---|---|
+| `woodland_grass.png` | `1432b2b478d1937ffea7ef8b8e4116ff37731759948ecc6458ddc8e78f040cba` |
+| `farm_soil.png` | `124799fbec83ade9a7f0351870518dcc17aad7a4b375330d01c25947f7702b26` |
+
+Raw generation masters and deterministic processing/verification scripts remain in the project asset workspace. Terrain identity, safety, generation precedence, collision, and farming state are authored by Godot and are never inferred from image pixels.

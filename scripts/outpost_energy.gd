@@ -22,6 +22,8 @@ var _update_accumulator: float = 0.0
 var _vfx_intensity: float = 1.0
 var _effects_quality: StringName = &"full"
 var _redraw_request_count: int = 0
+var _is_active: Callable
+var _kind_for: Callable
 
 
 func _ready() -> void:
@@ -32,11 +34,15 @@ func _ready() -> void:
 func configure(
 	outposts: Dictionary,
 	grid_to_screen: Callable,
+	is_active: Callable = Callable(),
+	kind_for: Callable = Callable(),
 ) -> bool:
 	if not grid_to_screen.is_valid():
 		return false
 	_outposts = outposts
 	_grid_to_screen = grid_to_screen
+	_is_active = is_active
+	_kind_for = kind_for
 	_sync_processing()
 	_request_redraw()
 	return true
@@ -68,7 +74,7 @@ func get_visible_beacon_count() -> int:
 	var count: int = 0
 	for value: Variant in _outposts:
 		var cell: Vector2i = value as Vector2i
-		if bool(_outposts[cell]) and cell in _visible_cells:
+		if bool(_outposts[cell]) and cell in _visible_cells and _outpost_is_active(cell):
 			count += 1
 	return count
 
@@ -123,9 +129,13 @@ func _draw() -> void:
 		return
 	for value: Variant in _outposts:
 		var cell: Vector2i = value as Vector2i
-		if not bool(_outposts[cell]) or cell not in _visible_cells:
+		if not bool(_outposts[cell]) or cell not in _visible_cells or not _outpost_is_active(cell):
 			continue
 		_draw_beacon(cell, strength)
+
+
+func _outpost_is_active(cell: Vector2i) -> bool:
+	return not _is_active.is_valid() or bool(_is_active.call(cell))
 
 
 func _draw_beacon(cell: Vector2i, strength: float) -> void:
@@ -157,7 +167,11 @@ func _draw_beacon(cell: Vector2i, strength: float) -> void:
 
 func _beacon_anchor(cell: Vector2i) -> Vector2:
 	var center: Vector2 = _grid_to_screen.call(cell) as Vector2
-	var kind: StringName = OutpostVisualsScript.kind_for(cell)
+	var kind: StringName = (
+		_kind_for.call(cell) as StringName
+		if _kind_for.is_valid()
+		else OutpostVisualsScript.kind_for(cell)
+	)
 	return center + OutpostVisualsScript.beacon_offset_for(kind)
 
 

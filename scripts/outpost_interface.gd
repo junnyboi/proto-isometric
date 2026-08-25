@@ -184,12 +184,22 @@ func _refresh_field_intel() -> void:
 	)
 	if intel.is_empty():
 		return
-	var fauna: String = LocalizationScript.t(intel[&"resource_fauna_key"])
 	_title_label.text = LocalizationScript.t(intel[&"region_key"])
 	_intel_tile.text = LocalizationScript.t(
 		&"field_intel.tile",
 		{"surface": LocalizationScript.t(intel[&"surface_key"])},
 	)
+	var safe_home: bool = bool(intel.get(&"safe_home", false))
+	_intel_primary_threat.add_theme_color_override("font_color", TEAL if safe_home else DANGER)
+	_intel_swarm_threat.add_theme_color_override("font_color", TEAL if safe_home else DANGER)
+	if safe_home:
+		_intel_primary_threat.text = LocalizationScript.t(&"field_intel.woodland.secure")
+		_intel_swarm_threat.text = LocalizationScript.t(&"field_intel.woodland.frontier")
+		_intel_resources_header.text = LocalizationScript.t(&"field_intel.woodland.resources")
+		_intel_scrap.text = LocalizationScript.t(&"field_intel.woodland.salvage")
+		_intel_cores.text = LocalizationScript.t(&"field_intel.woodland.land")
+		return
+	var fauna: String = LocalizationScript.t(intel[&"resource_fauna_key"])
 	_intel_primary_threat.text = LocalizationScript.t(
 		&"field_intel.threat",
 		{"name": LocalizationScript.t(intel[&"primary_threat_key"])},

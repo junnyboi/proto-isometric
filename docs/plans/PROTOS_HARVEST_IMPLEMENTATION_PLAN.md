@@ -430,8 +430,8 @@ This plan is the executable source of truth for the approved Protos Harvest pivo
 
 | Phase | Status | Revision / evidence | Notes |
 |---|---|---|---|
-| **Phase 0 — Baseline, identity seams, and compatibility** | **Complete** | Baseline and post-change `./verify.sh --release` passed on Godot 4.7.2; Phase 0 focused suite passed **83/83**; exact exported PCK booted successfully | Added stable domain ownership, additive schema 4, neutral farm state, v1/v2/v3 migration compatibility, and explicit fresh-farm / legacy-expedition mode seams. |
-| **Phase 1 — Safe woodland clearing** | Pending | GPT Image 2 woodland runtime candidates and provenance prepared outside the repository | Begins only after Phase 0 is pushed. |
+| **Phase 0 — Baseline, identity seams, and compatibility** | **Complete** | Revision `4c986fa`; baseline and post-change `./verify.sh --release` passed on Godot 4.7.2; Phase 0 focused suite passed **83/83**; exact exported PCK booted successfully | Added stable domain ownership, additive schema 4, neutral farm state, v1/v2/v3 migration compatibility, and explicit fresh-farm / legacy-expedition mode seams. |
+| **Phase 1 — Safe woodland clearing** | **Complete** | Phase 1 focused suite passed **32/32**; full smoke passed **1,981/1,981**; 1,000-seed generation invariants, seven-day safety soak, landscape/portrait Xvfb checks, `./verify.sh --release`, Web export, and exact PCK boot all passed | Safe woodland clearing, fixed home and pond, deterministic tree belt, central safety, stateful remote ruins, calm home intel, and legacy compatibility are certified. |
 | **Phase 2 — Interaction and rendering seam** | Pending | GPT Image 2 plus video-carrier hoe and watering animation candidates prepared outside the repository | Begins only after Phase 1 is pushed. |
 | **Phase 3 — Day-one farm proof** | Pending | Mirelo-style chore SFX carrier production prepared outside the repository | Begins only after Phase 2 is pushed. |
 | **Phase 4 — Authoritative persistence and economy** | Pending | — | Begins only after Phase 3 is pushed. |
@@ -448,3 +448,13 @@ This plan is the executable source of truth for the approved Protos Harvest pivo
 **PH-02** introduced a strict additive schema-4 envelope with a neutral, detached, canonical farm domain. Schema-1 and schema-2 fixtures migrate directly to schema 4. Schema-3 envelopes open through a deterministic in-memory v3→v4 migration, preserve legacy world/run/profile semantics, retain the original file until a normal save, and quarantine schema 5 as future data.
 
 **PH-03** added stable `fresh_farm` and `legacy_expedition` gameplay modes plus the immutable v3→v4 migration token. Existing active runs remain resumable, while fresh saves have a neutral clearing boot seam ready for Phase 1 without changing the visible legacy field yet.
+
+### Phase 1 implementation evidence
+
+**PH-04 / PH-05** add a pure seeded `WoodlandClearing` classifier and the explicit generation order `base terrain → biome → clearing → protected paths/apron → obstacles → mutations → structures`. Across 1,000 seeds, the exact 6×6 apron, four two-cell gates, protected routes, tree belt, fixed home, and pond remain unobstructed or blocked according to contract. Nine pre-edit external biome/surface golden cells remain exact.
+
+**PH-06** renders GPT Image 2 woodland grass, broadleaf trees, conifers, and pond through the existing streamed terrain/object batching. No per-tree Nodes are allocated. Farm soil is cataloged for later phases without creating plot state, and desert atmosphere is suppressed only inside the fresh-farm clearing.
+
+**PH-07** centralizes safe-home decisions in `WorldSafety`. Spawn, pursuit, projectile, moving hazard, deep weather, and lava adapters all deny harm inside the home boundary; a bounded seven-day-equivalent soak reports zero home violations while legacy expeditions retain their original danger model.
+
+**PH-08** establishes the starting safehouse as discovered, repaired, powered, and service-active. Remote ruins remain landmarks until both repaired and powered, then provide sanctuary and services through explicit state. Legacy starter outposts keep their previous active semantics.
