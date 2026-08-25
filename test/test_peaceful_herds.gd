@@ -228,17 +228,25 @@ static func _test_one_hit_reward(cases: Array[Dictionary]) -> void:
 		var accepted: bool = bool(herds.call("hit_creature", creature_id, 1))
 		_add(
 			cases,
-			"one Impact defeats a %s herd member" % biome,
-			accepted and int(herds.call("get_creature_count")) == 0,
+			"ordinary tools cannot defeat a %s herd member" % biome,
+			not accepted and int(herds.call("get_creature_count")) == 1,
+		)
+		var depleted: bool = bool(
+			herds.call("hit_creature_with_source", creature_id, 1, &"ecology_authority")
 		)
 		_add(
 			cases,
-			"%s herd defeat emits its resource drop exactly once" % biome,
+			"%s ecology depletion emits its resource drop exactly once" % biome,
 				(
-					rewards.size() == 1
+					depleted
+					and rewards.size() == 1
 					and int(rewards[0][&"cores"]) in [0, 1]
 					and int(rewards[0][&"scrap"]) in [0, 1]
-					and not bool(herds.call("hit_creature", creature_id, 1))
+					and not bool(
+						herds.call(
+							"hit_creature_with_source", creature_id, 1, &"ecology_authority"
+						)
+					)
 					and rewards.size() == 1
 				),
 		)
@@ -277,17 +285,14 @@ static func _test_fauna_and_pickup_integration(cases: Array[Dictionary]) -> void
 	)
 	_add(
 		cases,
-		"fauna authority accepts one-hit peaceful Impact",
-		bool(enemies.call("hit_worm", creature_id, 1)),
+		"fauna authority rejects ordinary peaceful Impact",
+		not bool(enemies.call("hit_worm", creature_id, 1)),
 	)
 	var drops: Array[Dictionary] = coordinator.call("_get_run_drops") as Array[Dictionary]
 	_add(
 		cases,
-		"peaceful defeat creates one balanced persistent resource pickup",
-		reward_seeded
-		and drops.size() == 1
-		and int(drops[0][&"cores"]) == 0
-		and int(drops[0][&"scrap"]) == 1,
+		"ordinary peaceful Impact creates no resource pickup",
+		reward_seeded and drops.is_empty(),
 	)
 	pickups.free()
 	enemies.free()

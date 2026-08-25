@@ -4,12 +4,17 @@ const CropCatalogScript: GDScript = preload("res://scripts/crop_catalog.gd")
 const InventoryServiceScript: GDScript = preload("res://scripts/inventory_service.gd")
 const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
 const WoodlandClearingScript: GDScript = preload("res://scripts/woodland_clearing.gd")
+const IronjawDesertArcScript: GDScript = preload("res://scripts/ironjaw_desert_arc.gd")
 
 const CHUNK_SIZE: int = 8
 
 
 static func till(farm: Dictionary, cell: Vector2i) -> Dictionary:
-	if not WoodlandClearingScript.is_farm_apron(cell) or _plot_index(farm, cell) >= 0:
+	var tillable: bool = (
+		WoodlandClearingScript.is_farm_apron(cell)
+		or (IronjawDesertArcScript.deep_tillable(farm, cell))
+	)
+	if not tillable or _plot_index(farm, cell) >= 0:
 		return _result(false, farm, &"not_tillable", [])
 	var spent: Dictionary = ToolServiceScript.spend(farm, ToolServiceScript.TOOL_HOE)
 	if not bool(spent[&"ok"]):

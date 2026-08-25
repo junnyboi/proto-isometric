@@ -90,7 +90,7 @@ static func _test_registry_and_definitions(cases: Array[Dictionary]) -> void:
 		cases,
 		"Phase 5 homestead authority and additive registry IDs are stable",
 		(
-			RuntimeIdsScript.REGISTRY_VERSION == 9
+			RuntimeIdsScript.REGISTRY_VERSION == 10
 			and contract[&"migration_state"] == RuntimeOwnershipScript.MIGRATION_STABLE
 			and RuntimeOwnershipScript.can_mutate(
 				RuntimeIdsScript.DOMAIN_HOMESTEAD_SETTLEMENT,

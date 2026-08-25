@@ -166,13 +166,12 @@ static func contracts() -> Array[Dictionary]:
 			"",
 			"res://scripts/tool_service.gd",
 		),
-		_planned_contract(
+		_stable_contract(
 			RuntimeIdsScript.DOMAIN_ECOLOGY,
-			RuntimeIdsScript.OWNER_UNASSIGNED,
 			RuntimeIdsScript.OWNER_ECOLOGY,
 			SCOPE_ECOLOGY,
-			"",
-			"res://scripts/ecology_service.gd",
+			POLICY_AUTHORITATIVE,
+			"res://scripts/ecology_director.gd",
 		),
 		_stable_contract(
 			RuntimeIdsScript.DOMAIN_WORLD_MUTATIONS,

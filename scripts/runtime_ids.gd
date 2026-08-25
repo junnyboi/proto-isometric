@@ -1,7 +1,7 @@
 extends RefCounted
 
 const LEGACY_REGISTRY_VERSION: int = 6
-const REGISTRY_VERSION: int = 9
+const REGISTRY_VERSION: int = 10
 
 const DOMAIN_FIELD_COMPOSITION: StringName = &"domain.field_composition"
 const DOMAIN_MOVEMENT: StringName = &"domain.movement"
@@ -114,6 +114,10 @@ const REQUEST_MIRA_ID: StringName = &"request.mira.glowroot"
 const LIVESTOCK_MOSSBACK_ID: StringName = &"livestock.mossback_grazer"
 const LIVESTOCK_COILHEN_ID: StringName = &"livestock.coilhen"
 const LIVESTOCK_RUSTSNOUT_ID: StringName = &"livestock.rustsnout_rooter"
+const HABITAT_IRONJAW_ID: StringName = &"habitat.desert.ironjaw_range"
+const LAIR_IRONJAW_ID: StringName = &"lair.ironjaw.sunken_crown"
+const QUEST_IRONJAW_ID: StringName = &"quest.ironjaw.burrow_core"
+const BOSS_CLEAR_IRONJAW_ID: StringName = &"boss.ironjaw.first_clear"
 
 
 static func catalog() -> Dictionary:
@@ -234,6 +238,13 @@ static func catalog() -> Dictionary:
 			LIVESTOCK_MOSSBACK_ID,
 			LIVESTOCK_COILHEN_ID,
 			LIVESTOCK_RUSTSNOUT_ID,
+		],
+		&"wilderness_ids":
+		[
+			HABITAT_IRONJAW_ID,
+			LAIR_IRONJAW_ID,
+			QUEST_IRONJAW_ID,
+			BOSS_CLEAR_IRONJAW_ID,
 		],
 	}
 

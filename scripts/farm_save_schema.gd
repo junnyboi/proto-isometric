@@ -3,6 +3,7 @@ extends RefCounted
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const CropCatalogScript: GDScript = preload("res://scripts/crop_catalog.gd")
 const DurableUpgradeCatalogScript: GDScript = preload("res://scripts/durable_upgrade_catalog.gd")
+const EcologyDirectorScript: GDScript = preload("res://scripts/ecology_director.gd")
 const ItemCatalogScript: GDScript = preload("res://scripts/item_catalog.gd")
 const RecipeCatalogScript: GDScript = preload("res://scripts/recipe_catalog.gd")
 const HomesteadSaveSchemaScript: GDScript = preload("res://scripts/homestead_save_schema.gd")
@@ -34,9 +35,7 @@ const MAX_GROWTH_POINTS: int = 100_000
 const MAX_MACHINE_TOKENS: int = 64
 const MAX_ABSOLUTE_DAY: int = MAX_YEAR * 4 * 14
 
-const MACHINE_STATES: Array[StringName] = [
-	&"machine.idle", &"machine.running", &"machine.complete"
-]
+const MACHINE_STATES: Array[StringName] = [&"machine.idle", &"machine.running", &"machine.complete"]
 const MACHINE_STATIONS: Dictionary = {
 	"machine.home.workbench": "station.workbench",
 	"machine.home.furnace": "station.furnace",
@@ -311,8 +310,6 @@ static func _normalize_economy(value: Variant) -> Dictionary:
 	return result
 
 
-
-
 static func _normalize_homestead(value: Variant) -> Dictionary:
 	return HomesteadSaveSchemaScript.normalize(value)
 
@@ -364,8 +361,8 @@ static func _normalize_ecology(value: Variant) -> Dictionary:
 	var state_version: Variant = _json_integer(
 		ecology.get(&"state_version"), STATE_VERSION, STATE_VERSION
 	)
-	var deltas: Variant = _normalize_empty_array(ecology.get(&"deltas"), MAX_ECOLOGY_DELTAS)
-	var boss_clears: Variant = _normalize_empty_array(
+	var deltas: Variant = EcologyDirectorScript.normalize_deltas(ecology.get(&"deltas"))
+	var boss_clears: Variant = EcologyDirectorScript.normalize_boss_clears(
 		ecology.get(&"boss_first_clear_ids"), MAX_BOSS_CLEARS
 	)
 	if state_version == null or deltas == null or boss_clears == null:
@@ -600,7 +597,12 @@ static func _normalize_machines(value: Variant) -> Variant:
 		var recipe: Dictionary = RecipeCatalogScript.definition(recipe_id)
 		var expected_token: String = "%s:%d:%s" % [machine_id, int(start_day), String(recipe_id)]
 		if is_idle:
-			if recipe_id != &"" or int(start_day) != 0 or int(complete_day) != 0 or operation_token != "":
+			if (
+				recipe_id != &""
+				or int(start_day) != 0
+				or int(complete_day) != 0
+				or operation_token != ""
+			):
 				return null
 		elif (
 			recipe.is_empty()
@@ -614,7 +616,9 @@ static func _normalize_machines(value: Variant) -> Variant:
 			return null
 		seen_ids[machine_id] = true
 		seen_cells[cell_key] = true
-		result.append(
+		(
+			result
+			. append(
 			{
 				&"machine_id": machine_id,
 				&"station_tag": String(station_tag),
@@ -626,6 +630,7 @@ static func _normalize_machines(value: Variant) -> Variant:
 				&"operation_token": str(operation_token),
 				&"claimed_tokens": claimed_tokens,
 			}
+		)
 		)
 	result.sort_custom(
 		func(a: Dictionary, b: Dictionary) -> bool:

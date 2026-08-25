@@ -467,11 +467,7 @@ func hit_worm(worm_id: int, damage: int = 1) -> bool:
 	if worm_id >= MeleePressureScript.ID_BASE:
 		return bool(_melee_pressure.call("hit_mite", worm_id, damage))
 	if worm_id >= PeacefulHerdsScript.CREATURE_ID_BASE:
-		var snapshot: Dictionary = _peaceful_herds.call("get_snapshot", worm_id) as Dictionary
-		var accepted: bool = bool(_peaceful_herds.call("hit_creature", worm_id, damage))
-		if accepted:
-			_defeated_peaceful_kinds[worm_id] = snapshot.get(&"kind", &"dune_grazer")
-		return accepted
+		return false
 	var worm: Dictionary = _find_worm(worm_id)
 	var kind: StringName = worm.get(&"kind", WORM_KIND) as StringName
 	var state: StringName = worm.get(&"state", &"missing") as StringName

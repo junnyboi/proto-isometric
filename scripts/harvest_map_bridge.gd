@@ -17,6 +17,7 @@ const MachineServiceScript: GDScript = preload("res://scripts/machine_service.gd
 const ResolverScript: GDScript = preload("res://scripts/interaction_resolver.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
+const WildernessRuntimeScript: GDScript = preload("res://scripts/wilderness_runtime.gd")
 const WoodlandClearingScript: GDScript = preload("res://scripts/woodland_clearing.gd")
 
 const SHIPPING_CELL: Vector2i = Vector2i(7, 7)
@@ -24,6 +25,7 @@ const STORAGE_CELL: Vector2i = Vector2i(8, 7)
 const WORKSHOP_CELL: Vector2i = Vector2i(9, 7)
 const FURNACE_CELL: Vector2i = Vector2i(6, 7)
 const IRRIGATION_CELL: Vector2i = Vector2i(10, 6)
+const WELL_CELL: Vector2i = Vector2i(5, 9)
 const SHIPPING_TEXTURE: Texture2D = preload("res://assets/props/farm_shipping_bin.png")
 const STORAGE_TEXTURE: Texture2D = preload("res://assets/props/home_storage_crate.png")
 const WORKSHOP_TEXTURE: Texture2D = preload("res://assets/props/tool_upgrade_bench.png")
@@ -39,6 +41,7 @@ var _controller: Node2D
 var _farm_renderer: Node2D
 var _farm_runtime: RefCounted
 var _transactions: RefCounted
+var _wilderness_runtime: RefCounted
 var _ready_for_commands: bool = false
 var _last_presentation_signature: int = 0
 var _last_music_track: StringName = &""
@@ -54,6 +57,7 @@ func _process(_delta: float) -> void:
 	_sync_visible_chunks()
 	_sync_presentation_state()
 	_sync_clearing_music()
+	_sync_wilderness()
 
 
 func get_interaction_controller() -> Node2D:
@@ -70,6 +74,10 @@ func get_farm_runtime() -> RefCounted:
 
 func get_transaction_boundary() -> RefCounted:
 	return _transactions
+
+
+func get_wilderness_runtime() -> RefCounted:
+	return _wilderness_runtime
 
 
 func is_ready_for_commands() -> bool:
@@ -134,6 +142,7 @@ func _bootstrap() -> void:
 	_sync_visible_chunks()
 	_sync_ruin_registry()
 	_sync_clearing_music()
+	_initialize_wilderness()
 	_ready_for_commands = true
 
 
@@ -148,7 +157,8 @@ func _initialize_farm_runtime() -> void:
 		&"save_format_version": repository.FORMAT_VERSION,
 		&"metadata":
 		{
-			&"build_id": str(ProjectSettings.get_setting("application/config/version", "development")),
+			&"build_id":
+			str(ProjectSettings.get_setting("application/config/version", "development")),
 			&"world_generation_version": repository.WORLD_GENERATION_VERSION,
 			&"write_sequence": int(repository.call("get_write_sequence")),
 			&"saved_at_unix": 0,
@@ -161,13 +171,16 @@ func _initialize_farm_runtime() -> void:
 	}
 	_transactions = CrossDomainTransactionScript.new() as RefCounted
 	if not bool(
-		_transactions.call(
+		(
+			_transactions
+			. call(
 			"configure",
 			source_envelope,
 			repository,
 			_map.get("_world") as RefCounted,
 			Callable(self, "_publish_envelope"),
 			WoodlandClearingScript.DEFAULT_SEED,
+		)
 		)
 	):
 		push_error("PH-21 cross-domain transaction boundary rejected the live envelope.")
@@ -191,9 +204,9 @@ func _initialize_farm_runtime() -> void:
 func _commit_farm_candidate(candidate: Dictionary) -> bool:
 	if _transactions == null:
 		return false
-	var result: Dictionary = _transactions.call(
-		"transact", &"farm_candidate", {&"farm": candidate}
-	) as Dictionary
+	var result: Dictionary = (
+		_transactions.call("transact", &"farm_candidate", {&"farm": candidate}) as Dictionary
+	)
 	return bool(result.get(&"ok", false))
 
 
@@ -206,9 +219,7 @@ func _publish_envelope(envelope: Dictionary) -> bool:
 	world_snapshot[&"schema"] = 2
 	world.call("apply_snapshot", world_snapshot)
 	return bool(
-		coordinator.call(
-			"restore_persisted_state", envelope[&"active_run"], envelope[&"profile"]
-		)
+		coordinator.call("restore_persisted_state", envelope[&"active_run"], envelope[&"profile"])
 	)
 
 
@@ -234,10 +245,7 @@ func _target_snapshot(cell: Vector2i) -> Dictionary:
 			kinds.append(ResolverScript.KIND_TERRAIN)
 	if world.call("_tree_kind_at", cell) as StringName != &"":
 		kinds.append(ResolverScript.KIND_TREE)
-	if (
-		bool(world.call("_is_outpost", cell))
-		or HomesteadServiceScript.facility_id_at(cell) != &""
-	):
+	if bool(world.call("_is_outpost", cell)) or HomesteadServiceScript.facility_id_at(cell) != &"":
 		kinds.append(ResolverScript.KIND_STRUCTURE)
 	if bool(_map.call("has_scrap", cell)):
 		kinds.append(ResolverScript.KIND_PICKUP)
@@ -348,7 +356,9 @@ func _play_action_sfx(operation: StringName, cell: Vector2i) -> void:
 			return
 	var service: Node = get_node_or_null("/root/AudioService")
 	if service != null:
-		service.call(
+		(
+			service
+			. call(
 			"play_spatial",
 			stream,
 			_map.call("grid_to_screen", cell) as Vector2,
@@ -356,6 +366,7 @@ func _play_action_sfx(operation: StringName, cell: Vector2i) -> void:
 			1.0,
 			-2.0,
 			1,
+		)
 		)
 
 
@@ -375,6 +386,11 @@ func _refresh_render_indexes(dirty_cells: Array[Vector2i] = []) -> void:
 			_append_structure(indexes, FURNACE_CELL, &"furnace", FURNACE_TEXTURE)
 		if _has_upgrade(farm, &"upgrade.irrigation.grid_radius"):
 			_append_structure(indexes, IRRIGATION_CELL, &"irrigation_pump", IRRIGATION_TEXTURE)
+		if (
+			String("boss.ironjaw.first_clear")
+			in (farm[&"ecology"] as Dictionary)[&"boss_first_clear_ids"]
+		):
+			_append_structure(indexes, WELL_CELL, &"burrow_well", IRRIGATION_TEXTURE)
 	_farm_renderer.call("consume_indexes", indexes)
 	if not dirty_cells.is_empty():
 		_farm_renderer.call("invalidate_cells", dirty_cells)
@@ -398,8 +414,9 @@ func _has_machine(farm: Dictionary, machine_id: StringName) -> bool:
 
 
 func _has_upgrade(farm: Dictionary, upgrade_id: StringName) -> bool:
-	return String(upgrade_id) in (
-		(farm.get(&"tools", {}) as Dictionary).get(&"upgrade_ids", []) as Array
+	return (
+		String(upgrade_id)
+		in ((farm.get(&"tools", {}) as Dictionary).get(&"upgrade_ids", []) as Array)
 	)
 
 
@@ -474,12 +491,39 @@ func _sync_clearing_music() -> void:
 		return
 	var farm: Dictionary = _farm_runtime.call("get_snapshot") as Dictionary
 	var calendar: Dictionary = farm.get(&"calendar_weather", {}) as Dictionary
-	_last_music_track = music.call(
+	_last_music_track = (
+		(
+			music
+			. call(
 		"set_clearing_context",
 		true,
 		int(calendar.get(&"minute_of_day", 360)),
 		StringName(str(calendar.get(&"current_weather_id", "weather.clear"))),
-	) as StringName
+			)
+		)
+		as StringName
+	)
+
+
+func _initialize_wilderness() -> void:
+	if _farm_runtime == null:
+		return
+	var sandworms: Node2D = _map.get("_sandworms") as Node2D
+	_wilderness_runtime = WildernessRuntimeScript.new() as RefCounted
+	if not bool(
+		_wilderness_runtime.call(
+			"configure", sandworms, _farm_runtime, WoodlandClearingScript.DEFAULT_SEED
+		)
+	):
+		_wilderness_runtime = null
+
+
+func _sync_wilderness() -> void:
+	if _wilderness_runtime == null:
+		return
+	var cell: Vector2i = _map.call("get_robot_grid") as Vector2i
+	var world: RefCounted = _map.get("_world") as RefCounted
+	_wilderness_runtime.call("sync", cell, world.call("_biome_at", cell) as StringName)
 
 
 func _sync_visible_chunks() -> void:

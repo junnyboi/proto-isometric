@@ -77,11 +77,7 @@ func configure(
 	world: RefCounted,
 	drop_callback: Callable = Callable(),
 ) -> bool:
-	if (
-		world == null
-		or not world.has_method("is_walkable")
-		or not world.has_method("_biome_at")
-	):
+	if world == null or not world.has_method("is_walkable") or not world.has_method("_biome_at"):
 		return false
 	_tile_size = tile_size
 	_map_origin = map_origin
@@ -146,7 +142,9 @@ func spawn_herd(center: Vector2, count: int, biome: StringName = &"") -> int:
 		if position.x < -9000.0:
 			continue
 		var heading: Vector2 = Vector2.from_angle(angle + PI * 0.37)
-		_creatures.append(
+		(
+			_creatures
+			. append(
 			{
 				&"id": _next_creature_id,
 				&"herd_id": herd_id,
@@ -159,6 +157,7 @@ func spawn_herd(center: Vector2, count: int, biome: StringName = &"") -> int:
 				&"health": CREATURE_HIT_POINTS,
 				&"max_health": CREATURE_HIT_POINTS,
 			}
+		)
 		)
 		_next_creature_id += 1
 	queue_redraw()
@@ -196,7 +195,13 @@ func find_target(cell: Vector2i) -> int:
 
 
 func hit_creature(creature_id: int, damage: int = 1) -> bool:
-	if damage <= 0:
+	return hit_creature_with_source(creature_id, damage, &"ordinary_tool")
+
+
+func hit_creature_with_source(
+	creature_id: int, damage: int = 1, source: StringName = &"ordinary_tool"
+) -> bool:
+	if damage <= 0 or source != &"ecology_authority":
 		return false
 	for index: int in range(_creatures.size()):
 		var creature: Dictionary = _creatures[index]
@@ -326,8 +331,8 @@ func _herd_centers() -> Dictionary:
 	var counts: Dictionary = {}
 	for creature: Dictionary in _creatures:
 		var herd_id: int = int(creature[&"herd_id"])
-		totals[herd_id] = (totals.get(herd_id, Vector2.ZERO) as Vector2) + (
-			creature[&"position"] as Vector2
+		totals[herd_id] = (
+			(totals.get(herd_id, Vector2.ZERO) as Vector2) + (creature[&"position"] as Vector2)
 		)
 		counts[herd_id] = int(counts.get(herd_id, 0)) + 1
 	for herd_id: Variant in totals:
@@ -365,9 +370,12 @@ func _find_creature(creature_id: int) -> Dictionary:
 
 
 func _grid_to_screen(position: Vector2) -> Vector2:
-	return _map_origin + Vector2(
+	return (
+		_map_origin
+		+ Vector2(
 		(position.x - position.y) * _tile_size.x * 0.5,
 		(position.x + position.y) * _tile_size.y * 0.5,
+	)
 	)
 
 

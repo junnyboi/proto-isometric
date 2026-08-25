@@ -20,7 +20,7 @@ static func evaluate(coordinator: RefCounted) -> Array[Dictionary]:
 	_add_case(
 		cases,
 		"stable ID registry version is pinned",
-		RuntimeIdsScript.LEGACY_REGISTRY_VERSION == 6 and RuntimeIdsScript.REGISTRY_VERSION == 9,
+		RuntimeIdsScript.LEGACY_REGISTRY_VERSION == 6 and RuntimeIdsScript.REGISTRY_VERSION == 10,
 	)
 	_add_case(
 		cases,
@@ -182,7 +182,10 @@ static func _test_harvest_ownership(cases: Array[Dictionary]) -> void:
 		var domain_id: StringName = expected[&"domain"] as StringName
 		var owner_id: StringName = expected[&"owner"] as StringName
 		var contract: Dictionary = RuntimeOwnershipScript.contract_for(domain_id)
-		var is_stable: bool = domain_id == RuntimeIdsScript.DOMAIN_HOMESTEAD_SETTLEMENT
+		var is_stable: bool = domain_id in [
+			RuntimeIdsScript.DOMAIN_HOMESTEAD_SETTLEMENT,
+			RuntimeIdsScript.DOMAIN_ECOLOGY,
+		]
 		_add_case(
 			cases,
 			"Harvest owner and scope are explicit for %s" % domain_id,

@@ -3,11 +3,14 @@ extends RefCounted
 const CalendarStateScript: GDScript = preload("res://scripts/calendar_state.gd")
 const DayAdvanceServiceScript: GDScript = preload("res://scripts/day_advance_service.gd")
 const EconomyServiceScript: GDScript = preload("res://scripts/economy_service.gd")
+const EcologyDirectorScript: GDScript = preload("res://scripts/ecology_director.gd")
+const FarmCapabilityServiceScript: GDScript = preload("res://scripts/farm_capability_service.gd")
 const FarmSaveSchemaScript: GDScript = preload("res://scripts/farm_save_schema.gd")
 const FarmStateScript: GDScript = preload("res://scripts/farm_state.gd")
 const HomesteadServiceScript: GDScript = preload("res://scripts/homestead_service.gd")
 const InventoryServiceScript: GDScript = preload("res://scripts/inventory_service.gd")
 const LivestockServiceScript: GDScript = preload("res://scripts/livestock_service.gd")
+const IronjawDesertArcScript: GDScript = preload("res://scripts/ironjaw_desert_arc.gd")
 const MachineServiceScript: GDScript = preload("res://scripts/machine_service.gd")
 const RelationshipServiceScript: GDScript = preload("res://scripts/relationship_service.gd")
 const ResidentServiceScript: GDScript = preload("res://scripts/resident_service.gd")
@@ -149,21 +152,27 @@ func _build_operation(operation: StringName, arguments: Dictionary) -> Dictionar
 				_farm, arguments.get(&"resident_id", &"") as StringName
 			)
 		&"gift":
-			result = RelationshipServiceScript.gift(
+			result = (
+				RelationshipServiceScript
+				. gift(
 				_farm,
 				arguments.get(&"resident_id", &"") as StringName,
 				arguments.get(&"item_id", &"") as StringName,
+			)
 			)
 		&"request", &"request_complete":
 			result = RelationshipServiceScript.complete_request(
 				_farm, arguments.get(&"request_id", &"") as StringName
 			)
 		&"animal_add":
-			result = LivestockServiceScript.add_animal(
+			result = (
+				LivestockServiceScript
+				. add_animal(
 				_farm,
 				arguments.get(&"animal_id", &"") as StringName,
 				arguments.get(&"species_id", &"") as StringName,
 				arguments.get(&"housing_id", &"") as StringName,
+			)
 			)
 		&"animal_feed":
 			result = LivestockServiceScript.feed(
@@ -177,4 +186,39 @@ func _build_operation(operation: StringName, arguments: Dictionary) -> Dictionar
 			result = LivestockServiceScript.claim_product(
 				_farm, arguments.get(&"animal_id", &"") as StringName
 			)
+		&"ecology_deplete":
+			result = (
+				EcologyDirectorScript
+				. deplete(
+					_farm,
+					arguments.get(&"habitat_id", &"") as StringName,
+					int(arguments.get(&"count", 1)),
+					int(arguments.get(&"absolute_day", 1)),
+				)
+			)
+		&"herd_interact":
+			result = (
+				EcologyDirectorScript
+				. interact_herd(
+					_farm,
+					arguments.get(&"habitat_id", &"") as StringName,
+					int(arguments.get(&"absolute_day", 1)),
+				)
+			)
+		&"capability_unlock":
+			result = FarmCapabilityServiceScript.unlock(
+				_farm, arguments.get(&"capability", &"") as StringName
+			)
+		&"hazard_reward":
+			result = (
+				FarmCapabilityServiceScript
+				. claim_hazard_reward(
+					_farm,
+					str(arguments.get(&"token", "")),
+					arguments.get(&"item_id", &"") as StringName,
+					int(arguments.get(&"count", 0)),
+				)
+			)
+		&"ironjaw_first_clear":
+			result = IronjawDesertArcScript.complete_first_clear(_farm)
 	return result

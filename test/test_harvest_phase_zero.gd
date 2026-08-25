@@ -30,7 +30,7 @@ static func _test_legacy_ids(cases: Array[Dictionary]) -> void:
 			RuntimeIdsScript.legacy_ids().size() == LEGACY_ID_COUNT
 			and fingerprint == LEGACY_ID_FINGERPRINT
 			and RuntimeIdsScript.LEGACY_REGISTRY_VERSION == 6
-			and RuntimeIdsScript.REGISTRY_VERSION == 9
+			and RuntimeIdsScript.REGISTRY_VERSION == 10
 		),
 	)
 
@@ -67,6 +67,7 @@ static func _test_ownership(cases: Array[Dictionary]) -> void:
 			&"domain": RuntimeIdsScript.DOMAIN_ECOLOGY,
 			&"owner": RuntimeIdsScript.OWNER_ECOLOGY,
 			&"scope": RuntimeOwnershipScript.SCOPE_ECOLOGY,
+			&"authoritative": true,
 		},
 	]
 	for expected: Dictionary in contracts:
@@ -80,11 +81,13 @@ static func _test_ownership(cases: Array[Dictionary]) -> void:
 			(
 				RuntimeOwnershipScript.owner_for(domain_id) == owner_id
 				and contract[&"state_scope"] == expected[&"scope"]
-				and contract[&"migration_state"]
+				and (
+					contract[&"migration_state"]
 				== (
 					RuntimeOwnershipScript.MIGRATION_STABLE
 					if authoritative
 					else RuntimeOwnershipScript.MIGRATION_PLANNED
+				)
 				)
 			),
 		)

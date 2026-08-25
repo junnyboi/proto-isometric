@@ -2,7 +2,9 @@ extends Node2D
 
 signal damage_tick(amount: int, source: StringName)
 signal deep_event_started(kind: StringName, biome: StringName, cell: Vector2i)
+signal deep_event_stabilized(event_id: int, token: String, item_id: StringName, count: int)
 
+const HazardOpportunityScript: GDScript = preload("res://scripts/hazard_opportunity_catalog.gd")
 const WorldSafetyScript: GDScript = preload("res://scripts/world_safety.gd")
 
 const TORNADO_FORMATION_SECONDS: float = 3.0
@@ -21,28 +23,32 @@ const DEEP_CELL_SLOTS: int = 9
 const DEEP_TRIGGER_CHANCE: float = 0.55
 const MAX_DEEP_EVENTS: int = 2
 const DEEP_EVENT_PROFILES: Dictionary = {
-	&"desert": {
+	&"desert":
+	{
 		&"kind": &"quicksand_collapse",
 		&"damage": 5,
 		&"telegraph": 1.4,
 		&"lifetime": 2.2,
 		&"radius": 0.92,
 	},
-	&"oasis": {
+	&"oasis":
+	{
 		&"kind": &"bog_gas_bloom",
 		&"damage": 4,
 		&"telegraph": 1.8,
 		&"lifetime": 2.8,
 		&"radius": 1.15,
 	},
-	&"frozen": {
+	&"frozen":
+	{
 		&"kind": &"ice_shear",
 		&"damage": 6,
 		&"telegraph": 1.1,
 		&"lifetime": 1.9,
 		&"radius": 1.05,
 	},
-	&"lava": {
+	&"lava":
+	{
 		&"kind": &"magma_vent",
 		&"damage": 8,
 		&"telegraph": 1.3,
@@ -69,6 +75,7 @@ var _tornado_timer: float = 6.0
 var _sandstorm_timer: float = 12.0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _event_rng: RandomNumberGenerator = RandomNumberGenerator.new()
+var _prepared_capabilities: Array[StringName] = []
 
 
 func _ready() -> void:
@@ -103,6 +110,36 @@ func set_event_random_seed(seed_value: int) -> void:
 
 func reset_deep_event_cooldown() -> void:
 	_deep_event_cooldown = 0.0
+
+
+func _set_prepared_capabilities(capabilities: Array[StringName]) -> void:
+	_prepared_capabilities = capabilities.duplicate()
+	_prepared_capabilities.sort_custom(
+		func(a: StringName, b: StringName) -> bool: return String(a) < String(b)
+	)
+
+
+func stabilize_deep_event(event_id: int) -> bool:
+	for index: int in _deep_events.size():
+		var event: Dictionary = _deep_events[index]
+		if int(event[&"id"]) != event_id:
+			continue
+		var kind: StringName = event[&"kind"] as StringName
+		var opportunity: Dictionary = HazardOpportunityScript.definition(kind)
+		var prepared: bool = opportunity[&"preparation"] in _prepared_capabilities
+		if not HazardOpportunityScript.can_stabilize(kind, float(event[&"age"]), prepared):
+			return false
+		_deep_events.remove_at(index)
+		var cell: Vector2i = event[&"cell"] as Vector2i
+		var token: String = "hazard:%s:%d,%d" % [kind, cell.x, cell.y]
+		deep_event_stabilized.emit(
+			event_id,
+			token,
+			opportunity[&"reward_item_id"] as StringName,
+			int(opportunity[&"reward_count"])
+		)
+		return true
+	return false
 
 
 func set_player_cell(cell: Vector2i) -> void:
@@ -308,8 +345,9 @@ func _handle_player_cell_entry(cell: Vector2i) -> void:
 	var biome: StringName = _world.call("_biome_at", cell) as StringName
 	if not is_deep_biome_cell(biome, cell) or not is_deep_event_candidate(cell):
 		return
-	if _world.has_method("_is_in_sanctuary") and bool(
-		_world.call("_is_in_sanctuary", Vector2(cell))
+	if (
+		_world.has_method("_is_in_sanctuary")
+		and bool(_world.call("_is_in_sanctuary", Vector2(cell)))
 	):
 		return
 	if (
@@ -330,7 +368,9 @@ func _spawn_deep_event(biome: StringName, cell: Vector2i, profile: Dictionary) -
 		return -1
 	var event_id: int = _take_id()
 	var kind: StringName = profile[&"kind"] as StringName
-	_deep_events.append(
+	(
+		_deep_events
+		. append(
 		{
 			&"id": event_id,
 			&"kind": kind,
@@ -343,6 +383,7 @@ func _spawn_deep_event(biome: StringName, cell: Vector2i, profile: Dictionary) -
 			&"radius": float(profile[&"radius"]),
 			&"resolved": false,
 		}
+	)
 	)
 	_deep_event_cooldown = DEEP_EVENT_COOLDOWN_SECONDS
 	deep_event_started.emit(kind, biome, cell)
@@ -361,7 +402,13 @@ func _advance_deep_events(delta: float) -> void:
 				distance <= float(event[&"radius"])
 				and WorldSafetyScript.allows_hazard_damage(_player_position, _world)
 			):
-				damage_tick.emit(int(event[&"damage"]), event[&"kind"] as StringName)
+				var kind: StringName = event[&"kind"] as StringName
+				var opportunity: Dictionary = HazardOpportunityScript.definition(kind)
+				var prepared: bool = opportunity[&"preparation"] in _prepared_capabilities
+				damage_tick.emit(
+					HazardOpportunityScript.mitigated_damage(kind, int(event[&"damage"]), prepared),
+					kind
+				)
 		if float(event[&"age"]) >= float(event[&"lifetime"]):
 			_deep_events.remove_at(index)
 
@@ -699,7 +746,9 @@ func _draw_deep_event(event: Dictionary) -> void:
 					Color(0.92, 0.57, 0.20, (0.65 - ring * 0.12) * fade),
 				)
 		&"bog_gas_bloom":
-			_draw_ellipse_shape(center, Vector2(42.0, 20.0) * progress, Color(0.25, 0.52, 0.25, 0.28 * fade))
+			_draw_ellipse_shape(
+				center, Vector2(42.0, 20.0) * progress, Color(0.25, 0.52, 0.25, 0.28 * fade)
+			)
 			for bubble: int in range(8):
 				var angle: float = TAU * float(bubble) / 8.0 + _time * 0.25
 				var offset: Vector2 = Vector2(cos(angle) * 33.0, sin(angle) * 13.0)
@@ -715,9 +764,16 @@ func _draw_deep_event(event: Dictionary) -> void:
 				var length: float = (24.0 + float(ray % 3) * 9.0) * progress
 				var endpoint: Vector2 = center + Vector2.from_angle(angle) * length
 				draw_line(center, endpoint, ice_color, 2.0 + float(ray % 2))
-				draw_line(endpoint, endpoint + Vector2.from_angle(angle + 0.7) * 9.0 * progress, ice_color, 1.5)
+				draw_line(
+					endpoint,
+					endpoint + Vector2.from_angle(angle + 0.7) * 9.0 * progress,
+					ice_color,
+					1.5
+				)
 		&"magma_vent":
-			draw_circle(center + Vector2(0.0, 5.0), 25.0 * progress, Color(0.35, 0.04, 0.01, 0.55 * fade))
+			draw_circle(
+				center + Vector2(0.0, 5.0), 25.0 * progress, Color(0.35, 0.04, 0.01, 0.55 * fade)
+			)
 			draw_arc(
 				center + Vector2(0.0, 5.0),
 				31.0 * progress,

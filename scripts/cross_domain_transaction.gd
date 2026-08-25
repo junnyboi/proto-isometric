@@ -3,10 +3,13 @@ extends RefCounted
 const CalendarStateScript: GDScript = preload("res://scripts/calendar_state.gd")
 const DayAdvanceServiceScript: GDScript = preload("res://scripts/day_advance_service.gd")
 const DurableUpgradeServiceScript: GDScript = preload("res://scripts/durable_upgrade_service.gd")
+const EcologyDirectorScript: GDScript = preload("res://scripts/ecology_director.gd")
+const FarmCapabilityServiceScript: GDScript = preload("res://scripts/farm_capability_service.gd")
 const FarmSaveSchemaScript: GDScript = preload("res://scripts/farm_save_schema.gd")
 const FarmStateScript: GDScript = preload("res://scripts/farm_state.gd")
 const HomesteadServiceScript: GDScript = preload("res://scripts/homestead_service.gd")
 const InventoryServiceScript: GDScript = preload("res://scripts/inventory_service.gd")
+const IronjawDesertArcScript: GDScript = preload("res://scripts/ironjaw_desert_arc.gd")
 const LivestockServiceScript: GDScript = preload("res://scripts/livestock_service.gd")
 const MachineServiceScript: GDScript = preload("res://scripts/machine_service.gd")
 const ProfileStateScript: GDScript = preload("res://scripts/profile_state.gd")
@@ -56,25 +59,31 @@ func transact(operation: StringName, arguments: Dictionary = {}) -> Dictionary:
 	if validated.is_empty():
 		return _result(false, source, &"invalid_candidate")
 	if not bool(
-		_repository.call(
+		(
+			_repository
+			. call(
 			"save_state",
 			validated[&"world"],
 			validated[&"active_run"],
 			validated[&"profile"],
 			validated[&"farm"],
 		)
+		)
 	):
 		return _result(false, source, &"persistence_failed")
 	if _publish.is_valid() and not bool(_publish.call(validated.duplicate(true))):
 		var live_restored: bool = bool(_publish.call(source.duplicate(true)))
 		var persisted_restored: bool = bool(
-			_repository.call(
+			(
+				_repository
+				. call(
 				"save_state",
 				source[&"world"],
 				source[&"active_run"],
 				source[&"profile"],
 				source[&"farm"],
 			)
+		)
 		)
 		var rollback_reason: StringName = (
 			&"publish_failed" if live_restored and persisted_restored else &"rollback_failed"
@@ -92,12 +101,15 @@ func _build(source: Dictionary, operation: StringName, arguments: Dictionary) ->
 		&"harvest":
 			mutation = FarmStateScript.harvest(farm, arguments[&"cell"] as Vector2i)
 		&"transfer":
-			mutation = InventoryServiceScript.transfer(
+			mutation = (
+				InventoryServiceScript
+				. transfer(
 				farm,
 				arguments[&"source_id"] as StringName,
 				arguments[&"destination_id"] as StringName,
 				arguments[&"item_id"] as StringName,
 				int(arguments[&"count"]),
+			)
 			)
 		&"craft_start":
 			mutation = MachineServiceScript.start(
@@ -124,21 +136,27 @@ func _build(source: Dictionary, operation: StringName, arguments: Dictionary) ->
 				farm, arguments.get(&"resident_id", &"") as StringName
 			)
 		&"gift":
-			mutation = RelationshipServiceScript.gift(
+			mutation = (
+				RelationshipServiceScript
+				. gift(
 				farm,
 				arguments.get(&"resident_id", &"") as StringName,
 				arguments.get(&"item_id", &"") as StringName,
+			)
 			)
 		&"request", &"request_complete":
 			mutation = RelationshipServiceScript.complete_request(
 				farm, arguments.get(&"request_id", &"") as StringName
 			)
 		&"animal_add":
-			mutation = LivestockServiceScript.add_animal(
+			mutation = (
+				LivestockServiceScript
+				. add_animal(
 				farm,
 				arguments.get(&"animal_id", &"") as StringName,
 				arguments.get(&"species_id", &"") as StringName,
 				arguments.get(&"housing_id", &"") as StringName,
+			)
 			)
 		&"animal_feed":
 			mutation = LivestockServiceScript.feed(
@@ -152,6 +170,32 @@ func _build(source: Dictionary, operation: StringName, arguments: Dictionary) ->
 			mutation = LivestockServiceScript.claim_product(
 				farm, arguments.get(&"animal_id", &"") as StringName
 			)
+		&"ecology_deplete":
+			mutation = EcologyDirectorScript.deplete(
+				farm,
+				arguments.get(&"habitat_id", &"") as StringName,
+				int(arguments.get(&"count", 1)),
+				int(arguments.get(&"absolute_day", 1))
+			)
+		&"herd_interact":
+			mutation = EcologyDirectorScript.interact_herd(
+				farm,
+				arguments.get(&"habitat_id", &"") as StringName,
+				int(arguments.get(&"absolute_day", 1))
+			)
+		&"capability_unlock":
+			mutation = FarmCapabilityServiceScript.unlock(
+				farm, arguments.get(&"capability", &"") as StringName
+			)
+		&"hazard_reward":
+			mutation = FarmCapabilityServiceScript.claim_hazard_reward(
+				farm,
+				str(arguments.get(&"token", "")),
+				arguments.get(&"item_id", &"") as StringName,
+				int(arguments.get(&"count", 0))
+			)
+		&"ironjaw_first_clear":
+			mutation = IronjawDesertArcScript.complete_first_clear(farm)
 		&"farm_candidate":
 			var normalized_farm: Dictionary = FarmSaveSchemaScript.validate(
 				arguments.get(&"farm", {})
@@ -164,7 +208,7 @@ func _build(source: Dictionary, operation: StringName, arguments: Dictionary) ->
 		&"placement":
 			return _build_placement(candidate, arguments)
 		&"expedition_return":
-			return _build_expedition_return(candidate)
+			return _build_expedition_return(candidate, arguments)
 	if not bool(mutation.get(&"ok", false)):
 		return {&"ok": false, &"candidate": source, &"reason": mutation[&"reason"]}
 	candidate[&"farm"] = FarmSaveSchemaScript.validate(mutation[&"candidate"])
@@ -191,23 +235,40 @@ func _build_placement(candidate: Dictionary, arguments: Dictionary) -> Dictionar
 	return {&"ok": true, &"candidate": candidate}
 
 
-func _build_expedition_return(candidate: Dictionary) -> Dictionary:
+func _build_expedition_return(candidate: Dictionary, arguments: Dictionary) -> Dictionary:
 	var reason: StringName = _return_precondition(candidate)
-	if reason != &"":
-		return {&"ok": false, &"candidate": candidate, &"reason": reason}
-	var run_before: Dictionary = candidate[&"active_run"] as Dictionary
+	var run_before: Dictionary = candidate.get(&"active_run", {}) as Dictionary
 	var profile: RefCounted = ProfileStateScript.new() as RefCounted
-	if not bool(profile.call("restore_dictionary", candidate[&"profile"])):
-		return {&"ok": false, &"candidate": candidate, &"reason": &"invalid_profile"}
-	if _return_was_applied(profile, run_before):
-		return {&"ok": false, &"candidate": candidate, &"reason": &"return_already_applied"}
-	var credited: Dictionary = _credit_return(candidate[&"farm"], run_before)
-	if credited.is_empty():
-		return {&"ok": false, &"candidate": candidate, &"reason": &"inventory_full"}
-	var finalized: Dictionary = _finalize_return(candidate, run_before, profile, credited)
-	if finalized.is_empty():
-		return {&"ok": false, &"candidate": candidate, &"reason": &"return_finalize_failed"}
-	return {&"ok": true, &"candidate": finalized}
+	var credited: Dictionary = {}
+	if reason == &"" and not bool(profile.call("restore_dictionary", candidate[&"profile"])):
+		reason = &"invalid_profile"
+	if reason == &"" and _return_was_applied(profile, run_before):
+		reason = &"return_already_applied"
+	if reason == &"":
+		credited = _credit_return(candidate[&"farm"], run_before)
+		if credited.is_empty():
+			reason = &"inventory_full"
+	if reason == &"":
+		credited = _credit_cargo(credited, arguments.get(&"cargo", []))
+		if credited.is_empty():
+			reason = &"invalid_or_full_cargo"
+	var ruin_id: StringName = arguments.get(&"activate_ruin_id", &"") as StringName
+	if reason == &"" and ruin_id != &"":
+		var activated: Dictionary = _activate_remote_ruin(credited, ruin_id)
+		if activated.is_empty():
+			reason = &"invalid_remote_ruin"
+		else:
+			credited = activated
+	var finalized: Dictionary = {}
+	if reason == &"":
+		finalized = _finalize_return(candidate, run_before, profile, credited)
+		if finalized.is_empty():
+			reason = &"return_finalize_failed"
+	return {
+		&"ok": reason == &"",
+		&"candidate": finalized if reason == &"" else candidate,
+		&"reason": reason,
+	}
 
 
 func _finalize_return(
@@ -263,6 +324,38 @@ func _credit_return(farm_value: Variant, run: Dictionary) -> Dictionary:
 			return {}
 		credited = result[&"candidate"] as Dictionary
 	return credited
+
+
+func _credit_cargo(farm: Dictionary, cargo: Variant) -> Dictionary:
+	if not cargo is Array or (cargo as Array).size() > 32:
+		return {}
+	var candidate: Dictionary = farm.duplicate(true)
+	var last_id: String = ""
+	for raw: Variant in cargo as Array:
+		var entry: Dictionary = raw as Dictionary if raw is Dictionary else {}
+		if entry.keys() != [&"item_id", &"count"]:
+			return {}
+		var item_id: StringName = StringName(str(entry[&"item_id"]))
+		var count: int = int(entry[&"count"])
+		if String(item_id) <= last_id or count < 1 or count > 999:
+			return {}
+		var credited: Dictionary = InventoryServiceScript.credit_with_overflow(
+			candidate, item_id, count
+		)
+		if not bool(credited[&"ok"]):
+			return {}
+		candidate = credited[&"candidate"] as Dictionary
+		last_id = String(item_id)
+	return candidate
+
+
+func _activate_remote_ruin(farm: Dictionary, ruin_id: StringName) -> Dictionary:
+	if not String(ruin_id).begins_with("ruin.remote."):
+		return {}
+	var activated: Dictionary = EcologyDirectorScript.add_token(
+		farm, "ruin:%s:activated" % ruin_id
+	)
+	return activated[&"candidate"] as Dictionary if bool(activated[&"ok"]) else {}
 
 
 func _result(ok: bool, envelope: Dictionary, reason: StringName) -> Dictionary:
