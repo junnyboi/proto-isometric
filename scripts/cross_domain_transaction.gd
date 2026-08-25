@@ -5,9 +5,12 @@ const DayAdvanceServiceScript: GDScript = preload("res://scripts/day_advance_ser
 const DurableUpgradeServiceScript: GDScript = preload("res://scripts/durable_upgrade_service.gd")
 const FarmSaveSchemaScript: GDScript = preload("res://scripts/farm_save_schema.gd")
 const FarmStateScript: GDScript = preload("res://scripts/farm_state.gd")
+const HomesteadServiceScript: GDScript = preload("res://scripts/homestead_service.gd")
 const InventoryServiceScript: GDScript = preload("res://scripts/inventory_service.gd")
+const LivestockServiceScript: GDScript = preload("res://scripts/livestock_service.gd")
 const MachineServiceScript: GDScript = preload("res://scripts/machine_service.gd")
 const ProfileStateScript: GDScript = preload("res://scripts/profile_state.gd")
+const RelationshipServiceScript: GDScript = preload("res://scripts/relationship_service.gd")
 const RunStateScript: GDScript = preload("res://scripts/run_state.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const WorldMutationLedgerScript: GDScript = preload("res://scripts/world_mutation_ledger.gd")
@@ -107,6 +110,47 @@ func _build(source: Dictionary, operation: StringName, arguments: Dictionary) ->
 		&"upgrade":
 			mutation = DurableUpgradeServiceScript.purchase(
 				farm, arguments[&"upgrade_id"] as StringName
+			)
+		&"facility_repair":
+			mutation = HomesteadServiceScript.repair(
+				farm, arguments.get(&"facility_id", &"") as StringName
+			)
+		&"facility_power":
+			mutation = HomesteadServiceScript.power(
+				farm, arguments.get(&"facility_id", &"") as StringName
+			)
+		&"talk":
+			mutation = RelationshipServiceScript.talk(
+				farm, arguments.get(&"resident_id", &"") as StringName
+			)
+		&"gift":
+			mutation = RelationshipServiceScript.gift(
+				farm,
+				arguments.get(&"resident_id", &"") as StringName,
+				arguments.get(&"item_id", &"") as StringName,
+			)
+		&"request", &"request_complete":
+			mutation = RelationshipServiceScript.complete_request(
+				farm, arguments.get(&"request_id", &"") as StringName
+			)
+		&"animal_add":
+			mutation = LivestockServiceScript.add_animal(
+				farm,
+				arguments.get(&"animal_id", &"") as StringName,
+				arguments.get(&"species_id", &"") as StringName,
+				arguments.get(&"housing_id", &"") as StringName,
+			)
+		&"animal_feed":
+			mutation = LivestockServiceScript.feed(
+				farm, arguments.get(&"animal_id", &"") as StringName
+			)
+		&"animal_pet":
+			mutation = LivestockServiceScript.pet(
+				farm, arguments.get(&"animal_id", &"") as StringName
+			)
+		&"animal_product":
+			mutation = LivestockServiceScript.claim_product(
+				farm, arguments.get(&"animal_id", &"") as StringName
 			)
 		&"farm_candidate":
 			var normalized_farm: Dictionary = FarmSaveSchemaScript.validate(

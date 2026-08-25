@@ -1,6 +1,7 @@
 extends Node
 
 const AudioServiceScript: GDScript = preload("res://scripts/audio_service.gd")
+const ClearingMusicScript: GDScript = preload("res://scripts/clearing_music_catalog.gd")
 const DESERT_PRIMARY: AudioStream = preload("res://assets/audio/bgm_desert.ogg")
 const DESERT_ALTERNATE: AudioStream = preload("res://assets/audio/bgm_desert_alt.ogg")
 const WETLAND_PRIMARY: AudioStream = preload("res://assets/audio/bgm_wetland.ogg")
@@ -9,6 +10,15 @@ const FROZEN_PRIMARY: AudioStream = preload("res://assets/audio/bgm_frozen.ogg")
 const FROZEN_ALTERNATE: AudioStream = preload("res://assets/audio/bgm_frozen_alt.ogg")
 const VOLCANIC_PRIMARY: AudioStream = preload("res://assets/audio/bgm_volcanic.ogg")
 const VOLCANIC_ALTERNATE: AudioStream = preload("res://assets/audio/bgm_volcanic_alt.ogg")
+const CLEARING_DAY: AudioStream = preload(
+	"res://assets/audio/harvest/music_clearing_day_loop.wav"
+)
+const CLEARING_NIGHT: AudioStream = preload(
+	"res://assets/audio/harvest/music_clearing_night_loop.wav"
+)
+const CLEARING_RAIN: AudioStream = preload(
+	"res://assets/audio/harvest/music_clearing_rain_loop.wav"
+)
 
 const MAX_VOICES: int = 2
 const TRACK_VOLUME_DB_BY_BIOME: Dictionary = {
@@ -16,6 +26,9 @@ const TRACK_VOLUME_DB_BY_BIOME: Dictionary = {
 	&"wetland": -5.0,
 	&"frozen": -4.0,
 	&"volcanic": -7.0,
+	ClearingMusicScript.TRACK_DAY: -8.0,
+	ClearingMusicScript.TRACK_NIGHT: -9.0,
+	ClearingMusicScript.TRACK_RAIN: -8.0,
 }
 const SILENT_VOLUME_DB: float = -80.0
 const CROSSFADE_SECONDS: float = 4.0
@@ -41,6 +54,7 @@ var _track_elapsed: float = 0.0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _variant_bags: Dictionary = {}
 var _last_variants: Dictionary = {}
+var _clearing_track: StringName = &""
 
 
 func _init() -> void:
@@ -90,12 +104,27 @@ func set_biome(biome: StringName) -> bool:
 		return false
 	_current_biome = normalized
 	_switch_count += 1
-	_start_biome(normalized, false)
+	if _clearing_track == &"":
+		_start_biome(normalized, false)
 	return true
 
 
+func set_clearing_context(
+	active: bool, minute_of_day: int, weather_id: StringName
+) -> StringName:
+	var selected: StringName = (
+		ClearingMusicScript.select_track(minute_of_day, weather_id) if active else &""
+	)
+	if selected == _clearing_track:
+		return selected
+	_clearing_track = selected
+	_track_change_count += 1
+	_start_biome(selected if selected != &"" else _current_biome, false)
+	return selected
+
+
 func advance_track() -> bool:
-	if not _enabled or _volume <= 0.0 or is_crossfading():
+	if not _enabled or _volume <= 0.0 or is_crossfading() or _clearing_track != &"":
 		return false
 	_track_change_count += 1
 	_start_biome(_current_biome, false)
@@ -116,7 +145,7 @@ func set_enabled(enabled: bool) -> void:
 	if not enabled:
 		_stop_all()
 	elif _volume > 0.0:
-		_start_biome(_current_biome, true)
+		_start_biome(_active_track_id(), true)
 
 
 func set_volume(volume: float) -> void:
@@ -125,7 +154,7 @@ func set_volume(volume: float) -> void:
 	if _volume <= 0.0:
 		_stop_all()
 	elif _enabled and previous <= 0.0:
-		_start_biome(_current_biome, true)
+		_start_biome(_active_track_id(), true)
 	else:
 		_refresh_voice_levels()
 
@@ -142,10 +171,11 @@ func get_metrics() -> Dictionary:
 	return {
 		&"enabled": _enabled,
 		&"volume": _volume,
-		&"biome": _current_biome,
+			&"biome": _current_biome,
+			&"clearing_track": _clearing_track,
 		&"variant": _current_variant,
 		&"variant_name": variant_name(_current_variant),
-		&"stream_path": stream_path_for(_current_biome, _current_variant),
+			&"stream_path": _stream_for(_active_track_id(), _current_variant).resource_path,
 		&"stream_paths": stream_paths_for(_current_biome),
 		&"track_volume_db": volume_db_for(_current_biome),
 		&"track_elapsed": _track_elapsed,
@@ -190,6 +220,8 @@ static func variant_name(variant: int) -> StringName:
 
 
 static func volume_db_for(biome: StringName) -> float:
+	if TRACK_VOLUME_DB_BY_BIOME.has(biome):
+		return float(TRACK_VOLUME_DB_BY_BIOME[biome])
 	var normalized: StringName = normalize_biome(biome)
 	return float(TRACK_VOLUME_DB_BY_BIOME.get(normalized, -6.0))
 
@@ -205,7 +237,7 @@ func _start_biome(biome: StringName, immediate: bool) -> void:
 	_ensure_players()
 	if _players.is_empty():
 		return
-	var variant: int = _draw_variant(biome)
+	var variant: int = 0 if biome in ClearingMusicScript.PATHS else _draw_variant(biome)
 	_current_variant = variant
 	_track_elapsed = 0.0
 	if immediate:
@@ -264,9 +296,14 @@ func _configure_stream_loops() -> void:
 		FROZEN_ALTERNATE,
 		VOLCANIC_PRIMARY,
 		VOLCANIC_ALTERNATE,
+		CLEARING_DAY,
+		CLEARING_NIGHT,
+		CLEARING_RAIN,
 	]:
 		if stream is AudioStreamOggVorbis:
 			(stream as AudioStreamOggVorbis).loop = true
+		elif stream is AudioStreamWAV:
+			(stream as AudioStreamWAV).loop_mode = AudioStreamWAV.LOOP_FORWARD
 
 
 func _restart_finished_voices() -> void:
@@ -323,7 +360,13 @@ func _voice_volume_db(index: int) -> float:
 	return volume_db_for(_voice_biomes[index]) + linear_to_db(maxf(_volume, 0.001))
 
 
+func _active_track_id() -> StringName:
+	return _clearing_track if _clearing_track != &"" else _current_biome
+
+
 func _should_rotate_track() -> bool:
+	if _clearing_track != &"":
+		return false
 	if _active_index < 0 or _active_index >= _players.size():
 		return false
 	var stream: AudioStream = _players[_active_index].stream
@@ -353,6 +396,12 @@ func _draw_variant(biome: StringName) -> int:
 static func _stream_for(biome: StringName, variant: int) -> AudioStream:
 	var alternate: bool = posmod(variant, 2) == 1
 	match biome:
+		ClearingMusicScript.TRACK_DAY:
+			return CLEARING_DAY
+		ClearingMusicScript.TRACK_NIGHT:
+			return CLEARING_NIGHT
+		ClearingMusicScript.TRACK_RAIN:
+			return CLEARING_RAIN
 		&"wetland":
 			return WETLAND_ALTERNATE if alternate else WETLAND_PRIMARY
 		&"frozen":

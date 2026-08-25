@@ -5,8 +5,8 @@ const AccessibilityPanelScript: GDScript = preload("res://scripts/accessibility_
 const PlayerPreferencesScript: GDScript = preload("res://scripts/player_preferences.gd")
 const TitleScreenScript: GDScript = preload("res://scripts/title_screen.gd")
 
-const DESKTOP_ART: String = "res://assets/title/title_scene_desktop.png"
-const MOBILE_ART: String = "res://assets/title/title_scene_mobile.png"
+const DESKTOP_ART: String = "res://assets/title/protos_harvest_title_desktop.png"
+const MOBILE_ART: String = "res://assets/title/protos_harvest_title_mobile.png"
 
 
 static func evaluate() -> Array[Dictionary]:
@@ -40,12 +40,12 @@ static func evaluate() -> Array[Dictionary]:
 	)
 	_add(
 		cases,
-		"field guide teaches desktop, touch, and enemy counter-windows",
+		"field guide teaches desktop touch farming and wilderness controls",
 		(
 			guide.text.contains("WASD")
 			and guide.text.contains("TOUCH")
-			and guide.text.contains("RECOVERY")
-			and guide.text.contains("EXPOSE")
+			and guide.text.contains("TILL")
+			and guide.text.contains("WILDS")
 		),
 	)
 	_add(

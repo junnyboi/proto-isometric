@@ -7,7 +7,16 @@ const RECORD_SOIL: StringName = &"soil"
 const RECORD_CROP: StringName = &"crop"
 const RECORD_FENCE: StringName = &"fence"
 const RECORD_STRUCTURE: StringName = &"structure"
-const RECORD_TYPES: Array[StringName] = [RECORD_SOIL, RECORD_CROP, RECORD_FENCE, RECORD_STRUCTURE]
+const RECORD_RESIDENT: StringName = &"resident"
+const RECORD_LIVESTOCK: StringName = &"livestock"
+const RECORD_TYPES: Array[StringName] = [
+	RECORD_SOIL,
+	RECORD_CROP,
+	RECORD_FENCE,
+	RECORD_STRUCTURE,
+	RECORD_RESIDENT,
+	RECORD_LIVESTOCK,
+]
 
 var _visible_chunks: Dictionary = {}
 var _records_by_chunk: Dictionary = {}
@@ -73,6 +82,10 @@ func get_visible_record_count() -> int:
 
 func get_redraw_request_count() -> int:
 	return _redraw_request_count
+
+
+func has_per_entity_nodes() -> bool:
+	return get_child_count() > 0
 
 
 func get_dirty_cell_count() -> int:

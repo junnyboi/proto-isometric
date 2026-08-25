@@ -34,6 +34,7 @@ var _lava_contact: RefCounted
 var _damage_callback: Callable
 var _redraw_request_count: int = 0
 var _outpost_energy: Node2D
+var _hidden_outpost_cells: Dictionary = {}
 
 
 func configure(
@@ -114,6 +115,16 @@ func get_outpost_kind(cell: Vector2i) -> StringName:
 func get_outpost_texture_path(cell: Vector2i) -> String:
 	var texture: Texture2D = OutpostVisualsScript.texture_for(get_outpost_kind(cell))
 	return texture.resource_path if texture != null else ""
+
+
+func set_hidden_outpost_cells(cells: Array[Vector2i]) -> void:
+	var next: Dictionary = {}
+	for cell: Vector2i in cells:
+		next[cell] = true
+	if next == _hidden_outpost_cells:
+		return
+	_hidden_outpost_cells = next
+	invalidate_static_objects()
 
 
 func invalidate_static_objects() -> void:
@@ -257,7 +268,7 @@ func _draw_cell_objects(cell: Vector2i) -> void:
 	var center: Vector2 = _grid_to_screen.call(cell) as Vector2
 	if _world != null and bool(_world.call("_is_pond", cell)):
 		_draw_woodland_object(WoodlandVisualsScript.KIND_POND, center)
-	if bool(_outposts.get(cell, false)):
+	if bool(_outposts.get(cell, false)) and not _hidden_outpost_cells.has(cell):
 		_draw_outpost(cell, center)
 	var tree_kind: StringName = (
 		_world.call("_tree_kind_at", cell) as StringName if _world != null else &""

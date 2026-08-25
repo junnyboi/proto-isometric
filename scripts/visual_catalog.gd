@@ -3,6 +3,9 @@ extends Resource
 const REQUIRED_PATHS: Array[String] = [
 	"res://assets/title/title_scene_desktop.png",
 	"res://assets/title/title_scene_mobile.png",
+	"res://assets/title/protos_harvest_title_desktop.png",
+	"res://assets/title/protos_harvest_title_mobile.png",
+	"res://assets/title/protos_harvest_icon.png",
 	"res://assets/walker/grunt_sprite_atlas.png",
 	"res://assets/ui/modules/aftershock.png",
 	"res://assets/ui/modules/storm_seal.png",
@@ -59,6 +62,16 @@ const REQUIRED_PATHS: Array[String] = [
 	"res://assets/props/tool_upgrade_bench.png",
 	"res://assets/props/machine_furnace.png",
 	"res://assets/props/machine_irrigation_pump.png",
+	"res://assets/facilities/facility_home.png",
+	"res://assets/facilities/facility_greenhouse.png",
+	"res://assets/facilities/facility_workshop.png",
+	"res://assets/facilities/facility_clinic_kitchen.png",
+	"res://assets/residents/resident_lyra.png",
+	"res://assets/residents/resident_rook.png",
+	"res://assets/residents/resident_mira.png",
+	"res://assets/livestock/livestock_mossback_spritesheet.png",
+	"res://assets/livestock/livestock_coilhen_spritesheet.png",
+	"res://assets/livestock/livestock_rustsnout_spritesheet.png",
 ]
 
 

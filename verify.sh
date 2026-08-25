@@ -81,4 +81,4 @@ if [[ "$MODE" == "--release" ]]; then
   fi
 fi
 
-printf '[PASS] Proto Isometric%s\n' "${MODE:+ $MODE}"
+printf '[PASS] Protos Harvest%s\n' "${MODE:+ $MODE}"

@@ -104,7 +104,7 @@ static func _test_authority_registry(cases: Array[Dictionary]) -> void:
 		cases,
 		"PH-20/22/23 runtime registry owns all new authoritative domains",
 		(
-			RuntimeIdsScript.REGISTRY_VERSION == 8
+			RuntimeIdsScript.REGISTRY_VERSION == 9
 			and RuntimeOwnershipScript.validate()
 			and (
 				RuntimeOwnershipScript.owner_for(RuntimeIdsScript.DOMAIN_WORLD_MUTATIONS)

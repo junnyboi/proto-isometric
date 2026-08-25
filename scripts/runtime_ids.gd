@@ -1,7 +1,7 @@
 extends RefCounted
 
 const LEGACY_REGISTRY_VERSION: int = 6
-const REGISTRY_VERSION: int = 8
+const REGISTRY_VERSION: int = 9
 
 const DOMAIN_FIELD_COMPOSITION: StringName = &"domain.field_composition"
 const DOMAIN_MOVEMENT: StringName = &"domain.movement"
@@ -100,6 +100,20 @@ const MODIFIER_DEAD_GRID: StringName = &"modifier.dead_grid"
 const MODE_FRESH_FARM: StringName = &"gameplay_mode.fresh_farm"
 const MODE_LEGACY_EXPEDITION: StringName = &"gameplay_mode.legacy_expedition"
 const MIGRATION_FARM_V3_TO_V4: StringName = &"migration.farm.v3_to_v4"
+
+const FACILITY_HOME_ID: StringName = &"facility.home"
+const FACILITY_GREENHOUSE_ID: StringName = &"facility.greenhouse_seed_shop"
+const FACILITY_WORKSHOP_ID: StringName = &"facility.workshop"
+const FACILITY_CLINIC_ID: StringName = &"facility.clinic_kitchen"
+const RESIDENT_LYRA_ID: StringName = &"resident.lyra"
+const RESIDENT_ROOK_ID: StringName = &"resident.rook"
+const RESIDENT_MIRA_ID: StringName = &"resident.mira"
+const REQUEST_LYRA_ID: StringName = &"request.lyra.rainleaf"
+const REQUEST_ROOK_ID: StringName = &"request.rook.scrap"
+const REQUEST_MIRA_ID: StringName = &"request.mira.glowroot"
+const LIVESTOCK_MOSSBACK_ID: StringName = &"livestock.mossback_grazer"
+const LIVESTOCK_COILHEN_ID: StringName = &"livestock.coilhen"
+const LIVESTOCK_RUSTSNOUT_ID: StringName = &"livestock.rustsnout_rooter"
 
 
 static func catalog() -> Dictionary:
@@ -205,6 +219,22 @@ static func catalog() -> Dictionary:
 		],
 		&"gameplay_modes": [MODE_FRESH_FARM, MODE_LEGACY_EXPEDITION],
 		&"migrations": [MIGRATION_FARM_V3_TO_V4],
+		&"homestead_ids":
+		[
+			FACILITY_HOME_ID,
+			FACILITY_GREENHOUSE_ID,
+			FACILITY_WORKSHOP_ID,
+			FACILITY_CLINIC_ID,
+			RESIDENT_LYRA_ID,
+			RESIDENT_ROOK_ID,
+			RESIDENT_MIRA_ID,
+			REQUEST_LYRA_ID,
+			REQUEST_ROOK_ID,
+			REQUEST_MIRA_ID,
+			LIVESTOCK_MOSSBACK_ID,
+			LIVESTOCK_COILHEN_ID,
+			LIVESTOCK_RUSTSNOUT_ID,
+		],
 	}
 
 

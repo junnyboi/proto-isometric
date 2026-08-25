@@ -10,6 +10,8 @@ const CATEGORY_FOOD: StringName = &"food"
 const CATEGORY_PART: StringName = &"crafted_part"
 const CATEGORY_TOOL: StringName = &"tool"
 const CATEGORY_CURRENCY: StringName = &"currency"
+const CATEGORY_FEED: StringName = &"animal_feed"
+const CATEGORY_PRODUCT: StringName = &"animal_product"
 
 const DEFINITIONS: Array[Dictionary] = [
 	{
@@ -187,6 +189,48 @@ const DEFINITIONS: Array[Dictionary] = [
 		&"buy_price": 0,
 		&"sell_price": 0
 	},
+	{
+		&"item_id": &"item.feed.mossgrass_fodder",
+		&"category": CATEGORY_FEED,
+		&"stack_limit": 50,
+		&"buy_price": 18,
+		&"sell_price": 4
+	},
+	{
+		&"item_id": &"item.feed.coilgrain_mix",
+		&"category": CATEGORY_FEED,
+		&"stack_limit": 50,
+		&"buy_price": 14,
+		&"sell_price": 3
+	},
+	{
+		&"item_id": &"item.feed.root_mash",
+		&"category": CATEGORY_FEED,
+		&"stack_limit": 50,
+		&"buy_price": 16,
+		&"sell_price": 4
+	},
+	{
+		&"item_id": &"item.product.mossback_milk",
+		&"category": CATEGORY_PRODUCT,
+		&"stack_limit": 30,
+		&"buy_price": 0,
+		&"sell_price": 95
+	},
+	{
+		&"item_id": &"item.product.coilhen_egg",
+		&"category": CATEGORY_PRODUCT,
+		&"stack_limit": 50,
+		&"buy_price": 0,
+		&"sell_price": 55
+	},
+	{
+		&"item_id": &"item.product.rustsnout_truffle",
+		&"category": CATEGORY_PRODUCT,
+		&"stack_limit": 20,
+		&"buy_price": 0,
+		&"sell_price": 125
+	},
 ]
 
 
@@ -234,4 +278,4 @@ static func validate() -> bool:
 			return false
 		seen[item_id] = true
 		categories[category_id] = true
-	return categories.size() == 10 and seen.size() == DEFINITIONS.size()
+	return categories.size() == 12 and seen.size() == DEFINITIONS.size()

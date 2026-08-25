@@ -30,7 +30,7 @@ static func _test_legacy_ids(cases: Array[Dictionary]) -> void:
 			RuntimeIdsScript.legacy_ids().size() == LEGACY_ID_COUNT
 			and fingerprint == LEGACY_ID_FINGERPRINT
 			and RuntimeIdsScript.LEGACY_REGISTRY_VERSION == 6
-			and RuntimeIdsScript.REGISTRY_VERSION == 8
+			and RuntimeIdsScript.REGISTRY_VERSION == 9
 		),
 	)
 
@@ -56,6 +56,7 @@ static func _test_ownership(cases: Array[Dictionary]) -> void:
 			&"domain": RuntimeIdsScript.DOMAIN_HOMESTEAD_SETTLEMENT,
 			&"owner": RuntimeIdsScript.OWNER_HOMESTEAD_SETTLEMENT,
 			&"scope": RuntimeOwnershipScript.SCOPE_HOMESTEAD_SETTLEMENT,
+			&"authoritative": true,
 		},
 		{
 			&"domain": RuntimeIdsScript.DOMAIN_TOOLS_INTERACTIONS,
@@ -72,13 +73,19 @@ static func _test_ownership(cases: Array[Dictionary]) -> void:
 		var domain_id: StringName = expected[&"domain"] as StringName
 		var owner_id: StringName = expected[&"owner"] as StringName
 		var contract: Dictionary = RuntimeOwnershipScript.contract_for(domain_id)
+		var authoritative: bool = bool(expected.get(&"authoritative", false))
 		_add_case(
 			cases,
 			"PH-01 owner and scope are explicit for %s" % domain_id,
 			(
 				RuntimeOwnershipScript.owner_for(domain_id) == owner_id
 				and contract[&"state_scope"] == expected[&"scope"]
-				and contract[&"migration_state"] == RuntimeOwnershipScript.MIGRATION_PLANNED
+				and contract[&"migration_state"]
+				== (
+					RuntimeOwnershipScript.MIGRATION_STABLE
+					if authoritative
+					else RuntimeOwnershipScript.MIGRATION_PLANNED
+				)
 			),
 		)
 		_add_case(
@@ -89,7 +96,7 @@ static func _test_ownership(cases: Array[Dictionary]) -> void:
 				and not RuntimeOwnershipScript.can_target_mutation(
 					domain_id, RuntimeIdsScript.OWNER_SAVE_REPOSITORY
 				)
-				and not RuntimeOwnershipScript.can_mutate(domain_id, owner_id)
+				and RuntimeOwnershipScript.can_mutate(domain_id, owner_id) == authoritative
 			),
 		)
 

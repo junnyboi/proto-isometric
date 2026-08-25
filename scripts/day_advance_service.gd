@@ -4,6 +4,7 @@ const CalendarStateScript: GDScript = preload("res://scripts/calendar_state.gd")
 const EconomyServiceScript: GDScript = preload("res://scripts/economy_service.gd")
 const FarmStateScript: GDScript = preload("res://scripts/farm_state.gd")
 const MachineServiceScript: GDScript = preload("res://scripts/machine_service.gd")
+const ResidentServiceScript: GDScript = preload("res://scripts/resident_service.gd")
 const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
 
 
@@ -41,6 +42,15 @@ static func build_candidate(
 	candidate = settled[&"candidate"] as Dictionary
 	candidate = CalendarStateScript.advance_calendar(candidate, world_seed)
 	candidate = ToolServiceScript.recover(candidate)
+	var arrivals: Dictionary = ResidentServiceScript.reconcile_arrivals(candidate)
+	if arrivals[&"reason"] not in [&"", &"no_arrivals", &"homestead_inactive"]:
+		return {
+			&"ok": false,
+			&"candidate": source,
+			&"day_token": token,
+			&"reason": arrivals[&"reason"],
+		}
+	candidate = arrivals[&"candidate"] as Dictionary
 	var tokens: Array = (candidate[&"day_tokens"] as Array).duplicate()
 	tokens.append(token)
 	if tokens.size() > 64:

@@ -5,8 +5,12 @@ const DayAdvanceServiceScript: GDScript = preload("res://scripts/day_advance_ser
 const EconomyServiceScript: GDScript = preload("res://scripts/economy_service.gd")
 const FarmSaveSchemaScript: GDScript = preload("res://scripts/farm_save_schema.gd")
 const FarmStateScript: GDScript = preload("res://scripts/farm_state.gd")
+const HomesteadServiceScript: GDScript = preload("res://scripts/homestead_service.gd")
 const InventoryServiceScript: GDScript = preload("res://scripts/inventory_service.gd")
+const LivestockServiceScript: GDScript = preload("res://scripts/livestock_service.gd")
 const MachineServiceScript: GDScript = preload("res://scripts/machine_service.gd")
+const RelationshipServiceScript: GDScript = preload("res://scripts/relationship_service.gd")
+const ResidentServiceScript: GDScript = preload("res://scripts/resident_service.gd")
 const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
 
 var _farm: Dictionary = {}
@@ -25,6 +29,16 @@ func configure(farm: Dictionary, commit_candidate: Callable, world_seed: int = 0
 	initialized = ToolServiceScript.ensure_default(initialized)
 	initialized = EconomyServiceScript.ensure_default(initialized)
 	initialized = MachineServiceScript.ensure_default(initialized)
+	initialized = HomesteadServiceScript.ensure_default(initialized)
+	initialized = ResidentServiceScript.ensure_default(initialized)
+	initialized = RelationshipServiceScript.ensure_default(initialized)
+	initialized = LivestockServiceScript.ensure_default(initialized)
+	var reconciled: Dictionary = HomesteadServiceScript.reconcile(initialized)
+	if not bool(reconciled[&"ok"]):
+		return false
+	initialized = reconciled[&"candidate"] as Dictionary
+	var arrivals: Dictionary = ResidentServiceScript.reconcile_arrivals(initialized)
+	initialized = arrivals[&"candidate"] as Dictionary
 	var normalized: Dictionary = FarmSaveSchemaScript.validate(initialized)
 	if normalized.is_empty():
 		return false
@@ -122,4 +136,45 @@ func _build_operation(operation: StringName, arguments: Dictionary) -> Dictionar
 			result = EconomyServiceScript.purchase_workshop_upgrade(_farm)
 		&"sleep":
 			result = DayAdvanceServiceScript.build_candidate(_farm, _world_seed)
+		&"facility_repair":
+			result = HomesteadServiceScript.repair(
+				_farm, arguments.get(&"facility_id", &"") as StringName
+			)
+		&"facility_power":
+			result = HomesteadServiceScript.power(
+				_farm, arguments.get(&"facility_id", &"") as StringName
+			)
+		&"talk":
+			result = RelationshipServiceScript.talk(
+				_farm, arguments.get(&"resident_id", &"") as StringName
+			)
+		&"gift":
+			result = RelationshipServiceScript.gift(
+				_farm,
+				arguments.get(&"resident_id", &"") as StringName,
+				arguments.get(&"item_id", &"") as StringName,
+			)
+		&"request", &"request_complete":
+			result = RelationshipServiceScript.complete_request(
+				_farm, arguments.get(&"request_id", &"") as StringName
+			)
+		&"animal_add":
+			result = LivestockServiceScript.add_animal(
+				_farm,
+				arguments.get(&"animal_id", &"") as StringName,
+				arguments.get(&"species_id", &"") as StringName,
+				arguments.get(&"housing_id", &"") as StringName,
+			)
+		&"animal_feed":
+			result = LivestockServiceScript.feed(
+				_farm, arguments.get(&"animal_id", &"") as StringName
+			)
+		&"animal_pet":
+			result = LivestockServiceScript.pet(
+				_farm, arguments.get(&"animal_id", &"") as StringName
+			)
+		&"animal_product":
+			result = LivestockServiceScript.claim_product(
+				_farm, arguments.get(&"animal_id", &"") as StringName
+			)
 	return result

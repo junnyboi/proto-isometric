@@ -20,7 +20,7 @@ static func evaluate(coordinator: RefCounted) -> Array[Dictionary]:
 	_add_case(
 		cases,
 		"stable ID registry version is pinned",
-		RuntimeIdsScript.LEGACY_REGISTRY_VERSION == 6 and RuntimeIdsScript.REGISTRY_VERSION == 8,
+		RuntimeIdsScript.LEGACY_REGISTRY_VERSION == 6 and RuntimeIdsScript.REGISTRY_VERSION == 9,
 	)
 	_add_case(
 		cases,
@@ -182,13 +182,19 @@ static func _test_harvest_ownership(cases: Array[Dictionary]) -> void:
 		var domain_id: StringName = expected[&"domain"] as StringName
 		var owner_id: StringName = expected[&"owner"] as StringName
 		var contract: Dictionary = RuntimeOwnershipScript.contract_for(domain_id)
+		var is_stable: bool = domain_id == RuntimeIdsScript.DOMAIN_HOMESTEAD_SETTLEMENT
 		_add_case(
 			cases,
 			"Harvest owner and scope are explicit for %s" % domain_id,
 			(
 				RuntimeOwnershipScript.owner_for(domain_id) == owner_id
 				and contract[&"state_scope"] == expected[&"scope"]
-				and contract[&"migration_state"] == RuntimeOwnershipScript.MIGRATION_PLANNED
+				and contract[&"migration_state"]
+				== (
+					RuntimeOwnershipScript.MIGRATION_STABLE
+					if is_stable
+					else RuntimeOwnershipScript.MIGRATION_PLANNED
+				)
 			),
 		)
 		_add_case(
@@ -199,7 +205,7 @@ static func _test_harvest_ownership(cases: Array[Dictionary]) -> void:
 				and not RuntimeOwnershipScript.can_target_mutation(
 					domain_id, RuntimeIdsScript.OWNER_SAVE_REPOSITORY
 				)
-				and not RuntimeOwnershipScript.can_mutate(domain_id, owner_id)
+				and RuntimeOwnershipScript.can_mutate(domain_id, owner_id) == is_stable
 			),
 		)
 

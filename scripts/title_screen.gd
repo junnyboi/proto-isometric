@@ -11,8 +11,12 @@ const PlayerPreferencesScript: GDScript = preload("res://scripts/player_preferen
 const ResponsiveViewportScript: GDScript = preload("res://scripts/responsive_viewport.gd")
 const WebSceneStateScript: GDScript = preload("res://scripts/web_scene_state.gd")
 const FIELD_SCENE: PackedScene = preload("res://scenes/isometric_map.tscn")
-const TITLE_DESKTOP: Texture2D = preload("res://assets/title/title_scene_desktop.png")
-const TITLE_MOBILE: Texture2D = preload("res://assets/title/title_scene_mobile.png")
+const TITLE_DESKTOP: Texture2D = preload(
+	"res://assets/title/protos_harvest_title_desktop.png"
+)
+const TITLE_MOBILE: Texture2D = preload(
+	"res://assets/title/protos_harvest_title_mobile.png"
+)
 const BEGIN_CUE: AudioStream = preload("res://assets/audio/ui_begin.wav")
 
 const AMBER: Color = Color("f3a21e")

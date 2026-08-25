@@ -151,13 +151,12 @@ static func contracts() -> Array[Dictionary]:
 			"",
 			"res://scripts/inventory_state.gd",
 		),
-		_planned_contract(
+		_stable_contract(
 			RuntimeIdsScript.DOMAIN_HOMESTEAD_SETTLEMENT,
-			RuntimeIdsScript.OWNER_UNASSIGNED,
 			RuntimeIdsScript.OWNER_HOMESTEAD_SETTLEMENT,
 			SCOPE_HOMESTEAD_SETTLEMENT,
-			"",
-			"res://scripts/homestead_state.gd",
+			POLICY_AUTHORITATIVE,
+			"res://scripts/homestead_service.gd",
 		),
 		_planned_contract(
 			RuntimeIdsScript.DOMAIN_TOOLS_INTERACTIONS,

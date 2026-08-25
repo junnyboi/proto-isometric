@@ -5,6 +5,7 @@ const CropCatalogScript: GDScript = preload("res://scripts/crop_catalog.gd")
 const DurableUpgradeCatalogScript: GDScript = preload("res://scripts/durable_upgrade_catalog.gd")
 const ItemCatalogScript: GDScript = preload("res://scripts/item_catalog.gd")
 const RecipeCatalogScript: GDScript = preload("res://scripts/recipe_catalog.gd")
+const HomesteadSaveSchemaScript: GDScript = preload("res://scripts/homestead_save_schema.gd")
 
 const STATE_VERSION: int = 1
 const MAX_YEAR: int = 9_999
@@ -16,9 +17,12 @@ const MAX_INVENTORIES: int = 2
 const MAX_SHIPPING_ENTRIES: int = 64
 const MAX_PLACED_ENTITIES: int = 4_096
 const MAX_MACHINES: int = 128
-const MAX_FACILITIES: int = 64
-const MAX_RESIDENTS: int = 64
-const MAX_RUINS: int = 1_024
+const MAX_FACILITIES: int = HomesteadSaveSchemaScript.MAX_FACILITIES
+const MAX_RESIDENTS: int = HomesteadSaveSchemaScript.MAX_RESIDENTS
+const MAX_RUINS: int = HomesteadSaveSchemaScript.MAX_RUINS
+const MAX_RELATIONSHIPS: int = HomesteadSaveSchemaScript.MAX_RELATIONSHIPS
+const MAX_REQUESTS: int = HomesteadSaveSchemaScript.MAX_REQUESTS
+const MAX_ANIMALS: int = HomesteadSaveSchemaScript.MAX_ANIMALS
 const MAX_TOOL_UPGRADES: int = 64
 const MAX_ECOLOGY_DELTAS: int = 4_096
 const MAX_BOSS_CLEARS: int = 256
@@ -307,26 +311,10 @@ static func _normalize_economy(value: Variant) -> Dictionary:
 	return result
 
 
+
+
 static func _normalize_homestead(value: Variant) -> Dictionary:
-	if not value is Dictionary:
-		return {}
-	var homestead: Dictionary = value as Dictionary
-	if not _exact_keys(homestead, [&"state_version", &"facilities", &"residents", &"ruins"]):
-		return {}
-	var state_version: Variant = _json_integer(
-		homestead.get(&"state_version"), STATE_VERSION, STATE_VERSION
-	)
-	var facilities: Variant = _normalize_empty_array(homestead.get(&"facilities"), MAX_FACILITIES)
-	var residents: Variant = _normalize_empty_array(homestead.get(&"residents"), MAX_RESIDENTS)
-	var ruins: Variant = _normalize_empty_array(homestead.get(&"ruins"), MAX_RUINS)
-	if state_version == null or facilities == null or residents == null or ruins == null:
-		return {}
-	return {
-		&"state_version": STATE_VERSION,
-		&"facilities": facilities,
-		&"residents": residents,
-		&"ruins": ruins,
-	}
+	return HomesteadSaveSchemaScript.normalize(value)
 
 
 static func _normalize_tools(value: Variant) -> Dictionary:

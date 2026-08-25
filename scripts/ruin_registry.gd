@@ -29,6 +29,29 @@ func state_for(cell: Vector2i) -> Dictionary:
 	if _states.has(cell):
 		return (_states[cell] as Dictionary).duplicate(true)
 	return _make_state(cell, OutpostVisualsScript.kind_for(cell), false, false, false, false)
+func sync_homestead(farm: Dictionary) -> bool:
+	var homestead: Dictionary = farm.get(&"homestead", {}) as Dictionary
+	if not homestead.has(&"home"):
+		return false
+	var changed: bool = false
+	for ruin: Dictionary in homestead.get(&"ruins", []) as Array[Dictionary]:
+		var raw_cell: Array = ruin.get(&"cell", []) as Array
+		if raw_cell.size() != 2:
+			continue
+		var cell: Vector2i = Vector2i(int(raw_cell[0]), int(raw_cell[1]))
+		var next: Dictionary = _make_state(
+			cell,
+			StringName(str(ruin.get(&"kind", OutpostVisualsScript.KIND_RUIN))),
+			cell == WoodlandClearingScript.HOME_CELL,
+			bool(ruin.get(&"discovered", false)),
+			bool(ruin.get(&"repaired", false)),
+			bool(ruin.get(&"powered", false)),
+		)
+		next[&"id"] = StringName(str(ruin.get(&"ruin_id", stable_id_for(cell))))
+		if _states.get(cell, {}) != next:
+			_states[cell] = next
+			changed = true
+	return changed
 
 
 func discover(cell: Vector2i) -> bool:

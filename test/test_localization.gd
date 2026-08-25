@@ -23,9 +23,9 @@ static func evaluate() -> Array[Dictionary]:
 	_add(cases, "localization catalogs have exact key parity", _keys(english) == _keys(chinese))
 	_add(
 		cases,
-		"Walker is named consistently in both localization catalogs",
-		english.get("title.begin_new", "") == "DEPLOY WALKER"
-		and chinese.get("title.begin_new", "") == "部署行者",
+		"Protos Harvest is named consistently in both localization catalogs",
+		english.get("title.name", "") == "PROTOS HARVEST"
+		and chinese.get("title.name", "") == "原型收获",
 	)
 	var catalog_text: String = JSON.stringify(english) + JSON.stringify(chinese)
 	var retired_english_name: String = "Car" + "dinal"

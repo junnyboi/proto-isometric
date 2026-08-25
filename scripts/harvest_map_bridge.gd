@@ -3,6 +3,10 @@ extends Node
 const AudioServiceScript: GDScript = preload("res://scripts/audio_service.gd")
 const CrossDomainTransactionScript: GDScript = preload("res://scripts/cross_domain_transaction.gd")
 const FarmRendererScript: GDScript = preload("res://scripts/farm_render_adapter.gd")
+const HomesteadPresentationScript: GDScript = preload(
+	"res://scripts/homestead_presentation_catalog.gd"
+)
+const HomesteadServiceScript: GDScript = preload("res://scripts/homestead_service.gd")
 const FarmRuntimeScript: GDScript = preload("res://scripts/harvest_farm_runtime.gd")
 const FarmStateScript: GDScript = preload("res://scripts/farm_state.gd")
 const InteractionControllerScript: GDScript = preload(
@@ -36,6 +40,8 @@ var _farm_renderer: Node2D
 var _farm_runtime: RefCounted
 var _transactions: RefCounted
 var _ready_for_commands: bool = false
+var _last_presentation_signature: int = 0
+var _last_music_track: StringName = &""
 
 
 func _ready() -> void:
@@ -43,8 +49,11 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	if _ready_for_commands:
-		_sync_visible_chunks()
+	if not _ready_for_commands:
+		return
+	_sync_visible_chunks()
+	_sync_presentation_state()
+	_sync_clearing_music()
 
 
 func get_interaction_controller() -> Node2D:
@@ -65,6 +74,18 @@ func get_transaction_boundary() -> RefCounted:
 
 func is_ready_for_commands() -> bool:
 	return _ready_for_commands
+
+
+func get_live_presentation_records() -> Array[Dictionary]:
+	if _farm_runtime == null:
+		return []
+	return HomesteadPresentationScript.build_records(
+		_farm_runtime.call("get_snapshot") as Dictionary
+	)
+
+
+func get_selected_clearing_track() -> StringName:
+	return _last_music_track
 
 
 func _bootstrap() -> void:
@@ -111,6 +132,8 @@ func _bootstrap() -> void:
 		return
 	_refresh_render_indexes()
 	_sync_visible_chunks()
+	_sync_ruin_registry()
+	_sync_clearing_music()
 	_ready_for_commands = true
 
 
@@ -211,7 +234,10 @@ func _target_snapshot(cell: Vector2i) -> Dictionary:
 			kinds.append(ResolverScript.KIND_TERRAIN)
 	if world.call("_tree_kind_at", cell) as StringName != &"":
 		kinds.append(ResolverScript.KIND_TREE)
-	if bool(world.call("_is_outpost", cell)):
+	if (
+		bool(world.call("_is_outpost", cell))
+		or HomesteadServiceScript.facility_id_at(cell) != &""
+	):
 		kinds.append(ResolverScript.KIND_STRUCTURE)
 	if bool(_map.call("has_scrap", cell)):
 		kinds.append(ResolverScript.KIND_PICKUP)
@@ -241,6 +267,8 @@ func _execute_productive_action(
 			return {&"ok": false, &"reason": &"tool_has_no_phase_three_target"}
 	else:
 		operation = _context_operation(cell)
+		if operation in [&"facility_repair", &"facility_power"]:
+			arguments[&"facility_id"] = HomesteadServiceScript.facility_id_at(cell)
 		if operation == &"plant":
 			arguments[&"seed_item_id"] = &"item.seed.glowroot"
 		elif operation == &"ship":
@@ -252,14 +280,28 @@ func _execute_productive_action(
 			arguments = {&"item_id": &"item.seed.glowroot", &"count": 1}
 	var result: Dictionary = _farm_runtime.call("transact", operation, arguments) as Dictionary
 	if bool(result.get(&"ok", false)):
-		_refresh_render_indexes()
+		var dirty: Array[Vector2i] = []
+		for value: Variant in result.get(&"dirty_cells", []):
+			if value is Vector2i:
+				dirty.append(value as Vector2i)
+		_refresh_render_indexes(dirty)
+		_sync_ruin_registry()
+		_sync_clearing_music()
 		_play_action_sfx(operation, cell)
 	return result
 
 
 func _context_operation(cell: Vector2i) -> StringName:
 	var operation: StringName = &""
-	if cell == SHIPPING_CELL:
+	var facility_id: StringName = HomesteadServiceScript.facility_id_at(cell)
+	if facility_id != &"":
+		var farm: Dictionary = _farm_runtime.call("get_snapshot") as Dictionary
+		var state: Dictionary = HomesteadServiceScript.facility_state(farm, facility_id)
+		if not bool(state.get(&"repaired", false)):
+			operation = &"facility_repair"
+		elif not bool(state.get(&"powered", false)):
+			operation = &"facility_power"
+	elif cell == SHIPPING_CELL:
 		operation = &"ship"
 	elif cell == STORAGE_CELL:
 		operation = &"buy_seed"
@@ -317,7 +359,7 @@ func _play_action_sfx(operation: StringName, cell: Vector2i) -> void:
 		)
 
 
-func _refresh_render_indexes() -> void:
+func _refresh_render_indexes(dirty_cells: Array[Vector2i] = []) -> void:
 	if _farm_renderer == null:
 		return
 	var indexes: Dictionary = (
@@ -328,11 +370,24 @@ func _refresh_render_indexes() -> void:
 		_append_structure(indexes, STORAGE_CELL, &"storage_crate", STORAGE_TEXTURE)
 		_append_structure(indexes, WORKSHOP_CELL, &"workshop_bench", WORKSHOP_TEXTURE)
 		var farm: Dictionary = _farm_runtime.call("get_snapshot") as Dictionary
+		_merge_indexes(indexes, HomesteadPresentationScript.build_chunk_indexes(farm))
 		if _has_machine(farm, MachineServiceScript.FURNACE_ID):
 			_append_structure(indexes, FURNACE_CELL, &"furnace", FURNACE_TEXTURE)
 		if _has_upgrade(farm, &"upgrade.irrigation.grid_radius"):
 			_append_structure(indexes, IRRIGATION_CELL, &"irrigation_pump", IRRIGATION_TEXTURE)
 	_farm_renderer.call("consume_indexes", indexes)
+	if not dirty_cells.is_empty():
+		_farm_renderer.call("invalidate_cells", dirty_cells)
+	_last_presentation_signature = _presentation_signature()
+
+
+func _merge_indexes(target: Dictionary, source: Dictionary) -> void:
+	for value: Variant in source:
+		var chunk: Vector2i = value as Vector2i
+		if not target.has(chunk):
+			target[chunk] = []
+		for record: Dictionary in source[chunk] as Array[Dictionary]:
+			(target[chunk] as Array).append(record)
 
 
 func _has_machine(farm: Dictionary, machine_id: StringName) -> bool:
@@ -367,6 +422,64 @@ func _append_structure(
 			}
 		)
 	)
+
+
+func _sync_presentation_state() -> void:
+	var signature: int = _presentation_signature()
+	if signature == _last_presentation_signature:
+		return
+	var previous: Array[Vector2i] = []
+	if _farm_runtime != null:
+		previous = HomesteadPresentationScript.presentation_cells(
+			_farm_runtime.call("get_snapshot") as Dictionary
+		)
+	_refresh_render_indexes(previous)
+	_sync_ruin_registry()
+
+
+func _presentation_signature() -> int:
+	if _farm_runtime == null:
+		return 0
+	return hash(_farm_runtime.call("get_snapshot"))
+
+
+func _sync_ruin_registry() -> void:
+	if _farm_runtime == null or _map == null:
+		return
+	var world: RefCounted = _map.get("_world") as RefCounted
+	if world == null:
+		return
+	var registry: RefCounted = world.call("_get_ruin_registry") as RefCounted
+	if registry == null:
+		return
+	registry.call("sync_homestead", _farm_runtime.call("get_snapshot") as Dictionary)
+	var objects: Node2D = _map.get("_world_objects") as Node2D
+	if objects != null:
+		var hidden: Array[Vector2i] = [WoodlandClearingScript.HOME_CELL]
+		for facility_id: StringName in HomesteadServiceScript.FACILITY_IDS:
+			var definition_value: Dictionary = HomesteadServiceScript.definition(facility_id)
+			hidden.append(definition_value[&"cell"] as Vector2i)
+		objects.call("set_hidden_outpost_cells", hidden)
+		objects.call("invalidate_static_objects")
+
+
+func _sync_clearing_music() -> void:
+	if _farm_runtime == null or _map == null:
+		return
+	var router: Node = _map.get("_feedback_router") as Node
+	if router == null:
+		return
+	var music: Node = router.get("_music") as Node
+	if music == null:
+		return
+	var farm: Dictionary = _farm_runtime.call("get_snapshot") as Dictionary
+	var calendar: Dictionary = farm.get(&"calendar_weather", {}) as Dictionary
+	_last_music_track = music.call(
+		"set_clearing_context",
+		true,
+		int(calendar.get(&"minute_of_day", 360)),
+		StringName(str(calendar.get(&"current_weather_id", "weather.clear"))),
+	) as StringName
 
 
 func _sync_visible_chunks() -> void:

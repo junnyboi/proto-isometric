@@ -1,40 +1,40 @@
-# Proto Isometric — WALKER'S WAKE
+# Protos Harvest
 
-**Walker's Wake** is a Godot 4.7.2, 2:1 isometric desert expedition game. Drive Walker—a compact gorilla-like salvage robot—through an infinite streamed wasteland, build Impact Charge, counter hunting sandworms, link three relays, survive escalating Alerts, install one-run Refit modules, and return to an outpost to extract.
+**Protos Harvest** is a Godot 4.7.2 isometric farming and wilderness simulation set in a harsh machine-haunted world. Protos wakes in a safe woodland clearing, cultivates a persistent farm, restores scattered ruins into useful facilities, befriends new residents, raises engineered livestock, and prepares for dangerous expeditions through the surrounding desert, wetlands, frozen reaches, and lava fields.
 
-## Play
+The redesign deliberately preserves the project’s strongest foundations. Deterministic streamed tiles, safehouse ruins, resources, monsters, combat, biomes, responsive controls, schema migration, and Web export remain active. The former Walker’s Wake expedition is now the hostile wilderness layer beyond the homestead rather than the entire game.
 
-Live Web build: https://proto-web-bylaknug.manus.space
+## Core loop
 
-Press **Enter** or select **BEGIN** to deploy. Use **WASD** or the **arrow keys** for weighted eight-direction movement, hold **Shift** to run, and press **Space**, **J**, or **K** for Walker's contact-frame Smash. On mobile, hold outside UI exclusions to summon the floating joystick; pushing into its outer ring engages the same run path, while the single **SMASH** button supports simultaneous movement and attack. Each biome carries a two-track acoustic-forward score: an active theme and a quieter, near-percussionless peaceful alternate selected through a non-repeating randomized shuffle. Strings, winds, environmental sound, and tuned per-biome gains preserve combat-SFX clarity; louder ambience reinforces each environment, while track rotations and terrain changes use the same bounded equal-power crossfade. Desert's active theme adds sparse invented-language contralto calls, while Lava Fields' active theme adds an original low male choir. Left-handed mirroring, haptics, Master/SFX/Music/Ambience levels, UI scale, reduced flash, and camera shake are available through **ACCESS** on the title and field screens.
+A fresh record begins beside the repaired home in the woodland clearing. Players till the six-by-six farm apron, plant one of six crops, water plots, harvest produce, ship goods, and sleep to advance a deterministic day transaction. Weather and crop affinity matter; day advancement atomically handles crop growth, water reset, shipping settlement, machine progress, stamina recovery, resident arrivals, and the next forecast.
 
-## Expedition loop
+Farm income and recovered wilderness materials restore three nearby ruins: **Lyra’s greenhouse and seed shop**, **Rook’s workshop**, and **Mira’s clinic and kitchen**. Repair and power state is persistent and exactly synchronized with the ruin registry. Residents follow deterministic clear-weather and rain schedules, unlock services only after their facilities are active, and support once-per-day conversation, gifts, relationship hearts, and bounded requests.
 
-The run starts with a nearby relay and two deterministic streamed objectives beyond it. Linking relays raises Alert from I to III: a hunter, then a hunter with dust devils, then a hunter inside a broad storm front. Entering eligible deep-biome tiles can also trigger a telegraphed Quicksand Collapse, Bog-Gas Bloom, Ice Shear, or Magma Vent. These seeded events share a cooldown, stay capped, and never trigger in outpost sanctuary. Outposts suppress directed pressure and provide repair plus one atomic Refit purchase per expedition.
+The homestead can support three engineered domestic species: the **Mossback Grazer**, **Coilhen**, and **Rustsnout Rooter**. Feeding, petting, and product collection use exact-once daily tokens, bounded animal capacity, and persistent bond state. Furnace and irrigation installations extend the farm’s machine and upgrade economy without bypassing the shared transaction boundary.
 
-Sandworms use a readable Burrow → Intercept → Expose → Dive cycle. Walker can damage them only during Expose. Four valid hits defeat a worm and create one persistent run-scoped Core/scrap reward. Peaceful herd fauna remain one-hit targets, but now roll one Scrap and one rare Core independently at biome-scaled rates rather than guaranteeing both currencies. Impact Charge retains its contact, two-cell line, and three-cell fan bands; the Worn Plates starter module increases charge gain without changing damage or footprint.
+## Controls
 
-Refit offers **Ram Plating**, **Aftershock**, and **Storm Seal**. Ram Plating converts a charged running collision into one normal rock break, Aftershock extends the existing high-charge punish window, and Storm Seal reduces weather damage only while running. Each effect uses the existing movement or Smash controls—Walker has enough buttons already.
+Use **WASD** or the **arrow keys** to move and hold **Shift** to run. Press **E** for context interactions, **F** to use the selected farming tool, **Q/R** to cycle tools, **I** for inventory, **M** for the journal/map, **+/-** to zoom, and **Space**, **J**, or **K** for the preserved combat Smash. Controller and touch commands map to the same stable intent catalog. Mobile presents a floating movement joystick plus dedicated Context, Tool, Cycle, Inventory, Journal, Cancel, and Smash controls.
 
-After all three relays, entering any outpost extracts automatically. Success banks the run exactly once and presents a deterministic two-of-three next-run modifier offer: **Hot Front**, **Brood Ground**, or **Dead Grid**. Failure loses all unbanked Cores and half the run scrap using deterministic rounding, then provides an immediate retry. Terminal summaries, pending choices, resumable expeditions, world mutations, and profile progression survive reload.
+The title screen and field layout adapt between landscape and portrait viewports. Accessibility settings include UI scale, reduced flash, camera shake, haptics, left-handed controls, effects quality, and independent Master, SFX, Music, and Ambience levels.
+
+## World and progression
+
+The home clearing is deterministic and safe: a fixed pond, central home, farm apron, path exits, surrounding trees, and no enemy or hazard spawns inside the protected sanctuary. Existing biomes remain reachable as expedition territory. Their monsters, hazards, resources, safehouses, objectives, Alert encounters, Impact Charge combat, Refit modules, and extraction rules remain regression-protected for legacy saves and future wilderness progression.
+
+Home time uses deterministic day, night, and rain music with bounded equal-power crossfades. Remote biomes keep their established two-track music system. Generated game and UI art uses GPT Image 2; chore and livestock animation sheets come from locked-camera video carriers; farm sound effects come from the approved image-to-video-carrier audio workflow.
 
 ## Runtime architecture
 
-The world keeps a bounded 5×5 ring of eight-cell chunks and renders a 29×29 cell window. Terrain, objective placement, encounter composition, reward rolls, and replay modifiers are deterministic. Schema-3 persistence uses typed `RunState` and `ProfileState`, primary/backup recovery, atomic replacement, strict bounds, schema-1/2 migration, and quarantine for malformed or future data. Accessibility preferences persist separately from the world save.
+The runtime uses stable command intents, a pure adjacent-cell resolver, batched dirty-indexed farm and homestead rendering, deterministic diagonal depth, and no per-crop, per-resident, or per-animal scene nodes. Farming, inventory, economy, machines, upgrades, facilities, relationships, requests, and livestock mutations all validate detached candidate snapshots and persist through one cross-domain transaction boundary.
 
-The HUD consumes a sealed semantic snapshot and includes a compact expedition radar, non-modal first-run onboarding, objective/Alert truth, Core and scrap wallets, active modifier context, and responsive desktop/mobile safe areas. Generated runtime assets are listed in `data/visual_catalog.tres`; missing optional Walker sheets fall back to the procedural avatar without changing gameplay geometry.
+Schema-4 persistence preserves legacy schema-1/2/3 migration while adding bounded farm and homestead domains. Save validation enforces exact keys, hard collection caps, canonical sorting, stable IDs, coordinate bounds, duplicate rejection, exact-once token histories, atomic primary/backup replacement, and quarantine for malformed or future data.
 
-## Develop
+## Develop and verify
 
 ```bash
 $HOME/bin/godot --path .
 ./verify.sh
-```
-
-`verify.sh` includes a Python batch gate that decodes all eight primary and alternate biome Ogg files, checks their cyclic waveform boundaries, and asks Godot to seek each imported stream across its loop point. Run that gate directly when iterating on music assets:
-
-```bash
-python3 test/test_bgm_loops.py --godot "$HOME/.local/bin/godot"
 ```
 
 For a clean no-threads Web release:
@@ -43,11 +43,11 @@ For a clean no-threads Web release:
 ./verify.sh --release
 ```
 
-The release command writes HTML, JavaScript, WASM, and PCK artifacts to `/home/ubuntu/proto-isometric-build/web`.
+The release command runs import, lint, repository tests, bounded headless boot, Web export, and exported-PCK boot checks. It writes the required HTML, JavaScript, WASM, PCK, audio worklets, icons, and splash assets to `/home/ubuntu/proto-isometric-build/web`.
 
 ## Project references
 
-- [Implementation plan](docs/plans/WALKERS_WAKE_IMPLEMENTATION_PLAN.md)
-- [Gameplay proposal](docs/concept/gameplay-v2/GAMEPLAY_ENHANCEMENT_PROPOSAL.md)
-- [Walker sprite contract](assets/walker/SOURCES.md)
-- Source: https://github.com/junnyboi/proto-isometric
+- [Protos Harvest implementation plan](docs/plans/PROTOS_HARVEST_IMPLEMENTATION_PLAN.md)
+- [Walker’s Wake legacy plan](docs/plans/WALKERS_WAKE_IMPLEMENTATION_PLAN.md)
+- [Gameplay proposal archive](docs/concept/gameplay-v2/GAMEPLAY_ENHANCEMENT_PROPOSAL.md)
+- Source repository: https://github.com/junnyboi/proto-isometric
