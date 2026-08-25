@@ -141,6 +141,26 @@ func save_state(
 	return _commit_envelope(envelope, next_sequence)
 
 
+func save_candidate_envelope(source: Dictionary, farm_candidate: Dictionary) -> bool:
+	if _writes_blocked:
+		return _fail_save("Writes are blocked after an incompatible future save was preserved.")
+	if _file_store == null or source.is_empty():
+		return _fail_save("Save repository is not configured with a candidate source.")
+	var next_sequence: int = _write_sequence + 1
+	if next_sequence <= 0 or next_sequence > MAX_SEQUENCE:
+		return _fail_save("Save write sequence is exhausted.")
+	var envelope: Dictionary = _make_envelope(
+		source.get(&"world", {}) as Dictionary,
+		source.get(&"active_run"),
+		source.get(&"profile", {}) as Dictionary,
+		farm_candidate,
+		next_sequence,
+	)
+	if envelope.is_empty():
+		return _fail_save("Refused to write an invalid detached candidate envelope.")
+	return _commit_envelope(envelope, next_sequence)
+
+
 func _make_envelope(
 	world: Dictionary,
 	active_run: Variant,

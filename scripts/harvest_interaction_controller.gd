@@ -7,8 +7,9 @@ const CommandsScript: GDScript = preload("res://scripts/harvest_command_intents.
 const ResolverScript: GDScript = preload("res://scripts/interaction_resolver.gd")
 const ReticleScript: GDScript = preload("res://scripts/target_reticle.gd")
 const ToolPresenterScript: GDScript = preload("res://scripts/tool_action_presenter.gd")
+const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
 
-const TOOLS: Array[StringName] = [&"tool.hoe", &"tool.watering"]
+const TOOLS: Array[StringName] = [&"tool.hoe", &"tool.watering", &"tool.axe", &"tool.pick"]
 
 var _world: RefCounted
 var _avatar: Node2D
@@ -17,11 +18,14 @@ var _player_cell: Callable
 var _facing: Callable
 var _zoom: Callable
 var _target_query: Callable
+var _productive_action: Callable
 var _reticle: Node2D
 var _tool_presenter: Node2D
 var _selected_tool: int = 0
 var _last_target: Dictionary = {}
 var _avatar_was_visible: bool = true
+var _held_tool_msec: int = 0
+var _repeat_count: int = 0
 
 
 func _ready() -> void:
@@ -38,14 +42,16 @@ func _ready() -> void:
 	add_child(_tool_presenter)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if _world == null:
 		return
 	_sync_target()
+	_update_hold_repeat(delta)
 	for action: StringName in CommandsScript.action_ids():
-		if action in CommandsScript.MOVE_ACTIONS or action in [
-			CommandsScript.RUN, CommandsScript.COMBAT_ATTACK
-		]:
+		if (
+			action in CommandsScript.MOVE_ACTIONS
+			or action in [CommandsScript.RUN, CommandsScript.COMBAT_ATTACK]
+		):
 			continue
 		if CommandsScript.is_just_pressed(action):
 			_dispatch(action)
@@ -59,6 +65,7 @@ func configure(
 	facing: Callable,
 	zoom: Callable,
 	target_query: Callable,
+	productive_action: Callable = Callable(),
 ) -> bool:
 	if (
 		world == null
@@ -76,6 +83,7 @@ func configure(
 	_facing = facing
 	_zoom = zoom
 	_target_query = target_query
+	_productive_action = productive_action
 	_reticle.call("configure", grid_to_screen)
 	_sync_target()
 	return true
@@ -130,6 +138,10 @@ func _present_context() -> void:
 	var result: Dictionary = _resolve(ResolverScript.ACTION_CONTEXT)
 	_reticle.call("present", result, true)
 	_last_target = result
+	if bool(result[&"valid"]) and _productive_action.is_valid():
+		_productive_action.call(
+			ResolverScript.ACTION_CONTEXT, ToolServiceScript.TOOL_CONTEXT, result
+		)
 
 
 func _attempt_tool() -> void:
@@ -165,8 +177,22 @@ func _resolve(intent: StringName) -> Dictionary:
 
 func _on_tool_contact(result: Dictionary) -> void:
 	tool_preview_contact.emit(result.duplicate(true))
+	if _productive_action.is_valid():
+		_productive_action.call(ResolverScript.ACTION_TOOL, TOOLS[_selected_tool], result)
 
 
 func _on_tool_finished() -> void:
 	if _avatar != null:
 		_avatar.visible = _avatar_was_visible
+
+
+func _update_hold_repeat(delta: float) -> void:
+	if not CommandsScript.is_pressed(CommandsScript.TOOL_ACTION):
+		_held_tool_msec = 0
+		_repeat_count = 0
+		return
+	_held_tool_msec += maxi(roundi(maxf(delta, 0.0) * 1000.0), 0)
+	var expected: int = ToolServiceScript.repeat_fire_count(_held_tool_msec)
+	if expected > _repeat_count and not bool(_tool_presenter.call("is_playing")):
+		_repeat_count += 1
+		_attempt_tool()

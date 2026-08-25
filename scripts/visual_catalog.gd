@@ -48,6 +48,15 @@ const REQUIRED_PATHS: Array[String] = [
 	"res://assets/ui/tools/icon_axe.png",
 	"res://assets/ui/tools/icon_pick.png",
 	"res://assets/ui/tools/icon_seed_pouch.png",
+	"res://assets/crops/crop_glowroot_stages.png",
+	"res://assets/crops/crop_coilbean_stages.png",
+	"res://assets/crops/crop_ironturnip_stages.png",
+	"res://assets/crops/crop_rainleaf_stages.png",
+	"res://assets/crops/crop_starbloom_stages.png",
+	"res://assets/crops/crop_sunpod_stages.png",
+	"res://assets/props/farm_shipping_bin.png",
+	"res://assets/props/home_storage_crate.png",
+	"res://assets/props/tool_upgrade_bench.png",
 ]
 
 

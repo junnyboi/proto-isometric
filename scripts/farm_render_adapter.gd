@@ -133,9 +133,33 @@ func _draw() -> void:
 		var center: Vector2 = _grid_to_screen.call(record[&"cell"] as Vector2i) as Vector2
 		var texture: Texture2D = record.get(&"texture", null) as Texture2D
 		if record[&"type"] == RECORD_SOIL:
-			texture = FARM_SOIL_TEXTURE
+			_draw_soil_tile(center)
+			continue
 		if texture == null:
 			continue
 		var size: Vector2 = record.get(&"draw_size", Vector2(90.0, 90.0)) as Vector2
 		var offset: Vector2 = record.get(&"draw_offset", Vector2.ZERO) as Vector2
-		draw_texture_rect(texture, Rect2(center + offset - size * 0.5, size), false)
+		var destination: Rect2 = Rect2(center + offset - size * 0.5, size)
+		if record.has(&"atlas_region"):
+			draw_texture_rect_region(texture, destination, record[&"atlas_region"] as Rect2)
+		else:
+			draw_texture_rect(texture, destination, false)
+
+
+func _draw_soil_tile(center: Vector2) -> void:
+	var points: PackedVector2Array = PackedVector2Array([
+		center + Vector2(0.0, -22.5),
+		center + Vector2(45.0, 0.0),
+		center + Vector2(0.0, 22.5),
+		center + Vector2(-45.0, 0.0),
+	])
+	var colors: PackedColorArray = PackedColorArray([
+		Color.WHITE, Color.WHITE, Color.WHITE, Color.WHITE,
+	])
+	var uvs: PackedVector2Array = PackedVector2Array([
+		Vector2(256.0, 0.0),
+		Vector2(512.0, 256.0),
+		Vector2(256.0, 512.0),
+		Vector2(0.0, 256.0),
+	])
+	draw_polygon(points, colors, uvs, FARM_SOIL_TEXTURE)
