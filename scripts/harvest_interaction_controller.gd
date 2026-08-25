@@ -4,6 +4,8 @@ signal menu_intent_requested(action: StringName)
 signal menu_snapshot_opened(snapshot: Dictionary)
 signal menu_snapshot_refreshed(snapshot: Dictionary)
 signal menu_snapshot_closed
+signal menu_selection_changed(index: int, action_id: StringName)
+signal menu_execution_result(result: Dictionary)
 signal tool_preview_contact(result: Dictionary)
 
 const CatalogScript: GDScript = preload("res://scripts/interaction_option_catalog.gd")
@@ -191,6 +193,19 @@ func navigate_menu(direction: int) -> bool:
 		return false
 	_selected_index = next_index
 	_selected_action_id = (options[_selected_index] as Dictionary)[&"action_id"] as StringName
+	menu_selection_changed.emit(_selected_index, _selected_action_id)
+	return true
+
+
+func select_menu_index(index: int) -> bool:
+	if not is_menu_open():
+		return false
+	var options: Array = _menu_snapshot[&"options"] as Array
+	if index < 0 or index >= options.size() or index == _selected_index:
+		return false
+	_selected_index = index
+	_selected_action_id = (options[index] as Dictionary)[&"action_id"] as StringName
+	menu_selection_changed.emit(_selected_index, _selected_action_id)
 	return true
 
 
@@ -235,6 +250,7 @@ func confirm_menu() -> bool:
 			option.duplicate(true),
 		) as Dictionary
 	_executing = false
+	menu_execution_result.emit(result.duplicate(true))
 	if bool(result.get(&"ok", false)):
 		if option[&"close_behavior"] in [&"always", &"on_success"]:
 			close_menu()
@@ -331,6 +347,7 @@ func _select_first_enabled() -> void:
 			_selected_index = index
 			break
 	_selected_action_id = (options[_selected_index] as Dictionary)[&"action_id"] as StringName
+	menu_selection_changed.emit(_selected_index, _selected_action_id)
 
 
 func _restore_selection(action_id: StringName) -> void:
@@ -339,6 +356,7 @@ func _restore_selection(action_id: StringName) -> void:
 		if (options[index] as Dictionary)[&"action_id"] == action_id:
 			_selected_index = index
 			_selected_action_id = action_id
+			menu_selection_changed.emit(_selected_index, _selected_action_id)
 			return
 	_select_first_enabled()
 

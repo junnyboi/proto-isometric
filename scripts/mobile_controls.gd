@@ -29,6 +29,8 @@ var _touch_position: Vector2 = Vector2.ZERO
 var _drive_vector: Vector2 = Vector2.ZERO
 var _layout: Dictionary = {}
 var _touch_exclusions: Array[Rect2] = []
+var _modal_exclusion: Rect2 = Rect2()
+var _modal_input_suppressed: bool = false
 var _joystick: Control
 var _smash_button: Button
 var _command_dock: Control
@@ -104,7 +106,7 @@ func apply_layout(viewport_size: Vector2) -> bool:
 	if not bool(FIELD_THEME.call("validate_layout", candidate, true)):
 		return false
 	_layout = candidate.duplicate(true)
-	_touch_exclusions = FIELD_THEME.call("touch_exclusions", _layout, true) as Array[Rect2]
+	_refresh_touch_exclusions()
 	var smash: Rect2 = _layout[&"smash_button"] as Rect2
 	if _smash_button != null:
 		_smash_button.position = smash.position
@@ -123,8 +125,23 @@ func get_touch_exclusions() -> Array[Rect2]:
 	return _touch_exclusions.duplicate()
 
 
+func is_modal_input_suppressed() -> bool:
+	return _modal_input_suppressed
+
+
 func set_character_dossier(dossier: Control) -> void:
 	_character_dossier = dossier
+
+
+func _set_modal_input_suppressed(suppressed: bool) -> void:
+	_modal_input_suppressed = suppressed
+	if suppressed:
+		_cancel_touch_interactions()
+
+
+func _set_modal_touch_exclusion(rect: Rect2, active: bool) -> void:
+	_modal_exclusion = rect if active else Rect2()
+	_refresh_touch_exclusions()
 
 
 func set_controls_enabled(enabled: bool) -> void:
@@ -153,11 +170,22 @@ func is_pinch_active() -> bool:
 
 
 func is_pinch_candidate(position: Vector2) -> bool:
-	return _mobile_device and _controls_enabled and not _point_is_excluded(position)
+	return (
+		_mobile_device
+		and _controls_enabled
+		and not _modal_input_suppressed
+		and not _point_is_excluded(position)
+	)
 
 
 func begin_touch(index: int, position: Vector2) -> bool:
-	if not _mobile_device or not _controls_enabled or _pinch_active or _touch_index >= 0:
+	if (
+		not _mobile_device
+		or not _controls_enabled
+		or _modal_input_suppressed
+		or _pinch_active
+		or _touch_index >= 0
+	):
 		return false
 	if _point_is_excluded(position):
 		if _character_dossier != null:
@@ -202,14 +230,19 @@ func end_touch(index: int) -> bool:
 
 
 func trigger_smash() -> void:
-	if _mobile_device and _controls_enabled:
+	if _mobile_device and _controls_enabled and not _modal_input_suppressed:
 		_acknowledge_smash()
 		smash_pressed.emit()
 
 
 func trigger_command(action: StringName) -> void:
-	if _mobile_device and _controls_enabled and action in HarvestCommandsScript.action_ids():
-		command_pressed.emit(action)
+	if not _mobile_device or not _controls_enabled or action not in HarvestCommandsScript.action_ids():
+		return
+	if _modal_input_suppressed and action not in [
+		HarvestCommandsScript.CONTEXT, HarvestCommandsScript.CANCEL
+	]:
+		return
+	command_pressed.emit(action)
 
 
 func _detect_mobile_device() -> bool:
@@ -326,6 +359,12 @@ func _apply_visibility() -> void:
 
 func _clamp_origin(position: Vector2) -> Vector2:
 	return FIELD_THEME.call("clamp_touch_origin", position, _layout, JOYSTICK_RADIUS) as Vector2
+
+
+func _refresh_touch_exclusions() -> void:
+	_touch_exclusions = FIELD_THEME.call("touch_exclusions", _layout, true) as Array[Rect2]
+	if _modal_exclusion.has_area():
+		_touch_exclusions.append(_modal_exclusion)
 
 
 func _point_is_excluded(position: Vector2) -> bool:

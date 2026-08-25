@@ -15,6 +15,9 @@ const InteractionControllerScript: GDScript = preload(
 const InteractionPhaseBServiceScript: GDScript = preload(
 	"res://scripts/harvest_interaction_phase_b_service.gd"
 )
+const InteractionPresenterScript: GDScript = preload(
+	"res://scripts/harvest_interaction_presenter.gd"
+)
 const InteractionTargetBridgeScript: GDScript = preload(
 	"res://scripts/harvest_interaction_target_bridge.gd"
 )
@@ -44,6 +47,7 @@ const SHIPPING_SFX: AudioStream = preload("res://assets/audio/harvest/shipping_d
 
 var _map: Node2D
 var _controller: Node2D
+var _presenter: CanvasLayer
 var _farm_renderer: Node2D
 var _farm_runtime: RefCounted
 var _transactions: RefCounted
@@ -71,6 +75,10 @@ func get_interaction_controller() -> Node2D:
 	return _controller
 
 
+func get_interaction_presenter() -> CanvasLayer:
+	return _presenter
+
+
 func get_farm_renderer() -> Node2D:
 	return _farm_renderer
 
@@ -93,6 +101,10 @@ func get_wilderness_runtime() -> RefCounted:
 
 func is_ready_for_commands() -> bool:
 	return _ready_for_commands
+
+
+func is_interaction_menu_open() -> bool:
+	return _controller != null and bool(_controller.call("is_menu_open"))
 
 
 func get_live_presentation_records() -> Array[Dictionary]:
@@ -144,6 +156,12 @@ func _bootstrap() -> void:
 	var mobile: CanvasLayer = _map.get("_mobile_controls") as CanvasLayer
 	if mobile != null and mobile.has_signal("command_pressed"):
 		mobile.connect("command_pressed", Callable(_controller, "handle_touch_command"))
+	_controller.connect("menu_snapshot_opened", _on_menu_opened)
+	_presenter = InteractionPresenterScript.new() as CanvasLayer
+	_map.add_child(_presenter)
+	if not bool(_presenter.call("bind", _controller, mobile)):
+		push_error("Phase C interaction presenter rejected live authorities.")
+		return
 	_farm_renderer = FarmRendererScript.new() as Node2D
 	_farm_renderer.name = "FarmRenderAdapter"
 	_farm_renderer.z_index = 12
@@ -157,6 +175,15 @@ func _bootstrap() -> void:
 	_sync_clearing_music()
 	_initialize_wilderness()
 	_ready_for_commands = true
+
+
+func _on_menu_opened(_snapshot: Dictionary) -> void:
+	_map.set("_velocity", Vector2.ZERO)
+	_map.set("_is_moving", false)
+	_map.set("_is_running", false)
+	var buffer: RefCounted = _map.get("_drive_input_buffer") as RefCounted
+	if buffer != null:
+		buffer.call("clear")
 
 
 func _initialize_farm_runtime() -> void:

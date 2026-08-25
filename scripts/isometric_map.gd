@@ -167,13 +167,20 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	var terminal: bool = _terminal_flow != null and bool(_terminal_flow.call("is_summary_visible"))
-	var screen_direction: Vector2 = (
-		Vector2.ZERO if terminal else IsometricControlsScript.read_drive_vector()
+	var bridge: Node = get_node_or_null("HarvestPhaseTwo")
+	var interaction: Node2D = (
+		bridge.call("get_interaction_controller") as Node2D
+		if bridge != null and bridge.has_method("get_interaction_controller")
+		else null
 	)
-	var attack_pressed: bool = not terminal and IsometricControlsScript.is_attack_pressed()
+	var modal: bool = terminal or (interaction != null and bool(interaction.call("is_menu_open")))
+	var screen_direction: Vector2 = (
+		Vector2.ZERO if modal else IsometricControlsScript.read_drive_vector()
+	)
+	var attack_pressed: bool = not modal and IsometricControlsScript.is_attack_pressed()
 	if attack_pressed and not _attack_was_pressed:
 		attack()
-	_attack_was_pressed = attack_pressed
+	_attack_was_pressed = true if modal else attack_pressed
 	if _mobile_controls != null and bool(_mobile_controls.call("is_joystick_visible")):
 		var mobile_drive: Vector2 = _mobile_controls.call("get_drive_vector") as Vector2
 		var mobile_run: bool = bool(_mobile_controls.call("is_run_intended"))
@@ -228,17 +235,10 @@ func _process(delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
+		var bridge: Node = get_node_or_null("HarvestPhaseTwo")
+		if bridge != null and bool(bridge.call("is_interaction_menu_open")):
+			return
 		get_tree().change_scene_to_file("res://scenes/title_screen.tscn")
-
-func _draw() -> void:
-	_terrain_renderer.call(
-		"draw_drive_vector",
-		self,
-		_robot_visual_position,
-		_last_screen_direction,
-		_velocity,
-		_is_running
-	)
 
 func grid_to_screen(cell: Vector2i) -> Vector2:
 	return _terrain_renderer.call("grid_to_screen", cell) as Vector2
