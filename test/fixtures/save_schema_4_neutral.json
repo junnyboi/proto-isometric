@@ -1,0 +1,69 @@
+{
+  "active_run": null,
+  "farm": {
+    "calendar_weather": {
+      "current_weather_id": "weather.neutral",
+      "day": 1,
+      "day_token": "",
+      "forecast_weather_id": "weather.neutral",
+      "minute_of_day": 0,
+      "season_id": "season.neutral",
+      "state_version": 1,
+      "year": 1
+    },
+    "day_tokens": [],
+    "ecology": {
+      "boss_first_clear_ids": [],
+      "deltas": [],
+      "state_version": 1
+    },
+    "economy": {
+      "money": 0,
+      "shipping": [],
+      "state_version": 1
+    },
+    "homestead": {
+      "facilities": [],
+      "residents": [],
+      "ruins": [],
+      "state_version": 1
+    },
+    "inventories": [],
+    "machines": [],
+    "migration_tokens": [],
+    "mode": "gameplay_mode.fresh_farm",
+    "placed_entities": [],
+    "plots": [],
+    "state_version": 1,
+    "tools": {
+      "equipped_tool_id": "",
+      "state_version": 1,
+      "upgrade_ids": []
+    }
+  },
+  "metadata": {
+    "build_id": "phase-zero-fixture",
+    "migration_source": 0,
+    "saved_at_unix": 0,
+    "world_generation_version": 1,
+    "write_sequence": 1
+  },
+  "profile": {
+    "banked_cores": 0,
+    "banked_relay_data": 0,
+    "banked_scrap": 0,
+    "failure_count": 0,
+    "last_run_summary": {},
+    "pending_modifier_offer": [],
+    "selected_next_modifier": "modifier.neutral",
+    "state_version": 1,
+    "success_count": 0
+  },
+  "save_format_version": 4,
+  "world": {
+    "collected_scrap": [],
+    "destroyed_rocks": [],
+    "dropped_scrap": [],
+    "placed_rocks": []
+  }
+}

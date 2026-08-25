@@ -5,8 +5,10 @@ const SaveMigratorScript: GDScript = preload("res://scripts/save_migrator.gd")
 const RunStateScript: GDScript = preload("res://scripts/run_state.gd")
 const ProfileStateScript: GDScript = preload("res://scripts/profile_state.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
+const FarmSaveSchemaScript: GDScript = preload("res://scripts/farm_save_schema.gd")
 
-const FORMAT_VERSION: int = 3
+const FORMAT_VERSION: int = 4
+const LEGACY_FORMAT_VERSION: int = 3
 const WORLD_GENERATION_VERSION: int = 1
 const MAX_FILE_BYTES: int = 2_097_152
 const MAX_WORLD_ITEMS: int = 100_000
@@ -35,6 +37,7 @@ var _write_sequence: int = 0
 var _migration_source: int = 0
 var _quarantine_paths: Array[String] = []
 var _writes_blocked: bool = false
+var _default_farm: Dictionary = {}
 
 
 func configure(path: String, world_validator: RefCounted, build_id: String = "development") -> bool:
@@ -98,16 +101,19 @@ func load_state() -> Dictionary:
 	_selected_source = str(selected[&"path"])
 	_write_sequence = int((envelope[&"metadata"] as Dictionary)[&"write_sequence"])
 	_migration_source = int((envelope[&"metadata"] as Dictionary)[&"migration_source"])
-	if selected[&"source_version"] in [1, 2]:
+	if selected[&"source_version"] in [1, 2, LEGACY_FORMAT_VERSION]:
 		_status = STATUS_MIGRATED
 	elif _selected_source != _path or not _quarantine_paths.is_empty():
 		_status = STATUS_RECOVERED
 	else:
 		_status = STATUS_LOADED
+	_default_farm = (envelope[&"farm"] as Dictionary).duplicate(true)
 	return envelope
 
 
-func save_state(world: Dictionary, active_run: Variant, profile: Dictionary) -> bool:
+func save_state(
+	world: Dictionary, active_run: Variant, profile: Dictionary, farm: Dictionary = {}
+) -> bool:
 	_last_error = ""
 	if _writes_blocked:
 		return _fail_save("Writes are blocked after an incompatible future save was preserved.")
@@ -116,14 +122,23 @@ func save_state(world: Dictionary, active_run: Variant, profile: Dictionary) -> 
 	var next_sequence: int = _write_sequence + 1
 	if next_sequence <= 0 or next_sequence > MAX_SEQUENCE:
 		return _fail_save("Save write sequence is exhausted.")
-	var envelope: Dictionary = _make_envelope(world, active_run, profile, next_sequence)
+	var farm_candidate: Dictionary = (
+		_default_farm.duplicate(true) if farm.is_empty() else farm.duplicate(true)
+	)
+	var envelope: Dictionary = _make_envelope(
+		world, active_run, profile, farm_candidate, next_sequence
+	)
 	if envelope.is_empty():
-		return _fail_save("Refused to write an invalid schema-3 state.")
+		return _fail_save("Refused to write an invalid schema-4 state.")
 	return _commit_envelope(envelope, next_sequence)
 
 
 func _make_envelope(
-	world: Dictionary, active_run: Variant, profile: Dictionary, sequence: int
+	world: Dictionary,
+	active_run: Variant,
+	profile: Dictionary,
+	farm: Dictionary,
+	sequence: int,
 ) -> Dictionary:
 	var envelope: Dictionary = {
 		&"save_format_version": FORMAT_VERSION,
@@ -138,6 +153,7 @@ func _make_envelope(
 		&"world": world.duplicate(true),
 		&"active_run": active_run.duplicate(true) if active_run is Dictionary else active_run,
 		&"profile": profile.duplicate(true),
+		&"farm": farm.duplicate(true),
 	}
 	return validate_envelope(envelope)
 
@@ -162,6 +178,7 @@ func _commit_envelope(envelope: Dictionary, sequence: int) -> bool:
 	if not _rotate_validated_temp(temporary_path):
 		return false
 	_write_sequence = sequence
+	_default_farm = (envelope[&"farm"] as Dictionary).duplicate(true)
 	_status = STATUS_LOADED
 	_selected_source = _path
 	return true
@@ -170,7 +187,7 @@ func _commit_envelope(envelope: Dictionary, sequence: int) -> bool:
 func validate_envelope(envelope: Dictionary) -> Dictionary:
 	if not _exact_keys(
 		envelope,
-		[&"save_format_version", &"metadata", &"world", &"active_run", &"profile"],
+		[&"save_format_version", &"metadata", &"world", &"active_run", &"profile", &"farm"],
 	):
 		return {}
 	var format_version: Variant = _json_integer(
@@ -181,7 +198,13 @@ func validate_envelope(envelope: Dictionary) -> Dictionary:
 	var metadata: Dictionary = _normalize_metadata(envelope.get(&"metadata"))
 	var active_run: Variant = _normalize_run(envelope.get(&"active_run"))
 	var profile: Dictionary = _normalize_profile(envelope.get(&"profile"))
-	if metadata.is_empty() or (active_run is bool and not bool(active_run)) or profile.is_empty():
+	var farm: Dictionary = FarmSaveSchemaScript.validate(envelope.get(&"farm"))
+	if (
+		metadata.is_empty()
+		or (active_run is bool and not bool(active_run))
+		or profile.is_empty()
+		or farm.is_empty()
+	):
 		return {}
 	var robot_cell: Vector2i = Vector2i(MAX_COORDINATE + 1, MAX_COORDINATE + 1)
 	if active_run is Dictionary:
@@ -196,6 +219,7 @@ func validate_envelope(envelope: Dictionary) -> Dictionary:
 		&"world": world,
 		&"active_run": active_run,
 		&"profile": profile,
+		&"farm": farm,
 	}
 
 
@@ -231,6 +255,14 @@ func get_quarantine_paths() -> Array[String]:
 
 func is_write_blocked() -> bool:
 	return _writes_blocked
+
+
+func get_default_farm() -> Dictionary:
+	return _default_farm.duplicate(true)
+
+
+func get_gameplay_mode() -> StringName:
+	return FarmSaveSchemaScript.mode_of(_default_farm)
 
 
 func _read_candidate(path: String, allow_legacy: bool = true) -> Dictionary:
@@ -271,6 +303,13 @@ func _classify_current(path: String, raw: Dictionary) -> Dictionary:
 		return _candidate(path, &"invalid")
 	if int(version) > FORMAT_VERSION:
 		return _candidate(path, &"future", {}, int(version))
+	if int(version) == LEGACY_FORMAT_VERSION:
+		var migrated: Dictionary = _migrate_schema_three(raw)
+		return (
+			_candidate(path, &"valid", migrated, LEGACY_FORMAT_VERSION)
+			if not migrated.is_empty()
+			else _candidate(path, &"invalid")
+		)
 	if int(version) != FORMAT_VERSION:
 		return _candidate(path, &"invalid")
 	var current: Dictionary = validate_envelope(raw)
@@ -279,6 +318,41 @@ func _classify_current(path: String, raw: Dictionary) -> Dictionary:
 		if not current.is_empty()
 		else _candidate(path, &"invalid")
 	)
+
+
+func _migrate_schema_three(raw: Dictionary) -> Dictionary:
+	if not _exact_keys(
+		raw,
+		[&"save_format_version", &"metadata", &"world", &"active_run", &"profile"],
+	):
+		return {}
+	var version: Variant = _json_integer(raw.get(&"save_format_version"), 1, MAX_SEQUENCE)
+	var metadata: Dictionary = _normalize_metadata(raw.get(&"metadata"))
+	var active_run: Variant = _normalize_run(raw.get(&"active_run"))
+	var profile: Dictionary = _normalize_profile(raw.get(&"profile"))
+	if (
+		version == null
+		or int(version) != LEGACY_FORMAT_VERSION
+		or metadata.is_empty()
+		or (active_run is bool and not bool(active_run))
+		or profile.is_empty()
+	):
+		return {}
+	var robot_cell: Vector2i = Vector2i(MAX_COORDINATE + 1, MAX_COORDINATE + 1)
+	if active_run is Dictionary:
+		var cell: Array = (active_run as Dictionary)[&"player_cell"] as Array
+		robot_cell = Vector2i(int(cell[0]), int(cell[1]))
+	var world: Dictionary = _normalize_world(raw.get(&"world"), robot_cell)
+	if world.is_empty():
+		return {}
+	return {
+		&"save_format_version": FORMAT_VERSION,
+		&"metadata": metadata,
+		&"world": world,
+		&"active_run": active_run,
+		&"profile": profile,
+		&"farm": FarmSaveSchemaScript.make_neutral(RuntimeIdsScript.MODE_LEGACY_EXPEDITION, true),
+	}
 
 
 func _candidate(
@@ -847,3 +921,4 @@ func _reset_result() -> void:
 	_migration_source = 0
 	_quarantine_paths.clear()
 	_writes_blocked = false
+	_default_farm = FarmSaveSchemaScript.make_neutral(RuntimeIdsScript.MODE_FRESH_FARM)

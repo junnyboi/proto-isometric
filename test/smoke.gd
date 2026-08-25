@@ -71,7 +71,6 @@ func _test_isometric_map() -> void:
 		run_coordinator.call("get_run_value", &"player_cell") == map.call("get_robot_grid"),
 		"live RunState owns Walker position",
 	)
-
 	var world: RefCounted = map.get("_world") as RefCounted
 	_check(world.call("_get_playable_size") == Vector2i(145, 145), "world reports compact grid")
 	_check(world != null, "lazy world stream exists")
@@ -277,7 +276,6 @@ func _test_isometric_map() -> void:
 	_check(chassis_feedback != null, "chassis feedback controller exists")
 	_check(bool(chassis_feedback.call("is_audio_ready")), "chassis damage audio is loaded")
 	_check(not bool(chassis_feedback.call("is_shutdown_visible")), "shutdown overlay starts hidden")
-
 	var hazards: Node2D = map.get_node("WorldEffectsLayer/DesertHazards") as Node2D
 	_check(hazards != null, "environmental hazard controller exists")
 	_check(hazards.get_parent() == world_effects_layer, "hazard particles use the effects layer")
@@ -685,17 +683,19 @@ func _test_isometric_map() -> void:
 	var live_envelope: Dictionary = SmokeHelpersScript.read_test_json(save_path)
 	_check(
 		(
-			int(live_envelope.get("save_format_version", -1)) == 3
+			int(live_envelope.get("save_format_version", -1)) == 4
 			and live_envelope.has("metadata")
 			and live_envelope.has("world")
 			and live_envelope.has("active_run")
 			and live_envelope.has("profile")
+			and live_envelope.has("farm")
+			and (live_envelope["farm"] as Dictionary)["mode"] == "gameplay_mode.fresh_farm"
 		),
-		"live field writes a complete schema-3 envelope",
+		"live field writes a complete schema-4 envelope",
 	)
 	_check(
 		"module.worn_plates" in (live_envelope["active_run"] as Dictionary)["active_module_ids"],
-		"live schema-three save persists Worn Plates",
+		"live schema-four save persists Worn Plates",
 	)
 
 	map.free()
@@ -980,6 +980,7 @@ func _test_isometric_map() -> void:
 	SmokeHelpersScript.clear_test_save(save_path)
 	SmokeHelpersScript.clear_test_save(malformed_path)
 	SmokeHelpersScript.clear_test_save(incompatible_path)
+
 
 func _check(condition: bool, label: String) -> void:
 	_checks += 1

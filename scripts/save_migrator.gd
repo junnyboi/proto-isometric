@@ -3,8 +3,9 @@ extends RefCounted
 const RunStateScript: GDScript = preload("res://scripts/run_state.gd")
 const ProfileStateScript: GDScript = preload("res://scripts/profile_state.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
+const FarmSaveSchemaScript: GDScript = preload("res://scripts/farm_save_schema.gd")
 
-const TARGET_VERSION: int = 3
+const TARGET_VERSION: int = 4
 const WORLD_GENERATION_VERSION: int = 1
 const COORDINATE_LIMIT: int = 1_000_000
 const LEGACY_GRID_SIZE: int = 18
@@ -97,6 +98,7 @@ func _build_migration(snapshot: Dictionary) -> Dictionary:
 		&"world": (normalized[&"world"] as Dictionary).duplicate(true),
 		&"active_run": active_run,
 		&"profile": profile.call("to_dictionary") as Dictionary,
+		&"farm": FarmSaveSchemaScript.make_neutral(RuntimeIdsScript.MODE_LEGACY_EXPEDITION, true),
 	}
 
 

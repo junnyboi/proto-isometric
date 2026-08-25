@@ -1,6 +1,7 @@
 extends RefCounted
 
-const REGISTRY_VERSION: int = 6
+const LEGACY_REGISTRY_VERSION: int = 6
+const REGISTRY_VERSION: int = 7
 
 const DOMAIN_FIELD_COMPOSITION: StringName = &"domain.field_composition"
 const DOMAIN_MOVEMENT: StringName = &"domain.movement"
@@ -16,6 +17,12 @@ const DOMAIN_HAZARDS: StringName = &"domain.hazards"
 const DOMAIN_PERSISTENCE: StringName = &"domain.persistence"
 const DOMAIN_FIELD_PRESENTATION: StringName = &"domain.field_presentation"
 const DOMAIN_FEEDBACK: StringName = &"domain.feedback"
+const DOMAIN_FARM: StringName = &"domain.farm"
+const DOMAIN_CALENDAR_WEATHER: StringName = &"domain.calendar_weather"
+const DOMAIN_INVENTORY_ECONOMY: StringName = &"domain.inventory_economy"
+const DOMAIN_HOMESTEAD_SETTLEMENT: StringName = &"domain.homestead_settlement"
+const DOMAIN_TOOLS_INTERACTIONS: StringName = &"domain.tools_interactions"
+const DOMAIN_ECOLOGY: StringName = &"domain.ecology"
 
 const OWNER_FIELD_COMPOSITION: StringName = &"owner.field_composition"
 const OWNER_UNASSIGNED: StringName = &"owner.unassigned"
@@ -31,6 +38,12 @@ const OWNER_WORLD_STATE_STORE: StringName = &"owner.world_state_store"
 const OWNER_SAVE_REPOSITORY: StringName = &"owner.save_repository"
 const OWNER_FIELD_HUD: StringName = &"owner.field_hud"
 const OWNER_FEEDBACK_ROUTER: StringName = &"owner.feedback_router"
+const OWNER_FARM_STATE: StringName = &"owner.farm_state"
+const OWNER_CALENDAR_WEATHER: StringName = &"owner.calendar_weather"
+const OWNER_INVENTORY_ECONOMY: StringName = &"owner.inventory_economy"
+const OWNER_HOMESTEAD_SETTLEMENT: StringName = &"owner.homestead_settlement"
+const OWNER_TOOL_INTERACTION: StringName = &"owner.tool_interaction"
+const OWNER_ECOLOGY: StringName = &"owner.ecology"
 
 const RUN_PHASE_BOOTSTRAP: StringName = &"run_phase.bootstrap"
 const RUN_PHASE_HUNT: StringName = &"run_phase.hunt"
@@ -78,6 +91,10 @@ const MODIFIER_HOT_FRONT: StringName = &"modifier.hot_front"
 const MODIFIER_BROOD_GROUND: StringName = &"modifier.brood_ground"
 const MODIFIER_DEAD_GRID: StringName = &"modifier.dead_grid"
 
+const MODE_FRESH_FARM: StringName = &"gameplay_mode.fresh_farm"
+const MODE_LEGACY_EXPEDITION: StringName = &"gameplay_mode.legacy_expedition"
+const MIGRATION_FARM_V3_TO_V4: StringName = &"migration.farm.v3_to_v4"
+
 
 static func catalog() -> Dictionary:
 	return {
@@ -97,6 +114,12 @@ static func catalog() -> Dictionary:
 			DOMAIN_PERSISTENCE,
 			DOMAIN_FIELD_PRESENTATION,
 			DOMAIN_FEEDBACK,
+			DOMAIN_FARM,
+			DOMAIN_CALENDAR_WEATHER,
+			DOMAIN_INVENTORY_ECONOMY,
+			DOMAIN_HOMESTEAD_SETTLEMENT,
+			DOMAIN_TOOLS_INTERACTIONS,
+			DOMAIN_ECOLOGY,
 		],
 		&"owners":
 		[
@@ -114,6 +137,12 @@ static func catalog() -> Dictionary:
 			OWNER_SAVE_REPOSITORY,
 			OWNER_FIELD_HUD,
 			OWNER_FEEDBACK_ROUTER,
+			OWNER_FARM_STATE,
+			OWNER_CALENDAR_WEATHER,
+			OWNER_INVENTORY_ECONOMY,
+			OWNER_HOMESTEAD_SETTLEMENT,
+			OWNER_TOOL_INTERACTION,
+			OWNER_ECOLOGY,
 		],
 		&"run_phases":
 		[
@@ -162,6 +191,8 @@ static func catalog() -> Dictionary:
 			MODIFIER_BROOD_GROUND,
 			MODIFIER_DEAD_GRID,
 		],
+		&"gameplay_modes": [MODE_FRESH_FARM, MODE_LEGACY_EXPEDITION],
+		&"migrations": [MIGRATION_FARM_V3_TO_V4],
 	}
 
 
@@ -192,6 +223,89 @@ static func domain_ids() -> Array[StringName]:
 	for identifier: StringName in catalog()[&"domains"] as Array:
 		result.append(identifier)
 	return result
+
+
+static func gameplay_mode_ids() -> Array[StringName]:
+	var result: Array[StringName] = []
+	for identifier: StringName in catalog()[&"gameplay_modes"] as Array:
+		result.append(identifier)
+	return result
+
+
+static func legacy_ids() -> Array[StringName]:
+	return [
+		DOMAIN_FIELD_COMPOSITION,
+		DOMAIN_MOVEMENT,
+		DOMAIN_COMBAT_INPUT,
+		DOMAIN_IMPACT_CHARGE,
+		DOMAIN_WORLD,
+		DOMAIN_ACTIVE_RUN,
+		DOMAIN_PROFILE,
+		DOMAIN_PREFERENCES,
+		DOMAIN_RELAY_RUNTIME,
+		DOMAIN_ENCOUNTERS,
+		DOMAIN_HAZARDS,
+		DOMAIN_PERSISTENCE,
+		DOMAIN_FIELD_PRESENTATION,
+		DOMAIN_FEEDBACK,
+		OWNER_FIELD_COMPOSITION,
+		OWNER_UNASSIGNED,
+		OWNER_IMPACT_CHARGE,
+		OWNER_INFINITE_WORLD,
+		OWNER_RUN_COORDINATOR,
+		OWNER_PROFILE_STATE,
+		OWNER_PLAYER_PREFERENCES,
+		OWNER_RELAY_CONTEST,
+		OWNER_SANDWORMS,
+		OWNER_DESERT_HAZARDS,
+		OWNER_WORLD_STATE_STORE,
+		OWNER_SAVE_REPOSITORY,
+		OWNER_FIELD_HUD,
+		OWNER_FEEDBACK_ROUTER,
+		RUN_PHASE_BOOTSTRAP,
+		RUN_PHASE_HUNT,
+		RUN_PHASE_EXTRACTION_READY,
+		RUN_PHASE_SUCCEEDED,
+		RUN_PHASE_FAILED,
+		EVENT_FIELD_READY,
+		EVENT_ATTACK_COMMITTED,
+		EVENT_SCRAP_COLLECTED,
+		EVENT_CHASSIS_DAMAGED,
+		EVENT_CHASSIS_SHUTDOWN,
+		EVENT_REPAIR_COMMITTED,
+		EVENT_RELAY_LINK_STARTED,
+		EVENT_RELAY_COMPLETED,
+		EVENT_WORM_DEFEATED,
+		EVENT_MODULE_PURCHASED,
+		EVENT_RUN_EXTRACTED,
+		EVENT_RUN_FAILED,
+		EVENT_MODIFIER_SELECTED,
+		EVENT_SMASH_WHIFF,
+		EVENT_SMASH_HIT,
+		EVENT_SMASH_HEAVY_HIT,
+		EVENT_SMASH_DEFEAT,
+		EVENT_SMASH_BREAK,
+		EVENT_LOCOMOTION_START,
+		EVENT_LOCOMOTION_WALK_CONTACT,
+		EVENT_LOCOMOTION_RUN,
+		EVENT_LOCOMOTION_RUN_CONTACT,
+		EVENT_LOCOMOTION_REVERSE,
+		EVENT_LOCOMOTION_BLOCKED,
+		EVENT_LOCOMOTION_STOP,
+		EVENT_CHARGE_LOW,
+		EVENT_CHARGE_HIGH,
+		OBJECTIVE_STARTER_RELAY,
+		OBJECTIVE_RELAY_TWO,
+		OBJECTIVE_RELAY_THREE,
+		MODULE_WORN_PLATES,
+		MODULE_RAM_PLATING,
+		MODULE_AFTERSHOCK,
+		MODULE_STORM_SEAL,
+		MODIFIER_NEUTRAL,
+		MODIFIER_HOT_FRONT,
+		MODIFIER_BROOD_GROUND,
+		MODIFIER_DEAD_GRID,
+	]
 
 
 static func is_event_id(identifier: StringName) -> bool:

@@ -8,6 +8,12 @@ const SCOPE_ACTIVE_RUN: StringName = &"active_run"
 const SCOPE_PROFILE: StringName = &"profile"
 const SCOPE_PREFERENCES: StringName = &"preferences"
 const SCOPE_PRESENTATION: StringName = &"presentation"
+const SCOPE_FARM: StringName = &"farm"
+const SCOPE_CALENDAR_WEATHER: StringName = &"calendar_weather"
+const SCOPE_INVENTORY_ECONOMY: StringName = &"inventory_economy"
+const SCOPE_HOMESTEAD_SETTLEMENT: StringName = &"homestead_settlement"
+const SCOPE_TOOLS_INTERACTIONS: StringName = &"tools_interactions"
+const SCOPE_ECOLOGY: StringName = &"ecology"
 
 const POLICY_AUTHORITATIVE: StringName = &"authoritative"
 const POLICY_COMPOSITION_ONLY: StringName = &"composition_only"
@@ -118,6 +124,54 @@ static func contracts() -> Array[Dictionary]:
 			POLICY_AUTHORITATIVE,
 			"res://scripts/feedback_router.gd",
 		),
+		_planned_contract(
+			RuntimeIdsScript.DOMAIN_FARM,
+			RuntimeIdsScript.OWNER_UNASSIGNED,
+			RuntimeIdsScript.OWNER_FARM_STATE,
+			SCOPE_FARM,
+			"",
+			"res://scripts/farm_state.gd",
+		),
+		_planned_contract(
+			RuntimeIdsScript.DOMAIN_CALENDAR_WEATHER,
+			RuntimeIdsScript.OWNER_UNASSIGNED,
+			RuntimeIdsScript.OWNER_CALENDAR_WEATHER,
+			SCOPE_CALENDAR_WEATHER,
+			"",
+			"res://scripts/calendar_state.gd",
+		),
+		_planned_contract(
+			RuntimeIdsScript.DOMAIN_INVENTORY_ECONOMY,
+			RuntimeIdsScript.OWNER_UNASSIGNED,
+			RuntimeIdsScript.OWNER_INVENTORY_ECONOMY,
+			SCOPE_INVENTORY_ECONOMY,
+			"",
+			"res://scripts/inventory_state.gd",
+		),
+		_planned_contract(
+			RuntimeIdsScript.DOMAIN_HOMESTEAD_SETTLEMENT,
+			RuntimeIdsScript.OWNER_UNASSIGNED,
+			RuntimeIdsScript.OWNER_HOMESTEAD_SETTLEMENT,
+			SCOPE_HOMESTEAD_SETTLEMENT,
+			"",
+			"res://scripts/homestead_state.gd",
+		),
+		_planned_contract(
+			RuntimeIdsScript.DOMAIN_TOOLS_INTERACTIONS,
+			RuntimeIdsScript.OWNER_UNASSIGNED,
+			RuntimeIdsScript.OWNER_TOOL_INTERACTION,
+			SCOPE_TOOLS_INTERACTIONS,
+			"",
+			"res://scripts/tool_service.gd",
+		),
+		_planned_contract(
+			RuntimeIdsScript.DOMAIN_ECOLOGY,
+			RuntimeIdsScript.OWNER_UNASSIGNED,
+			RuntimeIdsScript.OWNER_ECOLOGY,
+			SCOPE_ECOLOGY,
+			"",
+			"res://scripts/ecology_service.gd",
+		),
 	]
 
 
@@ -138,6 +192,26 @@ static func contract_for(domain_id: StringName) -> Dictionary:
 	return {}
 
 
+static func can_mutate(domain_id: StringName, owner_id: StringName) -> bool:
+	var contract: Dictionary = contract_for(domain_id)
+	return (
+		not contract.is_empty()
+		and contract[&"current_policy"] == POLICY_AUTHORITATIVE
+		and contract[&"current_owner_id"] == owner_id
+		and owner_id != RuntimeIdsScript.OWNER_UNASSIGNED
+	)
+
+
+static func can_target_mutation(domain_id: StringName, owner_id: StringName) -> bool:
+	var contract: Dictionary = contract_for(domain_id)
+	return (
+		not contract.is_empty()
+		and contract[&"target_policy"] == POLICY_AUTHORITATIVE
+		and contract[&"target_owner_id"] == owner_id
+		and owner_id != RuntimeIdsScript.OWNER_UNASSIGNED
+	)
+
+
 static func validate() -> bool:
 	if not RuntimeIdsScript.validate_catalog():
 		return false
@@ -146,6 +220,21 @@ static func validate() -> bool:
 		POLICY_AUTHORITATIVE,
 		POLICY_COMPOSITION_ONLY,
 		POLICY_READ_ONLY,
+	]
+	var valid_migration_states: Array[StringName] = [MIGRATION_STABLE, MIGRATION_PLANNED]
+	var valid_scopes: Array[StringName] = [
+		SCOPE_TRANSIENT,
+		SCOPE_WORLD,
+		SCOPE_ACTIVE_RUN,
+		SCOPE_PROFILE,
+		SCOPE_PREFERENCES,
+		SCOPE_PRESENTATION,
+		SCOPE_FARM,
+		SCOPE_CALENDAR_WEATHER,
+		SCOPE_INVENTORY_ECONOMY,
+		SCOPE_HOMESTEAD_SETTLEMENT,
+		SCOPE_TOOLS_INTERACTIONS,
+		SCOPE_ECOLOGY,
 	]
 	for contract: Dictionary in contracts():
 		var domain_id: StringName = contract[&"domain_id"] as StringName
@@ -157,6 +246,8 @@ static func validate() -> bool:
 			or domain_id not in RuntimeIdsScript.domain_ids()
 			or current_owner not in RuntimeIdsScript.owner_ids()
 			or target_owner not in RuntimeIdsScript.owner_ids()
+			or contract[&"state_scope"] not in valid_scopes
+			or contract[&"migration_state"] not in valid_migration_states
 			or contract[&"current_policy"] not in valid_policies
 			or contract[&"target_policy"] not in valid_policies
 			or not str(contract[&"target_file"]).begins_with("res://")

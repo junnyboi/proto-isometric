@@ -4,6 +4,7 @@ const SaveMigratorScript: GDScript = preload("res://scripts/save_migrator.gd")
 const RunStateScript: GDScript = preload("res://scripts/run_state.gd")
 const ProfileStateScript: GDScript = preload("res://scripts/profile_state.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
+const FarmSaveSchemaScript: GDScript = preload("res://scripts/farm_save_schema.gd")
 
 const FIXTURE_SCHEMA_ONE: String = "res://test/fixtures/save_schema_1.json"
 const FIXTURE_RELAY_FALSE: String = "res://test/fixtures/save_schema_2_relay_false.json"
@@ -33,7 +34,7 @@ static func _test_schema_one(cases: Array[Dictionary], migrator: RefCounted) -> 
 	var migrated: Dictionary = migrator.call("migrate", source) as Dictionary
 	_add_case(
 		cases,
-		"schema 1 fixture migrates to a schema-3 envelope",
+		"schema 1 fixture migrates to a schema-4 envelope",
 		_is_envelope(migrated, 1) and int(migrator.call("get_source_version")) == 1,
 	)
 	_add_case(cases, "schema 1 migration does not mutate its input", source == original)
@@ -228,7 +229,7 @@ static func _test_strict_rejections(cases: Array[Dictionary], migrator: RefCount
 		(migrator.call("migrate", oversized) as Dictionary).is_empty(),
 	)
 	var future: Dictionary = valid.duplicate(true)
-	future[&"schema"] = 4.0
+	future[&"schema"] = 5.0
 	_add_case(
 		cases,
 		"migration rejects future schemas explicitly",
@@ -237,7 +238,7 @@ static func _test_strict_rejections(cases: Array[Dictionary], migrator: RefCount
 				(migrator.call("migrate", future) as Dictionary).is_empty()
 				and int(migrator.call("get_source_version")) == 0
 			)
-			or int(migrator.call("get_source_version")) == 4
+			or int(migrator.call("get_source_version")) == 5
 		),
 	)
 	var missing: Dictionary = valid.duplicate(true)
@@ -276,10 +277,19 @@ static func _is_envelope(snapshot: Dictionary, source_version: int) -> bool:
 		return false
 	var metadata: Dictionary = snapshot.get(&"metadata", {}) as Dictionary
 	return (
-		int(snapshot.get(&"save_format_version", -1)) == 3
+		int(snapshot.get(&"save_format_version", -1)) == 4
 		and snapshot.has(&"world")
 		and snapshot.has(&"active_run")
 		and snapshot.has(&"profile")
+		and snapshot.has(&"farm")
+		and (
+			FarmSaveSchemaScript.mode_of(snapshot[&"farm"])
+			== RuntimeIdsScript.MODE_LEGACY_EXPEDITION
+		)
+		and (
+			(snapshot[&"farm"] as Dictionary)[&"migration_tokens"]
+			== [String(RuntimeIdsScript.MIGRATION_FARM_V3_TO_V4)]
+		)
 		and metadata.get(&"build_id", "") == "legacy-migration"
 		and int(metadata.get(&"world_generation_version", -1)) == 1
 		and int(metadata.get(&"write_sequence", -1)) == 0

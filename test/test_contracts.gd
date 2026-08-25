@@ -6,9 +6,7 @@ const BalanceTestsScript: GDScript = preload("res://test/test_balance.gd")
 const BiomeDestructibleTestsScript: GDScript = preload("res://test/test_biome_destructibles.gd")
 const BiomeFaunaTestsScript: GDScript = preload("res://test/test_biome_fauna.gd")
 const BiomeIntelPanelTestsScript: GDScript = preload("res://test/test_biome_intel_panel.gd")
-const BiomeWeatherAudioTestsScript: GDScript = preload(
-	"res://test/test_biome_weather_audio.gd"
-)
+const BiomeWeatherAudioTestsScript: GDScript = preload("res://test/test_biome_weather_audio.gd")
 const BiomeWeatherParticleTestsScript: GDScript = preload(
 	"res://test/test_biome_weather_particles.gd"
 )
@@ -51,6 +49,7 @@ const WalkerLocomotionFeedbackTestsScript: GDScript = preload(
 	"res://test/test_walker_locomotion_feedback.gd"
 )
 const HUDFeedbackTestsScript: GDScript = preload("res://test/test_hud_feedback.gd")
+const HarvestPhaseZeroTestsScript: GDScript = preload("res://test/test_harvest_phase_zero.gd")
 const EnvironmentRewardFeedbackTestsScript: GDScript = preload(
 	"res://test/test_environment_reward_feedback.gd"
 )
@@ -108,6 +107,7 @@ static func evaluate(
 	cases.append_array(WormTelegraphTestsScript.evaluate())
 	cases.append_array(WalkerLocomotionFeedbackTestsScript.evaluate())
 	cases.append_array(HUDFeedbackTestsScript.evaluate())
+	cases.append_array(HarvestPhaseZeroTestsScript.evaluate())
 	cases.append_array(EnvironmentRewardFeedbackTestsScript.evaluate())
 	cases.append_array(FeedbackAccessibilityTestsScript.evaluate())
 	cases.append_array(JuiceCertificationTestsScript.evaluate())

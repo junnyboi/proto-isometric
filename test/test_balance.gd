@@ -20,7 +20,7 @@ static func evaluate(coordinator: RefCounted) -> Array[Dictionary]:
 	_add_case(
 		cases,
 		"stable ID registry version is pinned",
-		RuntimeIdsScript.REGISTRY_VERSION == 6,
+		RuntimeIdsScript.LEGACY_REGISTRY_VERSION == 6 and RuntimeIdsScript.REGISTRY_VERSION == 7,
 	)
 	_add_case(
 		cases,
@@ -97,7 +97,7 @@ static func evaluate(coordinator: RefCounted) -> Array[Dictionary]:
 	)
 	_add_case(
 		cases,
-		"schema-3 persistence authority is SaveRepository",
+		"schema-4 persistence authority is SaveRepository",
 		(
 			RuntimeOwnershipScript.current_owner_for(RuntimeIdsScript.DOMAIN_PERSISTENCE)
 			== RuntimeIdsScript.OWNER_SAVE_REPOSITORY
@@ -111,6 +111,7 @@ static func evaluate(coordinator: RefCounted) -> Array[Dictionary]:
 			== RuntimeIdsScript.OWNER_FEEDBACK_ROUTER
 		),
 	)
+	_test_harvest_ownership(cases)
 	_add_case(cases, "neutral run coordinator exists", coordinator != null)
 	if coordinator == null:
 		return cases
@@ -142,6 +143,65 @@ static func evaluate(coordinator: RefCounted) -> Array[Dictionary]:
 	_test_telemetry(cases, coordinator)
 	_test_worn_plates(cases)
 	return cases
+
+
+static func _test_harvest_ownership(cases: Array[Dictionary]) -> void:
+	var contracts: Array[Dictionary] = [
+		{
+			&"domain": RuntimeIdsScript.DOMAIN_FARM,
+			&"owner": RuntimeIdsScript.OWNER_FARM_STATE,
+			&"scope": RuntimeOwnershipScript.SCOPE_FARM,
+		},
+		{
+			&"domain": RuntimeIdsScript.DOMAIN_CALENDAR_WEATHER,
+			&"owner": RuntimeIdsScript.OWNER_CALENDAR_WEATHER,
+			&"scope": RuntimeOwnershipScript.SCOPE_CALENDAR_WEATHER,
+		},
+		{
+			&"domain": RuntimeIdsScript.DOMAIN_INVENTORY_ECONOMY,
+			&"owner": RuntimeIdsScript.OWNER_INVENTORY_ECONOMY,
+			&"scope": RuntimeOwnershipScript.SCOPE_INVENTORY_ECONOMY,
+		},
+		{
+			&"domain": RuntimeIdsScript.DOMAIN_HOMESTEAD_SETTLEMENT,
+			&"owner": RuntimeIdsScript.OWNER_HOMESTEAD_SETTLEMENT,
+			&"scope": RuntimeOwnershipScript.SCOPE_HOMESTEAD_SETTLEMENT,
+		},
+		{
+			&"domain": RuntimeIdsScript.DOMAIN_TOOLS_INTERACTIONS,
+			&"owner": RuntimeIdsScript.OWNER_TOOL_INTERACTION,
+			&"scope": RuntimeOwnershipScript.SCOPE_TOOLS_INTERACTIONS,
+		},
+		{
+			&"domain": RuntimeIdsScript.DOMAIN_ECOLOGY,
+			&"owner": RuntimeIdsScript.OWNER_ECOLOGY,
+			&"scope": RuntimeOwnershipScript.SCOPE_ECOLOGY,
+		},
+	]
+	for expected: Dictionary in contracts:
+		var domain_id: StringName = expected[&"domain"] as StringName
+		var owner_id: StringName = expected[&"owner"] as StringName
+		var contract: Dictionary = RuntimeOwnershipScript.contract_for(domain_id)
+		_add_case(
+			cases,
+			"Harvest owner and scope are explicit for %s" % domain_id,
+			(
+				RuntimeOwnershipScript.owner_for(domain_id) == owner_id
+				and contract[&"state_scope"] == expected[&"scope"]
+				and contract[&"migration_state"] == RuntimeOwnershipScript.MIGRATION_PLANNED
+			),
+		)
+		_add_case(
+			cases,
+			"Harvest domain rejects cross-domain mutation for %s" % domain_id,
+			(
+				RuntimeOwnershipScript.can_target_mutation(domain_id, owner_id)
+				and not RuntimeOwnershipScript.can_target_mutation(
+					domain_id, RuntimeIdsScript.OWNER_SAVE_REPOSITORY
+				)
+				and not RuntimeOwnershipScript.can_mutate(domain_id, owner_id)
+			),
+		)
 
 
 static func _test_balance_snapshot(cases: Array[Dictionary], balance: Dictionary) -> void:
