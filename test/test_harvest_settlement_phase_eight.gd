@@ -369,7 +369,7 @@ static func evaluate(runtime: Node2D) -> Array[Dictionary]:
 	)
 	var soak: Dictionary = final_farm.duplicate(true)
 	var soak_ok: bool = true
-	for offset: int in 180:
+	for offset: int in 3_650:
 		var logistics_day: Dictionary = LogisticsScript.advance(soak, 600 + offset)
 		if not bool(logistics_day[&"ok"]):
 			soak_ok = false
@@ -383,7 +383,7 @@ static func evaluate(runtime: Node2D) -> Array[Dictionary]:
 		soak = production_day[&"candidate"] as Dictionary
 	_add(
 		cases,
-		"P8 180-day logistics and production soak retains bounded exact receipts",
+		"P8 ten-year logistics and production soak retains bounded exact receipts",
 		soak_ok
 		and _receipt_count(soak, "transfer:day.") <= 16
 		and _receipt_count(soak, "production:day.") <= 16
