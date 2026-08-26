@@ -22,6 +22,7 @@ static func evaluate() -> Array[Dictionary]:
 	_test_fallback(cases)
 	_test_current_provider_cards(cases)
 	_test_read_operation_reachability(cases)
+	_test_operation_cache_isolation(cases)
 	return cases
 
 
@@ -69,6 +70,23 @@ static func _test_operation_catalog(cases: Array[Dictionary]) -> void:
 			and not OperationCatalogScript.validate(malformed)
 			and not OperationCatalogScript.validate(read_with_domain)
 		),
+	)
+
+
+static func _test_operation_cache_isolation(cases: Array[Dictionary]) -> void:
+	var before: Dictionary = OperationCatalogScript.descriptor_for(
+		&"inspect", OperationCatalogScript.PROVIDER_TERRAIN
+	)
+	var exposed: Array[Dictionary] = OperationCatalogScript.descriptors()
+	(exposed[0] as Dictionary)[&"route"] = &"poisoned"
+	((exposed[0] as Dictionary)[&"allowed_provider_ids"] as Array).clear()
+	var after: Dictionary = OperationCatalogScript.descriptor_for(
+		&"inspect", OperationCatalogScript.PROVIDER_TERRAIN
+	)
+	_add(
+		cases,
+		"INS-19 cached operation descriptors remain immutable across caller mutations",
+		not before.is_empty() and before == after and OperationCatalogScript.validate(after),
 	)
 
 

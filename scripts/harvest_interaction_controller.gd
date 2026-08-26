@@ -330,7 +330,7 @@ func confirm_menu() -> bool:
 	if bool(result.get(&"ok", false)):
 		if option[&"close_behavior"] in [&"always", &"on_success"]:
 			close_menu()
-		else:
+		elif bool(result.get(&"mutated", false)):
 			refresh_menu_if_stale()
 	elif option[&"close_behavior"] == &"always":
 		close_menu()

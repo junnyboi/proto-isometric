@@ -378,10 +378,11 @@ func _refresh_details() -> void:
 			fact[&"label_key"] as StringName,
 			LocalizationScript.t(&"interaction.inspect.fact.unknown"),
 		)
-		row.text = "%s  //  %s" % [label, _fact_value_text(fact)]
-		row.accessibility_name = "%s, %s" % [label, _fact_value_text(fact)]
+		var value_text: String = _fact_value_text(fact)
+		row.text = "%s  //  %s" % [label, value_text]
+		row.accessibility_name = "%s, %s" % [label, value_text]
 	_apply_view_visibility()
-	_apply_layout(get_viewport().get_visible_rect().size)
+	_update_detail_minimum_size()
 
 
 func _localized_parameters(parameters: Dictionary) -> Dictionary:
@@ -563,12 +564,7 @@ func _apply_layout(viewport_size: Vector2) -> void:
 	_detail_title_label.add_theme_font_size_override("font_size", roundi(15.0 * _ui_scale))
 	_detail_body_label.add_theme_font_size_override("font_size", roundi(12.0 * _ui_scale))
 	_footer_label.add_theme_font_size_override("font_size", roundi(11.0 * _ui_scale))
-	var detail_share: float = 0.62 if _is_compact_layout() else 0.4
-	_detail_panel.custom_minimum_size.y = (
-		minf(360.0 * _ui_scale, popup.size.y * detail_share)
-		if _detail_panel.visible
-		else 0.0
-	)
+	_update_detail_minimum_size()
 	for button: Button in [_details_tab, _actions_tab, _back_button, _activate_button]:
 		button.add_theme_font_size_override("font_size", roundi(13.0 * _ui_scale))
 	for fact_row: Label in _fact_rows:
@@ -578,6 +574,18 @@ func _apply_layout(viewport_size: Vector2) -> void:
 		row.add_theme_font_size_override("font_size", roundi(14.0 * _ui_scale))
 	if is_open():
 		_set_mobile_modal(true)
+
+
+func _update_detail_minimum_size() -> void:
+	if _detail_panel == null or not validate_layout(_layout):
+		return
+	var popup: Rect2 = _layout[&"popup"] as Rect2
+	var detail_share: float = 0.62 if _is_compact_layout() else 0.4
+	_detail_panel.custom_minimum_size.y = (
+		minf(360.0 * _ui_scale, popup.size.y * detail_share)
+		if _detail_panel.visible
+		else 0.0
+	)
 
 
 func _build_interface() -> void:

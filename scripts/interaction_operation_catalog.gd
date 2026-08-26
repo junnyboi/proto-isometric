@@ -99,11 +99,14 @@ const KEYS: Array[StringName] = [
 	&"stale_policy",
 	&"allowed_close_behaviors",
 ]
+static var _descriptor_cache: Array[Dictionary] = []
 
 
 static func descriptors() -> Array[Dictionary]:
-	var result: Array[Dictionary] = _build_descriptors()
-	return result if validate_catalog(result) else []
+	var result: Array[Dictionary] = []
+	for operation_descriptor: Dictionary in _catalog():
+		result.append(operation_descriptor.duplicate(true))
+	return result
 
 
 static func operations() -> Array[StringName]:
@@ -117,7 +120,7 @@ static func descriptor_for(
 	operation: StringName,
 	provider_id: StringName = &"",
 ) -> Dictionary:
-	for operation_descriptor: Dictionary in descriptors():
+	for operation_descriptor: Dictionary in _catalog():
 		if operation_descriptor[&"operation"] != operation:
 			continue
 		if (
@@ -127,6 +130,14 @@ static func descriptor_for(
 			return {}
 		return operation_descriptor.duplicate(true)
 	return {}
+
+
+static func _catalog() -> Array[Dictionary]:
+	if _descriptor_cache.is_empty():
+		var candidate: Array[Dictionary] = _build_descriptors()
+		if validate_catalog(candidate):
+			_descriptor_cache = candidate
+	return _descriptor_cache
 
 
 static func validate(value: Variant) -> bool:
