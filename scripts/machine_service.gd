@@ -2,6 +2,9 @@ extends RefCounted
 
 const CalendarStateScript: GDScript = preload("res://scripts/calendar_state.gd")
 const InventoryServiceScript: GDScript = preload("res://scripts/inventory_service.gd")
+const LegacyRecipeAdapterScript: GDScript = preload(
+	"res://scripts/legacy_machine_recipe_adapter.gd"
+)
 const RecipeCatalogScript: GDScript = preload("res://scripts/recipe_catalog.gd")
 
 const STATE_IDLE: StringName = &"machine.idle"
@@ -46,7 +49,7 @@ static func start(farm: Dictionary, machine_id: StringName, recipe_id: StringNam
 	if machine[&"station_tag"] != recipe[&"station_tag"]:
 		return _result(false, farm, &"station_mismatch")
 	var candidate: Dictionary = farm.duplicate(true)
-	for raw_ingredient: Variant in recipe[&"ingredients"] as Array:
+	for raw_ingredient: Variant in LegacyRecipeAdapterScript.ingredients(recipe):
 		var ingredient: Dictionary = raw_ingredient as Dictionary
 		var removed: Dictionary = InventoryServiceScript.remove_across(
 			candidate,
@@ -101,7 +104,7 @@ static func claim(farm: Dictionary, machine_id: StringName) -> Dictionary:
 	if token in (machine[&"claimed_tokens"] as Array):
 		return _result(false, farm, &"already_claimed")
 	var candidate: Dictionary = farm.duplicate(true)
-	for raw_output: Variant in recipe[&"outputs"] as Array:
+	for raw_output: Variant in LegacyRecipeAdapterScript.outputs(recipe):
 		var output: Dictionary = raw_output as Dictionary
 		var credited: Dictionary = InventoryServiceScript.credit_with_overflow(
 			candidate, StringName(str(output[&"item_id"])), int(output[&"count"])

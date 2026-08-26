@@ -3,6 +3,10 @@ extends RefCounted
 const ReceiptLedgerScript: GDScript = preload("res://scripts/exact_once_receipt_ledger.gd")
 const StateHashScript: GDScript = preload("res://scripts/persistence_state_hash.gd")
 const ItemCatalogScript: GDScript = preload("res://scripts/item_catalog.gd")
+const RecipeCatalogScript: GDScript = preload("res://scripts/recipe_catalog.gd")
+const BlueprintCatalogScript: GDScript = preload(
+	"res://scripts/construction_blueprint_catalog.gd"
+)
 
 const STATE_VERSION: int = 1
 const MAX_BUILDINGS: int = 64
@@ -14,11 +18,13 @@ const MAX_WORK_ASSIGNMENTS: int = 24
 const MAX_CONCERNS: int = 24
 const MAX_SHIFT_REPORTS: int = 88
 const MAX_LOGISTICS_JOBS: int = 128
+const MAX_RESERVE_RULES: int = 64
 const MAX_FISHING_SPOTS: int = 64
 const MAX_TREES: int = 512
 const MAX_TUTORIAL_LESSONS: int = 16
 const MAX_LOCAL_STACKS: int = 12
 const MAX_RECIPES_PER_BUILDING: int = 8
+const MAX_PRODUCTION_ORDERS: int = 8
 const MAX_COORDINATE: int = 1_000_000
 const MAX_NUMBER: int = 1_000_000_000
 
@@ -57,7 +63,7 @@ static func neutral_applicant_lifecycle() -> Dictionary:
 
 
 static func neutral_logistics() -> Dictionary:
-	return {&"state_version": STATE_VERSION, &"jobs": []}
+	return {&"state_version": STATE_VERSION, &"jobs": [], &"reserve_rules": []}
 
 
 static func neutral_fishing() -> Dictionary:
@@ -149,11 +155,27 @@ static func validate_workforce(value: Variant) -> Dictionary:
 
 
 static func validate_logistics(value: Variant) -> Dictionary:
-	var section: Dictionary = _section(value, [&"state_version", &"jobs"])
+	if not value is Dictionary:
+		return {}
+	var canonical: Dictionary = (value as Dictionary).duplicate(true)
+	if _exact_keys(canonical, [&"state_version", &"jobs"]):
+		canonical[&"reserve_rules"] = []
+	var section: Dictionary = _section(
+		canonical, [&"state_version", &"jobs", &"reserve_rules"]
+	)
 	if section.is_empty():
 		return {}
 	var records: Variant = _records(section[&"jobs"], MAX_LOGISTICS_JOBS, _job, &"job_id")
-	return {} if records == null else {&"state_version": STATE_VERSION, &"jobs": records}
+	var rules: Variant = _records(
+		section[&"reserve_rules"], MAX_RESERVE_RULES, _reserve_rule, &"item_id"
+	)
+	if records == null or rules == null:
+		return {}
+	return {
+		&"state_version": STATE_VERSION,
+		&"jobs": records,
+		&"reserve_rules": rules,
+	}
 
 
 static func validate_fishing(value: Variant) -> Dictionary:
@@ -205,61 +227,137 @@ static func validate_links(
 ) -> bool:
 	var building_ids: Dictionary = {}
 	for building: Dictionary in construction.get(&"buildings", []) as Array[Dictionary]:
-		building_ids[str(building[&"instance_id"])] = true
+		building_ids[str(building[&"instance_id"])] = building
 	for delta: Dictionary in gathering.get(&"resource_deltas", []) as Array[Dictionary]:
 		var reserved_by: String = str(delta[&"reserved_by"])
 		if not reserved_by.is_empty() and not building_ids.has(reserved_by):
 			return false
 	for assignment: Dictionary in workforce.get(&"work_assignments", []) as Array[Dictionary]:
-		if not building_ids.has(str(assignment[&"site_id"])):
+		var assignment_site: String = str(assignment[&"site_id"])
+		if (
+			not building_ids.has(assignment_site)
+			or not _work_site_slot_is_valid(
+				building_ids[assignment_site] as Dictionary, int(assignment[&"slot"])
+			)
+		):
 			return false
 	for report: Dictionary in workforce.get(&"shift_reports", []) as Array[Dictionary]:
-		if not building_ids.has(str(report[&"site_id"])):
+		var report_site: String = str(report[&"site_id"])
+		if (
+			not building_ids.has(report_site)
+			or str((building_ids[report_site] as Dictionary)[&"state"]) != "complete"
+		):
+			return false
+		if (
+			int(report[&"slot"]) >= 0
+			and not _work_site_slot_is_valid(
+				building_ids[report_site] as Dictionary, int(report[&"slot"])
+			)
+		):
 			return false
 	for job: Dictionary in logistics.get(&"jobs", []) as Array[Dictionary]:
+		var source_id: String = str(job[&"source_id"])
+		var destination_id: String = str(job[&"destination_id"])
 		if (
-			not building_ids.has(str(job[&"source_id"]))
-			or not building_ids.has(str(job[&"destination_id"]))
+			not building_ids.has(source_id)
+			or not building_ids.has(destination_id)
+			or not _logistics_link_is_valid(
+				building_ids[source_id] as Dictionary,
+				building_ids[destination_id] as Dictionary,
+			)
 		):
 			return false
 	return true
 
 
+static func _logistics_link_is_valid(source: Dictionary, destination: Dictionary) -> bool:
+	if str(source[&"state"]) != "complete" or str(destination[&"state"]) != "complete":
+		return false
+	var source_blueprint: String = str(source[&"blueprint_id"])
+	var destination_blueprint: String = str(destination[&"blueprint_id"])
+	if destination_blueprint == "blueprint.fabricator_annex":
+		return source_blueprint == "blueprint.field_warehouse"
+	if destination_blueprint != "blueprint.field_warehouse":
+		return false
+	return source_blueprint in [
+		"blueprint.salvage_camp",
+		"blueprint.survey_drill",
+		"blueprint.coppice_station",
+		"blueprint.fabricator_annex",
+		"blueprint.fishing_platform",
+	]
+
+
+static func _work_site_slot_is_valid(building: Dictionary, slot: int) -> bool:
+	if str(building[&"state"]) != "complete":
+		return false
+	var blueprint_id: StringName = StringName(str(building[&"blueprint_id"]))
+	var slots: Array[StringName] = BlueprintCatalogScript.work_slot_types(blueprint_id)
+	return slot >= 0 and slot < slots.size()
+
+
 static func _building(value: Dictionary) -> Dictionary:
-	var keys: Array[StringName] = [
+	var canonical: Dictionary = value.duplicate(true)
+	var legacy_keys: Array[StringName] = [
 		&"instance_id", &"blueprint_id", &"anchor", &"orientation", &"level", &"state",
 		&"footprint", &"local_stacks", &"recipe_policies"
 	]
-	if not _exact_keys(value, keys):
+	if _exact_keys(canonical, legacy_keys):
+		canonical[&"local_input_stacks"] = []
+		canonical[&"production_orders"] = []
+	var keys: Array[StringName] = [
+		&"instance_id", &"blueprint_id", &"anchor", &"orientation", &"level", &"state",
+		&"footprint", &"local_stacks", &"local_input_stacks", &"recipe_policies",
+		&"production_orders"
+	]
+	if not _exact_keys(canonical, keys):
 		return {}
-	var anchor: Variant = _cell(value[&"anchor"])
-	var footprint: Variant = _cells(value[&"footprint"], MAX_FOOTPRINT_CELLS)
-	var stacks: Variant = _stacks(value[&"local_stacks"])
-	var recipes: Variant = _recipes(value[&"recipe_policies"])
-	var orientation: Variant = _integer(value[&"orientation"], 0, 3)
-	var level: Variant = _integer(value[&"level"], 1, 99)
+	var anchor: Variant = _cell(canonical[&"anchor"])
+	var footprint: Variant = _cells(canonical[&"footprint"], MAX_FOOTPRINT_CELLS)
+	var stacks: Variant = _stacks(canonical[&"local_stacks"])
+	var inputs: Variant = _stacks(canonical[&"local_input_stacks"])
+	var recipes: Variant = _recipes(canonical[&"recipe_policies"])
+	var orders: Variant = _records(
+		canonical[&"production_orders"], MAX_PRODUCTION_ORDERS, _production_order, &"order_id"
+	)
+	var orientation: Variant = _integer(canonical[&"orientation"], 0, 3)
+	var level: Variant = _integer(canonical[&"level"], 1, 99)
 	if (
 			anchor == null
 			or footprint == null
 			or stacks == null
+			or inputs == null
 			or recipes == null
+			or orders == null
 			or orientation == null
 			or level == null
 			or anchor not in (footprint as Array)
-		or not _identifier(value[&"instance_id"]) or not _identifier(value[&"blueprint_id"])
-		or str(value[&"state"]) not in ["blueprint", "constructing", "complete"]
+		or not _identifier(canonical[&"instance_id"])
+		or not _identifier(canonical[&"blueprint_id"])
+		or str(canonical[&"state"]) not in ["blueprint", "constructing", "complete"]
+	):
+		return {}
+	if (
+		str(canonical[&"blueprint_id"]) != "blueprint.fabricator_annex"
+		and (
+			not (inputs as Array).is_empty()
+			or not (recipes as Array).is_empty()
+			or not (orders as Array).is_empty()
+		)
 	):
 		return {}
 	return {
-		&"instance_id": str(value[&"instance_id"]),
-		&"blueprint_id": str(value[&"blueprint_id"]),
+		&"instance_id": str(canonical[&"instance_id"]),
+		&"blueprint_id": str(canonical[&"blueprint_id"]),
 		&"anchor": anchor,
 		&"orientation": int(orientation),
 		&"level": int(level),
-		&"state": str(value[&"state"]),
+		&"state": str(canonical[&"state"]),
 		&"footprint": footprint,
 		&"local_stacks": stacks,
+		&"local_input_stacks": inputs,
 		&"recipe_policies": recipes,
+		&"production_orders": orders,
 	}
 
 
@@ -436,6 +534,11 @@ static func _job(value: Dictionary) -> Dictionary:
 	for key: StringName in [&"job_id", &"source_id", &"destination_id", &"item_id"]:
 		if not _identifier(value[key]):
 			return {}
+	if (
+		str(value[&"source_id"]) == str(value[&"destination_id"])
+		or StringName(str(value[&"item_id"])) not in ItemCatalogScript.ids()
+	):
+		return {}
 	var count: Variant = _integer(value[&"count"], 1, MAX_NUMBER)
 	var priority: Variant = _integer(value[&"priority"], 0, 9)
 	var age: Variant = _integer(value[&"age"], 0, MAX_NUMBER)
@@ -450,6 +553,16 @@ static func _job(value: Dictionary) -> Dictionary:
 		&"priority": int(priority),
 		&"age": int(age),
 	}
+
+
+static func _reserve_rule(value: Dictionary) -> Dictionary:
+	if not _exact_keys(value, [&"item_id", &"floor"]):
+		return {}
+	var item_id: StringName = StringName(str(value[&"item_id"]))
+	var floor: Variant = _integer(value[&"floor"], 0, MAX_NUMBER)
+	if item_id not in ItemCatalogScript.ids() or floor == null:
+		return {}
+	return {&"item_id": str(item_id), &"floor": int(floor)}
 
 
 static func _spot(value: Dictionary) -> Dictionary:
@@ -560,6 +673,7 @@ static func _recipes(value: Variant) -> Variant:
 		var target: Variant = _integer(recipe.get(&"target_count"), 0, MAX_NUMBER)
 		if (
 			not _identifier(recipe_id)
+			or StringName(recipe_id) not in RecipeCatalogScript.ids()
 			or seen.has(recipe_id)
 			or not recipe.get(&"enabled") is bool
 			or priority == null
@@ -577,6 +691,30 @@ static func _recipes(value: Variant) -> Variant:
 		)
 	result.sort_custom(_record_precedes.bind(&"recipe_id"))
 	return result
+
+
+static func _production_order(value: Dictionary) -> Dictionary:
+	var keys: Array[StringName] = [
+		&"order_id", &"recipe_id", &"start_day", &"complete_day", &"operation_token"
+	]
+	if not _exact_keys(value, keys):
+		return {}
+	var start_day: Variant = _integer(value[&"start_day"], 1, MAX_NUMBER)
+	var complete_day: Variant = _integer(value[&"complete_day"], 1, MAX_NUMBER)
+	if (
+		start_day == null or complete_day == null or int(complete_day) < int(start_day)
+		or not _identifier(value[&"order_id"])
+		or StringName(str(value[&"recipe_id"])) not in RecipeCatalogScript.ids()
+		or not _identifier(value[&"operation_token"])
+	):
+		return {}
+	return {
+		&"order_id": str(value[&"order_id"]),
+		&"recipe_id": str(value[&"recipe_id"]),
+		&"start_day": int(start_day),
+		&"complete_day": int(complete_day),
+		&"operation_token": str(value[&"operation_token"]),
+	}
 
 
 static func _building_footprints_are_unique(buildings: Array) -> bool:

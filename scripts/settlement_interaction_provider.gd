@@ -21,6 +21,20 @@ static func terminal_option() -> Dictionary:
 	)
 
 
+static func logistics_option() -> Dictionary:
+	var no_cost: Array[Dictionary] = []
+	return TargetBridgeScript.option_input(
+		&"interaction.action.open_logistics",
+		&"open_settlement_logistics",
+		{},
+		true,
+		&"",
+		195,
+		no_cost,
+		OptionScript.CLOSE_ALWAYS,
+	)
+
+
 static func settler(cell: Vector2i, settler_id: StringName) -> Dictionary:
 	var no_cost: Array[Dictionary] = []
 	return TargetBridgeScript.project(

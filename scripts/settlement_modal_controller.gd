@@ -81,6 +81,29 @@ func _on_action_requested(action: StringName, data: Dictionary) -> void:
 				StringName(str(data.get(&"settler_id", ""))),
 				int(data.get(&"source_revision", -1)),
 			) as Dictionary
+		&"set_reserve":
+			result = _runtime.call(
+				"set_reserve",
+				StringName(str(data.get(&"item_id", ""))),
+				int(data.get(&"floor", -1)),
+				int(data.get(&"source_revision", -1)),
+			) as Dictionary
+		&"save_policy":
+			result = _runtime.call(
+				"set_recipe_policy",
+				StringName(str(data.get(&"site_id", ""))),
+				StringName(str(data.get(&"recipe_id", ""))),
+				bool(data.get(&"enabled", false)),
+				int(data.get(&"priority", -1)),
+				int(data.get(&"target_count", -1)),
+				int(data.get(&"source_revision", -1)),
+			) as Dictionary
+		&"force_delivery":
+			result = _runtime.call(
+				"force_delivery",
+				StringName(str(data.get(&"job_id", ""))),
+				int(data.get(&"source_revision", -1)),
+			) as Dictionary
 	if bool(result.get(&"ok", false)) and action == &"assign":
 		assignment_committed.emit(result.duplicate(true))
 	if _presenter != null and _presenter.call("is_open"):

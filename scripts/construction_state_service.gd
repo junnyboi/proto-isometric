@@ -67,7 +67,9 @@ static func place(
 		&"state": "constructing",
 		&"footprint": CatalogScript.encoded_footprint(blueprint_id, anchor, orientation),
 		&"local_stacks": [],
+		&"local_input_stacks": [],
 		&"recipe_policies": [],
+		&"production_orders": [],
 	}
 	if not _replace_building(candidate, record):
 		return _result(false, farm, &"construction_record_invalid")
@@ -201,8 +203,10 @@ static func _consume(farm: Dictionary, materials: Dictionary) -> Dictionary:
 
 static func has_dependencies(farm: Dictionary, instance_id: StringName) -> bool:
 	var site: Dictionary = building(farm, instance_id)
-	if not site.is_empty() and not (site[&"local_stacks"] as Array).is_empty():
-		return true
+	if not site.is_empty():
+		for key: StringName in [&"local_stacks", &"local_input_stacks", &"production_orders"]:
+			if not (site.get(key, []) as Array).is_empty():
+				return true
 	var homestead: Dictionary = farm.get(&"homestead", {}) as Dictionary
 	var workforce: Dictionary = homestead.get(&"workforce", {}) as Dictionary
 	var bed_prefix: String = "bed.%s." % str(instance_id)

@@ -21,6 +21,22 @@ const TOKEN_NAMESPACES: Array[String] = [
 	"machine",
 	"ecology",
 ]
+const NAMESPACE_LIMITS: Dictionary = {
+	"quick": 4,
+	"construction": 6,
+	"deposit": 6,
+	"applicant": 4,
+	"assignment": 6,
+	"shift": 40,
+	"transfer": 16,
+	"production": 16,
+	"wellbeing": 4,
+	"tree": 4,
+	"fish": 4,
+	"day": 4,
+	"machine": 6,
+	"ecology": 4,
+}
 
 
 static func make_neutral() -> Dictionary:
@@ -108,6 +124,10 @@ static func record(
 		return _record_failure(validate(ledger), status)
 	var normalized: Dictionary = validate(ledger)
 	if (normalized[&"entries"] as Array).size() >= MAX_RECEIPTS:
+		normalized = prepare_for_record(normalized, token)
+		if normalized.is_empty():
+			return _record_failure(validate(ledger), &"invalid")
+	if (normalized[&"entries"] as Array).size() >= MAX_RECEIPTS:
 		return _record_failure(normalized, &"ledger_full")
 	if not _bounded_json(deterministic_result):
 		return _record_failure(normalized, &"invalid_result")
@@ -128,6 +148,7 @@ static func record(
 	var candidate: Dictionary = validate(
 		{&"state_version": STATE_VERSION, &"entries": entries}
 	)
+	candidate = _compact_namespaces(candidate, "", false, token)
 	return {
 		&"ok": not candidate.is_empty(),
 		&"status": &"recorded",
@@ -152,9 +173,57 @@ static func retain_prefix(ledger: Variant, prefix: String, limit: int) -> Dictio
 			matching.append(entry.duplicate(true))
 		else:
 			retained.append(entry.duplicate(true))
+	matching.sort_custom(_natural_entry_precedes)
 	var start: int = maxi(matching.size() - limit, 0)
 	for index: int in range(start, matching.size()):
 		retained.append(matching[index])
+	return validate({&"state_version": STATE_VERSION, &"entries": retained})
+
+
+static func prepare_for_record(ledger: Variant, incoming_token: String) -> Dictionary:
+	var normalized: Dictionary = validate(ledger)
+	var incoming_namespace: String = str(namespace_of(incoming_token))
+	if normalized.is_empty() or incoming_namespace not in NAMESPACE_LIMITS:
+		return {}
+	return _compact_namespaces(normalized, incoming_namespace, true)
+
+
+static func _compact_namespaces(
+	ledger: Dictionary,
+	incoming_namespace: String,
+	reserve_slot: bool,
+	protected_token: String = "",
+) -> Dictionary:
+	var grouped: Dictionary = {}
+	for category: String in TOKEN_NAMESPACES:
+		grouped[category] = []
+	for entry: Dictionary in ledger[&"entries"] as Array[Dictionary]:
+		(grouped[str(namespace_of(str(entry[&"token"]))) ] as Array).append(
+			entry.duplicate(true)
+		)
+	var retained: Array[Dictionary] = []
+	for category: String in TOKEN_NAMESPACES:
+		var entries: Array = grouped[category] as Array
+		entries.sort_custom(_natural_entry_precedes)
+		var limit: int = int(NAMESPACE_LIMITS[category])
+		if reserve_slot and category == incoming_namespace:
+			limit -= 1
+		limit = maxi(limit, 0)
+		var protected: Dictionary = {}
+		for entry: Dictionary in entries as Array[Dictionary]:
+			if str(entry[&"token"]) == protected_token:
+				protected = entry.duplicate(true)
+				break
+		var unprotected_limit: int = limit - (0 if protected.is_empty() else 1)
+		var kept: int = 0
+		for index: int in range(entries.size() - 1, -1, -1):
+			var entry: Dictionary = entries[index] as Dictionary
+			if str(entry[&"token"]) == protected_token or kept >= unprotected_limit:
+				continue
+			retained.append(entry.duplicate(true))
+			kept += 1
+		if not protected.is_empty() and limit > 0:
+			retained.append(protected)
 	return validate({&"state_version": STATE_VERSION, &"entries": retained})
 
 
@@ -242,6 +311,34 @@ static func _integer(value: Variant, minimum: int, maximum: int) -> Variant:
 
 static func _entry_precedes(first: Dictionary, second: Dictionary) -> bool:
 	return str(first[&"token"]) < str(second[&"token"])
+
+
+static func _natural_entry_precedes(first: Dictionary, second: Dictionary) -> bool:
+	var first_token: String = str(first[&"token"])
+	var second_token: String = str(second[&"token"])
+	var first_numbers: Array[int] = _token_numbers(first_token)
+	var second_numbers: Array[int] = _token_numbers(second_token)
+	for index: int in mini(first_numbers.size(), second_numbers.size()):
+		if first_numbers[index] != second_numbers[index]:
+			return first_numbers[index] < second_numbers[index]
+	if first_numbers.size() != second_numbers.size():
+		return first_numbers.size() < second_numbers.size()
+	return first_token < second_token
+
+
+static func _token_numbers(token: String) -> Array[int]:
+	var result: Array[int] = []
+	var digits: String = ""
+	for index: int in token.length():
+		var code: int = token.unicode_at(index)
+		if code >= 48 and code <= 57:
+			digits += char(code)
+		elif not digits.is_empty():
+			result.append(int(digits))
+			digits = ""
+	if not digits.is_empty():
+		result.append(int(digits))
+	return result
 
 
 static func _exact_keys(value: Dictionary, expected: Array[StringName]) -> bool:

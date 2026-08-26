@@ -11,7 +11,20 @@ ingredients = Array[Dictionary]([{
 "count": 2,
 "item_id": "item.ore.iron"
 }])
+ingredient_groups = Array[Dictionary]([{
+"options": Array[Dictionary]([{
+"count": 2,
+"item_id": "item.ore.iron"
+}, {
+"count": 4,
+"item_id": "item.material.scrap"
+}])
+}])
 outputs = Array[Dictionary]([{
 "count": 1,
 "item_id": "item.part.iron_ingot"
+}])
+byproducts = Array[Dictionary]([{
+"count": 1,
+"item_id": "item.material.stone"
 }])

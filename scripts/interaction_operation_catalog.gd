@@ -280,6 +280,10 @@ static func _build_descriptors() -> Array[Dictionary]:
 		],
 		OptionScript.CLOSE_ALWAYS,
 	)
+	_add_ui(
+		result, &"open_settlement_logistics", [PROVIDER_CONSTRUCTION],
+		OptionScript.CLOSE_ALWAYS
+	)
 	_add_farm(result, &"plant", [PROVIDER_TERRAIN])
 	_add_ui(result, &"preview_extraction_range", [PROVIDER_CONSTRUCTION], OptionScript.CLOSE_NEVER)
 	_add_read(result, &"read_herd_yield", [PROVIDER_WILDERNESS])

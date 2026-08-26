@@ -74,6 +74,9 @@ const HarvestSettlementPhaseSixTestsScript: GDScript = preload(
 const HarvestSettlementPhaseSevenTestsScript: GDScript = preload(
 	"res://test/test_harvest_settlement_phase_seven.gd"
 )
+const HarvestSettlementPhaseEightTestsScript: GDScript = preload(
+	"res://test/test_harvest_settlement_phase_eight.gd"
+)
 const EnvironmentRewardFeedbackTestsScript: GDScript = preload(
 	"res://test/test_environment_reward_feedback.gd"
 )
@@ -164,4 +167,5 @@ static func evaluate(
 	cases.append_array(HarvestSettlementPhaseFiveTestsScript.evaluate_contracts())
 	cases.append_array(HarvestSettlementPhaseSixTestsScript.evaluate_contracts())
 	cases.append_array(HarvestSettlementPhaseSevenTestsScript.evaluate_contracts())
+	cases.append_array(HarvestSettlementPhaseEightTestsScript.evaluate_contracts())
 	return cases

@@ -22,6 +22,10 @@ const InventoryServiceScript: GDScript = preload("res://scripts/inventory_servic
 const IronjawDesertArcScript: GDScript = preload("res://scripts/ironjaw_desert_arc.gd")
 const LivestockServiceScript: GDScript = preload("res://scripts/livestock_service.gd")
 const MachineServiceScript: GDScript = preload("res://scripts/machine_service.gd")
+const LogisticsServiceScript: GDScript = preload("res://scripts/logistics_service.gd")
+const ProductionPolicyScript: GDScript = preload(
+	"res://scripts/production_policy_service.gd"
+)
 const ProfileStateScript: GDScript = preload("res://scripts/profile_state.gd")
 const RelationshipServiceScript: GDScript = preload("res://scripts/relationship_service.gd")
 const RunStateScript: GDScript = preload("res://scripts/run_state.gd")
@@ -70,6 +74,10 @@ func transact(operation: StringName, arguments: Dictionary = {}) -> Dictionary:
 	var built: Dictionary = _build(source, operation, arguments)
 	if not bool(built.get(&"ok", false)):
 		return _result(false, source, built.get(&"reason", &"rejected") as StringName)
+	if bool(built.get(&"replayed", false)):
+		var replayed: Dictionary = _result(true, source, &"")
+		replayed[&"replayed"] = true
+		return replayed
 	return _commit_candidate(source, built[&"candidate"] as Dictionary)
 
 
@@ -353,6 +361,34 @@ func _build(source: Dictionary, operation: StringName, arguments: Dictionary) ->
 				mutation = WorkforceScript.unassign(
 					farm, arguments.get(&"settler_id", &"") as StringName
 				)
+		&"logistics_set_reserve":
+			if not _revision_matches(farm, arguments):
+				mutation = _mutation_rejected(farm, &"stale_logistics_revision")
+			else:
+				mutation = LogisticsServiceScript.set_reserve_floor(
+					farm,
+					arguments.get(&"item_id", &"") as StringName,
+					int(arguments.get(&"floor", -1)),
+				)
+		&"production_set_policy":
+			if not _revision_matches(farm, arguments):
+				mutation = _mutation_rejected(farm, &"stale_production_revision")
+			else:
+				mutation = ProductionPolicyScript.set_policy(
+					farm,
+					arguments.get(&"site_id", &"") as StringName,
+					arguments.get(&"recipe_id", &"") as StringName,
+					bool(arguments.get(&"enabled", false)),
+					int(arguments.get(&"priority", -1)),
+					int(arguments.get(&"target_count", -1)),
+				)
+		&"logistics_force_transfer":
+			mutation = LogisticsServiceScript.force_delivery(
+				farm,
+				arguments.get(&"job_id", &"") as StringName,
+				str(arguments.get(&"operation_id", "")),
+				int(arguments.get(&"expected_revision", -1)),
+			)
 		&"farm_candidate":
 			var normalized_farm: Dictionary = FarmSaveSchemaScript.validate(
 				arguments.get(&"farm", {})
@@ -371,7 +407,11 @@ func _build(source: Dictionary, operation: StringName, arguments: Dictionary) ->
 	if not bool(mutation.get(&"ok", false)):
 		return {&"ok": false, &"candidate": source, &"reason": mutation[&"reason"]}
 	candidate[&"farm"] = FarmSaveSchemaScript.validate(mutation[&"candidate"])
-	return {&"ok": not (candidate[&"farm"] as Dictionary).is_empty(), &"candidate": candidate}
+	return {
+		&"ok": not (candidate[&"farm"] as Dictionary).is_empty(),
+		&"candidate": candidate,
+		&"replayed": bool(mutation.get(&"replayed", false)),
+	}
 
 
 func _build_specialized(

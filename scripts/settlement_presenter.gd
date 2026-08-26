@@ -6,13 +6,16 @@ const BlueprintCatalogScript: GDScript = preload(
 	"res://scripts/construction_blueprint_catalog.gd"
 )
 const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
+const ItemCatalogScript: GDScript = preload("res://scripts/item_catalog.gd")
 
 var _root: Control
 var _panel: PanelContainer
 var _offer_view: VBoxContainer
 var _roster_view: VBoxContainer
+var _logistics_view: VBoxContainer
 var _offer_tab: Button
 var _roster_tab: Button
+var _logistics_tab: Button
 var _portrait: TextureRect
 var _offer_title: Label
 var _offer_details: Label
@@ -25,6 +28,19 @@ var _slot_select: OptionButton
 var _shift_select: OptionButton
 var _assignment_grid: GridContainer
 var _assignment_status: Label
+var _job_list: ItemList
+var _job_select: OptionButton
+var _reserve_item_select: OptionButton
+var _reserve_floor: SpinBox
+var _fabricator_select: OptionButton
+var _recipe_select: OptionButton
+var _policy_enabled: CheckButton
+var _policy_priority: SpinBox
+var _policy_target: SpinBox
+var _logistics_status: Label
+var _transfer_grid: GridContainer
+var _reserve_grid: GridContainer
+var _policy_grid: GridContainer
 var _buttons: Dictionary = {}
 var _snapshot: Dictionary = {}
 var _active_tab: StringName = &"offer"
@@ -41,13 +57,15 @@ func _ready() -> void:
 
 func present(snapshot: Dictionary, tab: StringName = &"offer") -> void:
 	_snapshot = snapshot.duplicate(true)
-	_active_tab = tab if tab in [&"offer", &"roster"] else &"offer"
+	_active_tab = tab if tab in [&"offer", &"roster", &"logistics"] else &"offer"
 	_refresh()
 	visible = true
 	_apply_layout()
 	var focus: Button = _buttons.get(&"invite") as Button
 	if _active_tab == &"roster":
 		focus = _buttons.get(&"assign") as Button
+	elif _active_tab == &"logistics":
+		focus = _buttons.get(&"force_delivery") as Button
 	if focus != null and not focus.disabled:
 		focus.grab_focus()
 	else:
@@ -67,7 +85,11 @@ func present_result(result: Dictionary) -> void:
 			&"settlement.status.rejected",
 			{&"reason": str(result.get(&"reason", &"rejected")).replace("_", " ")},
 		)
-	var label: Label = _assignment_status if _active_tab == &"roster" else _offer_expiry
+	var label: Label = _offer_expiry
+	if _active_tab == &"roster":
+		label = _assignment_status
+	elif _active_tab == &"logistics":
+		label = _logistics_status
 	if label != null:
 		label.text = text
 		label.visible = true
@@ -97,6 +119,9 @@ func layout_snapshot() -> Dictionary:
 		&"portrait": viewport.y > viewport.x,
 		&"compact": viewport.x < 900.0 or viewport.y < 560.0,
 		&"minimum_touch_target": 44.0,
+		&"transfer_columns": _transfer_grid.columns if _transfer_grid != null else 0,
+		&"reserve_columns": _reserve_grid.columns if _reserve_grid != null else 0,
+		&"policy_columns": _policy_grid.columns if _policy_grid != null else 0,
 	}
 
 
@@ -118,10 +143,13 @@ func _refresh() -> void:
 		return
 	_refresh_offer()
 	_refresh_roster()
+	_refresh_logistics()
 	_offer_view.visible = _active_tab == &"offer"
 	_roster_view.visible = _active_tab == &"roster"
+	_logistics_view.visible = _active_tab == &"logistics"
 	_offer_tab.disabled = _active_tab == &"offer"
 	_roster_tab.disabled = _active_tab == &"roster"
+	_logistics_tab.disabled = _active_tab == &"logistics"
 
 
 func _refresh_offer() -> void:
@@ -255,6 +283,102 @@ func _refresh_slots() -> void:
 	_slot_select.disabled = _slot_select.item_count == 0
 
 
+func _refresh_logistics() -> void:
+	if _job_list == null:
+		return
+	var previous_job: String = _selected_metadata(_job_select)
+	_job_list.clear()
+	_job_select.clear()
+	for job: Dictionary in _snapshot.get(&"jobs", []) as Array[Dictionary]:
+		var label: String = "%s ×%d // %s → %s // P%d A%d" % [
+			_item_label(str(job[&"item_id"])), int(job[&"count"]),
+			_short_id(str(job[&"source_id"])), _short_id(str(job[&"destination_id"])),
+			int(job[&"priority"]), int(job[&"age"]),
+		]
+		_job_list.add_item(label)
+		_job_select.add_item(label)
+		_job_select.set_item_metadata(_job_select.item_count - 1, str(job[&"job_id"]))
+	if _job_select.item_count == 0:
+		_job_list.add_item(LocalizationScript.t(&"settlement.logistics.jobs.empty"))
+		_job_list.set_item_disabled(0, true)
+		_job_list.custom_minimum_size = Vector2(0, 44)
+		_job_list.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	else:
+		_job_list.custom_minimum_size = Vector2(0, 110)
+		_job_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_select_metadata(_job_select, previous_job)
+	var force: Button = _buttons[&"force_delivery"] as Button
+	force.disabled = _job_select.item_count == 0
+	_refresh_reserve_items()
+	_refresh_fabricators()
+	_logistics_status.text = LocalizationScript.t(&"settlement.logistics.notice")
+
+
+func _refresh_reserve_items() -> void:
+	var previous: String = _selected_metadata(_reserve_item_select)
+	_reserve_item_select.clear()
+	var item_ids: Array[StringName] = ItemCatalogScript.ids()
+	item_ids.sort_custom(func(a: StringName, b: StringName) -> bool: return str(a) < str(b))
+	for item_id: StringName in item_ids:
+		_reserve_item_select.add_item(_item_label(str(item_id)))
+		_reserve_item_select.set_item_metadata(
+			_reserve_item_select.item_count - 1, str(item_id)
+		)
+	_select_metadata(_reserve_item_select, previous)
+	_refresh_reserve_floor()
+
+
+func _refresh_reserve_floor() -> void:
+	if _reserve_item_select.item_count == 0:
+		return
+	var item_id: String = _selected_metadata(_reserve_item_select)
+	var floor: int = 0
+	for rule: Dictionary in _snapshot.get(&"reserve_rules", []) as Array[Dictionary]:
+		if str(rule[&"item_id"]) == item_id:
+			floor = int(rule[&"floor"])
+			break
+	_reserve_floor.value = floor
+
+
+func _refresh_fabricators() -> void:
+	var previous_site: String = _selected_metadata(_fabricator_select)
+	var previous_recipe: String = _selected_metadata(_recipe_select)
+	_fabricator_select.clear()
+	for site: Dictionary in _snapshot.get(&"fabricators", []) as Array[Dictionary]:
+		_fabricator_select.add_item(_short_id(str(site[&"site_id"])))
+		_fabricator_select.set_item_metadata(
+			_fabricator_select.item_count - 1, str(site[&"site_id"])
+		)
+	_select_metadata(_fabricator_select, previous_site)
+	_recipe_select.clear()
+	for recipe: Dictionary in _snapshot.get(&"recipes", []) as Array[Dictionary]:
+		_recipe_select.add_item(_recipe_label(str(recipe[&"recipe_id"])))
+		_recipe_select.set_item_metadata(
+			_recipe_select.item_count - 1, str(recipe[&"recipe_id"])
+		)
+	_select_metadata(_recipe_select, previous_recipe)
+	var policy: Button = _buttons[&"save_policy"] as Button
+	policy.disabled = _fabricator_select.item_count == 0 or _recipe_select.item_count == 0
+	_refresh_policy_fields()
+
+
+func _refresh_policy_fields() -> void:
+	var site_id: String = _selected_metadata(_fabricator_select)
+	var recipe_id: String = _selected_metadata(_recipe_select)
+	_policy_enabled.button_pressed = false
+	_policy_priority.value = 5
+	_policy_target.value = 0
+	for site: Dictionary in _snapshot.get(&"fabricators", []) as Array[Dictionary]:
+		if str(site[&"site_id"]) != site_id:
+			continue
+		for policy: Dictionary in site[&"policies"] as Array[Dictionary]:
+			if str(policy[&"recipe_id"]) == recipe_id:
+				_policy_enabled.button_pressed = bool(policy[&"enabled"])
+				_policy_priority.value = int(policy[&"priority"])
+				_policy_target.value = int(policy[&"target_count"])
+				return
+
+
 func _build_interface() -> void:
 	_root = Control.new()
 	_root.name = "SettlementModalRoot"
@@ -284,19 +408,27 @@ func _build_interface() -> void:
 	content.add_child(title_row)
 	var title: Label = _label(20, Color("fff2cc"))
 	title.text = LocalizationScript.t(&"settlement.title")
+	title.clip_text = true
+	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_row.add_child(title)
 	var close: Button = _button("×", &"close")
+	close.custom_minimum_size = Vector2(44, 44)
 	close.tooltip_text = LocalizationScript.t(&"settlement.close")
 	title_row.add_child(close)
 	var tabs: HBoxContainer = HBoxContainer.new()
 	content.add_child(tabs)
 	_offer_tab = _button(LocalizationScript.t(&"settlement.tab.applicant"), &"tab_offer")
 	_roster_tab = _button(LocalizationScript.t(&"settlement.tab.roster"), &"tab_roster")
+	_logistics_tab = _button(
+		LocalizationScript.t(&"settlement.tab.logistics"), &"tab_logistics"
+	)
 	_offer_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_roster_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_logistics_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tabs.add_child(_offer_tab)
 	tabs.add_child(_roster_tab)
+	tabs.add_child(_logistics_tab)
 	var scroll: ScrollContainer = ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -315,6 +447,11 @@ func _build_interface() -> void:
 	_roster_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	view_stack.add_child(_roster_view)
 	_build_roster_view()
+	_logistics_view = VBoxContainer.new()
+	_logistics_view.add_theme_constant_override("separation", 8)
+	_logistics_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	view_stack.add_child(_logistics_view)
+	_build_logistics_view()
 
 
 func _build_offer_view() -> void:
@@ -379,6 +516,61 @@ func _build_roster_view() -> void:
 	actions.add_child(_button(LocalizationScript.t(&"settlement.action.unassign"), &"unassign"))
 
 
+func _build_logistics_view() -> void:
+	_job_list = ItemList.new()
+	_job_list.custom_minimum_size = Vector2(0, 110)
+	_job_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_job_list.add_theme_font_size_override("font_size", 14)
+	_logistics_view.add_child(_job_list)
+	_transfer_grid = GridContainer.new()
+	_transfer_grid.columns = 2
+	_transfer_grid.add_theme_constant_override("h_separation", 8)
+	_logistics_view.add_child(_transfer_grid)
+	_job_select = _selector(_transfer_grid, &"transfer_job")
+	_transfer_grid.add_child(
+		_button(LocalizationScript.t(&"settlement.action.force_delivery"), &"force_delivery")
+	)
+	_reserve_grid = GridContainer.new()
+	_reserve_grid.columns = 3
+	_reserve_grid.add_theme_constant_override("h_separation", 8)
+	_logistics_view.add_child(_reserve_grid)
+	_reserve_item_select = _selector(_reserve_grid, &"reserve_item")
+	_reserve_item_select.item_selected.connect(
+		func(_index: int) -> void: _refresh_reserve_floor()
+	)
+	_reserve_floor = _spin_box(0, 999, 1)
+	_reserve_grid.add_child(_reserve_floor)
+	_reserve_grid.add_child(
+		_button(LocalizationScript.t(&"settlement.action.set_reserve"), &"set_reserve")
+	)
+	_policy_grid = GridContainer.new()
+	_policy_grid.columns = 3
+	_policy_grid.add_theme_constant_override("h_separation", 8)
+	_logistics_view.add_child(_policy_grid)
+	_fabricator_select = _selector(_policy_grid, &"fabricator")
+	_fabricator_select.item_selected.connect(
+		func(_index: int) -> void: _refresh_policy_fields()
+	)
+	_recipe_select = _selector(_policy_grid, &"recipe")
+	_recipe_select.item_selected.connect(func(_index: int) -> void: _refresh_policy_fields())
+	_policy_enabled = CheckButton.new()
+	_policy_enabled.text = LocalizationScript.t(&"settlement.production.enabled")
+	_policy_enabled.custom_minimum_size = Vector2(96, 44)
+	_policy_grid.add_child(_policy_enabled)
+	_policy_priority = _spin_box(0, 9, 1)
+	_policy_priority.tooltip_text = LocalizationScript.t(&"settlement.production.priority")
+	_policy_grid.add_child(_policy_priority)
+	_policy_target = _spin_box(0, 999, 1)
+	_policy_target.tooltip_text = LocalizationScript.t(&"settlement.production.target")
+	_policy_grid.add_child(_policy_target)
+	_policy_grid.add_child(
+		_button(LocalizationScript.t(&"settlement.action.save_policy"), &"save_policy")
+	)
+	_logistics_status = _label(13, Color("75ead2"))
+	_logistics_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_logistics_view.add_child(_logistics_status)
+
+
 func _selector(parent: Container, prefix: StringName) -> OptionButton:
 	var selector: OptionButton = OptionButton.new()
 	selector.name = "%sSelector" % String(prefix).to_pascal_case()
@@ -389,6 +581,16 @@ func _selector(parent: Container, prefix: StringName) -> OptionButton:
 	selector.add_theme_font_size_override("font_size", 15)
 	parent.add_child(selector)
 	return selector
+
+
+func _spin_box(minimum: int, maximum: int, step: int) -> SpinBox:
+	var spin: SpinBox = SpinBox.new()
+	spin.min_value = minimum
+	spin.max_value = maximum
+	spin.step = step
+	spin.custom_minimum_size = Vector2(96, 44)
+	spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	return spin
 
 
 func _button(text: String, action: StringName) -> Button:
@@ -410,6 +612,10 @@ func _emit_action(action: StringName) -> void:
 		_active_tab = &"roster"
 		_refresh()
 		return
+	if action == &"tab_logistics":
+		_active_tab = &"logistics"
+		_refresh()
+		return
 	var data: Dictionary = {}
 	if action in [&"invite", &"decline", &"defer"]:
 		var offer: Dictionary = _snapshot.get(&"offer", {}) as Dictionary
@@ -422,6 +628,19 @@ func _emit_action(action: StringName) -> void:
 		data[&"site_id"] = _selected_metadata(_site_select)
 		data[&"slot"] = int(_slot_select.get_item_metadata(_slot_select.selected))
 		data[&"shift"] = int(_shift_select.get_item_metadata(_shift_select.selected))
+	if action in [&"force_delivery", &"set_reserve", &"save_policy"]:
+		data[&"source_revision"] = int(_snapshot.get(&"source_revision", -1))
+	if action == &"force_delivery":
+		data[&"job_id"] = _selected_metadata(_job_select)
+	if action == &"set_reserve":
+		data[&"item_id"] = _selected_metadata(_reserve_item_select)
+		data[&"floor"] = int(_reserve_floor.value)
+	if action == &"save_policy":
+		data[&"site_id"] = _selected_metadata(_fabricator_select)
+		data[&"recipe_id"] = _selected_metadata(_recipe_select)
+		data[&"enabled"] = _policy_enabled.button_pressed
+		data[&"priority"] = int(_policy_priority.value)
+		data[&"target_count"] = int(_policy_target.value)
 	action_requested.emit(action, data)
 
 
@@ -481,6 +700,23 @@ func _bed_label(bed_id: String) -> String:
 	return LocalizationScript.t(&"settlement.bed.none")
 
 
+func _item_label(item_id: String) -> String:
+	return item_id.get_slice(".", item_id.get_slice_count(".") - 1).replace("_", " ").capitalize()
+
+
+func _recipe_label(recipe_id: String) -> String:
+	return recipe_id.get_slice(
+		".", recipe_id.get_slice_count(".") - 1
+	).replace("_", " ").capitalize()
+
+
+func _short_id(stable_id: String) -> String:
+	var segments: PackedStringArray = stable_id.split(".")
+	if segments.size() <= 2:
+		return stable_id
+	return "%s #%s" % [segments[segments.size() - 2].replace("_", " ").capitalize(), segments[-1]]
+
+
 func _label(font_size: int, color: Color) -> Label:
 	var label: Label = Label.new()
 	label.add_theme_font_size_override("font_size", font_size)
@@ -496,8 +732,24 @@ func _apply_layout() -> void:
 	_panel.position = bounds.position
 	_panel.size = bounds.size
 	var compact: bool = viewport.x < 900.0 or viewport.y < 560.0
+	if _offer_tab != null:
+		_offer_tab.text = LocalizationScript.t(
+			&"settlement.tab.applicant.short" if compact else &"settlement.tab.applicant"
+		)
+		_roster_tab.text = LocalizationScript.t(
+			&"settlement.tab.roster.short" if compact else &"settlement.tab.roster"
+		)
+		_logistics_tab.text = LocalizationScript.t(
+			&"settlement.tab.logistics.short" if compact else &"settlement.tab.logistics"
+		)
 	if _assignment_grid != null:
 		_assignment_grid.columns = 2 if compact else 4
+	if _transfer_grid != null:
+		_transfer_grid.columns = 1 if compact else 2
+	if _reserve_grid != null:
+		_reserve_grid.columns = 1 if compact else 3
+	if _policy_grid != null:
+		_policy_grid.columns = 1 if compact else 3
 	_portrait.custom_minimum_size = Vector2(112, 140) if compact else Vector2(160, 200)
 
 

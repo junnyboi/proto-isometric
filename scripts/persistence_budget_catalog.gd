@@ -8,6 +8,7 @@ const ConstructionLinksScript: GDScript = preload("res://scripts/construction_en
 const ReceiptLedgerScript: GDScript = preload("res://scripts/exact_once_receipt_ledger.gd")
 const ResourceDepositCatalogScript: GDScript = preload("res://scripts/resource_deposit_catalog.gd")
 const ItemCatalogScript: GDScript = preload("res://scripts/item_catalog.gd")
+const RecipeCatalogScript: GDScript = preload("res://scripts/recipe_catalog.gd")
 const StateHashScript: GDScript = preload("res://scripts/persistence_state_hash.gd")
 const WorldLedgerScript: GDScript = preload("res://scripts/world_mutation_ledger.gd")
 
@@ -18,7 +19,7 @@ const SECTION_BUDGETS: Dictionary = {
 	"active_run": 96_000,
 	"profile": 32_000,
 	"farm_legacy": 420_000,
-	"construction": 150_000,
+	"construction": 220_000,
 	"gathering": 90_000,
 	"workforce": 48_000,
 	"logistics": 72_000,
@@ -102,6 +103,8 @@ static func simultaneous_maximum(base_envelope: Dictionary) -> Dictionary:
 	var homestead: Dictionary = farm[&"homestead"] as Dictionary
 	var buildings: Array[Dictionary] = []
 	var blueprint_ids: Array[StringName] = ConstructionCatalogScript.ids()
+	var recipe_ids: Array[StringName] = RecipeCatalogScript.ids()
+	recipe_ids.sort_custom(func(a: StringName, b: StringName) -> bool: return str(a) < str(b))
 	for index: int in SectionsScript.MAX_BUILDINGS:
 		var blueprint_id: StringName = blueprint_ids[index % blueprint_ids.size()]
 		var anchor: Vector2i = Vector2i(index * 20, index * 20)
@@ -118,15 +121,28 @@ static func simultaneous_maximum(base_envelope: Dictionary) -> Dictionary:
 				{&"item_id": str(item_id), &"count": ItemCatalogScript.stack_limit(item_id)}
 			)
 		var recipes: Array[Dictionary] = []
-		for recipe_index: int in SectionsScript.MAX_RECIPES_PER_BUILDING:
-			recipes.append(
-				{
-					&"recipe_id": "recipe.maximum.%02d" % recipe_index,
-					&"enabled": true,
-					&"priority": 9,
-					&"target_count": 999_999,
-				}
-			)
+		var inputs: Array[Dictionary] = []
+		var orders: Array[Dictionary] = []
+		if blueprint_id == ConstructionCatalogScript.FABRICATOR_ANNEX:
+			inputs = stacks.duplicate(true)
+			for recipe_id: StringName in recipe_ids:
+				recipes.append(
+					{
+						&"recipe_id": str(recipe_id), &"enabled": true,
+						&"priority": 9, &"target_count": 999_999,
+					}
+				)
+			for order_index: int in SectionsScript.MAX_PRODUCTION_ORDERS:
+				orders.append(
+					{
+						&"order_id": "order.maximum.%03d.%02d" % [index, order_index],
+						&"recipe_id": str(recipe_ids[order_index % recipe_ids.size()]),
+						&"start_day": 999_998, &"complete_day": 999_999,
+						&"operation_token": (
+							"production:maximum:%03d:%02d" % [index, order_index]
+						),
+					}
+				)
 		buildings.append(
 			{
 				&"instance_id": "building.maximum.%03d" % index,
@@ -135,16 +151,22 @@ static func simultaneous_maximum(base_envelope: Dictionary) -> Dictionary:
 				&"orientation": orientation,
 				&"level": ConstructionCatalogScript.MAX_LEVEL,
 				&"state": "complete",
-				&"footprint": footprint,
-				&"local_stacks": stacks,
-				&"recipe_policies": recipes,
-			}
+					&"footprint": footprint,
+					&"local_stacks": stacks,
+						&"local_input_stacks": inputs,
+					&"recipe_policies": recipes,
+					&"production_orders": orders,
+				}
 		)
 	homestead[&"construction"] = {&"state_version": 1, &"buildings": buildings}
 	homestead[&"workforce"] = _maximum_workforce()
 	farm[&"homestead"] = homestead
 	farm[&"gathering"] = {&"state_version": 1, &"resource_deltas": _maximum_deltas()}
-	farm[&"logistics"] = {&"state_version": 1, &"jobs": _maximum_jobs()}
+	farm[&"logistics"] = {
+		&"state_version": 1,
+		&"jobs": _maximum_jobs(),
+		&"reserve_rules": _maximum_reserve_rules(),
+	}
 	farm[&"fishing"] = {&"state_version": 1, &"spots": _maximum_spots()}
 	farm[&"orchard"] = {&"state_version": 1, &"trees": _maximum_trees()}
 	farm[&"tutorial"] = {
@@ -216,16 +238,22 @@ static func _maximum_workforce() -> Dictionary:
 	var work: Array[Dictionary] = []
 	var concerns: Array[Dictionary] = []
 	var reports: Array[Dictionary] = []
+	var assigned_sites: Dictionary = {}
 	for index: int in SectionsScript.MAX_SETTLERS:
 		var settler_id: String = "settler.maximum.%02d" % index
+		var site_index: int = index / 2 + 1
+		if site_index >= 7:
+			site_index += 1
+		var site_id: String = "building.maximum.%03d" % site_index
+		assigned_sites[site_id] = true
 		settlers.append(
 			{&"settler_id": settler_id, &"status": "notice", &"morale": 100,
 			&"injured_until_day": 999_999}
 		)
 		housing.append({&"settler_id": settler_id, &"bed_id": "bed.maximum.%02d" % index})
 		work.append(
-			{&"settler_id": settler_id, &"site_id": "building.maximum.%03d" % (index / 2),
-			&"slot": 31, &"shift": index % 2}
+			{&"settler_id": settler_id, &"site_id": site_id,
+			&"slot": 0, &"shift": index % 2}
 		)
 		concerns.append(
 			{&"concern_id": "concern.maximum.%02d" % index, &"settler_id": settler_id,
@@ -233,25 +261,36 @@ static func _maximum_workforce() -> Dictionary:
 		)
 		reports.append(
 			{
-				&"report_id": "report.shift.building.maximum.%03d.31.%d" % [index / 2, index % 2],
-				&"site_id": "building.maximum.%03d" % (index / 2),
-				&"settler_id": settler_id, &"slot": 31, &"shift": index % 2,
+				&"report_id": "report.shift.%s.0.%d" % [site_id, index % 2],
+				&"site_id": site_id,
+				&"settler_id": settler_id, &"slot": 0, &"shift": index % 2,
 				&"absolute_day": 999_999, &"status": "productive", &"reason": "",
 				&"source_id": "source.maximum.%03d" % index,
 				&"item_id": str(ItemCatalogScript.ids()[0]),
 				&"count": 1,
 			}
 		)
-	for index: int in range(SectionsScript.MAX_SETTLERS / 2, SectionsScript.MAX_BUILDINGS):
+	for index: int in SectionsScript.MAX_BUILDINGS:
+		var site_id: String = "building.maximum.%03d" % index
+		var blueprint_ids: Array[StringName] = ConstructionCatalogScript.ids()
+		var blueprint_id: StringName = blueprint_ids[index % blueprint_ids.size()]
+		if assigned_sites.has(site_id) or ConstructionCatalogScript.work_slot_types(
+			blueprint_id
+		).is_empty():
+			continue
 		reports.append(
 			{
 				&"report_id": "report.shift.building.maximum.%03d.idle" % index,
-				&"site_id": "building.maximum.%03d" % index,
+				&"site_id": site_id,
 				&"settler_id": "", &"slot": -1, &"shift": -1,
 				&"absolute_day": 999_999, &"status": "idle", &"reason": "no_worker",
 				&"source_id": "", &"item_id": "", &"count": 0,
 			}
 		)
+	reports.sort_custom(
+		func(a: Dictionary, b: Dictionary) -> bool:
+			return str(a[&"report_id"]) < str(b[&"report_id"])
+	)
 	return {
 		&"state_version": 1, &"settlers": settlers, &"housing_assignments": housing,
 		&"work_assignments": work, &"concerns": concerns,
@@ -270,18 +309,34 @@ static func _maximum_workforce() -> Dictionary:
 
 static func _maximum_jobs() -> Array[Dictionary]:
 	var records: Array[Dictionary] = []
+	var item_ids: Array[StringName] = ItemCatalogScript.ids()
+	item_ids.sort_custom(func(a: StringName, b: StringName) -> bool: return str(a) < str(b))
 	for index: int in SectionsScript.MAX_LOGISTICS_JOBS:
+		var source_id: String = "building.maximum.002"
+		var destination_id: String = "building.maximum.001"
+		if index % 2 == 1:
+			source_id = "building.maximum.001"
+			destination_id = "building.maximum.005"
 		records.append(
 			{
 				&"job_id": "job.maximum.%03d" % index,
-				&"source_id": "building.maximum.%03d" % (index % SectionsScript.MAX_BUILDINGS),
-				&"destination_id": "building.maximum.%03d" % ((index + 1) % SectionsScript.MAX_BUILDINGS),
-				&"item_id": "item.maximum.%03d" % index,
+				&"source_id": source_id,
+				&"destination_id": destination_id,
+					&"item_id": str(item_ids[index % item_ids.size()]),
 				&"count": 999_999,
 				&"priority": 9,
 				&"age": 999_999,
 			}
-		)
+			)
+	return records
+
+
+static func _maximum_reserve_rules() -> Array[Dictionary]:
+	var records: Array[Dictionary] = []
+	var item_ids: Array[StringName] = ItemCatalogScript.ids()
+	item_ids.sort_custom(func(a: StringName, b: StringName) -> bool: return str(a) < str(b))
+	for index: int in mini(SectionsScript.MAX_RESERVE_RULES, item_ids.size()):
+		records.append({&"item_id": str(item_ids[index]), &"floor": 999_999})
 	return records
 
 
@@ -312,16 +367,19 @@ static func _maximum_trees() -> Array[Dictionary]:
 
 
 static func _maximum_receipts() -> Dictionary:
-	var ledger: Dictionary = ReceiptLedgerScript.make_neutral()
+	var entries: Array[Dictionary] = []
 	for index: int in ReceiptLedgerScript.MAX_RECEIPTS:
-		var recorded: Dictionary = ReceiptLedgerScript.record(
-			ledger,
-			"production:maximum:%03d" % index,
-			{&"operation": "maximum", &"sequence": index},
-			{&"status": "complete", &"amount": 999_999, &"sequence": index},
+		var payload: Dictionary = {&"operation": "maximum", &"sequence": index}
+		entries.append(
+			{
+				&"token": "production:maximum:%03d" % index,
+				&"payload_fingerprint": ReceiptLedgerScript.fingerprint(payload),
+				&"result": {
+					&"status": "complete", &"amount": 999_999, &"sequence": index,
+				},
+			}
 		)
-		ledger = recorded[&"candidate"] as Dictionary
-	return ledger
+	return ReceiptLedgerScript.validate({&"state_version": 1, &"entries": entries})
 
 
 static func _maximum_revisions() -> Dictionary:

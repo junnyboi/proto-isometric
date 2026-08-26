@@ -647,6 +647,10 @@ func _on_phase_b_committed(
 		if _settlement_modal != null:
 			_settlement_modal.call("open", &"offer")
 		return
+	if operation == &"open_settlement_logistics":
+		if _settlement_modal != null:
+			_settlement_modal.call("open", &"logistics")
+		return
 	if operation == &"preview_extraction_range":
 		if _extraction_range_overlay != null:
 			var arguments: Dictionary = result.get(&"arguments", {}) as Dictionary

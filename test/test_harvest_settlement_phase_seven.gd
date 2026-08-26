@@ -241,7 +241,7 @@ static func evaluate(runtime: Node2D) -> Array[Dictionary]:
 		and int(pure_report[&"count"]) == int(pure_productive[&"count"]),
 	)
 	_idle_reason_cases(cases, assigned, camp_id, pure_source, absolute_day)
-	var receipts_before: int = _receipt_count(assigned)
+	var shift_receipts_before: int = _day_shift_receipt_count(assigned)
 	var slept: Dictionary = farm_runtime.call("transact", &"sleep", {}) as Dictionary
 	var after: Dictionary = farm_runtime.call("get_snapshot") as Dictionary
 	var productive: Dictionary = _find_status(slept[&"shift_results"] as Array, "productive")
@@ -259,39 +259,42 @@ static func evaluate(runtime: Node2D) -> Array[Dictionary]:
 	var carrying: Dictionary = _record(
 		SettlerPresentationScript.build_records(after), SettlerCatalogScript.AMARA_VOSS
 	)
+	var warehouse_id: StringName = _site_id(after, BlueprintCatalogScript.FIELD_WAREHOUSE)
 	_add(
 		cases,
-		"P7 authoritative sleep persists productive shift reservation output and carrying state",
+		"P7 authoritative sleep persists one productive shift before P8 self-haul",
 		slept[&"ok"]
 		and not productive.is_empty()
-		and _receipt_count(after) == receipts_before + 1
-		and str(after_state[&"reserved_by"]) == str(camp_id)
+		and _day_shift_receipt_count(after) == shift_receipts_before + 1
+		and str(after_state[&"reserved_by"]).is_empty()
 		and BuildingStorageScript.count(
-			after, camp_id, productive[&"item_id"] as StringName
+			after, warehouse_id, productive[&"item_id"] as StringName
 		)
 		== int(productive[&"count"])
-		and not manual[&"ok"]
-		and manual[&"reason"] == &"source_reserved"
-		and carrying[&"status"] == SettlerDayScript.CARRYING,
+		and manual[&"ok"]
+		and carrying[&"status"] == SettlerDayScript.WORKING,
 	)
-	var unassigned: Dictionary = WorkforceScript.unassign(
-		after, SettlerCatalogScript.AMARA_VOSS
+	var unassigned_output: Dictionary = WorkforceScript.unassign(
+		pure_first[&"candidate"], SettlerCatalogScript.AMARA_VOSS
 	)[&"candidate"]
 	var cleared: Dictionary = GatheringScript.clear_reservation(
-		unassigned,
+		unassigned_output,
 		source,
-		CalendarScript.absolute_day(unassigned[&"calendar_weather"]),
+		CalendarScript.absolute_day(unassigned_output[&"calendar_weather"]),
 		str(camp_id),
 	)
 	var protected_demolition: Dictionary = ConstructionStateScript.demolish(
 		cleared[&"candidate"], camp_id
 	)
+	var unassigned: Dictionary = WorkforceScript.unassign(
+		after, SettlerCatalogScript.AMARA_VOSS
+	)[&"candidate"]
 	var resting: Dictionary = _record(
 		SettlerPresentationScript.build_records(unassigned), SettlerCatalogScript.AMARA_VOSS
 	)
 	_add(
 		cases,
-		"P7 local output remains a hard building dependency and unassigned settlers rest at beds",
+		"P7 unhauled output remains a hard dependency and unassigned settlers rest at beds",
 		not protected_demolition[&"ok"]
 		and protected_demolition[&"reason"] == &"building_has_assignments"
 		and resting[&"status"] == SettlerDayScript.RESTING,
@@ -318,6 +321,8 @@ static func evaluate_reloaded(runtime: Node2D) -> Array[Dictionary]:
 	)
 	var shift_receipts: int = _day_shift_receipt_count(farm)
 	var camp: Dictionary = ConstructionStateScript.building(farm, camp_id)
+	var warehouse_id: StringName = _site_id(farm, BlueprintCatalogScript.FIELD_WAREHOUSE)
+	var warehouse: Dictionary = ConstructionStateScript.building(farm, warehouse_id)
 	var report: Dictionary = SettlerDayScript.last_shift_report(
 		farm, SettlerCatalogScript.AMARA_VOSS
 	)
@@ -332,11 +337,12 @@ static func evaluate_reloaded(runtime: Node2D) -> Array[Dictionary]:
 	)
 	_add(
 		cases,
-		"P7 cold reload preserves assignment output reservation report receipt and replay",
+		"P7 cold reload preserves assignment delivered output report receipt and replay",
 		not assignment.is_empty()
-		and not (camp[&"local_stacks"] as Array).is_empty()
+		and (camp[&"local_stacks"] as Array).is_empty()
+		and not (warehouse[&"local_stacks"] as Array).is_empty()
 		and shift_receipts >= 1
-		and str(source_state[&"reserved_by"]) == str(camp_id)
+		and str(source_state[&"reserved_by"]).is_empty()
 		and int(source_state[&"remaining_charges"]) == int(source[&"capacity"]) - 1
 		and str(receipt_result.get(&"source_id", "")) == str(report[&"source_id"])
 		and int(receipt_result.get(&"count", 0)) == int(report[&"count"])
@@ -464,8 +470,10 @@ static func _soak_case(cases: Array[Dictionary], assigned: Dictionary) -> void:
 	var count: int = _day_shift_receipt_count(candidate)
 	_add(
 		cases,
-		"P7 180-day staffed soak remains schema-valid with exactly 64 retained shift receipts",
-		valid and count == 64 and not FarmSchemaScript.validate(candidate).is_empty(),
+		"P7 180-day staffed soak remains schema-valid at the shared shift receipt quota",
+		valid
+		and count == int(ReceiptScript.NAMESPACE_LIMITS["shift"])
+		and not FarmSchemaScript.validate(candidate).is_empty(),
 	)
 
 

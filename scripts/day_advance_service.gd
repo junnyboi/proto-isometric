@@ -12,6 +12,10 @@ const GatheringExtractionScript: GDScript = preload(
 	"res://scripts/gathering_extraction_service.gd"
 )
 const MachineServiceScript: GDScript = preload("res://scripts/machine_service.gd")
+const LogisticsServiceScript: GDScript = preload("res://scripts/logistics_service.gd")
+const ProductionPolicyScript: GDScript = preload(
+	"res://scripts/production_policy_service.gd"
+)
 const ResidentServiceScript: GDScript = preload("res://scripts/resident_service.gd")
 const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
 
@@ -65,6 +69,20 @@ static func build_candidate(
 			&"reason": extracted[&"reason"],
 		}
 	candidate = extracted[&"candidate"] as Dictionary
+	var logistics: Dictionary = LogisticsServiceScript.advance(candidate, current_absolute)
+	if not bool(logistics[&"ok"]):
+		return {
+			&"ok": false, &"candidate": source, &"day_token": token,
+			&"reason": logistics[&"reason"],
+		}
+	candidate = logistics[&"candidate"] as Dictionary
+	var production: Dictionary = ProductionPolicyScript.advance(candidate, current_absolute)
+	if not bool(production[&"ok"]):
+		return {
+			&"ok": false, &"candidate": source, &"day_token": token,
+			&"reason": production[&"reason"],
+		}
+	candidate = production[&"candidate"] as Dictionary
 	candidate = MachineServiceScript.advance(candidate, current_absolute + 1)
 	var settled: Dictionary = EconomyServiceScript.settle(candidate, token)
 	if not bool(settled[&"ok"]):
@@ -118,5 +136,7 @@ static func build_candidate(
 		&"money_earned": int(settled.get(&"money_earned", 0)),
 		&"construction_work": construction.get(&"work_results", []),
 		&"shift_results": extracted[&"shift_results"],
+		&"logistics_summary": logistics[&"summary"],
+		&"production_summary": production[&"summary"],
 		&"reason": &"",
 	}

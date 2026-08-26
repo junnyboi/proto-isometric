@@ -270,8 +270,13 @@ static func _test_receipts(cases: Array[Dictionary]) -> void:
 		)[&"candidate"]
 	_add_case(
 		cases,
-		"P1 receipt serialization is canonical across insertion order",
-		JSON.stringify(forward, "", true, true) == JSON.stringify(reverse, "", true, true),
+		"P1 receipt serialization stays canonical under bounded history retention",
+		ReceiptLedgerScript.validate(forward) == forward
+		and ReceiptLedgerScript.validate(reverse) == reverse
+		and (forward[&"entries"] as Array).size()
+		== int(ReceiptLedgerScript.NAMESPACE_LIMITS["day"])
+		and (reverse[&"entries"] as Array).size()
+		== int(ReceiptLedgerScript.NAMESPACE_LIMITS["day"]),
 	)
 	var full: Dictionary = ReceiptLedgerScript.make_neutral()
 	for index: int in ReceiptLedgerScript.MAX_RECEIPTS:
@@ -283,10 +288,14 @@ static func _test_receipts(cases: Array[Dictionary]) -> void:
 	)
 	_add_case(
 		cases,
-		"P1 receipt ledger accepts 128 and rejects cap plus one",
-		(full[&"entries"] as Array).size() == ReceiptLedgerScript.MAX_RECEIPTS
-		and not bool(over[&"ok"])
-		and over[&"status"] == &"ledger_full",
+		"P1 receipt ledger retains its namespace quota and replays the newest token",
+		(full[&"entries"] as Array).size()
+		== int(ReceiptLedgerScript.NAMESPACE_LIMITS["shift"])
+		and bool(over[&"ok"])
+		and over[&"status"] == &"recorded"
+		and ReceiptLedgerScript.lookup(
+			over[&"candidate"], "shift:cap:overflow", {&"index": 999}
+		)[&"status"] == &"duplicate",
 	)
 	var unknown: Dictionary = full.duplicate(true)
 	unknown[&"unknown"] = true

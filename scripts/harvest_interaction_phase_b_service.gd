@@ -168,6 +168,17 @@ func project(cell: Vector2i, selected_tool: StringName) -> Dictionary:
 				)
 			):
 				_append_projection_option(projection, SettlementProviderScript.terminal_option())
+			if (
+				construction[&"state"] == "complete"
+				and not projection.is_empty()
+				and blueprint_id in [
+					BlueprintCatalogScript.FIELD_WAREHOUSE,
+					BlueprintCatalogScript.FABRICATOR_ANNEX,
+				]
+			):
+				_append_projection_option(
+					projection, SettlementProviderScript.logistics_option()
+				)
 		&"resident":
 			projection = FarmProviderScript.resident(farm, cell, description[&"target_id"])
 		&"settler":

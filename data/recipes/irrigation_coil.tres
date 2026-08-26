@@ -14,6 +14,20 @@ ingredients = Array[Dictionary]([{
 "count": 1,
 "item_id": "item.material.scrap"
 }])
+ingredient_groups = Array[Dictionary]([{
+"options": Array[Dictionary]([{
+"count": 2,
+"item_id": "item.material.wood"
+}, {
+"count": 2,
+"item_id": "item.material.stone"
+}])
+}, {
+"options": Array[Dictionary]([{
+"count": 1,
+"item_id": "item.material.scrap"
+}])
+}])
 outputs = Array[Dictionary]([{
 "count": 1,
 "item_id": "item.part.irrigation_coil"

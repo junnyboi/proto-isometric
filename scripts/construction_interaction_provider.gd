@@ -21,7 +21,9 @@ static func building(
 	var complete: bool = record[&"state"] == "complete"
 	var mobile_empty: bool = (
 		(record[&"local_stacks"] as Array).is_empty()
+		and (record.get(&"local_input_stacks", []) as Array).is_empty()
 		and (record[&"recipe_policies"] as Array).is_empty()
+		and (record.get(&"production_orders", []) as Array).is_empty()
 	)
 	var dependencies: bool = StateScript.has_dependencies(farm, instance_id)
 	var can_move: bool = (

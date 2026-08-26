@@ -6,6 +6,10 @@ const ApplicantLifecycleScript: GDScript = preload(
 	"res://scripts/applicant_lifecycle_service.gd"
 )
 const CodecScript: GDScript = preload("res://scripts/interaction_contract_codec.gd")
+const ConstructionStateScript: GDScript = preload(
+	"res://scripts/construction_state_service.gd"
+)
+const RecipeCatalogScript: GDScript = preload("res://scripts/recipe_catalog.gd")
 const SettlerDayScript: GDScript = preload("res://scripts/settler_day_service.gd")
 const WorkforceScript: GDScript = preload("res://scripts/workforce_service.gd")
 
@@ -43,6 +47,12 @@ func snapshot() -> Dictionary:
 		&"lifecycle": ApplicantLifecycleScript.lifecycle_state(farm),
 		&"roster": roster,
 		&"sites": sites,
+		&"jobs": (farm[&"logistics"][&"jobs"] as Array).duplicate(true),
+		&"reserve_rules": (
+			farm[&"logistics"][&"reserve_rules"] as Array
+		).duplicate(true),
+		&"fabricators": _fabricator_snapshots(farm, sites),
+		&"recipes": _recipe_snapshots(),
 		&"source_revision": int((farm[&"revisions"] as Dictionary)[&"result_revision"]),
 	}
 
@@ -161,6 +171,71 @@ func set_shift(
 	return _transact_exact_once(&"workforce_assign", arguments, token, payload, deterministic)
 
 
+func set_reserve(
+	item_id: StringName, floor: int, expected_revision: int = -1
+) -> Dictionary:
+	var source_revision: int = expected_revision if expected_revision >= 0 else _source_revision()
+	var payload: Dictionary = {
+		&"item_id": str(item_id), &"floor": floor, &"source_revision": source_revision,
+	}
+	var token: String = "transfer:reserve:%d:%s" % [
+		source_revision, CodecScript.digest(payload).left(20)
+	]
+	return _transact_exact_once(
+		&"logistics_set_reserve",
+		{&"item_id": item_id, &"floor": floor, &"expected_revision": source_revision},
+		token,
+		payload,
+		{&"item_id": str(item_id), &"floor": floor},
+	)
+
+
+func set_recipe_policy(
+	site_id: StringName,
+	recipe_id: StringName,
+	enabled: bool,
+	priority: int,
+	target_count: int,
+	expected_revision: int = -1,
+) -> Dictionary:
+	var source_revision: int = expected_revision if expected_revision >= 0 else _source_revision()
+	var payload: Dictionary = {
+		&"site_id": str(site_id), &"recipe_id": str(recipe_id), &"enabled": enabled,
+		&"priority": priority, &"target_count": target_count,
+		&"source_revision": source_revision,
+	}
+	var token: String = "production:policy:%d:%s" % [
+		source_revision, CodecScript.digest(payload).left(20)
+	]
+	var arguments: Dictionary = payload.duplicate(true)
+	arguments[&"site_id"] = site_id
+	arguments[&"recipe_id"] = recipe_id
+	arguments[&"expected_revision"] = source_revision
+	return _transact_exact_once(
+		&"production_set_policy", arguments, token, payload,
+		{
+			&"site_id": str(site_id), &"recipe_id": str(recipe_id),
+			&"enabled": enabled, &"priority": priority, &"target_count": target_count,
+		},
+	)
+
+
+func force_delivery(
+	job_id: StringName, expected_revision: int = -1
+) -> Dictionary:
+	var source_revision: int = expected_revision if expected_revision >= 0 else _source_revision()
+	var operation_id: String = "%09d.%s" % [
+		source_revision, str(job_id).sha256_text().left(20)
+	]
+	return _transact(
+		&"logistics_force_transfer",
+		{
+			&"job_id": job_id, &"operation_id": operation_id,
+			&"expected_revision": source_revision,
+		},
+	)
+
+
 func _transact_exact_once(
 	operation: StringName,
 	arguments: Dictionary,
@@ -178,6 +253,51 @@ func _transact_exact_once(
 		return _result(false, &"live_farm_sync_failed")
 	if bool(result.get(&"ok", false)) and not bool(result.get(&"replayed", false)):
 		settlement_committed.emit(operation, result.duplicate(true))
+	return result
+
+
+func _transact(operation: StringName, arguments: Dictionary) -> Dictionary:
+	var result: Dictionary = _transactions.call("transact", operation, arguments) as Dictionary
+	var envelope: Dictionary = result.get(&"candidate", {}) as Dictionary
+	if envelope.is_empty() or not envelope.get(&"farm", {}) is Dictionary:
+		return _result(false, &"settlement_candidate_missing")
+	if not bool(_farm_runtime.call("sync_committed", envelope[&"farm"])):
+		return _result(false, &"live_farm_sync_failed")
+	if bool(result.get(&"ok", false)) and not bool(result.get(&"replayed", false)):
+		settlement_committed.emit(operation, result.duplicate(true))
+	return result
+
+
+func _fabricator_snapshots(
+	farm: Dictionary, sites: Array[Dictionary]
+) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for site: Dictionary in sites:
+		if str(site[&"blueprint_id"]) != "blueprint.fabricator_annex":
+			continue
+		var building: Dictionary = ConstructionStateScript.building(
+			farm, StringName(str(site[&"site_id"]))
+		)
+		result.append(
+			{
+				&"site_id": site[&"site_id"],
+				&"policies": (building[&"recipe_policies"] as Array).duplicate(true),
+				&"inputs": (building[&"local_input_stacks"] as Array).duplicate(true),
+				&"outputs": (building[&"local_stacks"] as Array).duplicate(true),
+				&"orders": (building[&"production_orders"] as Array).duplicate(true),
+			}
+		)
+	return result
+
+
+func _recipe_snapshots() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for recipe_id: StringName in RecipeCatalogScript.ids():
+		result.append(RecipeCatalogScript.definition(recipe_id))
+	result.sort_custom(
+		func(a: Dictionary, b: Dictionary) -> bool:
+			return str(a[&"recipe_id"]) < str(b[&"recipe_id"])
+	)
 	return result
 
 
