@@ -11,6 +11,7 @@ const DEFAULT_PROFILE: Resource = preload("res://data/combat/sandworm_default.tr
 static func evaluate() -> Array[Dictionary]:
 	var cases: Array[Dictionary] = []
 	_test_phase_and_attack_contract(cases)
+	_test_retreat_contract(cases)
 	_test_animation_assets(cases)
 	_test_live_damage_and_persistence(cases)
 	_test_telegraph_contract(cases)
@@ -70,6 +71,29 @@ static func _test_phase_and_attack_contract(cases: Array[Dictionary]) -> void:
 	)
 	var barrage: Array = _resolve_current_attack(boss, Vector2(2.0, 0.0))
 	_add(cases, "Caldera Barrage resolves at most three ordered pulses", barrage.size() <= 3)
+
+
+static func _test_retreat_contract(cases: Array[Dictionary]) -> void:
+	var boss: Dictionary = BossScript.make_entity(94, Vector2(2.0, 0.0), 0.0)
+	boss[&"state"] = BossScript.STATE_DISPERSING
+	boss[&"state_elapsed"] = 0.0
+	boss[&"state_remaining"] = BossScript.DISPERSE_SECONDS
+	boss[&"state_duration"] = BossScript.DISPERSE_SECONDS
+	var start: Vector2 = boss[&"position"] as Vector2
+	BossScript.advance(boss, 0.5, Vector2.ZERO, Vector2.ZERO, false)
+	_add(
+		cases,
+		"Kilnheart uses the longer retreat fade duration",
+		is_equal_approx(float(boss[&"state_duration"]), 1.5),
+	)
+	_add(
+		cases,
+		"Kilnheart walks away at the reduced retreat speed",
+		(
+			(boss[&"direction"] as Vector2) == Vector2.RIGHT
+			and absf((boss[&"position"] as Vector2).distance_to(start) - 0.425) <= 0.001
+		),
+	)
 
 
 static func _test_animation_assets(cases: Array[Dictionary]) -> void:

@@ -30,6 +30,7 @@ const PATTERN_EMBER_SALVO: StringName = &"ember_salvo"
 const BOUNCE_HEIGHT: float = 4.0
 const BOUNCE_RATE: float = 5.6
 const DISPERSE_OPAQUE_FRACTION: float = 0.18
+const RETREAT_SPEED_MULTIPLIER: float = 0.75
 
 const FAUNA: Dictionary = {
 	SKIMMER_KIND:

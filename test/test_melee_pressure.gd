@@ -82,8 +82,7 @@ static func evaluate() -> Array[Dictionary]:
 		damage_events_are_valid,
 	)
 	pressure.call("set_sanctuary_active", true)
-	for _step: int in range(12):
-		pressure.call("advance", 0.1)
+	_advance_for(pressure, MeleePressureScript.DISPERSE_SECONDS + 0.1)
 	_add(cases, "sanctuary disperses the complete melee pack", int(pressure.call("get_count")) == 0)
 	_add(
 		cases,
@@ -259,6 +258,7 @@ static func _test_biome_transition(cases: Array[Dictionary], world: RefCounted) 
 			int(pressure.call("get_count")) == 1
 			and leaving[&"kind"] == MeleePressureScript.MIRE_TICK_KIND
 			and leaving[&"state"] == MeleePressureScript.STATE_DISPERSING
+			and is_equal_approx(duration, 1.3)
 			and is_equal_approx(MeleePressureScript.dispersal_alpha(duration, duration), 1.0)
 		),
 	)
@@ -266,6 +266,13 @@ static func _test_biome_transition(cases: Array[Dictionary], world: RefCounted) 
 	var retreating: Dictionary = pressure.call("get_combat_snapshot", wetland_id) as Dictionary
 	var retreat_position: Vector2 = retreating[&"position"] as Vector2
 	var away: Vector2 = (chase_position - player).normalized()
+	var active_speed: float = float(
+		MeleePressureScript.MOB_PROFILES[MeleePressureScript.MIRE_TICK_KIND][&"move_speed"]
+	)
+	var retreat_distance: float = retreat_position.distance_to(chase_position)
+	var expected_distance: float = (
+		active_speed * MeleePressureScript.RETREAT_SPEED_MULTIPLIER * duration * 0.5
+	)
 	var halfway_alpha: float = MeleePressureScript.dispersal_alpha(
 		float(retreating[&"state_remaining"]), duration
 	)
@@ -278,6 +285,11 @@ static func _test_biome_transition(cases: Array[Dictionary], world: RefCounted) 
 			and halfway_alpha > 0.0
 			and halfway_alpha < 1.0
 		),
+	)
+	_add(
+		cases,
+		"old tiny mobs use the slower retreat pace",
+		absf(retreat_distance - expected_distance) <= 0.01,
 	)
 	_advance_for(pressure, duration)
 	var culled: bool = int(pressure.call("get_count")) == 0

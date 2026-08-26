@@ -22,7 +22,7 @@ extends Resource
 @export var dive_seconds: float = 0.45
 @export var stagger_seconds: float = 0.85
 @export var maximum_stagger_seconds: float = 1.6
-@export var disperse_seconds: float = 1.25
+@export var disperse_seconds: float = 1.5
 @export var defeated_seconds: float = 0.65
 
 @export_category("Hard Bounds")

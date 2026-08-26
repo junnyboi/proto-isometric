@@ -21,7 +21,7 @@ const ATTACK_RANGE: float = 0.72
 const MOVE_SPEED: float = 1.28
 const ATTACK_COOLDOWN: float = 1.15
 const EMERGE_SECONDS: float = 0.8
-const DISPERSE_SECONDS: float = 1.25
+const DISPERSE_SECONDS: float = 1.5
 const MAX_WORMS: int = 4
 
 const STATE_BURROW: StringName = &"burrow"
@@ -656,14 +656,13 @@ func _advance_state_motion(worm: Dictionary, state: StringName, delta: float) ->
 		var away: Vector2 = (worm[&"position"] as Vector2) - _player_position
 		if away.is_zero_approx():
 			away = Vector2.RIGHT
-		var disperse_speed: float = (
-			_p_float(&"burrow_speed")
-			if _is_burrow_kind(kind)
-			else FaunaCombatScript.value(kind, &"move_speed", _p_float(&"burrow_speed"))
-		)
+		var disperse_speed: float = _p_float(&"burrow_speed")
+		if not _is_burrow_kind(kind):
+			disperse_speed = FaunaCombatScript.value(kind, &"move_speed", disperse_speed)
+		disperse_speed *= FaunaCombatScript.RETREAT_SPEED_MULTIPLIER
 		worm[&"direction"] = away.normalized()
 		worm[&"position"] = (
-			(worm[&"position"] as Vector2) + away.normalized() * disperse_speed * 2.2 * delta
+			(worm[&"position"] as Vector2) + away.normalized() * disperse_speed * delta
 		)
 
 

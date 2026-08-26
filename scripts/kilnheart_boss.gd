@@ -27,6 +27,8 @@ const SWEEP_HALF_ANGLE: float = 0.96
 const RAM_HALF_WIDTH: float = 0.82
 const BARRAGE_RADIUS: float = 0.92
 const BARRAGE_PULSES: int = 3
+const DISPERSE_SECONDS: float = 1.5
+const RETREAT_SPEED: float = 0.85
 const MAX_TRANSITIONS: int = 8
 const TEXTURE_PATHS: PackedStringArray = [
 	"res://assets/enemies/kilnheart/kilnheart_idle.png",
@@ -270,7 +272,7 @@ static func _advance_disperse(boss: Dictionary, delta: float, player: Vector2) -
 	var away: Vector2 = (boss[&"position"] as Vector2) - player
 	away = Vector2.RIGHT if away.is_zero_approx() else away.normalized()
 	boss[&"direction"] = away
-	boss[&"position"] = (boss[&"position"] as Vector2) + away * 1.7 * delta
+	boss[&"position"] = (boss[&"position"] as Vector2) + away * RETREAT_SPEED * delta
 
 
 static func _attack_events(
@@ -352,7 +354,9 @@ static func _duration(boss: Dictionary, state: StringName) -> float:
 		return maxf(0.72, 1.12 - stage * 0.14)
 	if state == STATE_STAGGERED:
 		return max_stagger_seconds()
-	if state in [STATE_DISPERSING, STATE_DEFEATED]:
+	if state == STATE_DISPERSING:
+		return DISPERSE_SECONDS
+	if state == STATE_DEFEATED:
 		return 1.2
 	return 0.0
 

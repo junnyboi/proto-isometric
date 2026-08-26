@@ -137,6 +137,7 @@ static func _test_biome_exit_disengagement(cases: Array[Dictionary]) -> void:
 			int(enemies.call("get_worm_count")) == 1
 			and leaving[&"kind"] == &"mud_skimmer"
 			and leaving[&"state"] == &"dispersing"
+			and is_equal_approx(duration, 1.5)
 		),
 	)
 	_add(
@@ -148,6 +149,13 @@ static func _test_biome_exit_disengagement(cases: Array[Dictionary]) -> void:
 	var retreating: Dictionary = enemies.call("get_combat_snapshot", enemy_id) as Dictionary
 	var retreat_position: Vector2 = retreating[&"position"] as Vector2
 	var away: Vector2 = (chase_position - player).normalized()
+	var retreat_distance: float = retreat_position.distance_to(chase_position)
+	var expected_distance: float = (
+		FaunaCombatScript.value(&"mud_skimmer", &"move_speed")
+		* FaunaCombatScript.RETREAT_SPEED_MULTIPLIER
+		* duration
+		* 0.5
+	)
 	var halfway_alpha: float = FaunaCombatScript.dispersal_alpha(
 		float(retreating[&"state_remaining"]), duration
 	)
@@ -158,6 +166,11 @@ static func _test_biome_exit_disengagement(cases: Array[Dictionary]) -> void:
 			(retreating[&"direction"] as Vector2).dot(away) > 0.95
 			and retreat_position.distance_to(player) > chase_position.distance_to(player)
 		),
+	)
+	_add(
+		cases,
+		"biome-exit fauna walks away at the slower retreat pace",
+		absf(retreat_distance - expected_distance) <= 0.001,
 	)
 	_add(
 		cases,

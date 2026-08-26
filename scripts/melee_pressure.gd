@@ -18,8 +18,9 @@ const ATTACK_RANGE: float = 0.92
 const MOVE_SPEED: float = 1.46
 const WARNING_SECONDS: float = 0.44
 const RECOVER_SECONDS: float = 0.58
-const DISPERSE_SECONDS: float = 1.1
+const DISPERSE_SECONDS: float = 1.3
 const DISPERSE_OPAQUE_FRACTION: float = 0.18
+const RETREAT_SPEED_MULTIPLIER: float = 0.8
 const SHARED_DAMAGE_COOLDOWN: float = 0.62
 const PERSONAL_ATTACK_COOLDOWN: float = 1.15
 const SPAWN_RADIUS: float = 5.4
@@ -427,7 +428,10 @@ func _advance_mite(mite: Dictionary, delta: float) -> void:
 		mite[&"direction"] = away
 		mite[&"position"] = (
 			(mite[&"position"] as Vector2)
-			+ away * _profile_float(kind, &"move_speed", MOVE_SPEED) * 2.0 * delta
+			+ away
+			* _profile_float(kind, &"move_speed", MOVE_SPEED)
+			* RETREAT_SPEED_MULTIPLIER
+			* delta
 		)
 
 

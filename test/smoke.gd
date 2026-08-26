@@ -540,7 +540,8 @@ func _test_isometric_map() -> void:
 	var safe_worm: int = int(sandworms.call("spawn_worm", Vector2(4.0, 10.0), 0.0))
 	_check(bool(map.call("place_robot", Vector2i(1, 10))), "place Walker at linked outpost")
 	_check(sandworms.call("get_state", safe_worm) == &"dispersing", "outpost link disperses worms")
-	sandworms.call("advance", 1.3)
+	var safe_retreat: Dictionary = sandworms.call("get_combat_snapshot", safe_worm) as Dictionary
+	sandworms.call("advance", float(safe_retreat[&"state_duration"]) + 0.1)
 	_check(int(sandworms.call("get_worm_count")) == 0, "dispersed worm leaves Walker alone")
 	hazard_chassis_after = int(map.call("_get_chassis"))
 
