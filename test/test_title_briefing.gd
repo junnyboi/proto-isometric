@@ -10,6 +10,7 @@ const MOBILE_ART: String = "res://assets/title/protos_harvest_title_mobile.png"
 const START_BUTTON_ART: String = "res://assets/ui/title/start_game_button.png"
 const UI_HOVER_PATH: String = "res://assets/audio/ui_hover.wav"
 const UI_CLICK_PATH: String = "res://assets/audio/ui_click.wav"
+const UI_START_CLICK_PATH: String = "res://assets/audio/ui_start_click.wav"
 const TITLE_MUSIC_PATH: String = "res://assets/audio/bgm_title.ogg"
 
 
@@ -61,7 +62,16 @@ static func evaluate() -> Array[Dictionary]:
 			and not begin.disabled
 			and begin.focus_mode == Control.FOCUS_ALL
 			and begin.text == LocalizationScript.t(&"title.start_game")
-		),
+			),
+		)
+	title.call("_apply_landscape_layout")
+	var landscape_centered: bool = begin.alignment == HORIZONTAL_ALIGNMENT_CENTER
+	title.call("_apply_portrait_layout")
+	var portrait_centered: bool = begin.alignment == HORIZONTAL_ALIGNMENT_CENTER
+	_add(
+		cases,
+		"Start Game removes the Enter keycap and centers its label at every aspect",
+		landscape_centered and portrait_centered and not begin.has_node("Keycap"),
 	)
 	var start_style: StyleBox = begin.get_theme_stylebox("normal")
 	var start_texture: Texture2D = (
@@ -81,19 +91,30 @@ static func evaluate() -> Array[Dictionary]:
 	var feedback: Dictionary = title.call("get_ui_feedback_metrics") as Dictionary
 	_add(
 		cases,
-		"Start Game owns a subtle bounded readiness pulse",
+		"Start Game has no idle pulse and owns a bounded hover transition",
 		(
-			float(feedback[&"pulse_scale"]) > 1.0
-			and float(feedback[&"pulse_scale"]) <= 1.025
-			and float(feedback[&"pulse_half_seconds"]) >= 0.6
-			and float(feedback[&"pulse_half_seconds"]) <= 1.0
+			not bool(feedback[&"idle_pulse_active"])
+			and not bool(feedback[&"hover_motion_active"])
+			and float(feedback[&"hover_scale"]) > 1.0
+			and float(feedback[&"hover_scale"]) <= 1.025
+			and float(feedback[&"hover_seconds"]) >= 0.08
+			and float(feedback[&"hover_seconds"]) <= 0.2
 		),
+	)
+	title.call("_animate_begin_hover", true)
+	var hover_scale_applied: bool = is_equal_approx(begin.scale.x, float(feedback[&"hover_scale"]))
+	title.call("_animate_begin_hover", false)
+	_add(
+		cases,
+		"Start Game hover motion is event-driven and returns exactly to rest",
+		hover_scale_applied and begin.scale.is_equal_approx(Vector2.ONE),
 	)
 	var hover_cue: AudioStream = load(UI_HOVER_PATH) as AudioStream
 	var click_cue: AudioStream = load(UI_CLICK_PATH) as AudioStream
+	var start_click_cue: AudioStream = load(UI_START_CLICK_PATH) as AudioStream
 	_add(
 		cases,
-		"title hover and click cues are compact carrier-derived UI-bus assets",
+		"title feedback includes a dedicated carrier-derived tactile Start Game cue",
 		(
 			hover_cue != null
 			and hover_cue.get_length() >= 0.1
@@ -101,8 +122,12 @@ static func evaluate() -> Array[Dictionary]:
 			and click_cue != null
 			and click_cue.get_length() >= 0.2
 			and click_cue.get_length() <= 0.9
+			and start_click_cue != null
+			and start_click_cue.get_length() >= 1.0
+			and start_click_cue.get_length() <= 3.0
 			and feedback[&"hover_path"] == UI_HOVER_PATH
 			and feedback[&"click_path"] == UI_CLICK_PATH
+			and feedback[&"start_click_path"] == UI_START_CLICK_PATH
 			and feedback[&"bus"] == &"UI"
 		),
 	)

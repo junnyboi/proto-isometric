@@ -19,12 +19,13 @@ const START_BUTTON_ART: Texture2D = preload(
 )
 const UI_HOVER_CUE: AudioStream = preload("res://assets/audio/ui_hover.wav")
 const UI_CLICK_CUE: AudioStream = preload("res://assets/audio/ui_click.wav")
+const UI_START_CLICK_CUE: AudioStream = preload("res://assets/audio/ui_start_click.wav")
 const TITLE_MUSIC: AudioStream = preload("res://assets/audio/bgm_title.ogg")
 const TITLE_MUSIC_VOLUME_DB: float = -9.0
 const TITLE_MUSIC_FADE_SECONDS: float = 0.65
 const SILENT_VOLUME_DB: float = -80.0
-const START_PULSE_SCALE: float = 1.018
-const START_PULSE_HALF_SECONDS: float = 0.82
+const START_HOVER_SCALE: float = 1.018
+const START_HOVER_SECONDS: float = 0.12
 const UI_HOVER_COOLDOWN_MS: int = 90
 
 const AMBER: Color = Color("f3a21e")
@@ -40,7 +41,6 @@ var _title_panel: Control
 var _title_label: Label
 var _mission_label: Label
 var _begin_button: Button
-var _cta_keycap: Label
 var _language_toggle: Button
 var _settings_panel: CanvasLayer
 var _layout: Dictionary = {}
@@ -51,7 +51,8 @@ var _hover_audio_trigger_count: int = 0
 var _ui_feedback_control_count: int = 0
 var _last_hover_audio_ms: int = -UI_HOVER_COOLDOWN_MS
 var _title_music_player: AudioStreamPlayer
-var _begin_pulse_tween: Tween
+var _begin_hover_tween: Tween
+var _begin_hover_active: bool = false
 
 
 func _ready() -> void:
@@ -137,10 +138,10 @@ func _build_briefing() -> void:
 	)
 	(
 		_begin_button
-		. add_theme_stylebox_override(
-			"hover",
-			_make_textured_button_style(Color(1.08, 1.05, 0.96, 1.0)),
-		)
+			. add_theme_stylebox_override(
+				"hover",
+				_make_textured_button_style(Color(1.14, 1.09, 0.96, 1.0)),
+			)
 	)
 	(
 		_begin_button
@@ -159,15 +160,9 @@ func _build_briefing() -> void:
 	_begin_button.add_theme_stylebox_override(
 		"disabled", _make_textured_button_style(Color(0.58, 0.58, 0.58, 0.62))
 	)
-	_begin_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_begin_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_begin_button.pressed.connect(_on_begin_pressed)
 	_title_panel.add_child(_begin_button)
-
-	_cta_keycap = _make_label("Keycap", LocalizationScript.t(&"title.key_enter"), 13, INK)
-	_cta_keycap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_cta_keycap.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_cta_keycap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_begin_button.add_child(_cta_keycap)
 
 
 func _build_language_toggle(ui_root: Control) -> void:
@@ -282,19 +277,8 @@ func _apply_landscape_layout() -> void:
 	_mission_label.add_theme_font_size_override("font_size", 15)
 	_begin_button.position = Vector2(0.0, 188.0)
 	_begin_button.size = Vector2(475.0, 84.0)
-	_begin_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_begin_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_begin_button.add_theme_font_size_override("font_size", 26)
-	_cta_keycap.visible = true
-	_cta_keycap.position = Vector2(365.0, 17.0)
-	_cta_keycap.size = Vector2(82.0, 38.0)
-	_cta_keycap.add_theme_font_size_override("font_size", 13)
-	(
-		_cta_keycap
-		. add_theme_stylebox_override(
-			"normal",
-			_make_panel_style(Color(1.0, 1.0, 1.0, 0.08), Color(0.1, 0.1, 0.1, 0.24), 1),
-			)
-		)
 
 
 func _apply_portrait_layout() -> void:
@@ -310,7 +294,6 @@ func _apply_portrait_layout() -> void:
 	_begin_button.size = Vector2(640.0, 128.0)
 	_begin_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_begin_button.add_theme_font_size_override("font_size", 42)
-	_cta_keycap.visible = false
 
 
 func _layout_language_toggle() -> void:
@@ -359,14 +342,14 @@ func _cycle_locale() -> void:
 func _on_begin_pressed() -> void:
 	if not _loading_complete or _field_visible:
 		return
-	_play_ui_click()
+	_play_start_click()
 	_prepare_field_entry()
 	await _fade_out_title_music()
 	_enter_field()
 
 
 func _prepare_field_entry() -> void:
-	_stop_begin_pulse()
+	_stop_begin_hover()
 	_loading_complete = false
 	_field_visible = true
 	_begin_button.disabled = true
@@ -399,7 +382,6 @@ func _refresh_localized_text() -> void:
 	_begin_button.text = LocalizationScript.t(
 		&"title.deploying" if _field_visible else &"title.start_game"
 	)
-	_cta_keycap.text = LocalizationScript.t(&"title.key_enter")
 	_refresh_language_toggle()
 
 
@@ -445,6 +427,7 @@ func is_audio_ready() -> bool:
 	return (
 		UI_HOVER_CUE != null
 		and UI_CLICK_CUE != null
+		and UI_START_CLICK_CUE != null
 		and TITLE_MUSIC != null
 		and START_BUTTON_ART != null
 		and get_node_or_null("/root/AudioService") != null
@@ -459,13 +442,15 @@ func get_ui_feedback_metrics() -> Dictionary:
 	return {
 		&"hover_path": UI_HOVER_CUE.resource_path,
 		&"click_path": UI_CLICK_CUE.resource_path,
+		&"start_click_path": UI_START_CLICK_CUE.resource_path,
 		&"bus": AudioServiceScript.BUS_UI,
 		&"hover_triggers": _hover_audio_trigger_count,
 		&"click_triggers": _audio_trigger_count,
 		&"controls": _ui_feedback_control_count,
-		&"pulse_scale": START_PULSE_SCALE,
-		&"pulse_half_seconds": START_PULSE_HALF_SECONDS,
-		&"pulse_active": is_instance_valid(_begin_pulse_tween),
+		&"idle_pulse_active": false,
+		&"hover_scale": START_HOVER_SCALE,
+		&"hover_seconds": START_HOVER_SECONDS,
+		&"hover_motion_active": _begin_hover_active,
 	}
 
 
@@ -484,7 +469,7 @@ func get_title_music_metrics() -> Dictionary:
 
 
 func prepare_for_shutdown() -> void:
-	_stop_begin_pulse()
+	_stop_begin_hover()
 	if is_instance_valid(_title_music_player):
 		_title_music_player.stop()
 
@@ -494,45 +479,41 @@ func _complete_loading() -> void:
 	_begin_button.disabled = false
 	_begin_button.visible = true
 	_begin_button.text = LocalizationScript.t(&"title.start_game")
-	_start_begin_pulse()
+	_stop_begin_hover()
 
 
-func _start_begin_pulse() -> void:
-	_stop_begin_pulse()
-	if not is_inside_tree() or not is_instance_valid(_begin_button):
+func _animate_begin_hover(hovered: bool) -> void:
+	if not is_instance_valid(_begin_button):
 		return
+	_begin_hover_active = hovered and _loading_complete and not _begin_button.disabled
+	if is_instance_valid(_begin_hover_tween):
+		_begin_hover_tween.kill()
 	_begin_button.pivot_offset = _begin_button.size * 0.5
-	_begin_button.scale = Vector2.ONE
-	_begin_pulse_tween = create_tween()
-	_begin_pulse_tween.set_loops()
+	var target_scale: Vector2 = (
+		Vector2.ONE * START_HOVER_SCALE if _begin_hover_active else Vector2.ONE
+	)
+	if not is_inside_tree():
+		_begin_button.scale = target_scale
+		return
+	_begin_hover_tween = create_tween()
 	(
-		_begin_pulse_tween
+		_begin_hover_tween
 		. tween_property(
 			_begin_button,
 			"scale",
-			Vector2.ONE * START_PULSE_SCALE,
-			START_PULSE_HALF_SECONDS,
+			target_scale,
+			START_HOVER_SECONDS,
 		)
-		. set_trans(Tween.TRANS_SINE)
-		. set_ease(Tween.EASE_IN_OUT)
-	)
-	(
-		_begin_pulse_tween
-		. tween_property(
-			_begin_button,
-			"scale",
-			Vector2.ONE,
-			START_PULSE_HALF_SECONDS,
-		)
-		. set_trans(Tween.TRANS_SINE)
-		. set_ease(Tween.EASE_IN_OUT)
+		. set_trans(Tween.TRANS_QUAD)
+		. set_ease(Tween.EASE_OUT)
 	)
 
 
-func _stop_begin_pulse() -> void:
-	if is_instance_valid(_begin_pulse_tween):
-		_begin_pulse_tween.kill()
-	_begin_pulse_tween = null
+func _stop_begin_hover() -> void:
+	if is_instance_valid(_begin_hover_tween):
+		_begin_hover_tween.kill()
+	_begin_hover_tween = null
+	_begin_hover_active = false
 	if is_instance_valid(_begin_button):
 		_begin_button.scale = Vector2.ONE
 
@@ -585,6 +566,8 @@ func _fade_out_title_music() -> void:
 
 func _connect_ui_feedback() -> void:
 	_connect_hover_feedback(_begin_button)
+	_begin_button.mouse_entered.connect(_animate_begin_hover.bind(true))
+	_begin_button.mouse_exited.connect(_animate_begin_hover.bind(false))
 	_connect_hover_feedback(_language_toggle)
 	if is_instance_valid(_settings_panel):
 		var settings_button: Button = _settings_panel.call("get_trigger_button") as Button
@@ -613,6 +596,12 @@ func _play_ui_hover(button: Button) -> void:
 
 func _play_ui_click() -> void:
 	if _play_ui_cue(UI_CLICK_CUE, -3.0, 2):
+		_audio_trigger_count += 1
+		print("[TITLE_UI_CLICK] count=%d" % _audio_trigger_count)
+
+
+func _play_start_click() -> void:
+	if _play_ui_cue(UI_START_CLICK_CUE, -1.5, 3):
 		_audio_trigger_count += 1
 		print("[TITLE_UI_CLICK] count=%d" % _audio_trigger_count)
 

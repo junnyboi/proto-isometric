@@ -6,12 +6,15 @@
 
 ## Title interaction feedback
 
-`ui_hover.wav` and `ui_click.wav` were generated on 2026-08-26 through the approved image-to-video-carrier workflow. GPT Image 2 first produced a repaired woodland control-console anchor; separate four-second Gemini Omni audio-bearing carriers then produced one isolated electro-organic focus cue and one tactile electromechanical confirmation cue. The carrier audio was extracted, trimmed around its single event, resampled to 48 kHz stereo PCM16, given short boundary fades, and peak-controlled near -12 dBFS. Carrier videos and the anchor remain outside Git under `/home/ubuntu/start-button-media/`.
+`ui_hover.wav` and `ui_click.wav` were generated on 2026-08-26 through the approved image-to-video-carrier workflow. GPT Image 2 first produced a repaired woodland control-console anchor; separate four-second Gemini Omni audio-bearing carriers then produced one isolated electro-organic focus cue and one compact confirmation cue. Those carrier videos and the anchor remain outside Git under `/home/ubuntu/start-button-media/`.
+
+`ui_start_click.wav` is the dedicated Start Game activation cue generated on 2026-08-26 through the same mandated workflow. GPT Image 2 produced two 16:9 reclaimed electromechanical-button anchors; the selected spring-loaded rectangular console control conditioned a three-second Gemini Omni carrier containing one close-miked detent, brass-and-resin thunk, and restrained relay tick. The runtime derivative selects the 1.3-second action window, resamples it to 48 kHz stereo PCM16, applies 45 Hz high-pass and 16 kHz low-pass filtering, short boundary fades, and conservative gain for a -9.5 dBFS true peak. Its carrier and anchors remain outside Git under `/home/ubuntu/title-button-tactile/`.
 
 | Runtime file | Role | Duration | SHA-256 |
 |---|---|---:|---|
 | `ui_hover.wav` | Start Game, language, and Settings hover/focus feedback | 0.520 s | `b002b98a4ddc92eeb1aba4c63440703e03a6663a1033f6c642d8922f3be8cdf1` |
-| `ui_click.wav` | Start Game, language, and Settings activation feedback | 0.700 s | `c9251499838c033882eb65cc8bebf3b7aa54ff1f1726f6c0668dadb6d46adac5` |
+| `ui_click.wav` | Language and Settings activation feedback | 0.700 s | `c9251499838c033882eb65cc8bebf3b7aa54ff1f1726f6c0668dadb6d46adac5` |
+| `ui_start_click.wav` | Dedicated tactile Start Game activation feedback | 1.300 s | `61388f1daf500e39f14902d9b8485ff2b29c326496979b86b58aac6453a0140f` |
 
 ## J1 semantic Smash feedback
 
