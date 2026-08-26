@@ -43,6 +43,7 @@ static func _test_operation_catalog(cases: Array[Dictionary]) -> void:
 			and OperationCatalogScript.operations().has(&"review_threat")
 			and OperationCatalogScript.operations().has(&"inspect_construction")
 			and OperationCatalogScript.operations().has(&"inspect_deposit")
+			and OperationCatalogScript.operations().has(&"return_safe_exit")
 			and OperationCatalogScript.operations().has(&"world_collect_reward")
 			and inspected[&"route"] == OperationCatalogScript.ROUTE_READ
 			and OperationCatalogScript.descriptor_for(
@@ -408,6 +409,17 @@ static func _test_current_provider_cards(cases: Array[Dictionary]) -> void:
 			&"deposit_biomass", _deposit_state(&"renewing"), &"inspect_deposit"
 		),
 		_provider_fixture(&"settler", {&"settler_id": "settler.amara_voss"}),
+		_provider_fixture(
+			&"water",
+			{&"water_class": &"freshwater_pond", &"walkable": false, &"irrigation_relevant": true},
+		),
+		_provider_fixture(
+			&"safe_exit",
+			{&"destination": &"home_clearing", &"ready": true, &"risk": &"secured"},
+		),
+		_provider_fixture(
+			&"functional_prop", {&"purpose": &"irrigation", &"active": true}
+		),
 	]
 	var valid: bool = true
 	var localized: bool = true
@@ -431,7 +443,7 @@ static func _test_current_provider_cards(cases: Array[Dictionary]) -> void:
 	_add(
 		cases,
 		"INS-14 every current provider family returns a bounded non-mutating card",
-		valid and fixtures.size() == 20,
+		valid and fixtures.size() == 23,
 	)
 	_add(
 		cases,
@@ -457,6 +469,15 @@ static func _test_current_provider_cards(cases: Array[Dictionary]) -> void:
 			and _fact_value(
 				result_by_subkind[&"storage"], &"interaction.inspect.fact.robot_item_count"
 			) == 5
+			and _fact_value(
+				result_by_subkind[&"water"], &"interaction.inspect.fact.water_class"
+			) == &"interaction.value.water.freshwater_pond"
+			and _fact_value(
+				result_by_subkind[&"safe_exit"], &"interaction.inspect.fact.ready"
+			) == true
+			and _fact_value(
+				result_by_subkind[&"functional_prop"], &"interaction.inspect.fact.purpose"
+			) == &"interaction.value.purpose.irrigation"
 		),
 	)
 	_add(

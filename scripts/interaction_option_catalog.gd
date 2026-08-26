@@ -33,14 +33,14 @@ const PROVIDER_SUBKINDS: Dictionary = {
 	PROVIDER_TERRAIN: [&"terrain", &"plot", &"crop"],
 	PROVIDER_RESOURCE: [&"tree", &"resource"],
 	PROVIDER_PICKUP: [&"pickup"],
-	PROVIDER_FACILITY: [&"home", &"facility", &"ruin"],
+	PROVIDER_FACILITY: [&"home", &"facility", &"functional_prop", &"ruin", &"water"],
 	PROVIDER_MACHINE: [&"storage", &"shipping", &"machine"],
 	PROVIDER_RESIDENT: [&"resident", &"settler"],
 	PROVIDER_LIVESTOCK: [&"livestock"],
 	PROVIDER_CONSTRUCTION: [&"construction"],
 	PROVIDER_DEPOSIT: [&"deposit_salvage", &"deposit_mineral", &"deposit_biomass"],
 	PROVIDER_WILDERNESS: [&"wilderness", &"hostile", &"hazard", &"herd"],
-	PROVIDER_LEGACY: [&"legacy_expedition", &"expedition_gate"],
+	PROVIDER_LEGACY: [&"legacy_expedition", &"expedition_gate", &"safe_exit"],
 }
 
 

@@ -30,6 +30,9 @@ const ResolverScript: GDScript = preload("res://scripts/interaction_resolver.gd"
 const SettlementProviderScript: GDScript = preload(
 	"res://scripts/settlement_interaction_provider.gd"
 )
+const StableFeatureProviderScript: GDScript = preload(
+	"res://scripts/stable_feature_interaction_provider.gd"
+)
 const SettlerPresentationScript: GDScript = preload(
 	"res://scripts/settler_presentation_catalog.gd"
 )
@@ -42,6 +45,8 @@ const WoodlandClearingScript: GDScript = preload("res://scripts/woodland_clearin
 const SHIPPING_CELL: Vector2i = Vector2i(7, 7)
 const STORAGE_CELL: Vector2i = Vector2i(8, 7)
 const WORKSHOP_CELL: Vector2i = Vector2i(9, 7)
+const IRRIGATION_CELL: Vector2i = Vector2i(10, 6)
+const WELL_CELL: Vector2i = Vector2i(5, 9)
 
 var _map: Node2D
 var _farm_runtime: RefCounted
@@ -110,6 +115,16 @@ func project(cell: Vector2i, selected_tool: StringName) -> Dictionary:
 				cell,
 				selected_tool,
 				_terrain_inspection_descriptor(cell, world, farm, description),
+			)
+		&"water":
+			projection = StableFeatureProviderScript.water(cell, description[&"state"])
+		&"safe_exit":
+			projection = StableFeatureProviderScript.safe_exit(cell, description[&"state"])
+		&"functional_prop":
+			projection = StableFeatureProviderScript.functional_prop(
+				cell,
+				description[&"target_id"] as StringName,
+				description[&"state"] as Dictionary,
 			)
 		&"home":
 			projection = FarmProviderScript.home(farm, cell)
@@ -551,6 +566,8 @@ func _priority_description(cell: Vector2i, world: RefCounted) -> Dictionary:
 		result = _habitat_at(cell, false)
 	if result.is_empty():
 		result = _structure_at(cell, presentation, world)
+	if result.is_empty():
+		result = _stable_feature_at(cell, world)
 	return result
 
 
@@ -692,9 +709,65 @@ func _structure_at(
 		result = {
 			&"family": &"ruin",
 			&"kind": ResolverScript.KIND_STRUCTURE,
-			&"record": registry.call("state_for", cell) as Dictionary,
-		}
+				&"record": registry.call("state_for", cell) as Dictionary,
+			}
 	return result
+
+
+func _stable_feature_at(cell: Vector2i, world: RefCounted) -> Dictionary:
+	var farm: Dictionary = _farm_runtime.call("get_snapshot") as Dictionary
+	var pond: bool = world.has_method("_is_pond") and bool(world.call("_is_pond", cell))
+	return stable_feature_description(cell, farm, pond)
+
+
+static func stable_feature_description(
+	cell: Vector2i,
+	farm: Dictionary,
+	is_pond: bool,
+) -> Dictionary:
+	if is_pond:
+		return {
+			&"family": &"water",
+			&"kind": ResolverScript.KIND_STRUCTURE,
+			&"state": {
+				&"water_class": &"freshwater_pond",
+				&"walkable": false,
+				&"irrigation_relevant": true,
+			},
+		}
+	if cell == IronjawDesertArcScript.SAFE_EXIT:
+		var ready: bool = IronjawDesertArcScript.is_first_clear(farm)
+		return {
+			&"family": &"safe_exit",
+			&"kind": ResolverScript.KIND_STRUCTURE,
+			&"state": {
+				&"destination": &"home_clearing",
+				&"ready": ready,
+				&"risk": &"secured" if ready else &"sealed",
+			},
+		}
+	if cell == IRRIGATION_CELL and _has_upgrade(farm, &"upgrade.irrigation.grid_radius"):
+		return {
+			&"family": &"functional_prop",
+			&"kind": ResolverScript.KIND_STRUCTURE,
+			&"target_id": &"prop.irrigation_pump",
+			&"state": {&"purpose": &"irrigation", &"active": true},
+		}
+	if cell == WELL_CELL and IronjawDesertArcScript.is_first_clear(farm):
+		return {
+			&"family": &"functional_prop",
+			&"kind": ResolverScript.KIND_STRUCTURE,
+			&"target_id": &"prop.burrow_well",
+			&"state": {&"purpose": &"water_access", &"active": true},
+		}
+	return {}
+
+
+static func _has_upgrade(farm: Dictionary, upgrade_id: StringName) -> bool:
+	return (
+		String(upgrade_id)
+		in ((farm.get(&"tools", {}) as Dictionary).get(&"upgrade_ids", []) as Array)
+	)
 
 
 func _machine_at(cell: Vector2i, farm: Dictionary) -> Dictionary:

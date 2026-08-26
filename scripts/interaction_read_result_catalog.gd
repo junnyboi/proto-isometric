@@ -201,6 +201,28 @@ static func _provider_view(
 		&"hazard":
 			_append_decimal(facts, state, &"age", &"interaction.inspect.fact.age")
 			_append_boolean(facts, state, &"prepared", &"interaction.inspect.fact.prepared")
+		&"water":
+			_append_enum(
+				facts, state, &"water_class", &"interaction.inspect.fact.water_class", &"water"
+			)
+			_append_boolean(facts, state, &"walkable", &"interaction.inspect.fact.walkable")
+			_append_boolean(
+				facts,
+				state,
+				&"irrigation_relevant",
+				&"interaction.inspect.fact.irrigation_relevant",
+			)
+		&"safe_exit":
+			_append_enum(
+				facts, state, &"destination", &"interaction.inspect.fact.destination", &"destination"
+			)
+			_append_boolean(facts, state, &"ready", &"interaction.inspect.fact.ready")
+			_append_enum(facts, state, &"risk", &"interaction.inspect.fact.risk", &"risk")
+		&"functional_prop":
+			_append_enum(
+				facts, state, &"purpose", &"interaction.inspect.fact.purpose", &"purpose"
+			)
+			_append_boolean(facts, state, &"active", &"interaction.inspect.fact.active")
 		&"ruin":
 			_append_boolean(facts, state, &"activated", &"interaction.inspect.fact.activated")
 		&"expedition_gate":
@@ -311,7 +333,11 @@ static func _enum_value(category: StringName, value: Variant) -> StringName:
 	var allowed: Dictionary = {
 		&"construction": [&"complete", &"constructing"],
 		&"deposit": [&"depleted", &"renewing", &"rich"],
+		&"destination": [&"home_clearing"],
 		&"machine": [&"complete", &"idle", &"running"],
+		&"purpose": [&"irrigation", &"water_access"],
+		&"risk": [&"sealed", &"secured"],
+		&"water": [&"freshwater_pond"],
 	}
 	if StringName(normalized) not in allowed.get(category, []):
 		return &"interaction.value.unknown"

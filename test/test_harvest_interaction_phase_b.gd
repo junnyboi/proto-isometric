@@ -14,12 +14,19 @@ const HazardCatalogScript: GDScript = preload("res://scripts/hazard_opportunity_
 const HomesteadServiceScript: GDScript = preload("res://scripts/homestead_service.gd")
 const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const InventoryServiceScript: GDScript = preload("res://scripts/inventory_service.gd")
+const InteractionServiceScript: GDScript = preload(
+	"res://scripts/harvest_interaction_phase_b_service.gd"
+)
+const IronjawArcScript: GDScript = preload("res://scripts/ironjaw_desert_arc.gd")
 const LivestockServiceScript: GDScript = preload("res://scripts/livestock_service.gd")
 const MachineServiceScript: GDScript = preload("res://scripts/machine_service.gd")
 const ResidentServiceScript: GDScript = preload("res://scripts/resident_service.gd")
 const ResolverScript: GDScript = preload("res://scripts/interaction_resolver.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
+const StableFeatureProviderScript: GDScript = preload(
+	"res://scripts/stable_feature_interaction_provider.gd"
+)
 const WildernessProviderScript: GDScript = preload(
 	"res://scripts/harvest_interaction_world_provider.gd"
 )
@@ -67,6 +74,7 @@ static func evaluate(runtime: Node2D) -> Array[Dictionary]:
 	_test_wilderness_catalogs(cases, farm)
 	_test_world_transaction(cases, farm)
 	_test_live_service(cases, runtime)
+	_test_stable_features(cases, farm)
 	return cases
 
 
@@ -548,8 +556,126 @@ static func _test_live_service(cases: Array[Dictionary], runtime: Node2D) -> voi
 			and inspect_before == inspect_after
 		),
 	)
+	var pond_cell: Vector2i = WoodlandClearingScript.POND_CELL
+	var pond_menu: Dictionary = (
+		_menu(service.call("project", pond_cell, ToolServiceScript.TOOL_HOE))
+		if service != null
+		else {}
+	)
+	var pond_option: Dictionary = _action(pond_menu, &"interaction.action.inspect")
+	var pond_before: Dictionary = farm_runtime.call("get_snapshot") as Dictionary
+	var pond_result: Dictionary = (
+		service.call(
+			"execute",
+			ResolverScript.ACTION_CONTEXT,
+			ToolServiceScript.TOOL_HOE,
+			{
+				&"valid": true,
+				&"target_cell": pond_cell,
+				&"target_kind": pond_menu.get(&"target_kind", &"") as StringName,
+				&"action": ResolverScript.ACTION_CONTEXT,
+				&"rejection_reason": &"",
+			},
+			pond_option,
+		) as Dictionary
+		if service != null and not pond_option.is_empty()
+		else {}
+	)
+	var pond_after: Dictionary = farm_runtime.call("get_snapshot") as Dictionary
+	_add(
+		cases,
+		"PHB-18 live freshwater pond Inspect returns useful state without mutation",
+		(
+			pond_menu[&"target_subkind"] == &"water"
+			and ExecutionResultScript.validate(pond_result)
+			and _result_fact_value(
+				pond_result, &"interaction.inspect.fact.water_class"
+			) == &"interaction.value.water.freshwater_pond"
+			and pond_before == pond_after
+		),
+	)
 	if controller != null:
 		controller.call("close_menu")
+
+
+static func _test_stable_features(cases: Array[Dictionary], farm: Dictionary) -> void:
+	var pond_description: Dictionary = InteractionServiceScript.stable_feature_description(
+		WoodlandClearingScript.POND_CELL, farm, true
+	)
+	var exit_description: Dictionary = InteractionServiceScript.stable_feature_description(
+		IronjawArcScript.SAFE_EXIT, farm, false
+	)
+	var pond_menu: Dictionary = _menu(
+		StableFeatureProviderScript.water(
+			WoodlandClearingScript.POND_CELL,
+			pond_description.get(&"state", {}) as Dictionary,
+		)
+	)
+	var exit_menu: Dictionary = _menu(
+		StableFeatureProviderScript.safe_exit(
+			IronjawArcScript.SAFE_EXIT,
+			exit_description.get(&"state", {}) as Dictionary,
+		)
+	)
+	var return_option: Dictionary = _action(
+		exit_menu, &"interaction.action.return_safe_exit"
+	)
+	var locked_pump: Dictionary = InteractionServiceScript.stable_feature_description(
+		Vector2i(10, 6), farm, false
+	)
+	var locked_well: Dictionary = InteractionServiceScript.stable_feature_description(
+		IronjawArcScript.WELL_CELL, farm, false
+	)
+	var unlocked: Dictionary = farm.duplicate(true)
+	var tools: Dictionary = unlocked[&"tools"] as Dictionary
+	var upgrades: Array = (tools[&"upgrade_ids"] as Array).duplicate()
+	upgrades.append("upgrade.irrigation.grid_radius")
+	tools[&"upgrade_ids"] = upgrades
+	var ecology: Dictionary = unlocked[&"ecology"] as Dictionary
+	var clears: Array = (ecology[&"boss_first_clear_ids"] as Array).duplicate()
+	clears.append(String(EcologyDirectorScript.IRONJAW_CLEAR_ID))
+	ecology[&"boss_first_clear_ids"] = clears
+	var pump: Dictionary = InteractionServiceScript.stable_feature_description(
+		Vector2i(10, 6), unlocked, false
+	)
+	var well: Dictionary = InteractionServiceScript.stable_feature_description(
+		IronjawArcScript.WELL_CELL, unlocked, false
+	)
+	var ready_exit: Dictionary = InteractionServiceScript.stable_feature_description(
+		IronjawArcScript.SAFE_EXIT, unlocked, false
+	)
+	_add(
+		cases,
+		"PHB-19 pond and safe exit resolve through existing structure kind with truthful actions",
+		(
+			pond_description[&"family"] == &"water"
+			and pond_menu[&"target_kind"] == ResolverScript.KIND_STRUCTURE
+			and pond_menu[&"target_subkind"] == &"water"
+			and exit_description[&"family"] == &"safe_exit"
+			and exit_menu[&"target_subkind"] == &"safe_exit"
+			and not bool(return_option[&"enabled"])
+			and return_option[&"reason_key"]
+			== &"interaction.reason.safe_exit_transition_unavailable"
+		),
+	)
+	_add(
+		cases,
+		"PHB-20 functional props appear only when their owning capability is active",
+		(
+			locked_pump.is_empty()
+			and locked_well.is_empty()
+			and pump[&"target_id"] == &"prop.irrigation_pump"
+			and well[&"target_id"] == &"prop.burrow_well"
+			and bool((ready_exit[&"state"] as Dictionary)[&"ready"])
+		),
+	)
+	_add(
+		cases,
+		"PHB-21 decorative cells remain excluded from interaction taxonomy",
+		InteractionServiceScript.stable_feature_description(
+			Vector2i(3, 3), unlocked, false
+		).is_empty(),
+	)
 
 
 static func _menu(target: Dictionary) -> Dictionary:
@@ -573,6 +699,14 @@ static func _action(menu: Dictionary, action_id: StringName) -> Dictionary:
 		if option[&"action_id"] == action_id:
 			return option
 	return {}
+
+
+static func _result_fact_value(result: Dictionary, label_key: StringName) -> Variant:
+	var view: Dictionary = result.get(&"view", {}) as Dictionary
+	for fact: Dictionary in view.get(&"facts", []) as Array[Dictionary]:
+		if fact[&"label_key"] == label_key:
+			return fact[&"value"]
+	return null
 
 
 static func _has_action(menu: Dictionary, action_id: StringName) -> bool:
