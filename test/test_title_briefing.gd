@@ -7,6 +7,9 @@ const TitleScreenScript: GDScript = preload("res://scripts/title_screen.gd")
 
 const DESKTOP_ART: String = "res://assets/title/protos_harvest_title_desktop.png"
 const MOBILE_ART: String = "res://assets/title/protos_harvest_title_mobile.png"
+const START_BUTTON_ART: String = "res://assets/ui/title/start_game_button.png"
+const UI_HOVER_PATH: String = "res://assets/audio/ui_hover.wav"
+const UI_CLICK_PATH: String = "res://assets/audio/ui_click.wav"
 const TITLE_MUSIC_PATH: String = "res://assets/audio/bgm_title.ogg"
 
 
@@ -58,6 +61,49 @@ static func evaluate() -> Array[Dictionary]:
 			and not begin.disabled
 			and begin.focus_mode == Control.FOCUS_ALL
 			and begin.text == LocalizationScript.t(&"title.start_game")
+		),
+	)
+	var start_style: StyleBox = begin.get_theme_stylebox("normal")
+	var start_texture: Texture2D = (
+		(start_style as StyleBoxTexture).texture
+		if start_style is StyleBoxTexture
+		else null
+	)
+	_add(
+		cases,
+		"Start Game uses the generated transparent textured frame",
+		(
+			start_texture != null
+			and start_texture.resource_path == START_BUTTON_ART
+			and load(START_BUTTON_ART) is Texture2D
+		),
+	)
+	var feedback: Dictionary = title.call("get_ui_feedback_metrics") as Dictionary
+	_add(
+		cases,
+		"Start Game owns a subtle bounded readiness pulse",
+		(
+			float(feedback[&"pulse_scale"]) > 1.0
+			and float(feedback[&"pulse_scale"]) <= 1.025
+			and float(feedback[&"pulse_half_seconds"]) >= 0.6
+			and float(feedback[&"pulse_half_seconds"]) <= 1.0
+		),
+	)
+	var hover_cue: AudioStream = load(UI_HOVER_PATH) as AudioStream
+	var click_cue: AudioStream = load(UI_CLICK_PATH) as AudioStream
+	_add(
+		cases,
+		"title hover and click cues are compact carrier-derived UI-bus assets",
+		(
+			hover_cue != null
+			and hover_cue.get_length() >= 0.1
+			and hover_cue.get_length() <= 0.75
+			and click_cue != null
+			and click_cue.get_length() >= 0.2
+			and click_cue.get_length() <= 0.9
+			and feedback[&"hover_path"] == UI_HOVER_PATH
+			and feedback[&"click_path"] == UI_CLICK_PATH
+			and feedback[&"bus"] == &"UI"
 		),
 	)
 	_add(

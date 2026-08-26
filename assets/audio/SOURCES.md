@@ -4,6 +4,15 @@
 
 `chassis_damage.wav` — generated with Manus `generate_video` using Gemini Omni after Mirelo was unavailable, extracted from an audio-bearing carrier, trimmed to a 2.05-second 48 kHz stereo runtime WAV, peak-controlled to -3.77 dBFS, and accepted by the user on 2026-08-16.
 
+## Title interaction feedback
+
+`ui_hover.wav` and `ui_click.wav` were generated on 2026-08-26 through the approved image-to-video-carrier workflow. GPT Image 2 first produced a repaired woodland control-console anchor; separate four-second Gemini Omni audio-bearing carriers then produced one isolated electro-organic focus cue and one tactile electromechanical confirmation cue. The carrier audio was extracted, trimmed around its single event, resampled to 48 kHz stereo PCM16, given short boundary fades, and peak-controlled near -12 dBFS. Carrier videos and the anchor remain outside Git under `/home/ubuntu/start-button-media/`.
+
+| Runtime file | Role | Duration | SHA-256 |
+|---|---|---:|---|
+| `ui_hover.wav` | Start Game, language, and Settings hover/focus feedback | 0.520 s | `b002b98a4ddc92eeb1aba4c63440703e03a6663a1033f6c642d8922f3be8cdf1` |
+| `ui_click.wav` | Start Game, language, and Settings activation feedback | 0.700 s | `c9251499838c033882eb65cc8bebf3b7aa54ff1f1726f6c0668dadb6d46adac5` |
+
 ## J1 semantic Smash feedback
 
 The J1 clips below are accepted mono PCM runtime derivatives prepared on 2026-08-20. `smash_swing.wav` was extracted and normalized from a built-in Gemini Omni generated-audio clip prompted as one isolated industrial mech-arm swing with no music, ambience, speech, or impact. The remaining clips are short deterministic edits and mixes of that accepted generated source and the shipped `chassis_damage.wav` cue. Edits include trimming, downmixing, resampling, filtering, pitch treatment, dynamics, and fades. Generation masters were deleted after the runtime WAVs passed codec, sample-rate, channel-count, and duration validation.

@@ -14,11 +14,18 @@ const TITLE_DESKTOP: Texture2D = preload(
 const TITLE_MOBILE: Texture2D = preload(
 	"res://assets/title/protos_harvest_title_mobile.png"
 )
-const BEGIN_CUE: AudioStream = preload("res://assets/audio/ui_begin.wav")
+const START_BUTTON_ART: Texture2D = preload(
+	"res://assets/ui/title/start_game_button.png"
+)
+const UI_HOVER_CUE: AudioStream = preload("res://assets/audio/ui_hover.wav")
+const UI_CLICK_CUE: AudioStream = preload("res://assets/audio/ui_click.wav")
 const TITLE_MUSIC: AudioStream = preload("res://assets/audio/bgm_title.ogg")
 const TITLE_MUSIC_VOLUME_DB: float = -9.0
 const TITLE_MUSIC_FADE_SECONDS: float = 0.65
 const SILENT_VOLUME_DB: float = -80.0
+const START_PULSE_SCALE: float = 1.018
+const START_PULSE_HALF_SECONDS: float = 0.82
+const UI_HOVER_COOLDOWN_MS: int = 90
 
 const AMBER: Color = Color("f3a21e")
 const AMBER_HOVER: Color = Color("ffc35c")
@@ -40,7 +47,11 @@ var _layout: Dictionary = {}
 var _loading_complete: bool = false
 var _field_visible: bool = false
 var _audio_trigger_count: int = 0
+var _hover_audio_trigger_count: int = 0
+var _ui_feedback_control_count: int = 0
+var _last_hover_audio_ms: int = -UI_HOVER_COOLDOWN_MS
 var _title_music_player: AudioStreamPlayer
+var _begin_pulse_tween: Tween
 
 
 func _ready() -> void:
@@ -53,6 +64,7 @@ func _ready() -> void:
 		Callable(self, "_on_settings_trigger_layout_changed"),
 	)
 	add_child(_settings_panel)
+	_connect_ui_feedback()
 	get_viewport().size_changed.connect(_apply_responsive_layout)
 	_apply_responsive_layout()
 	_complete_loading()
@@ -120,27 +132,32 @@ func _build_briefing() -> void:
 	_begin_button.add_theme_color_override("font_hover_color", INK)
 	_begin_button.add_theme_color_override("font_focus_color", INK)
 	_begin_button.add_theme_color_override("font_pressed_color", TEXT)
-	_begin_button.add_theme_stylebox_override("normal", _make_button_style(AMBER, INK, 2))
+	_begin_button.add_theme_stylebox_override(
+		"normal", _make_textured_button_style(Color.WHITE)
+	)
 	(
 		_begin_button
 		. add_theme_stylebox_override(
 			"hover",
-			_make_button_style(AMBER_HOVER, TEXT, 2),
+			_make_textured_button_style(Color(1.08, 1.05, 0.96, 1.0)),
 		)
 	)
 	(
 		_begin_button
 		. add_theme_stylebox_override(
 			"focus",
-			_make_button_style(AMBER_HOVER, TEXT, 3),
+			_make_textured_button_style(Color(1.1, 1.06, 0.94, 1.0)),
 		)
 	)
 	(
 		_begin_button
 		. add_theme_stylebox_override(
 			"pressed",
-			_make_button_style(Color("8f5610"), TEXT, 2),
+			_make_textured_button_style(Color(0.72, 0.72, 0.72, 1.0)),
 		)
+	)
+	_begin_button.add_theme_stylebox_override(
+		"disabled", _make_textured_button_style(Color(0.58, 0.58, 0.58, 0.62))
 	)
 	_begin_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_begin_button.pressed.connect(_on_begin_pressed)
@@ -177,7 +194,7 @@ func _build_language_toggle(ui_root: Control) -> void:
 	_language_toggle.add_theme_stylebox_override(
 		"disabled", _make_compact_button_style(Color(0.02, 0.035, 0.05, 0.72), TEAL, 1)
 	)
-	_language_toggle.pressed.connect(_cycle_locale)
+	_language_toggle.pressed.connect(_on_language_pressed)
 	ui_root.add_child(_language_toggle)
 	_refresh_language_toggle()
 
@@ -199,6 +216,20 @@ func _make_button_style(color: Color, border_color: Color, border_width: int) ->
 	style.corner_radius_bottom_right = 2
 	style.content_margin_left = 22.0
 	style.content_margin_right = 22.0
+	return style
+
+
+func _make_textured_button_style(modulate: Color) -> StyleBoxTexture:
+	var style: StyleBoxTexture = StyleBoxTexture.new()
+	style.texture = START_BUTTON_ART
+	style.modulate_color = modulate
+	style.draw_center = true
+	style.set_texture_margin(SIDE_LEFT, 26.0)
+	style.set_texture_margin(SIDE_TOP, 20.0)
+	style.set_texture_margin(SIDE_RIGHT, 26.0)
+	style.set_texture_margin(SIDE_BOTTOM, 20.0)
+	style.set_content_margin(SIDE_LEFT, 22.0)
+	style.set_content_margin(SIDE_RIGHT, 22.0)
 	return style
 
 
@@ -236,6 +267,7 @@ func _apply_responsive_layout() -> void:
 		_apply_portrait_layout()
 	else:
 		_apply_landscape_layout()
+	_begin_button.pivot_offset = _begin_button.size * 0.5
 	_layout_language_toggle()
 
 
@@ -308,6 +340,11 @@ func _on_settings_trigger_layout_changed(settings_rect: Rect2) -> void:
 	_language_toggle.add_theme_font_size_override("font_size", 17)
 
 
+func _on_language_pressed() -> void:
+	_play_ui_click()
+	_cycle_locale()
+
+
 func _cycle_locale() -> void:
 	var current: StringName = LocalizationScript.get_locale()
 	var next_locale: StringName = &"zh-CN" if current == &"en" else &"en"
@@ -322,13 +359,14 @@ func _cycle_locale() -> void:
 func _on_begin_pressed() -> void:
 	if not _loading_complete or _field_visible:
 		return
+	_play_ui_click()
 	_prepare_field_entry()
-	_trigger_begin_audio()
 	await _fade_out_title_music()
 	_enter_field()
 
 
 func _prepare_field_entry() -> void:
+	_stop_begin_pulse()
 	_loading_complete = false
 	_field_visible = true
 	_begin_button.disabled = true
@@ -405,14 +443,30 @@ func is_loading_complete() -> bool:
 
 func is_audio_ready() -> bool:
 	return (
-		BEGIN_CUE != null
+		UI_HOVER_CUE != null
+		and UI_CLICK_CUE != null
 		and TITLE_MUSIC != null
+		and START_BUTTON_ART != null
 		and get_node_or_null("/root/AudioService") != null
 	)
 
 
 func get_audio_trigger_count() -> int:
 	return _audio_trigger_count
+
+
+func get_ui_feedback_metrics() -> Dictionary:
+	return {
+		&"hover_path": UI_HOVER_CUE.resource_path,
+		&"click_path": UI_CLICK_CUE.resource_path,
+		&"bus": AudioServiceScript.BUS_UI,
+		&"hover_triggers": _hover_audio_trigger_count,
+		&"click_triggers": _audio_trigger_count,
+		&"controls": _ui_feedback_control_count,
+		&"pulse_scale": START_PULSE_SCALE,
+		&"pulse_half_seconds": START_PULSE_HALF_SECONDS,
+		&"pulse_active": is_instance_valid(_begin_pulse_tween),
+	}
 
 
 func get_title_music_metrics() -> Dictionary:
@@ -430,6 +484,7 @@ func get_title_music_metrics() -> Dictionary:
 
 
 func prepare_for_shutdown() -> void:
+	_stop_begin_pulse()
 	if is_instance_valid(_title_music_player):
 		_title_music_player.stop()
 
@@ -439,6 +494,47 @@ func _complete_loading() -> void:
 	_begin_button.disabled = false
 	_begin_button.visible = true
 	_begin_button.text = LocalizationScript.t(&"title.start_game")
+	_start_begin_pulse()
+
+
+func _start_begin_pulse() -> void:
+	_stop_begin_pulse()
+	if not is_inside_tree() or not is_instance_valid(_begin_button):
+		return
+	_begin_button.pivot_offset = _begin_button.size * 0.5
+	_begin_button.scale = Vector2.ONE
+	_begin_pulse_tween = create_tween()
+	_begin_pulse_tween.set_loops()
+	(
+		_begin_pulse_tween
+		. tween_property(
+			_begin_button,
+			"scale",
+			Vector2.ONE * START_PULSE_SCALE,
+			START_PULSE_HALF_SECONDS,
+		)
+		. set_trans(Tween.TRANS_SINE)
+		. set_ease(Tween.EASE_IN_OUT)
+	)
+	(
+		_begin_pulse_tween
+		. tween_property(
+			_begin_button,
+			"scale",
+			Vector2.ONE,
+			START_PULSE_HALF_SECONDS,
+		)
+		. set_trans(Tween.TRANS_SINE)
+		. set_ease(Tween.EASE_IN_OUT)
+	)
+
+
+func _stop_begin_pulse() -> void:
+	if is_instance_valid(_begin_pulse_tween):
+		_begin_pulse_tween.kill()
+	_begin_pulse_tween = null
+	if is_instance_valid(_begin_button):
+		_begin_button.scale = Vector2.ONE
 
 
 func _start_title_music() -> void:
@@ -487,15 +583,58 @@ func _fade_out_title_music() -> void:
 		_title_music_player.stop()
 
 
-func _trigger_begin_audio() -> void:
-	_audio_trigger_count += 1
+func _connect_ui_feedback() -> void:
+	_connect_hover_feedback(_begin_button)
+	_connect_hover_feedback(_language_toggle)
+	if is_instance_valid(_settings_panel):
+		var settings_button: Button = _settings_panel.call("get_trigger_button") as Button
+		if settings_button != null:
+			_connect_hover_feedback(settings_button)
+			settings_button.pressed.connect(_play_ui_click)
+
+
+func _connect_hover_feedback(button: Button) -> void:
+	button.mouse_entered.connect(_play_ui_hover.bind(button))
+	button.focus_entered.connect(_play_ui_hover.bind(button))
+	_ui_feedback_control_count += 1
+
+
+func _play_ui_hover(button: Button) -> void:
+	if button == null or button.disabled or not button.visible:
+		return
+	var now_ms: int = Time.get_ticks_msec()
+	if now_ms - _last_hover_audio_ms < UI_HOVER_COOLDOWN_MS:
+		return
+	_last_hover_audio_ms = now_ms
+	if _play_ui_cue(UI_HOVER_CUE, -6.0, 1):
+		_hover_audio_trigger_count += 1
+		print("[TITLE_UI_HOVER] count=%d" % _hover_audio_trigger_count)
+
+
+func _play_ui_click() -> void:
+	if _play_ui_cue(UI_CLICK_CUE, -3.0, 2):
+		_audio_trigger_count += 1
+		print("[TITLE_UI_CLICK] count=%d" % _audio_trigger_count)
+
+
+func _play_ui_cue(stream: AudioStream, volume_db: float, priority: int) -> bool:
+	if not is_inside_tree():
+		return false
 	var preferences: Dictionary = (
 		(PlayerPreferencesScript.new() as RefCounted).call("load_preferences") as Dictionary
 	)
-	if (
-		bool(preferences.get(&"sfx_enabled", true))
-		and BEGIN_CUE != null
-	):
-		var service: Node = get_node_or_null("/root/AudioService")
-		if service != null:
-			service.call("play_global", BEGIN_CUE, AudioServiceScript.BUS_UI, 1.0, -5.0, 2)
+	if not bool(preferences.get(&"sfx_enabled", true)) or stream == null:
+		return false
+	var service: Node = get_node_or_null("/root/AudioService")
+	if service == null:
+		return false
+	return bool(
+		service.call(
+			"play_global",
+			stream,
+			AudioServiceScript.BUS_UI,
+			1.0,
+			volume_db,
+			priority,
+		)
+	)
