@@ -73,6 +73,7 @@ static func evaluate_contracts() -> Array[Dictionary]:
 	)
 	var pre_p7: Dictionary = SectionsScript.neutral_workforce()
 	pre_p7.erase(&"shift_reports")
+	pre_p7.erase(&"departed_settler_ids")
 	var migrated: Dictionary = SectionsScript.validate_workforce(pre_p7)
 	_add(
 		cases,
@@ -482,6 +483,7 @@ static func _pre_p7_hash_case(cases: Array[Dictionary], transactions: RefCounted
 	var farm: Dictionary = legacy[&"farm"] as Dictionary
 	var workforce: Dictionary = (farm[&"homestead"] as Dictionary)[&"workforce"]
 	workforce.erase(&"shift_reports")
+	workforce.erase(&"departed_settler_ids")
 	var revisions: Dictionary = farm[&"revisions"] as Dictionary
 	if int(revisions[&"result_revision"]) == 0:
 		legacy = StateHashScript.apply_initial(legacy)

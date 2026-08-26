@@ -248,7 +248,17 @@ static func _maximum_workforce() -> Dictionary:
 		assigned_sites[site_id] = true
 		settlers.append(
 			{&"settler_id": settler_id, &"status": "notice", &"morale": 100,
-			&"injured_until_day": 999_999}
+			&"injured_until_day": 999_999, &"notice_day": 999_997,
+			&"last_reason_ids": [
+				"wellbeing.maximum.%02d.0" % index,
+				"wellbeing.maximum.%02d.1" % index,
+				"wellbeing.maximum.%02d.2" % index,
+				"wellbeing.maximum.%02d.3" % index,
+				"wellbeing.maximum.%02d.4" % index,
+				"wellbeing.maximum.%02d.5" % index,
+				"wellbeing.maximum.%02d.6" % index,
+				"wellbeing.maximum.%02d.7" % index,
+			]}
 		)
 		housing.append({&"settler_id": settler_id, &"bed_id": "bed.maximum.%02d" % index})
 		work.append(
@@ -295,6 +305,7 @@ static func _maximum_workforce() -> Dictionary:
 		&"state_version": 1, &"settlers": settlers, &"housing_assignments": housing,
 		&"work_assignments": work, &"concerns": concerns,
 		&"shift_reports": reports,
+		&"departed_settler_ids": _maximum_departed_settlers(),
 		&"applicant_lifecycle": {
 			&"current_applicant_id": "settler.maximum.applicant",
 			&"offered_day": 999_996,
@@ -305,6 +316,13 @@ static func _maximum_workforce() -> Dictionary:
 			&"deferrals": 2,
 		},
 	}
+
+
+static func _maximum_departed_settlers() -> Array[String]:
+	var result: Array[String] = []
+	for index: int in SectionsScript.MAX_DEPARTED_SETTLERS:
+		result.append("settler.departed.maximum.%02d" % index)
+	return result
 
 
 static func _maximum_jobs() -> Array[Dictionary]:

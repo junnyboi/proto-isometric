@@ -467,6 +467,7 @@ static func _pre_p6_hash_case(cases: Array[Dictionary], transactions: RefCounted
 	var workforce: Dictionary = (farm[&"homestead"] as Dictionary)[&"workforce"] as Dictionary
 	workforce.erase(&"applicant_lifecycle")
 	workforce.erase(&"shift_reports")
+	workforce.erase(&"departed_settler_ids")
 	var revisions: Dictionary = farm[&"revisions"] as Dictionary
 	if int(revisions[&"result_revision"]) == 0:
 		legacy = StateHashScript.apply_initial(legacy)
@@ -524,6 +525,7 @@ static func _schema_cases(cases: Array[Dictionary]) -> void:
 	var legacy: Dictionary = neutral.duplicate(true)
 	legacy.erase(&"applicant_lifecycle")
 	legacy.erase(&"shift_reports")
+	legacy.erase(&"departed_settler_ids")
 	var migrated: Dictionary = SectionsScript.validate_workforce(legacy)
 	_add(
 		cases,

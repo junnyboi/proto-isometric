@@ -18,6 +18,7 @@ const ProductionPolicyScript: GDScript = preload(
 )
 const ResidentServiceScript: GDScript = preload("res://scripts/resident_service.gd")
 const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
+const WellbeingServiceScript: GDScript = preload("res://scripts/wellbeing_service.gd")
 
 
 static func build_candidate(
@@ -47,6 +48,7 @@ static func build_candidate(
 	if StringName(calendar[&"forecast_weather_id"]) == &"weather.rain":
 		candidate = FarmStateScript.apply_rain(candidate, current_absolute)
 	candidate = FarmStateScript.grow(candidate, current_absolute)
+	candidate = WellbeingServiceScript.reconcile_recovery(candidate, current_absolute)
 	var construction: Dictionary = ConstructionDayScript.advance(candidate)
 	if not bool(construction[&"ok"]):
 		return {
@@ -83,6 +85,15 @@ static func build_candidate(
 			&"reason": production[&"reason"],
 		}
 	candidate = production[&"candidate"] as Dictionary
+	var wellbeing: Dictionary = WellbeingServiceScript.advance(
+		candidate, world_seed, current_absolute
+	)
+	if not bool(wellbeing[&"ok"]):
+		return {
+			&"ok": false, &"candidate": source, &"day_token": token,
+			&"reason": wellbeing[&"reason"],
+		}
+	candidate = wellbeing[&"candidate"] as Dictionary
 	candidate = MachineServiceScript.advance(candidate, current_absolute + 1)
 	var settled: Dictionary = EconomyServiceScript.settle(candidate, token)
 	if not bool(settled[&"ok"]):
@@ -138,5 +149,6 @@ static func build_candidate(
 		&"shift_results": extracted[&"shift_results"],
 		&"logistics_summary": logistics[&"summary"],
 		&"production_summary": production[&"summary"],
+		&"wellbeing_summary": wellbeing[&"summaries"],
 		&"reason": &"",
 	}

@@ -52,8 +52,11 @@ static func advance_dawn(farm: Dictionary, world_seed: int, absolute_day: int) -
 	if not HousingScript.safehouse_ready(source) or HousingScript.available_beds(source).is_empty():
 		return _write_lifecycle(source, lifecycle, event)
 	var excluded: Array[StringName] = []
-	for settler: Dictionary in _workforce(source)[&"settlers"] as Array[Dictionary]:
+	var workforce: Dictionary = _workforce(source)
+	for settler: Dictionary in workforce[&"settlers"] as Array[Dictionary]:
 		excluded.append(StringName(str(settler[&"settler_id"])))
+	for settler_id: String in workforce[&"departed_settler_ids"] as Array[String]:
+		excluded.append(StringName(settler_id))
 	var sequence: int = int(lifecycle[&"sequence"]) + 1
 	var applicant_id: StringName = SettlerCatalogScript.deterministic_offer_id(
 		world_seed, absolute_day, sequence, excluded
@@ -142,10 +145,12 @@ static func _invite(
 	settlers.append(
 		{
 			&"settler_id": str(applicant_id),
-			&"status": "active",
-			&"morale": INITIAL_MORALE,
-			&"injured_until_day": 0,
-		}
+				&"status": "active",
+				&"morale": INITIAL_MORALE,
+				&"injured_until_day": 0,
+				&"notice_day": 0,
+				&"last_reason_ids": [],
+			}
 	)
 	var housing: Array = (workforce[&"housing_assignments"] as Array).duplicate(true)
 	housing.append({&"settler_id": str(applicant_id), &"bed_id": str(bed[&"bed_id"])})

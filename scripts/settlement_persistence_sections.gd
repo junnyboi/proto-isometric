@@ -17,6 +17,8 @@ const MAX_HOUSING_ASSIGNMENTS: int = 24
 const MAX_WORK_ASSIGNMENTS: int = 24
 const MAX_CONCERNS: int = 24
 const MAX_SHIFT_REPORTS: int = 88
+const MAX_DEPARTED_SETTLERS: int = 24
+const MAX_WELLBEING_REASONS: int = 8
 const MAX_LOGISTICS_JOBS: int = 128
 const MAX_RESERVE_RULES: int = 64
 const MAX_FISHING_SPOTS: int = 64
@@ -47,6 +49,7 @@ static func neutral_workforce() -> Dictionary:
 		&"concerns": [],
 		&"applicant_lifecycle": neutral_applicant_lifecycle(),
 		&"shift_reports": [],
+		&"departed_settler_ids": [],
 	}
 
 
@@ -113,9 +116,15 @@ static func validate_workforce(value: Variant) -> Dictionary:
 	pre_p7_keys.append(&"applicant_lifecycle")
 	if _exact_keys(canonical, pre_p7_keys):
 		canonical[&"shift_reports"] = []
+	var pre_p9_keys: Array[StringName] = [
+		&"state_version", &"settlers", &"housing_assignments", &"work_assignments",
+		&"concerns", &"applicant_lifecycle", &"shift_reports",
+	]
+	if _exact_keys(canonical, pre_p9_keys):
+		canonical[&"departed_settler_ids"] = []
 	var keys: Array[StringName] = [
 		&"state_version", &"settlers", &"housing_assignments", &"work_assignments", &"concerns",
-		&"applicant_lifecycle", &"shift_reports",
+		&"applicant_lifecycle", &"shift_reports", &"departed_settler_ids",
 	]
 	var section: Dictionary = _section(canonical, keys)
 	if section.is_empty():
@@ -136,12 +145,15 @@ static func validate_workforce(value: Variant) -> Dictionary:
 	var reports: Variant = _records(
 		section[&"shift_reports"], MAX_SHIFT_REPORTS, _shift_report, &"report_id"
 	)
+	var departed: Variant = _identifier_list(
+		section[&"departed_settler_ids"], MAX_DEPARTED_SETTLERS, "settler."
+	)
 	if (
 		settlers == null or housing == null or work == null or concerns == null
-		or lifecycle.is_empty() or reports == null
+		or lifecycle.is_empty() or reports == null or departed == null
 	):
 		return {}
-	if not _workforce_links_are_valid(settlers, housing, work, concerns, reports):
+	if not _workforce_links_are_valid(settlers, housing, work, concerns, reports, departed):
 		return {}
 	return {
 		&"state_version": STATE_VERSION,
@@ -151,6 +163,7 @@ static func validate_workforce(value: Variant) -> Dictionary:
 		&"concerns": concerns,
 		&"applicant_lifecycle": lifecycle,
 		&"shift_reports": reports,
+		&"departed_settler_ids": departed,
 	}
 
 
@@ -380,19 +393,40 @@ static func _delta(value: Dictionary) -> Dictionary:
 
 
 static func _settler(value: Dictionary) -> Dictionary:
-	var keys: Array[StringName] = [&"settler_id", &"status", &"morale", &"injured_until_day"]
-	if not _exact_keys(value, keys) or not _identifier(value[&"settler_id"]):
+	var canonical: Dictionary = value.duplicate(true)
+	var legacy_keys: Array[StringName] = [
+		&"settler_id", &"status", &"morale", &"injured_until_day",
+	]
+	if _exact_keys(canonical, legacy_keys):
+		canonical[&"notice_day"] = 0
+		canonical[&"last_reason_ids"] = []
+	var keys: Array[StringName] = [
+		&"settler_id", &"status", &"morale", &"injured_until_day",
+		&"notice_day", &"last_reason_ids",
+	]
+	if not _exact_keys(canonical, keys) or not _identifier(canonical[&"settler_id"]):
 		return {}
-	var morale: Variant = _integer(value[&"morale"], 0, 100)
-	var day: Variant = _integer(value[&"injured_until_day"], 0, MAX_NUMBER)
+	var morale: Variant = _integer(canonical[&"morale"], 0, 100)
+	var injured_day: Variant = _integer(canonical[&"injured_until_day"], 0, MAX_NUMBER)
+	var notice_day: Variant = _integer(canonical[&"notice_day"], 0, MAX_NUMBER)
+	var reasons: Variant = _identifier_list(
+		canonical[&"last_reason_ids"], MAX_WELLBEING_REASONS, "wellbeing."
+	)
 	var statuses: Array[String] = ["active", "recovering", "notice"]
-	if morale == null or day == null or str(value[&"status"]) not in statuses:
+	var status: String = str(canonical[&"status"])
+	if (
+		morale == null or injured_day == null or notice_day == null or reasons == null
+		or status not in statuses
+		or status == "notice" and int(notice_day) == 0
+	):
 		return {}
 	return {
-		&"settler_id": str(value[&"settler_id"]),
-		&"status": str(value[&"status"]),
+		&"settler_id": str(canonical[&"settler_id"]),
+		&"status": status,
 		&"morale": int(morale),
-		&"injured_until_day": int(day),
+		&"injured_until_day": int(injured_day),
+		&"notice_day": int(notice_day),
+		&"last_reason_ids": reasons,
 	}
 
 
@@ -729,11 +763,19 @@ static func _building_footprints_are_unique(buildings: Array) -> bool:
 
 
 static func _workforce_links_are_valid(
-	settlers: Array, housing: Array, work: Array, concerns: Array, reports: Array
+	settlers: Array,
+	housing: Array,
+	work: Array,
+	concerns: Array,
+	reports: Array,
+	departed: Array,
 ) -> bool:
 	var settler_ids: Dictionary = {}
 	for settler: Dictionary in settlers:
 		settler_ids[str(settler[&"settler_id"])] = true
+	for settler_id: String in departed:
+		if settler_ids.has(settler_id):
+			return false
 	var beds: Dictionary = {}
 	for assignment: Dictionary in housing:
 		if (
@@ -795,6 +837,21 @@ static func _record_cells_are_unique(records: Array, cell_key: StringName) -> bo
 
 static func _cell_key(cell: Array) -> String:
 	return "%d,%d" % [int(cell[0]), int(cell[1])]
+
+
+static func _identifier_list(value: Variant, maximum: int, prefix: String) -> Variant:
+	if not value is Array or (value as Array).size() > maximum:
+		return null
+	var result: Array[String] = []
+	var seen: Dictionary = {}
+	for raw: Variant in value as Array:
+		var identifier: String = str(raw)
+		if not _identifier(identifier) or not identifier.begins_with(prefix) or seen.has(identifier):
+			return null
+		seen[identifier] = true
+		result.append(identifier)
+	result.sort()
+	return result
 
 
 static func _cells(value: Variant, maximum: int) -> Variant:

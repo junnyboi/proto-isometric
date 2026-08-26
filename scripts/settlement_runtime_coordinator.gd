@@ -11,6 +11,7 @@ const ConstructionStateScript: GDScript = preload(
 )
 const RecipeCatalogScript: GDScript = preload("res://scripts/recipe_catalog.gd")
 const SettlerDayScript: GDScript = preload("res://scripts/settler_day_service.gd")
+const WellbeingScript: GDScript = preload("res://scripts/wellbeing_service.gd")
 const WorkforceScript: GDScript = preload("res://scripts/workforce_service.gd")
 
 var _farm_runtime: RefCounted
@@ -34,6 +35,16 @@ func snapshot() -> Dictionary:
 		var settler_id: StringName = StringName(str(entry[&"settler_id"]))
 		entry[&"work_status"] = SettlerDayScript.presentation_status(farm, settler_id)
 		entry[&"shift_report"] = SettlerDayScript.last_shift_report(farm, settler_id)
+		var concern: Dictionary = WellbeingScript.concern_for(farm, settler_id)
+		entry[&"concern"] = concern
+		entry[&"remedies"] = WellbeingScript.remedies_for(
+			StringName(str(concern.get(&"reason_id", "")))
+		)
+		var state: Dictionary = entry[&"state"] as Dictionary
+		entry[&"notice_deadline"] = (
+			int(state[&"notice_day"]) + WellbeingScript.NOTICE_REMEDY_DAYS
+			if int(state[&"notice_day"]) > 0 else 0
+		)
 	var sites: Array[Dictionary] = WorkforceScript.site_snapshots(farm)
 	var workforce: Dictionary = ((farm[&"homestead"] as Dictionary)[&"workforce"] as Dictionary)
 	for site: Dictionary in sites:
@@ -53,6 +64,9 @@ func snapshot() -> Dictionary:
 		).duplicate(true),
 		&"fabricators": _fabricator_snapshots(farm, sites),
 		&"recipes": _recipe_snapshots(),
+		&"departed_settler_ids": (
+			workforce[&"departed_settler_ids"] as Array
+		).duplicate(true),
 		&"source_revision": int((farm[&"revisions"] as Dictionary)[&"result_revision"]),
 	}
 

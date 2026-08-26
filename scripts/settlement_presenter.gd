@@ -22,6 +22,7 @@ var _offer_details: Label
 var _offer_expiry: Label
 var _offer_empty: Label
 var _roster_list: ItemList
+var _wellbeing_detail: Label
 var _settler_select: OptionButton
 var _site_select: OptionButton
 var _slot_select: OptionButton
@@ -122,6 +123,13 @@ func layout_snapshot() -> Dictionary:
 		&"transfer_columns": _transfer_grid.columns if _transfer_grid != null else 0,
 		&"reserve_columns": _reserve_grid.columns if _reserve_grid != null else 0,
 		&"policy_columns": _policy_grid.columns if _policy_grid != null else 0,
+		&"wellbeing_detail_lines": (
+			_wellbeing_detail.get_line_count() if _wellbeing_detail != null else 0
+		),
+		&"wellbeing_detail": (
+			Rect2(_wellbeing_detail.global_position, _wellbeing_detail.size)
+			if _wellbeing_detail != null else Rect2()
+		),
 	}
 
 
@@ -200,6 +208,7 @@ func _refresh_roster() -> void:
 		var state: Dictionary = entry[&"state"] as Dictionary
 		var housing: Dictionary = entry[&"housing"] as Dictionary
 		var assignment: Dictionary = entry[&"assignment"] as Dictionary
+		var wellbeing_text: String = _wellbeing_text(entry)
 		var work_text: String = LocalizationScript.t(&"settlement.roster.unassigned")
 		var work_status: String = LocalizationScript.t(
 			StringName("settlement.work.status.%s" % str(entry.get(&"work_status", "resting")))
@@ -218,15 +227,27 @@ func _refresh_roster() -> void:
 				]
 		else:
 			work_text = "%s // %s" % [work_text, work_status]
-		_roster_list.add_item(
-			"%s  //  %s  //  %s  //  %s" % [
-				str(entry[&"name"]), str(state[&"status"]),
-				_bed_label(str(housing.get(&"bed_id", ""))), work_text
-			]
+		var status_text: String = LocalizationScript.t(
+			StringName("settlement.wellbeing.status.%s" % str(state[&"status"]))
 		)
+		_roster_list.add_item("%s  //  %s  //  %s" % [
+			str(entry[&"name"]), LocalizationScript.t(
+				&"settlement.wellbeing.morale", {&"value": int(state[&"morale"])}
+			), status_text,
+		])
+		entry[&"display_wellbeing"] = wellbeing_text
+		entry[&"display_status"] = status_text
+		entry[&"display_bed"] = _bed_label(str(housing.get(&"bed_id", "")))
+		entry[&"display_work"] = work_text
+		_roster_list.set_item_metadata(_roster_list.item_count - 1, entry.duplicate(true))
 		_settler_select.add_item(str(entry[&"name"]))
 		_settler_select.set_item_metadata(_settler_select.item_count - 1, settler_id)
 	_select_metadata(_settler_select, previous_settler)
+	if _roster_list.item_count > 0:
+		_roster_list.select(0)
+		_refresh_wellbeing_detail(0)
+	else:
+		_wellbeing_detail.text = LocalizationScript.t(&"settlement.roster.empty")
 	_refresh_sites()
 	var has_roster: bool = not roster.is_empty()
 	_settler_select.disabled = not has_roster
@@ -490,9 +511,15 @@ func _build_offer_view() -> void:
 func _build_roster_view() -> void:
 	_roster_list = ItemList.new()
 	_roster_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_roster_list.custom_minimum_size = Vector2(0, 120)
+	_roster_list.custom_minimum_size = Vector2(0, 76)
 	_roster_list.add_theme_font_size_override("font_size", 16)
+	_roster_list.item_selected.connect(_refresh_wellbeing_detail)
 	_roster_view.add_child(_roster_list)
+	_wellbeing_detail = _label(14, Color("c2d9d3"))
+	_wellbeing_detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_wellbeing_detail.custom_minimum_size = Vector2(0, 72)
+	_wellbeing_detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_roster_view.add_child(_wellbeing_detail)
 	_assignment_grid = GridContainer.new()
 	_assignment_grid.columns = 4
 	_assignment_grid.add_theme_constant_override("h_separation", 8)
@@ -673,6 +700,42 @@ func _selected_has_assignment(roster: Array) -> bool:
 		if str(entry[&"settler_id"]) == settler_id:
 			return not (entry[&"assignment"] as Dictionary).is_empty()
 	return false
+
+
+func _wellbeing_text(entry: Dictionary) -> String:
+	var state: Dictionary = entry[&"state"] as Dictionary
+	var text: String = LocalizationScript.t(
+		&"settlement.wellbeing.morale", {&"value": int(state[&"morale"])}
+	)
+	var concern: Dictionary = entry.get(&"concern", {}) as Dictionary
+	if not concern.is_empty():
+		var reason_id: String = str(concern[&"reason_id"]).trim_prefix("wellbeing.")
+		text += " // " + LocalizationScript.t(
+			StringName("settlement.wellbeing.reason.%s" % reason_id)
+		)
+		var remedies: Array = entry.get(&"remedies", []) as Array
+		if not remedies.is_empty():
+			text += " // " + LocalizationScript.t(
+				StringName("settlement.wellbeing.remedy.%s" % str(remedies[0]))
+			)
+	var deadline: int = int(entry.get(&"notice_deadline", 0))
+	if deadline > 0:
+		text += " // " + LocalizationScript.t(
+			&"settlement.wellbeing.notice_deadline", {&"day": deadline}
+		)
+	return text
+
+
+func _refresh_wellbeing_detail(index: int) -> void:
+	if _wellbeing_detail == null or index < 0 or index >= _roster_list.item_count:
+		return
+	var entry: Dictionary = _roster_list.get_item_metadata(index) as Dictionary
+	_wellbeing_detail.text = "%s\n%s // %s // %s" % [
+		str(entry.get(&"display_wellbeing", "")),
+		str(entry.get(&"display_status", "")),
+		str(entry.get(&"display_bed", "")),
+		str(entry.get(&"display_work", "")),
+	]
 
 
 func _shift_label(shift: int) -> String:
