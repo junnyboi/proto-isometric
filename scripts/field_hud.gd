@@ -298,14 +298,28 @@ func _bind_context_tutorial(director: RefCounted, mobile: CanvasLayer) -> bool:
 	if not bool(_tutorial_presenter.call("bind", director, _modality_tracker, mobile)):
 		return false
 	_tutorial_presenter.connect("skip_requested", Callable(director, "suppress"))
-	_tutorial_presenter.connect("resume_requested", Callable(director, "resume"))
-	_tutorial_presenter.connect("reset_requested", Callable(director, "reset_training"))
-	_accessibility.connect("training_resume_requested", Callable(director, "resume"))
-	_accessibility.connect("training_reset_requested", Callable(director, "reset_training"))
+	_tutorial_presenter.connect("resume_requested", Callable(self, "_resume_context_tutorial"))
+	_tutorial_presenter.connect("reset_requested", Callable(self, "_reset_context_tutorial"))
+	_accessibility.connect("training_resume_requested", Callable(self, "_resume_context_tutorial"))
+	_accessibility.connect("training_reset_requested", Callable(self, "_reset_context_tutorial"))
 	_accessibility.connect(
 		"training_help_requested", Callable(self, "_open_tutorial_help")
 	)
 	return true
+
+
+func _resume_context_tutorial() -> void:
+	if _tutorial_director != null:
+		_tutorial_director.call("resume")
+	if _tutorial_presenter != null:
+		_tutorial_presenter.call("reveal_current_prompt")
+
+
+func _reset_context_tutorial() -> void:
+	if _tutorial_director != null:
+		_tutorial_director.call("reset_training")
+	if _tutorial_presenter != null:
+		_tutorial_presenter.call("reveal_current_prompt")
 
 
 func _open_tutorial_help() -> void:

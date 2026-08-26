@@ -14,6 +14,7 @@ const AMBER: Color = Color("f5a62d")
 const TEAL: Color = Color("4eb6aa")
 const INK: Color = Color("11171b")
 const VIEWPORT_INSET: float = 12.0
+const PROMPT_VISIBLE_SECONDS: float = 6.0
 
 var _director: RefCounted
 var _modality_tracker: RefCounted
@@ -37,6 +38,9 @@ var _left_handed: bool = false
 var _focus_yielded: bool = false
 var _help_open: bool = false
 var _previous_focus: Control
+var _displayed_lesson: int = -2
+var _prompt_elapsed: float = 0.0
+var _prompt_active: bool = false
 
 
 func _ready() -> void:
@@ -58,7 +62,7 @@ func bind(director: RefCounted, tracker: RefCounted, mobile: CanvasLayer = null)
 	_mobile_controls = mobile
 	director.connect("state_changed", _on_state_changed)
 	tracker.connect("modality_changed", _on_modality_changed)
-	_refresh()
+	_refresh(true)
 	return true
 
 
@@ -75,6 +79,17 @@ func set_focus_yielded(yielded: bool) -> void:
 	if yielded and _help_open:
 		_close_help()
 	_refresh_visibility()
+
+
+func reveal_current_prompt() -> bool:
+	var lesson: int = get_current_lesson()
+	if lesson < 0:
+		return false
+	_displayed_lesson = lesson
+	_prompt_elapsed = 0.0
+	_prompt_active = true
+	_refresh_visibility()
+	return true
 
 
 func is_help_modal_open() -> bool:
@@ -108,6 +123,19 @@ func get_current_lesson() -> int:
 	return int(_director.call("get_current_lesson")) if _director != null else -1
 
 
+func _process(delta: float) -> void:
+	if (
+		_prompt_active
+		and not _focus_yielded
+		and not _help_open
+		and get_current_lesson() >= 0
+	):
+		_prompt_elapsed += maxf(delta, 0.0)
+		if _prompt_elapsed >= PROMPT_VISIBLE_SECONDS:
+			_prompt_active = false
+			_refresh_visibility()
+
+
 func _input(event: InputEvent) -> void:
 	if _modality_tracker != null:
 		_modality_tracker.call("observe_event", event)
@@ -125,7 +153,7 @@ func _input(event: InputEvent) -> void:
 
 
 func _on_state_changed(_snapshot: Dictionary) -> void:
-	_refresh()
+	_refresh(true)
 
 
 func _on_modality_changed(_modality: StringName) -> void:
@@ -182,10 +210,14 @@ func _close_help() -> void:
 	help_visibility_changed.emit(false)
 
 
-func _refresh() -> void:
+func _refresh(reveal_new_lesson: bool = false) -> void:
 	if _card == null:
 		return
 	var lesson: int = get_current_lesson()
+	if reveal_new_lesson and lesson >= 0 and lesson != _displayed_lesson:
+		_prompt_elapsed = 0.0
+		_prompt_active = true
+	_displayed_lesson = lesson
 	var lesson_id: StringName = StateScript.lesson_id(lesson)
 	if lesson_id != &"":
 		_title.text = LocalizationScript.t("tutorial.lesson.%s.title" % lesson_id)
@@ -212,7 +244,7 @@ func _refresh() -> void:
 
 func _refresh_visibility() -> void:
 	var lesson: int = get_current_lesson()
-	_card.visible = lesson >= 0 and not _focus_yielded and not _help_open
+	_card.visible = lesson >= 0 and _prompt_active and not _focus_yielded and not _help_open
 	_veil.visible = _help_open
 	_help_panel.visible = _help_open
 	_sync_touch_exclusion()

@@ -352,6 +352,18 @@ static func _test_live_runtime(cases: Array[Dictionary], runtime: Node2D) -> voi
 	var radar: Control = hud.get_node("ExpeditionRadar") as Control
 	hud.call("_process", 0.0)
 	var radar_yielded: bool = not radar.visible
+	presenter.call("_process", PresenterScript.PROMPT_VISIBLE_SECONDS + 0.01)
+	hud.call("_process", 0.0)
+	var prompt_timed_out: bool = not bool(presenter.call("_is_prompt_visible"))
+	var radar_after_timeout: bool = radar.visible
+	hud.call("_resume_context_tutorial")
+	hud.call("_process", 0.0)
+	var replayed: bool = bool(presenter.call("_is_prompt_visible")) and not radar.visible
+	_add(
+		cases,
+		"P3 compact prompt auto-hides restores radar and Resume replays it",
+		radar_yielded and prompt_timed_out and radar_after_timeout and replayed,
+	)
 	director.call("suppress")
 	hud.call("_process", 0.0)
 	var radar_restored: bool = radar.visible
@@ -377,7 +389,8 @@ static func _test_live_runtime(cases: Array[Dictionary], runtime: Node2D) -> voi
 	_add(
 		cases,
 		"P3 live committed movement and target acquisition advance semantic bits",
-		(int(after_target[&"completion_mask"]) & move_target_mask) == move_target_mask,
+		(int(after_target[&"completion_mask"]) & move_target_mask) == move_target_mask
+		and bool(presenter.call("_is_prompt_visible")),
 	)
 	var opened: bool = bool(controller.call("open_menu"))
 	var terminal_state: Dictionary = director.call("get_state") as Dictionary
