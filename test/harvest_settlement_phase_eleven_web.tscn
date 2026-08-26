@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://test/harvest_settlement_phase_eleven_web.gd" id="1_p11"]
+
+[node name="P11WebSchedule" type="Node"]
+script = ExtResource("1_p11")

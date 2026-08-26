@@ -57,7 +57,17 @@ For a clean no-threads Web release:
 ./verify.sh --release
 ```
 
-The release command runs import, lint, repository tests, bounded headless boot, Web export, and exported-PCK boot checks. It writes the required HTML, JavaScript, WASM, PCK, audio worklets, icons, and splash assets to `/home/ubuntu/proto-isometric-build/web`.
+The release command runs import, lint, the complete runtime binary/provenance ledger,
+English and Simplified Chinese font-cmap coverage, repository tests, bounded headless boot,
+Web export, and exported-PCK boot checks. It writes the required HTML, JavaScript, WASM,
+PCK, audio worklets, icons, and splash assets to
+`/home/ubuntu/proto-isometric-build/web`.
+
+P11 certification additionally generates a validator-valid simultaneous maximum containing
+all 4,096 plots and 512 orchard trees, a representative 100-day save, and a shared
+1,000-day native/Web schedule. Recovery selects valid candidates by the hash-bound farm
+revision rather than mutable envelope metadata, preventing a stale backup with a tampered
+write sequence from outranking newer gameplay state.
 
 ## Project references
 

@@ -1,6 +1,7 @@
 extends RefCounted
 
 const SectionsScript: GDScript = preload("res://scripts/settlement_persistence_sections.gd")
+const FarmSaveSchemaScript: GDScript = preload("res://scripts/farm_save_schema.gd")
 const ConstructionCatalogScript: GDScript = preload(
 	"res://scripts/construction_blueprint_catalog.gd"
 )
@@ -21,7 +22,7 @@ const SECTION_BUDGETS: Dictionary = {
 	"world": 600_000,
 	"active_run": 96_000,
 	"profile": 32_000,
-	"farm_legacy": 420_000,
+	"farm_legacy": 1_200_000,
 	"construction": 220_000,
 	"gathering": 90_000,
 	"workforce": 48_000,
@@ -103,6 +104,7 @@ static func measure_sections(envelope: Dictionary) -> Dictionary:
 static func simultaneous_maximum(base_envelope: Dictionary) -> Dictionary:
 	var envelope: Dictionary = base_envelope.duplicate(true)
 	var farm: Dictionary = envelope[&"farm"] as Dictionary
+	farm[&"plots"] = _maximum_plots()
 	var homestead: Dictionary = farm[&"homestead"] as Dictionary
 	var buildings: Array[Dictionary] = []
 	var blueprint_ids: Array[StringName] = ConstructionCatalogScript.ids()
@@ -184,6 +186,30 @@ static func simultaneous_maximum(base_envelope: Dictionary) -> Dictionary:
 	revisions[&"result_hash"] = StateHashScript.state_hash(envelope)
 	(envelope[&"farm"] as Dictionary)[&"revisions"] = revisions
 	return envelope
+
+
+static func _maximum_plots() -> Array[Dictionary]:
+	var records: Array[Dictionary] = []
+	for index: int in FarmSaveSchemaScript.MAX_PLOTS:
+		var cell: Vector2i = Vector2i(-900 + index % 64, -900 + index / 64)
+		records.append(
+			{
+				&"cell": [cell.x, cell.y],
+				&"tilled": true,
+				&"last_watered_day": 0,
+				&"crop_id": "",
+				&"planted_day": 0,
+				&"growth_points": 0,
+				&"stage": 0,
+				&"fertilizer_id": "",
+				&"regrowth_count": 0,
+				&"health": 100,
+				&"dormant": false,
+				&"harvest_sequence": 0,
+				&"ready": false,
+			}
+		)
+	return records
 
 
 static func _maximum_world(world_value: Variant, buildings: Array[Dictionary]) -> Dictionary:

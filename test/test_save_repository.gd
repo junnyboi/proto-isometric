@@ -1,6 +1,7 @@
 extends RefCounted
 
 const SaveRepositoryScript: GDScript = preload("res://scripts/save_repository.gd")
+const StateHashScript: GDScript = preload("res://scripts/persistence_state_hash.gd")
 
 const TEST_ROOT: String = "/tmp/proto-isometric-ww03-repository.json"
 const LEGACY_FIXTURE: String = "res://test/fixtures/save_schema_2_relay_true.json"
@@ -338,10 +339,10 @@ static func _test_backup_selection(
 	var selected: Dictionary = repository.call("load_state") as Dictionary
 	_add_case(
 		cases,
-		"valid backup with higher sequence wins deterministically",
+		"mutable backup sequence cannot outrank the canonical primary revision",
 		(
-			int((selected[&"metadata"] as Dictionary)[&"write_sequence"]) == 9
-			and repository.call("get_selected_source") == TEST_ROOT + ".bak"
+			int((selected[&"metadata"] as Dictionary)[&"write_sequence"]) == 4
+			and repository.call("get_selected_source") == TEST_ROOT
 		),
 	)
 
@@ -356,7 +357,10 @@ static func _test_interrupted_temp(
 	var repository: RefCounted = _repository(TEST_ROOT, world)
 	var world_snapshot: Dictionary = world.call("make_snapshot") as Dictionary
 	repository.call("save_state", world_snapshot, run_snapshot, profile_snapshot)
-	var temporary: Dictionary = _read_json(TEST_ROOT)
+	var source: Dictionary = _read_json(TEST_ROOT)
+	var candidate: Dictionary = source.duplicate(true)
+	((candidate[&"farm"] as Dictionary)[&"tutorial"] as Dictionary)[&"suppressed"] = true
+	var temporary: Dictionary = StateHashScript.apply_next(source, candidate)
 	(temporary["metadata"] as Dictionary)["write_sequence"] = 999
 	_write_json(TEST_ROOT + ".tmp", temporary)
 	var loaded: Dictionary = repository.call("load_state") as Dictionary

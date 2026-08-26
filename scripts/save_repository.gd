@@ -427,16 +427,16 @@ func _candidate(
 	}
 
 func _candidate_precedes(first: Dictionary, second: Dictionary) -> bool:
-	var first_sequence: int = _candidate_sequence(first)
-	var second_sequence: int = _candidate_sequence(second)
+	var first_revision: int = _candidate_revision(first)
+	var second_revision: int = _candidate_revision(second)
 	return (
-		first_sequence > second_sequence
-		or (first_sequence == second_sequence and str(first[&"path"]) == _path)
+		first_revision > second_revision
+		or (first_revision == second_revision and str(first[&"path"]) == _path)
 	)
-
-func _candidate_sequence(candidate: Dictionary) -> int:
+func _candidate_revision(candidate: Dictionary) -> int:
 	var envelope: Dictionary = candidate[&"envelope"] as Dictionary
-	return int((envelope[&"metadata"] as Dictionary)[&"write_sequence"])
+	var farm: Dictionary = envelope[&"farm"] as Dictionary
+	return int((farm[&"revisions"] as Dictionary)[&"result_revision"])
 
 func _any_candidate_has_kind(candidates: Array, kind: StringName) -> bool:
 	for candidate: Dictionary in candidates:

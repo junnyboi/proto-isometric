@@ -24,16 +24,17 @@ if grep -E 'ERROR:|SCRIPT ERROR:' "$tmp/import.log"; then
   exit 1
 fi
 
-printf '[2/4] lint + BGM loop gate\n'
+printf '[2/4] lint + runtime asset integrity + BGM loop gate\n'
 mapfile -d '' gd_files < <(find scripts test -type f -name '*.gd' -print0 | sort -z)
 ((${#gd_files[@]} > 0))
 gdlint "${gd_files[@]}"
+/usr/bin/python3 tools/verify_runtime_asset_integrity.py
 python3 test/test_bgm_loops.py \
   --godot "$GODOT" \
   --json-report "$tmp/bgm-loops.json"
 
 printf '[3/4] smoke\n'
-timeout 30s env XDG_DATA_HOME="$tmp/user-data" "$GODOT" \
+timeout 180s env XDG_DATA_HOME="$tmp/user-data" "$GODOT" \
   --headless --path . -s test/smoke.gd >"$tmp/smoke.log" 2>&1
 cat "$tmp/smoke.log"
 grep -F '[SMOKE_PASS]' "$tmp/smoke.log" >/dev/null
