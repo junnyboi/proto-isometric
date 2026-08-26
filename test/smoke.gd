@@ -38,9 +38,9 @@ func _test_title() -> void:
 	var panel: Node = scene.get_node("UILayer/UIRoot/ConceptCanvas/TitlePanel")
 	var title_label: Label = panel.get_node("TitleLabel") as Label
 	var begin_button: Button = panel.get_node("BeginButton") as Button
-	_check(title_label.text == LocalizationScript.t(&"title.name"), "title text")
-	_check(title_label.visible, "title visible")
-	_check(begin_button.text == LocalizationScript.t(&"title.begin_new"), "Deploy Walker label")
+	_check(title_label.visible and title_label.text == LocalizationScript.t(&"title.name"), "title")
+	var ready: bool = bool(scene.call("is_loading_complete")) and begin_button.visible
+	_check(ready and begin_button.text == LocalizationScript.t(&"title.start_game"), "Start Game")
 	_check(begin_button.focus_mode == Control.FOCUS_ALL, "Begin focusable")
 	var background: TextureRect = scene.get_node("UILayer/UIRoot/GeneratedTitleArt") as TextureRect
 	_check(background.texture != null, "Signal-First title art loaded")

@@ -3,10 +3,7 @@ extends Node2D
 const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 
 const AudioServiceScript: GDScript = preload("res://scripts/audio_service.gd")
-const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const AccessibilityPanelScript: GDScript = preload("res://scripts/accessibility_panel.gd")
-const SaveRepositoryScript: GDScript = preload("res://scripts/save_repository.gd")
-const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const PlayerPreferencesScript: GDScript = preload("res://scripts/player_preferences.gd")
 const ResponsiveViewportScript: GDScript = preload("res://scripts/responsive_viewport.gd")
 const WebSceneStateScript: GDScript = preload("res://scripts/web_scene_state.gd")
@@ -26,10 +23,8 @@ const SILENT_VOLUME_DB: float = -80.0
 const AMBER: Color = Color("f3a21e")
 const AMBER_HOVER: Color = Color("ffc35c")
 const INK: Color = Color("0a0d12")
-const PANEL: Color = Color(0.018, 0.027, 0.043, 0.96)
 const PANEL_SOFT: Color = Color(0.025, 0.043, 0.057, 0.91)
 const TEXT: Color = Color("edf0ed")
-const MUTED: Color = Color("789095")
 const TEAL: Color = Color("668f91")
 
 var _background: TextureRect
@@ -37,16 +32,12 @@ var _content_group: Control
 var _title_panel: Control
 var _title_label: Label
 var _mission_label: Label
-var _mission_rail: Control
-var _subtitle: Label
 var _begin_button: Button
 var _cta_keycap: Label
-var _controls_strip: Control
-var _field_guide_button: Button
-var _field_guide_panel: ColorRect
-var _field_guide_close: Button
 var _language_toggle: Button
+var _settings_panel: CanvasLayer
 var _layout: Dictionary = {}
+var _loading_complete: bool = false
 var _field_visible: bool = false
 var _audio_trigger_count: int = 0
 var _title_music_player: AudioStreamPlayer
@@ -56,27 +47,22 @@ func _ready() -> void:
 	_build_interface()
 	_start_title_music()
 	add_to_group("localization_listeners")
-	add_child(AccessibilityPanelScript.new())
-	_apply_save_metadata()
+	_settings_panel = AccessibilityPanelScript.new() as CanvasLayer
+	_settings_panel.connect(
+		&"trigger_layout_changed",
+		Callable(self, "_on_settings_trigger_layout_changed"),
+	)
+	add_child(_settings_panel)
 	get_viewport().size_changed.connect(_apply_responsive_layout)
 	_apply_responsive_layout()
+	_complete_loading()
 	_begin_button.grab_focus()
 	WebSceneStateScript.set_state("title-ready")
 	print("[PROTO_ISOMETRIC_READY]")
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _field_guide_panel.visible and event.is_action_pressed("ui_cancel"):
-		get_viewport().set_input_as_handled()
-		_set_field_guide_visible(false)
-		return
-	if event is InputEventKey:
-		var key_event: InputEventKey = event as InputEventKey
-		if key_event.pressed and not key_event.echo and key_event.keycode == KEY_F1:
-			get_viewport().set_input_as_handled()
-			_set_field_guide_visible(not _field_guide_panel.visible)
-			return
-	if _begin_button.visible and event.is_action_pressed("ui_accept"):
+	if _loading_complete and _begin_button.visible and event.is_action_pressed("ui_accept"):
 		get_viewport().set_input_as_handled()
 		_on_begin_pressed()
 
@@ -108,19 +94,9 @@ func _build_interface() -> void:
 	_title_panel.name = "TitlePanel"
 	_content_group.add_child(_title_panel)
 	_build_briefing()
-	_build_controls_strip()
-	_build_field_guide(ui_root)
 	_build_language_toggle(ui_root)
 
 func _build_briefing() -> void:
-	var eyebrow: Label = _make_label(
-		"Eyebrow",
-		LocalizationScript.t(&"title.eyebrow"),
-		14,
-		AMBER,
-	)
-	_title_panel.add_child(eyebrow)
-
 	_title_label = _make_label("TitleLabel", LocalizationScript.t(&"title.name"), 56, TEXT)
 	_title_panel.add_child(_title_label)
 
@@ -133,24 +109,11 @@ func _build_briefing() -> void:
 	_mission_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_title_panel.add_child(_mission_label)
 
-	_mission_rail = Control.new()
-	_mission_rail.name = "MissionRail"
-	_title_panel.add_child(_mission_rail)
-	_add_rail_step("LinkStep", &"title.step.link")
-	_add_rail_step("EndureStep", &"title.step.endure")
-	_add_rail_step("ExtractStep", &"title.step.extract")
-
-	_subtitle = _make_label(
-		"RunStatus",
-		LocalizationScript.t(&"title.no_active_record"),
-		13,
-		MUTED,
-	)
-	_title_panel.add_child(_subtitle)
-
 	_begin_button = Button.new()
 	_begin_button.name = "BeginButton"
-	_begin_button.text = LocalizationScript.t(&"title.begin_new")
+	_begin_button.text = LocalizationScript.t(&"title.start_game")
+	_begin_button.visible = false
+	_begin_button.disabled = true
 	_begin_button.focus_mode = Control.FOCUS_ALL
 	_begin_button.add_theme_font_size_override("font_size", 26)
 	_begin_button.add_theme_color_override("font_color", INK)
@@ -188,131 +151,6 @@ func _build_briefing() -> void:
 	_cta_keycap.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_cta_keycap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_begin_button.add_child(_cta_keycap)
-
-
-func _add_rail_step(node_name: String, action_key: StringName) -> void:
-	var step: Control = Control.new()
-	step.name = node_name
-	step.set_meta(&"action_key", action_key)
-	_mission_rail.add_child(step)
-	var number_label: Label = _make_label(
-		"Number", LocalizationScript.t("%s.number" % action_key), 22, AMBER
-	)
-	number_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	number_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	step.add_child(number_label)
-	var action_label: Label = _make_label("Action", LocalizationScript.t(action_key), 14, AMBER)
-	action_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	step.add_child(action_label)
-
-
-func _build_controls_strip() -> void:
-	_controls_strip = Control.new()
-	_controls_strip.name = "ControlsStrip"
-	_content_group.add_child(_controls_strip)
-	_add_control_hint("MoveHint")
-	_add_control_hint("RunHint")
-	_add_control_hint("SmashHint")
-
-	_field_guide_button = Button.new()
-	_field_guide_button.name = "FieldGuideButton"
-	_field_guide_button.text = LocalizationScript.t(&"title.field_guide_button_desktop")
-	_field_guide_button.focus_mode = Control.FOCUS_ALL
-	_field_guide_button.add_theme_font_size_override("font_size", 14)
-	_field_guide_button.add_theme_color_override("font_color", AMBER)
-	_field_guide_button.add_theme_color_override("font_hover_color", TEXT)
-	_field_guide_button.add_theme_color_override("font_focus_color", TEXT)
-	(
-		_field_guide_button
-		. add_theme_stylebox_override(
-			"normal",
-			_make_button_style(Color(0.0, 0.0, 0.0, 0.0), Color(0.0, 0.0, 0.0, 0.0), 0),
-		)
-	)
-	(
-		_field_guide_button
-		. add_theme_stylebox_override(
-			"hover",
-			_make_button_style(PANEL_SOFT, AMBER, 1),
-		)
-	)
-	(
-		_field_guide_button
-		. add_theme_stylebox_override(
-			"focus",
-			_make_button_style(PANEL_SOFT, AMBER, 2),
-		)
-	)
-	_field_guide_button.pressed.connect(_toggle_field_guide)
-	_controls_strip.add_child(_field_guide_button)
-
-
-func _add_control_hint(node_name: String) -> void:
-	var hint: Control = Control.new()
-	hint.name = node_name
-	_controls_strip.add_child(hint)
-	var action_label: Label = _make_label("Action", "", 12, MUTED)
-	action_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	hint.add_child(action_label)
-	var input_label: Label = _make_label("Input", "", 12, TEXT)
-	input_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	input_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	(
-		input_label
-		. add_theme_stylebox_override(
-			"normal",
-			_make_panel_style(Color(0.025, 0.04, 0.055, 0.82), MUTED, 1),
-		)
-	)
-	hint.add_child(input_label)
-
-
-func _build_field_guide(ui_root: Control) -> void:
-	_field_guide_panel = ColorRect.new()
-	_field_guide_panel.name = "FieldGuidePanel"
-	_field_guide_panel.color = PANEL
-	_field_guide_panel.visible = false
-	_field_guide_panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	ui_root.add_child(_field_guide_panel)
-
-	var title: Label = _make_label(
-		"Title", LocalizationScript.t(&"title.field_guide_title"), 24, TEXT
-	)
-	_field_guide_panel.add_child(title)
-	var guide: Label = _make_label(
-		"Guide",
-		LocalizationScript.t(&"title.field_guide"),
-		15,
-		TEXT,
-	)
-	guide.name = "GuideText"
-	guide.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	guide.add_theme_constant_override("line_spacing", 6)
-	_field_guide_panel.add_child(guide)
-
-	_field_guide_close = Button.new()
-	_field_guide_close.name = "CloseButton"
-	_field_guide_close.text = LocalizationScript.t(&"title.return_briefing")
-	_field_guide_close.focus_mode = Control.FOCUS_ALL
-	_field_guide_close.add_theme_font_size_override("font_size", 15)
-	_field_guide_close.add_theme_color_override("font_color", INK)
-	_field_guide_close.add_theme_color_override("font_hover_color", INK)
-	(
-		_field_guide_close
-		. add_theme_stylebox_override(
-			"normal",
-			_make_button_style(AMBER, INK, 2),
-		)
-	)
-	(
-		_field_guide_close
-		. add_theme_stylebox_override(
-			"hover",
-			_make_button_style(AMBER_HOVER, TEXT, 2),
-		)
-	)
-	_field_guide_close.pressed.connect(_close_field_guide)
-	_field_guide_panel.add_child(_field_guide_close)
 
 
 func _build_language_toggle(ui_root: Control) -> void:
@@ -370,6 +208,8 @@ func _make_compact_button_style(
 	var style: StyleBoxFlat = _make_button_style(color, border_color, border_width)
 	style.content_margin_left = 8.0
 	style.content_margin_right = 8.0
+	style.content_margin_top = 0.0
+	style.content_margin_bottom = 0.0
 	return style
 
 
@@ -396,32 +236,23 @@ func _apply_responsive_layout() -> void:
 		_apply_portrait_layout()
 	else:
 		_apply_landscape_layout()
-	_layout_field_guide()
 	_layout_language_toggle()
 
 
 func _apply_landscape_layout() -> void:
-	_title_panel.position = Vector2(62.0, 132.0)
-	_title_panel.size = Vector2(560.0, 470.0)
-	var eyebrow: Label = _title_panel.get_node("Eyebrow") as Label
-	eyebrow.position = Vector2(0.0, 0.0)
-	eyebrow.size = Vector2(520.0, 28.0)
-	eyebrow.add_theme_font_size_override("font_size", 14)
-	_title_label.position = Vector2(0.0, 30.0)
+	_title_panel.position = Vector2(62.0, 164.0)
+	_title_panel.size = Vector2(560.0, 330.0)
+	_title_label.position = Vector2(0.0, 0.0)
 	_title_label.size = Vector2(560.0, 90.0)
 	_title_label.add_theme_font_size_override("font_size", 56)
-	_mission_label.position = Vector2(0.0, 128.0)
-	_mission_label.size = Vector2(555.0, 48.0)
+	_mission_label.position = Vector2(0.0, 96.0)
+	_mission_label.size = Vector2(555.0, 56.0)
 	_mission_label.add_theme_font_size_override("font_size", 15)
-	_mission_rail.position = Vector2(0.0, 190.0)
-	_mission_rail.size = Vector2(530.0, 92.0)
-	_layout_rail(false)
-	_subtitle.position = Vector2(0.0, 336.0)
-	_subtitle.size = Vector2(520.0, 28.0)
-	_subtitle.add_theme_font_size_override("font_size", 13)
-	_begin_button.position = Vector2(0.0, 370.0)
+	_begin_button.position = Vector2(0.0, 188.0)
 	_begin_button.size = Vector2(475.0, 84.0)
+	_begin_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_begin_button.add_theme_font_size_override("font_size", 26)
+	_cta_keycap.visible = true
 	_cta_keycap.position = Vector2(365.0, 17.0)
 	_cta_keycap.size = Vector2(82.0, 38.0)
 	_cta_keycap.add_theme_font_size_override("font_size", 13)
@@ -430,204 +261,51 @@ func _apply_landscape_layout() -> void:
 		. add_theme_stylebox_override(
 			"normal",
 			_make_panel_style(Color(1.0, 1.0, 1.0, 0.08), Color(0.1, 0.1, 0.1, 0.24), 1),
+			)
 		)
-	)
-	_controls_strip.position = Vector2(32.0, 644.0)
-	_controls_strip.size = Vector2(1216.0, 56.0)
-	_layout_controls(false)
 
 
 func _apply_portrait_layout() -> void:
-	_title_panel.position = Vector2(40.0, 58.0)
+	_title_panel.position = Vector2(40.0, 96.0)
 	_title_panel.size = Vector2(640.0, 1010.0)
-	var eyebrow: Label = _title_panel.get_node("Eyebrow") as Label
-	eyebrow.position = Vector2(0.0, 0.0)
-	eyebrow.size = Vector2(620.0, 38.0)
-	eyebrow.add_theme_font_size_override("font_size", 20)
-	_title_label.position = Vector2(0.0, 42.0)
+	_title_label.position = Vector2(0.0, 0.0)
 	_title_label.size = Vector2(640.0, 96.0)
 	_title_label.add_theme_font_size_override("font_size", 62)
-	_mission_label.position = Vector2(0.0, 146.0)
+	_mission_label.position = Vector2(0.0, 104.0)
 	_mission_label.size = Vector2(620.0, 60.0)
 	_mission_label.add_theme_font_size_override("font_size", 16)
-	_mission_rail.position = Vector2(58.0, 708.0)
-	_mission_rail.size = Vector2(524.0, 118.0)
-	_layout_rail(true)
-	_subtitle.position = Vector2(0.0, 842.0)
-	_subtitle.size = Vector2(620.0, 28.0)
-	_subtitle.add_theme_font_size_override("font_size", 13)
 	_begin_button.position = Vector2(0.0, 880.0)
 	_begin_button.size = Vector2(640.0, 128.0)
 	_begin_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_begin_button.add_theme_font_size_override("font_size", 42)
 	_cta_keycap.visible = false
-	_controls_strip.position = Vector2(40.0, 1080.0)
-	_controls_strip.size = Vector2(640.0, 160.0)
-	_layout_controls(true)
-
-
-func _layout_rail(portrait: bool) -> void:
-	var step_width: float = 150.0 if portrait else 130.0
-	var gap: float = 37.0 if portrait else 65.0
-	var steps: Array[Node] = _mission_rail.get_children()
-	for index: int in range(steps.size()):
-		var step: Control = steps[index] as Control
-		step.position = Vector2(float(index) * (step_width + gap), 0.0)
-		step.size = Vector2(step_width, _mission_rail.size.y)
-		var number_label: Label = step.get_node("Number") as Label
-		number_label.position = Vector2((step_width - 58.0) * 0.5, 0.0)
-		number_label.size = Vector2(58.0, 58.0)
-		number_label.add_theme_font_size_override("font_size", 28 if portrait else 22)
-		(
-			number_label
-			. add_theme_stylebox_override(
-				"normal",
-				_make_panel_style(Color(0.0, 0.0, 0.0, 0.18), AMBER, 2),
-			)
-		)
-		var action_label: Label = step.get_node("Action") as Label
-		action_label.position = Vector2(0.0, 68.0)
-		action_label.size = Vector2(step_width, 32.0)
-		action_label.add_theme_font_size_override("font_size", 18 if portrait else 14)
-
-
-func _layout_controls(portrait: bool) -> void:
-	var move_hint: Control = _controls_strip.get_node("MoveHint") as Control
-	var run_hint: Control = _controls_strip.get_node("RunHint") as Control
-	var smash_hint: Control = _controls_strip.get_node("SmashHint") as Control
-	_cta_keycap.visible = not portrait
-	if portrait:
-		_layout_control_hint(
-			move_hint,
-			Vector2(0.0, 0.0),
-			LocalizationScript.t(&"title.control.move_touch"),
-			LocalizationScript.t(&"title.control.drive_icon"),
-			true,
-		)
-		_layout_control_hint(
-			run_hint,
-			Vector2(213.0, 0.0),
-			LocalizationScript.t(&"title.control.run_touch"),
-			LocalizationScript.t(&"title.control.run_icon"),
-			true,
-		)
-		_layout_control_hint(
-			smash_hint,
-			Vector2(426.0, 0.0),
-			LocalizationScript.t(&"title.control.smash_touch"),
-			LocalizationScript.t(&"title.control.smash_icon"),
-			true,
-		)
-		_field_guide_button.position = Vector2(174.0, 112.0)
-		_field_guide_button.size = Vector2(292.0, 48.0)
-		_field_guide_button.text = LocalizationScript.t(&"title.field_guide_button_mobile")
-		_field_guide_button.add_theme_font_size_override("font_size", 18)
-	else:
-		_layout_control_hint(
-			move_hint,
-			Vector2(0.0, 0.0),
-			LocalizationScript.t(&"title.control.move"),
-			LocalizationScript.t(&"title.control.move_input"),
-			false,
-		)
-		_layout_control_hint(
-			run_hint,
-			Vector2(214.0, 0.0),
-			LocalizationScript.t(&"title.control.run"),
-			LocalizationScript.t(&"title.control.run_input"),
-			false,
-		)
-		_layout_control_hint(
-			smash_hint,
-			Vector2(414.0, 0.0),
-			LocalizationScript.t(&"title.control.smash"),
-			LocalizationScript.t(&"title.control.smash_input"),
-			false,
-		)
-		_field_guide_button.position = Vector2(1044.0, 5.0)
-		_field_guide_button.size = Vector2(172.0, 42.0)
-		_field_guide_button.text = LocalizationScript.t(&"title.field_guide_button_desktop")
-		_field_guide_button.add_theme_font_size_override("font_size", 14)
-
-
-func _layout_control_hint(
-	hint: Control,
-	position: Vector2,
-	action: String,
-	input: String,
-	portrait: bool,
-) -> void:
-	hint.position = position
-	hint.size = Vector2(213.0 if portrait else 190.0, 96.0 if portrait else 48.0)
-	var action_label: Label = hint.get_node("Action") as Label
-	var input_label: Label = hint.get_node("Input") as Label
-	if portrait:
-		input_label.position = Vector2(8.0, 16.0)
-		input_label.size = Vector2(62.0, 62.0)
-		input_label.add_theme_font_size_override("font_size", 28)
-		action_label.position = Vector2(82.0, 18.0)
-		action_label.size = Vector2(123.0, 64.0)
-		action_label.text = action
-		action_label.add_theme_font_size_override("font_size", 18)
-	else:
-		action_label.position = Vector2(0.0, 5.0)
-		action_label.size = Vector2(58.0, 38.0)
-		action_label.text = action
-		action_label.add_theme_font_size_override("font_size", 12)
-		input_label.position = Vector2(64.0, 7.0)
-		input_label.size = Vector2(98.0, 34.0)
-		input_label.text = input
-		input_label.add_theme_font_size_override("font_size", 12)
-
-
-func _layout_field_guide() -> void:
-	var viewport: Vector2 = _layout[&"viewport"] as Vector2
-	var portrait: bool = bool(_layout[&"portrait"])
-	var panel_size: Vector2 = (
-		Vector2(minf(viewport.x - 28.0, 680.0), minf(viewport.y - 36.0, 500.0))
-		if portrait
-		else Vector2(minf(viewport.x - 64.0, 760.0), minf(viewport.y - 64.0, 430.0))
-	)
-	_field_guide_panel.size = panel_size
-	_field_guide_panel.position = (viewport - panel_size) * 0.5
-	var title: Label = _field_guide_panel.get_node("Title") as Label
-	title.position = Vector2(28.0, 22.0)
-	title.size = Vector2(panel_size.x - 56.0, 42.0)
-	var guide: Label = _field_guide_panel.get_node("GuideText") as Label
-	guide.position = Vector2(28.0, 78.0)
-	guide.size = Vector2(panel_size.x - 56.0, panel_size.y - 160.0)
-	guide.add_theme_font_size_override("font_size", 13 if portrait else 15)
-	_field_guide_close.position = Vector2(28.0, panel_size.y - 66.0)
-	_field_guide_close.size = Vector2(panel_size.x - 56.0, 44.0)
 
 
 func _layout_language_toggle() -> void:
 	var viewport: Vector2 = _layout[&"viewport"] as Vector2
-	var portrait: bool = bool(_layout[&"portrait"])
-	_language_toggle.size = Vector2(166.0 if portrait else 250.0, 42.0)
-	_language_toggle.add_theme_font_size_override("font_size", 12 if portrait else 14)
-	_language_toggle.position = Vector2(
-		viewport.x - 190.0 - _language_toggle.size.x - 34.0,
-		18.0,
-	)
+	var settings_rect: Rect2 = AccessibilityPanelScript.trigger_rect_for(viewport)
+	if is_instance_valid(_settings_panel):
+		var settings_button: Button = _settings_panel.call("get_trigger_button") as Button
+		if settings_button != null:
+			settings_rect = settings_button.get_rect()
+	_on_settings_trigger_layout_changed(settings_rect)
 
 
-func _toggle_field_guide() -> void:
-	_set_field_guide_visible(not _field_guide_panel.visible)
-
-
-func _close_field_guide() -> void:
-	_set_field_guide_visible(false)
-
-
-func _set_field_guide_visible(value: bool) -> void:
-	_field_guide_panel.visible = value
-	if not is_inside_tree():
+func _on_settings_trigger_layout_changed(settings_rect: Rect2) -> void:
+	if _language_toggle == null:
 		return
-	if value:
-		_field_guide_close.grab_focus()
-	else:
-		_field_guide_button.grab_focus()
+	var viewport: Vector2 = _layout.get(&"viewport", Vector2(1280.0, 720.0)) as Vector2
+	var live_viewport: Viewport = get_viewport()
+	if live_viewport != null:
+		viewport = live_viewport.get_visible_rect().size
+	var portrait: bool = viewport.y > viewport.x
+	var gap: float = 8.0 if portrait else 12.0
+	_language_toggle.size = Vector2(166.0 if portrait else 250.0, settings_rect.size.y)
+	_language_toggle.position = Vector2(
+		maxf(settings_rect.position.x - gap - _language_toggle.size.x, 0.0),
+		settings_rect.position.y,
+	)
+	_language_toggle.add_theme_font_size_override("font_size", 17)
 
 
 func _cycle_locale() -> void:
@@ -642,7 +320,7 @@ func _cycle_locale() -> void:
 
 
 func _on_begin_pressed() -> void:
-	if _field_visible:
+	if not _loading_complete or _field_visible:
 		return
 	_prepare_field_entry()
 	_trigger_begin_audio()
@@ -651,6 +329,7 @@ func _on_begin_pressed() -> void:
 
 
 func _prepare_field_entry() -> void:
+	_loading_complete = false
 	_field_visible = true
 	_begin_button.disabled = true
 	_begin_button.text = LocalizationScript.t(&"title.deploying")
@@ -662,8 +341,7 @@ func _enter_field() -> void:
 	var field: Node = FIELD_SCENE.instantiate()
 	if field == null:
 		_field_visible = false
-		_begin_button.disabled = false
-		_apply_save_metadata()
+		_complete_loading()
 		push_error("Field scene instantiation failed.")
 		return
 	get_tree().root.add_child(field)
@@ -671,71 +349,20 @@ func _enter_field() -> void:
 	queue_free()
 
 
-func _apply_save_metadata() -> void:
-	var repository: RefCounted = SaveRepositoryScript.new() as RefCounted
-	var world: RefCounted = InfiniteWorldScript.new() as RefCounted
-	if not bool(repository.call("configure", "user://walkers-wake-world.json", world, "title")):
-		return
-	var envelope: Dictionary = repository.call("load_state") as Dictionary
-	if envelope.is_empty():
-		_begin_button.text = LocalizationScript.t(&"title.begin_new")
-		_subtitle.text = LocalizationScript.t(&"title.no_active_record")
-		return
-	var run: Dictionary = envelope.get(&"active_run", {}) as Dictionary
-	var profile: Dictionary = envelope.get(&"profile", {}) as Dictionary
-	var phase: StringName = StringName(str(run.get(&"phase", RuntimeIdsScript.RUN_PHASE_HUNT)))
-	var terminal: bool = (
-		phase in [RuntimeIdsScript.RUN_PHASE_SUCCEEDED, RuntimeIdsScript.RUN_PHASE_FAILED]
-	)
-	_begin_button.text = LocalizationScript.t(
-		&"title.begin_review" if terminal else &"title.begin_continue"
-	)
-	_subtitle.text = (
-		LocalizationScript.t(&"title.terminal_ready")
-		if terminal
-		else LocalizationScript.t(
-			&"title.active_ready", {&"relay": int(run.get(&"completed_relays", 0))}
-		)
-	)
-	var banked_total: int = (
-		int(profile.get(&"banked_relay_data", 0))
-		+ int(profile.get(&"banked_scrap", 0))
-		+ int(profile.get(&"banked_cores", 0))
-	)
-	if banked_total > 0 and not terminal:
-		_subtitle.text += LocalizationScript.t(
-			&"title.bank_suffix", {&"bank": "%03d" % banked_total}
-		)
-
-
 func _on_locale_changed(_locale: StringName) -> void:
 	_refresh_localized_text()
-	if _field_visible:
-		_begin_button.text = LocalizationScript.t(&"title.deploying")
-	else:
-		_apply_save_metadata()
 
 
 func _refresh_localized_text() -> void:
 	if _title_panel == null:
 		return
-	(_title_panel.get_node("Eyebrow") as Label).text = LocalizationScript.t(&"title.eyebrow")
 	_title_label.text = LocalizationScript.t(&"title.name")
 	_mission_label.text = LocalizationScript.t(&"title.mission")
-	for step: Node in _mission_rail.get_children():
-		var action_key: StringName = step.get_meta(&"action_key", &"") as StringName
-		(step.get_node("Number") as Label).text = LocalizationScript.t("%s.number" % action_key)
-		(step.get_node("Action") as Label).text = LocalizationScript.t(action_key)
+	_begin_button.text = LocalizationScript.t(
+		&"title.deploying" if _field_visible else &"title.start_game"
+	)
 	_cta_keycap.text = LocalizationScript.t(&"title.key_enter")
-	(_field_guide_panel.get_node("Title") as Label).text = LocalizationScript.t(
-		&"title.field_guide_title"
-	)
-	(_field_guide_panel.get_node("GuideText") as Label).text = LocalizationScript.t(
-		&"title.field_guide"
-	)
-	_field_guide_close.text = LocalizationScript.t(&"title.return_briefing")
 	_refresh_language_toggle()
-	_layout_controls(bool(_layout.get(&"portrait", false)))
 
 
 func _refresh_language_toggle() -> void:
@@ -768,16 +395,12 @@ func get_title_label() -> Label:
 	return _title_label
 
 
-func is_field_guide_visible() -> bool:
-	return _field_guide_panel.visible
-
-
-func get_field_guide_button() -> Button:
-	return _field_guide_button
-
-
 func get_language_toggle() -> Button:
 	return _language_toggle
+
+
+func is_loading_complete() -> bool:
+	return _loading_complete
 
 
 func is_audio_ready() -> bool:
@@ -809,6 +432,13 @@ func get_title_music_metrics() -> Dictionary:
 func prepare_for_shutdown() -> void:
 	if is_instance_valid(_title_music_player):
 		_title_music_player.stop()
+
+
+func _complete_loading() -> void:
+	_loading_complete = true
+	_begin_button.disabled = false
+	_begin_button.visible = true
+	_begin_button.text = LocalizationScript.t(&"title.start_game")
 
 
 func _start_title_music() -> void:

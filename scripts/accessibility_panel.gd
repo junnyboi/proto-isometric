@@ -4,6 +4,7 @@ signal preferences_changed(snapshot: Dictionary)
 signal training_resume_requested
 signal training_reset_requested
 signal training_help_requested
+signal trigger_layout_changed(rect: Rect2)
 
 const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 const PlayerPreferencesScript: GDScript = preload("res://scripts/player_preferences.gd")
@@ -387,6 +388,7 @@ func _apply_layout() -> void:
 		_trigger_bottom_clearance,
 		_panel.visible,
 	).position
+	trigger_layout_changed.emit(_access_button.get_rect())
 
 
 static func trigger_rect_for(

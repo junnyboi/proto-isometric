@@ -15,44 +15,50 @@ static func evaluate() -> Array[Dictionary]:
 	LocalizationScript.set_locale(&"en", false)
 	var title: Node = TitleScreenScript.new()
 	title.call("_build_interface")
-	title.call("_layout_controls", false)
 	var panel: Node = title.get_node("UILayer/UIRoot/ConceptCanvas/TitlePanel")
 	var mission: Label = panel.get_node("Mission") as Label
 	var begin: Button = panel.get_node("BeginButton") as Button
-	var link: Label = panel.get_node("MissionRail/LinkStep/Action") as Label
-	var guide: Label = title.get_node("UILayer/UIRoot/FieldGuidePanel/GuideText") as Label
 	var language: Button = title.call("get_language_toggle") as Button
 	var settings: CanvasLayer = AccessibilityPanelScript.new() as CanvasLayer
 	var scene_tree: SceneTree = Engine.get_main_loop() as SceneTree
 	scene_tree.root.add_child(settings)
 	var settings_language: Button = settings.call("get_language_button") as Button
-	var move: Label = (
-		title.get_node("UILayer/UIRoot/ConceptCanvas/ControlsStrip/MoveHint/Action") as Label
-	)
+	var settings_trigger: Button = settings.call("get_trigger_button") as Button
 	_add(
 		cases,
-		"Signal-First mission uses the English dictionary",
+		"reduced title retains the localized homestead mission",
 		mission.text == LocalizationScript.t(&"title.mission"),
 	)
+	var removed_paths: Array[NodePath] = [
+		NodePath("Eyebrow"),
+		NodePath("MissionRail"),
+		NodePath("RunStatus"),
+		NodePath("../ControlsStrip"),
+		NodePath("../../FieldGuidePanel"),
+	]
+	var removed_nodes_absent: bool = true
+	for path: NodePath in removed_paths:
+		removed_nodes_absent = removed_nodes_absent and not panel.has_node(path)
 	_add(
 		cases,
-		"Signal-First rail uses semantic localization keys",
-		link.text == LocalizationScript.t(&"title.step.link"),
+		"eyebrow rail record controls and field guide are absent from the title",
+		removed_nodes_absent,
 	)
 	_add(
 		cases,
-		"field guide teaches desktop touch farming and wilderness controls",
+		"Start Game stays hidden until title loading completes",
+		begin.disabled and not begin.visible and not bool(title.call("is_loading_complete")),
+	)
+	title.call("_complete_loading")
+	_add(
+		cases,
+		"loading completion reveals one interactive localized Start Game action",
 		(
-			guide.text.contains("WASD")
-			and guide.text.contains("TOUCH")
-			and guide.text.contains("TILL")
-			and guide.text.contains("WILDS")
+			begin.visible
+			and not begin.disabled
+			and begin.focus_mode == Control.FOCUS_ALL
+			and begin.text == LocalizationScript.t(&"title.start_game")
 		),
-	)
-	_add(
-		cases,
-		"launch action uses the English dictionary",
-		begin.text == LocalizationScript.t(&"title.begin_new"),
 	)
 	_add(
 		cases,
@@ -64,25 +70,36 @@ static func evaluate() -> Array[Dictionary]:
 		title.set("_layout", {&"viewport": viewport, &"portrait": viewport.y > viewport.x})
 		title.call("_layout_language_toggle")
 		var language_rect: Rect2 = Rect2(language.position, language.size)
-		var access_rect: Rect2 = Rect2(Vector2(viewport.x - 208.0, 18.0), Vector2(190.0, 42.0))
+		var settings_rect: Rect2 = AccessibilityPanelScript.trigger_rect_for(viewport)
 		toggle_layouts_valid = (
 			toggle_layouts_valid
 			and language_rect.position.x >= 0.0
-			and not language_rect.intersects(access_rect)
+			and is_equal_approx(
+				language_rect.end.x + (8.0 if viewport.y > viewport.x else 12.0),
+				settings_rect.position.x,
+			)
+			and is_equal_approx(language_rect.position.y, settings_rect.position.y)
+			and is_equal_approx(language_rect.size.y, settings_trigger.size.y)
+			and (
+				language.get_theme_font_size("font_size")
+				== settings_trigger.get_theme_font_size("font_size")
+			)
 		)
-	_add(cases, "landing language toggle stays clear of Access", toggle_layouts_valid)
-	title.set("_layout", {&"viewport": Vector2(1280.0, 720.0), &"portrait": false})
-	title.call("_layout_language_toggle")
 	_add(
 		cases,
-		"desktop and mobile Signal-First artwork load",
+		"language sits directly left of Settings with matching font size and height",
+		toggle_layouts_valid,
+	)
+	_add(
+		cases,
+		"desktop and mobile title artwork load",
 		load(DESKTOP_ART) is Texture2D and load(MOBILE_ART) is Texture2D,
 	)
 	var title_music: AudioStream = load(TITLE_MUSIC_PATH) as AudioStream
 	var title_music_metrics: Dictionary = title.call("get_title_music_metrics") as Dictionary
 	_add(
 		cases,
-		"title briefing owns a long-form original Music-bus loop with bounded handoff",
+		"title owns a long-form original Music-bus loop with bounded handoff",
 		(
 			title_music is AudioStreamOggVorbis
 			and title_music.get_length() >= 80.0
@@ -97,13 +114,11 @@ static func evaluate() -> Array[Dictionary]:
 	title.call("_refresh_localized_text")
 	_add(
 		cases,
-		"landing toggle refreshes the complete title to Simplified Chinese",
+		"landing toggle refreshes retained title controls to Simplified Chinese",
 		(
 			LocalizationScript.get_locale() == &"zh-CN"
 			and mission.text == LocalizationScript.t(&"title.mission")
-			and link.text == LocalizationScript.t(&"title.step.link")
-			and guide.text == LocalizationScript.t(&"title.field_guide")
-			and move.text == LocalizationScript.t(&"title.control.move")
+			and begin.text == LocalizationScript.t(&"title.start_game")
 			and "[简体中文]" in language.text
 		),
 	)
@@ -119,7 +134,7 @@ static func evaluate() -> Array[Dictionary]:
 	title.call("_prepare_field_entry")
 	_add(
 		cases,
-		"deployment state remains localized while the field initializes",
+		"deployment state remains localized while gameplay initializes",
 		begin.disabled and begin.text == LocalizationScript.t(&"title.deploying"),
 	)
 	language.pressed.emit()
