@@ -352,6 +352,26 @@ static func _test_live_runtime(cases: Array[Dictionary], runtime: Node2D) -> voi
 	var radar: Control = hud.get_node("ExpeditionRadar") as Control
 	hud.call("_process", 0.0)
 	var radar_yielded: bool = not radar.visible
+	var card_bounds: Rect2 = presenter.call("get_card_bounds") as Rect2
+	var hover_event: InputEventMouseMotion = InputEventMouseMotion.new()
+	hover_event.position = card_bounds.get_center()
+	presenter.call("_input", hover_event)
+	presenter.call("_process", 2.0)
+	var hover_presentation: Dictionary = presenter.call("get_prompt_presentation") as Dictionary
+	var leave_event: InputEventMouseMotion = InputEventMouseMotion.new()
+	leave_event.position = Vector2.ZERO
+	presenter.call("_input", leave_event)
+	presenter.call("_process", 1.0)
+	var resumed_presentation: Dictionary = presenter.call("get_prompt_presentation") as Dictionary
+	_add(
+		cases,
+		"P3 pointer hover pauses countdown and fade until the card is left",
+		bool(hover_presentation[&"hover_paused"])
+		and is_equal_approx(float(hover_presentation[&"remaining_ratio"]), 1.0)
+		and not bool(resumed_presentation[&"hover_paused"])
+		and is_equal_approx(float(resumed_presentation[&"remaining_ratio"]), 5.0 / 6.0),
+	)
+	presenter.call("reveal_current_prompt")
 	var initial_presentation: Dictionary = presenter.call("get_prompt_presentation") as Dictionary
 	presenter.call(
 		"_process",
@@ -394,6 +414,34 @@ static func _test_live_runtime(cases: Array[Dictionary], runtime: Node2D) -> voi
 		cases,
 		"P3 compact prompt auto-hides restores radar and Resume replays it",
 		radar_yielded and prompt_timed_out and radar_after_timeout and replayed,
+	)
+	var before_dismiss: Dictionary = director.call("get_state") as Dictionary
+	var dismiss_button: Button = presenter.get_node_or_null(
+		"ContextTutorialCard/Dismiss"
+	) as Button
+	var dismiss_blocks_touch: bool = (
+		dismiss_button != null
+		and bool(
+			presenter.call(
+				"blocks_world_touch", dismiss_button.global_position + Vector2.ONE
+			)
+		)
+	)
+	if dismiss_button != null:
+		dismiss_button.emit_signal("pressed")
+	hud.call("_process", 0.0)
+	var locally_dismissed: bool = not bool(presenter.call("_is_prompt_visible")) and radar.visible
+	presenter.call("reveal_current_prompt")
+	hud.call("_process", 0.0)
+	var dismissal_replay: Dictionary = presenter.call("get_prompt_presentation") as Dictionary
+	_add(
+		cases,
+		"P3 X dismisses only the current card and Resume can replay it",
+		dismiss_blocks_touch
+		and locally_dismissed
+		and director.call("get_state") == before_dismiss
+		and bool(presenter.call("_is_prompt_visible"))
+		and is_equal_approx(float(dismissal_replay[&"remaining_ratio"]), 1.0),
 	)
 	director.call("suppress")
 	hud.call("_process", 0.0)

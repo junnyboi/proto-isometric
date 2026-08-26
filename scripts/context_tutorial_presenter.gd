@@ -29,6 +29,7 @@ var _progress: Label
 var _countdown_track: ColorRect
 var _countdown_fill: ColorRect
 var _skip: Button
+var _dismiss: Button
 var _more_help: Button
 var _veil: ColorRect
 var _help_panel: ColorRect
@@ -45,6 +46,8 @@ var _previous_focus: Control
 var _displayed_lesson: int = -2
 var _prompt_elapsed: float = 0.0
 var _prompt_active: bool = false
+var _pointer_position: Vector2 = Vector2.ZERO
+var _pointer_known: bool = false
 
 
 func _ready() -> void:
@@ -110,6 +113,9 @@ func blocks_world_touch(point: Vector2) -> bool:
 		return true
 	return (
 		_skip != null and _skip.visible and _skip.get_global_rect().has_point(point)
+		or _dismiss != null
+		and _dismiss.visible
+		and _dismiss.get_global_rect().has_point(point)
 		or _more_help != null
 		and _more_help.visible
 		and _more_help.get_global_rect().has_point(point)
@@ -133,6 +139,7 @@ func _process(delta: float) -> void:
 		_prompt_active
 		and not _focus_yielded
 		and not _help_open
+		and not _is_pointer_hovering_card()
 		and get_current_lesson() >= 0
 	):
 		_prompt_elapsed += maxf(delta, 0.0)
@@ -143,6 +150,9 @@ func _process(delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventMouse:
+		_pointer_position = (event as InputEventMouse).position
+		_pointer_known = true
 	if _modality_tracker != null:
 		_modality_tracker.call("observe_event", event)
 	if not _help_open:
@@ -172,6 +182,11 @@ func _on_locale_changed(_locale: StringName) -> void:
 
 func _skip_training() -> void:
 	skip_requested.emit()
+
+
+func _dismiss_prompt() -> void:
+	_prompt_active = false
+	_refresh_visibility()
 
 
 func _resume_training() -> void:
@@ -280,7 +295,17 @@ func get_prompt_presentation() -> Dictionary:
 		),
 		&"alpha": _card.modulate.a if _card != null else 0.0,
 		&"active": _prompt_active,
+		&"hover_paused": _is_pointer_hovering_card(),
 	}
+
+
+func _is_pointer_hovering_card() -> bool:
+	return (
+		_pointer_known
+		and _card != null
+		and _card.visible
+		and _card.get_global_rect().has_point(_pointer_position)
+	)
 
 
 func _apply_accessibility(lesson_id: StringName) -> void:
@@ -291,6 +316,8 @@ func _apply_accessibility(lesson_id: StringName) -> void:
 	)
 	_card.tooltip_text = description
 	_skip.accessibility_name = LocalizationScript.t(&"tutorial.action.skip")
+	_dismiss.accessibility_name = LocalizationScript.t(&"tutorial.action.close")
+	_dismiss.tooltip_text = LocalizationScript.t(&"tutorial.action.close")
 	_more_help.accessibility_name = LocalizationScript.t(&"tutorial.action.more_help")
 	_resume.accessibility_name = LocalizationScript.t(&"tutorial.action.resume")
 	_reset.accessibility_name = LocalizationScript.t(&"tutorial.action.reset")
@@ -302,6 +329,7 @@ func _apply_typography() -> void:
 	_body.add_theme_font_size_override("font_size", roundi(15.0 * _ui_scale))
 	_binding.add_theme_font_size_override("font_size", roundi(15.0 * _ui_scale))
 	_progress.add_theme_font_size_override("font_size", roundi(13.0 * _ui_scale))
+	_dismiss.add_theme_font_size_override("font_size", roundi(18.0 * _ui_scale))
 	_help_title.add_theme_font_size_override("font_size", roundi(26.0 * _ui_scale))
 	_help_body.add_theme_font_size_override("font_size", roundi(17.0 * _ui_scale))
 	for button: Button in [_skip, _more_help, _resume, _reset, _close]:
@@ -342,8 +370,11 @@ func _build_card() -> void:
 	_card.add_child(_progress)
 	_card.add_child(_countdown_track)
 	_skip = _button("Skip", _skip_training)
+	_dismiss = _button("Dismiss", _dismiss_prompt)
+	_dismiss.text = "X"
 	_more_help = _button("MoreHelp", _open_help)
 	_card.add_child(_skip)
+	_card.add_child(_dismiss)
 	_card.add_child(_more_help)
 
 
@@ -441,8 +472,12 @@ func _layout_card(size: Vector2) -> void:
 	)
 	var button_height: float = 40.0 * _ui_scale
 	var button_x: float = size.x - actions_width - 12.0
+	var dismiss_size: float = 28.0 * _ui_scale
+	var dismiss_gap: float = 6.0
 	_skip.position = Vector2(button_x, 12.0)
-	_skip.size = Vector2(actions_width, button_height)
+	_skip.size = Vector2(actions_width - dismiss_size - dismiss_gap, button_height)
+	_dismiss.position = Vector2(button_x + _skip.size.x + dismiss_gap, 12.0)
+	_dismiss.size = Vector2(dismiss_size, button_height)
 	_more_help.position = Vector2(button_x, 18.0 + button_height)
 	_more_help.size = Vector2(actions_width, button_height)
 
