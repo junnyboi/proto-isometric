@@ -31,7 +31,7 @@ const MAX_COORDINATE: int = 1_000_000
 const MAX_NUMBER: int = 1_000_000_000
 
 # Ownership split: homestead owns construction/workforce because they describe buildings and people.
-# Farm owns projected resources, transport, fishing, orchard, tutorial, receipts, and revisions.
+# Farm retains the retired tutorial slot only so schema-5 saves remain loadable without data loss.
 static func neutral_construction() -> Dictionary:
 	return {&"state_version": STATE_VERSION, &"buildings": []}
 
@@ -78,6 +78,7 @@ static func neutral_orchard() -> Dictionary:
 
 
 static func neutral_tutorial() -> Dictionary:
+	# Compatibility-only: no runtime system reads or mutates this retired section.
 	return {&"state_version": STATE_VERSION, &"completion_mask": 0, &"suppressed": false}
 
 

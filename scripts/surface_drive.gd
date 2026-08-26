@@ -84,9 +84,6 @@ static func advance_map(map: Node, delta: float, input_direction: Vector2i) -> b
 		map.set("_robot_grid", target)
 		map.call("_stream_world")
 		map.call("_collect_scrap_near", target)
-		var bridge: Node = map.get_node_or_null("HarvestPhaseTwo")
-		if bridge != null:
-			bridge.call("_on_player_cell_committed", origin, target)
 	return true
 
 

@@ -1,7 +1,6 @@
 extends RefCounted
 
 const CalendarStateScript: GDScript = preload("res://scripts/calendar_state.gd")
-const ContextTutorialStateScript: GDScript = preload("res://scripts/context_tutorial_state.gd")
 const DayAdvanceServiceScript: GDScript = preload("res://scripts/day_advance_service.gd")
 const EconomyServiceScript: GDScript = preload("res://scripts/economy_service.gd")
 const EcologyDirectorScript: GDScript = preload("res://scripts/ecology_director.gd")
@@ -244,8 +243,6 @@ func _build_operation(operation: StringName, arguments: Dictionary) -> Dictionar
 			result = FarmCapabilityServiceScript.unlock(
 				_farm, arguments.get(&"capability", &"") as StringName
 			)
-		&"tutorial_state":
-			result = _tutorial_state_candidate(arguments.get(&"tutorial"))
 		&"hazard_reward":
 			result = (
 				FarmCapabilityServiceScript
@@ -259,12 +256,3 @@ func _build_operation(operation: StringName, arguments: Dictionary) -> Dictionar
 		&"ironjaw_first_clear":
 			result = IronjawDesertArcScript.complete_first_clear(_farm)
 	return result
-
-
-func _tutorial_state_candidate(value: Variant) -> Dictionary:
-	var tutorial: Dictionary = ContextTutorialStateScript.validate(value)
-	if tutorial.is_empty():
-		return {&"ok": false, &"candidate": _farm.duplicate(true), &"reason": &"invalid_tutorial"}
-	var candidate: Dictionary = _farm.duplicate(true)
-	candidate[&"tutorial"] = tutorial
-	return {&"ok": true, &"candidate": candidate, &"reason": &""}

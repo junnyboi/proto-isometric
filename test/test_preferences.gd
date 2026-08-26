@@ -40,6 +40,20 @@ static func evaluate() -> Array[Dictionary]:
 			and float(migrated_snapshot[&"haptic_intensity"]) == 1.0
 		),
 	)
+	var retired_onboarding: Dictionary = defaults.duplicate(true)
+	retired_onboarding[&"onboarding_seen"] = true
+	var onboarding_preferences: RefCounted = PlayerPreferencesScript.new() as RefCounted
+	var onboarding_loaded: bool = bool(
+		onboarding_preferences.call("restore_dictionary", retired_onboarding)
+	)
+	var onboarding_snapshot: Dictionary = (
+		onboarding_preferences.call("to_dictionary") as Dictionary
+	)
+	_add(
+		cases,
+		"legacy onboarding preference loads safely and is retired on projection",
+		onboarding_loaded and not onboarding_snapshot.has(&"onboarding_seen"),
+	)
 	_add(
 		cases,
 		"preferences default VFX intensity is one hundred percent",

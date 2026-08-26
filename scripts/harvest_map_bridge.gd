@@ -31,14 +31,8 @@ const InteractionPresenterScript: GDScript = preload(
 const InteractionTargetBridgeScript: GDScript = preload(
 	"res://scripts/harvest_interaction_target_bridge.gd"
 )
-const ContextTutorialDirectorScript: GDScript = preload(
-	"res://scripts/context_tutorial_director.gd"
-)
-const ContextTutorialEventScript: GDScript = preload("res://scripts/context_tutorial_event.gd")
-const ContextTutorialStateScript: GDScript = preload("res://scripts/context_tutorial_state.gd")
 const InventoryServiceScript: GDScript = preload("res://scripts/inventory_service.gd")
 const MachineServiceScript: GDScript = preload("res://scripts/machine_service.gd")
-const PlayerPreferencesScript: GDScript = preload("res://scripts/player_preferences.gd")
 const ResolverScript: GDScript = preload("res://scripts/interaction_resolver.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const ResourceDepositPresentationScript: GDScript = preload(
@@ -77,7 +71,6 @@ var _farm_runtime: RefCounted
 var _transactions: RefCounted
 var _interaction_phase_b_service: RefCounted
 var _wilderness_runtime: RefCounted
-var _context_tutorial: RefCounted
 var _construction_runtime: RefCounted
 var _construction_mode: Node2D
 var _extraction_range_overlay: Node2D
@@ -130,10 +123,6 @@ func get_wilderness_runtime() -> RefCounted:
 	return _wilderness_runtime
 
 
-func get_context_tutorial_director() -> RefCounted:
-	return _context_tutorial
-
-
 func get_construction_mode_controller() -> Node2D:
 	return _construction_mode
 
@@ -150,29 +139,6 @@ func get_settlement_modal_controller() -> Node2D:
 	return _settlement_modal
 
 
-func set_tutorial_capability(lesson: int, available: bool = true) -> bool:
-	return (
-		_context_tutorial != null
-		and bool(_context_tutorial.call("set_lesson_relevant", lesson, available))
-	)
-
-
-func record_tutorial_build_mode(receipt: Dictionary) -> Dictionary:
-	if _context_tutorial == null:
-		return {}
-	return _context_tutorial.call(
-		"ingest", ContextTutorialEventScript.build_mode_entered(receipt)
-	) as Dictionary
-
-
-func record_tutorial_worker_assignment(receipt: Dictionary) -> Dictionary:
-	if _context_tutorial == null:
-		return {}
-	return _context_tutorial.call(
-		"ingest", ContextTutorialEventScript.worker_assignment_committed(receipt)
-	) as Dictionary
-
-
 func is_ready_for_commands() -> bool:
 	return _ready_for_commands
 
@@ -184,8 +150,7 @@ func is_interaction_menu_open() -> bool:
 		return true
 	if _settlement_modal != null and bool(_settlement_modal.call("is_open")):
 		return true
-	var hud: CanvasLayer = _map.get("_hud") as CanvasLayer if _map != null else null
-	return hud != null and bool(hud.call("_is_tutorial_help_modal_open"))
+	return false
 
 
 func get_live_presentation_records() -> Array[Dictionary]:
@@ -242,10 +207,6 @@ func _bootstrap() -> void:
 		mobile.connect("command_pressed", Callable(_controller, "handle_touch_command"))
 	_controller.connect("menu_snapshot_opened", _on_menu_opened)
 	_controller.connect("menu_snapshot_closed", _on_menu_closed)
-	_controller.connect("target_acquired", _on_target_acquired)
-	_controller.connect("menu_navigation_committed", _on_menu_navigated)
-	_controller.connect("safe_menu_action_committed", _on_safe_action_committed)
-	_controller.connect("quick_action_result", _on_quick_action_result)
 	_presenter = InteractionPresenterScript.new() as CanvasLayer
 	_map.add_child(_presenter)
 	if not bool(_presenter.call("bind", _controller, mobile)):
@@ -269,9 +230,6 @@ func _bootstrap() -> void:
 
 
 func _initialize_post_interaction(mobile: CanvasLayer) -> bool:
-	if not _initialize_context_tutorial(mobile):
-		push_error("P3 contextual tutorial rejected live authorities.")
-		return false
 	if not _initialize_construction(mobile):
 		push_error("P4 construction mode rejected live authorities.")
 		return false
@@ -281,107 +239,25 @@ func _initialize_post_interaction(mobile: CanvasLayer) -> bool:
 	return true
 
 
-func _on_menu_opened(snapshot: Dictionary) -> void:
+func _on_menu_opened(_snapshot: Dictionary) -> void:
 	_map.set("_velocity", Vector2.ZERO)
 	_map.set("_is_moving", false)
 	_map.set("_is_running", false)
 	var buffer: RefCounted = _map.get("_drive_input_buffer") as RefCounted
 	if buffer != null:
 		buffer.call("clear")
-	if _context_tutorial != null:
-		_context_tutorial.call(
-			"ingest", ContextTutorialEventScript.terminal_opened(snapshot)
-		)
-		_context_tutorial.call(
-			"ingest", ContextTutorialEventScript.navigation_not_needed(snapshot)
-		)
-	_set_tutorial_terminal_yield(true)
+	_set_modal_radar_yielded(true)
 
 
 func _on_menu_closed() -> void:
-	_set_tutorial_terminal_yield(false)
+	_set_modal_radar_yielded(false)
 
 
-func _on_target_acquired(target: Dictionary) -> void:
-	_ingest_tutorial(ContextTutorialEventScript.target_acquired(target))
-
-
-func _on_menu_navigated(
-	snapshot_id: StringName, from_index: int, to_index: int, action_id: StringName
-) -> void:
-	_ingest_tutorial(
-		ContextTutorialEventScript.terminal_navigated(
-			str(snapshot_id), from_index, to_index, action_id
-		)
-	)
-
-
-func _on_safe_action_committed(
-	snapshot_id: StringName, option: Dictionary, result: Dictionary
-) -> void:
-	_ingest_tutorial(
-		ContextTutorialEventScript.safe_action_committed(str(snapshot_id), option, result)
-	)
-
-
-func _on_quick_action_result(result: Dictionary) -> void:
-	_ingest_tutorial(ContextTutorialEventScript.quick_committed(result))
-
-
-func _on_player_cell_committed(previous: Vector2i, current: Vector2i) -> void:
-	_ingest_tutorial(ContextTutorialEventScript.movement_committed(previous, current))
-
-
-func _initialize_context_tutorial(mobile: CanvasLayer) -> bool:
-	if _farm_runtime == null:
-		return true
-	var farm: Dictionary = _farm_runtime.call("get_snapshot") as Dictionary
-	var source: Dictionary = farm[&"tutorial"] as Dictionary
-	var preferences: RefCounted = PlayerPreferencesScript.new() as RefCounted
-	var preference_snapshot: Dictionary = preferences.call("load_preferences") as Dictionary
-	var legacy_seen: bool = bool(preference_snapshot.get(&"onboarding_seen", false))
-	_context_tutorial = ContextTutorialDirectorScript.new() as RefCounted
-	if not bool(
-		_context_tutorial.call(
-			"configure", source, Callable(self, "_commit_tutorial_state"), legacy_seen
-		)
-	):
-		_context_tutorial = null
-		return false
-	var hud: CanvasLayer = _map.get("_hud") as CanvasLayer
-	if hud == null or not bool(hud.call("_bind_context_tutorial", _context_tutorial, mobile)):
-		_context_tutorial = null
-		return false
-	var committed: Dictionary = _context_tutorial.call("get_state") as Dictionary
-	if legacy_seen and (committed != source or source != ContextTutorialStateScript.neutral()):
-		preferences.call("set_value", &"onboarding_seen", false)
-		if not bool(preferences.call("save_preferences")):
-			push_warning("Legacy onboarding migration could not clear its compatibility flag.")
-	return true
-
-
-func _commit_tutorial_state(tutorial: Dictionary) -> Dictionary:
-	if _farm_runtime == null:
-		return {&"ok": false, &"reason": &"farm_runtime_unavailable"}
-	var result: Dictionary = _farm_runtime.call(
-		"transact", &"tutorial_state", {&"tutorial": tutorial}
-	) as Dictionary
-	if not bool(result.get(&"ok", false)):
-		return {&"ok": false, &"reason": result.get(&"reason", &"persistence_failed")}
-	var farm: Dictionary = result[&"candidate"] as Dictionary
-	return {&"ok": true, &"tutorial": (farm[&"tutorial"] as Dictionary).duplicate(true)}
-
-
-func _ingest_tutorial(event: Dictionary) -> void:
-	if _context_tutorial != null:
-		_context_tutorial.call("ingest", event)
-
-
-func _set_tutorial_terminal_yield(yielded: bool) -> void:
+func _set_modal_radar_yielded(yielded: bool) -> void:
 	if _map != null:
 		var hud: CanvasLayer = _map.get("_hud") as CanvasLayer
 		if hud != null:
-			hud.call("_set_tutorial_terminal_yielded", yielded)
+			hud.call("_set_modal_radar_yielded", yielded)
 
 
 func _initialize_farm_runtime() -> void:
@@ -468,7 +344,6 @@ func _initialize_construction(mobile: CanvasLayer) -> bool:
 	if not bool(_construction_runtime.call("configure", _map, _farm_runtime, _transactions)):
 		return false
 	_construction_runtime.connect("construction_committed", _on_construction_committed)
-	set_tutorial_capability(ContextTutorialStateScript.LESSON_BUILD, true)
 	_construction_mode = ConstructionModeScript.new() as Node2D
 	_construction_mode.name = "ConstructionModeController"
 	_map.add_child(_construction_mode)
@@ -511,12 +386,6 @@ func _initialize_settlement(mobile: CanvasLayer) -> bool:
 		_settlement_modal = null
 		return false
 	_settlement_modal.connect("modal_changed", _on_settlement_modal_changed)
-	_settlement_modal.connect("assignment_committed", _on_assignment_committed)
-	var snapshot: Dictionary = _settlement_runtime.call("snapshot") as Dictionary
-	set_tutorial_capability(
-		ContextTutorialStateScript.LESSON_WORKER,
-		not (snapshot.get(&"roster", []) as Array).is_empty(),
-	)
 	return true
 
 
@@ -704,10 +573,10 @@ func _open_construction_operation(operation: StringName, result: Dictionary) -> 
 func _on_construction_mode_changed(active: bool) -> void:
 	if _controller != null:
 		_controller.call("_set_external_modal", active)
-	_set_tutorial_terminal_yield(active)
+	_set_modal_radar_yielded(active)
 
 
-func _on_construction_committed(operation: StringName, result: Dictionary) -> void:
+func _on_construction_committed(_operation: StringName, result: Dictionary) -> void:
 	var dirty: Array[Vector2i] = []
 	for value: Variant in result.get(&"dirty_cells", []):
 		if value is Vector2i:
@@ -716,32 +585,16 @@ func _on_construction_committed(operation: StringName, result: Dictionary) -> vo
 	var objects: Node2D = _map.get("_world_objects") as Node2D
 	if objects != null:
 		objects.call("invalidate_static_objects")
-	if operation == &"construction_place":
-		var proof: Dictionary = result.duplicate(true)
-		proof[&"committed"] = true
-		record_tutorial_build_mode(proof)
 
 
 func _on_settlement_modal_changed(active: bool) -> void:
 	if _controller != null:
 		_controller.call("_set_external_modal", active)
-	_set_tutorial_terminal_yield(active)
+	_set_modal_radar_yielded(active)
 
 
 func _on_settlement_committed(_operation: StringName, _result: Dictionary) -> void:
 	_refresh_render_indexes()
-	if _settlement_runtime != null:
-		var snapshot: Dictionary = _settlement_runtime.call("snapshot") as Dictionary
-		set_tutorial_capability(
-			ContextTutorialStateScript.LESSON_WORKER,
-			not (snapshot.get(&"roster", []) as Array).is_empty(),
-		)
-
-
-func _on_assignment_committed(result: Dictionary) -> void:
-	var proof: Dictionary = result.duplicate(true)
-	proof[&"committed"] = true
-	record_tutorial_worker_assignment(proof)
 
 
 func _context_operation(cell: Vector2i) -> StringName:

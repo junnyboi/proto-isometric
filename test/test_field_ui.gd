@@ -193,6 +193,15 @@ static func _test_field_hud_presentation(cases: Array[Dictionary]) -> void:
 		all_text += (label as Label).text + "\n"
 	var settings_panel: CanvasLayer = hud.call("get_accessibility_panel") as CanvasLayer
 	var settings_button: Button = settings_panel.call("get_trigger_button") as Button
+	var settings_buttons: Dictionary = settings_panel.get("_buttons") as Dictionary
+	_add_case(
+		cases,
+		"field HUD contains no tutorial card or training settings controls",
+		hud.find_child("ContextTutorialCard", true, false) == null
+		and not settings_buttons.has(&"training_resume")
+		and not settings_buttons.has(&"training_reset")
+		and not settings_buttons.has(&"training_help"),
+	)
 	_add_case(
 		cases,
 		"field panel removes title, subtitle, and movement instructions",

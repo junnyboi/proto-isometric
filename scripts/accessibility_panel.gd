@@ -1,9 +1,6 @@
 extends CanvasLayer
 
 signal preferences_changed(snapshot: Dictionary)
-signal training_resume_requested
-signal training_reset_requested
-signal training_help_requested
 signal trigger_layout_changed(rect: Rect2)
 
 const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
@@ -113,20 +110,6 @@ func _cycle_locale() -> void:
 	preferences_changed.emit(get_preferences())
 
 
-func _resume_training() -> void:
-	training_resume_requested.emit()
-
-
-func _reset_training() -> void:
-	training_reset_requested.emit()
-
-
-func _open_training_help() -> void:
-	_panel.visible = false
-	_apply_layout()
-	training_help_requested.emit()
-
-
 func _commit() -> void:
 	_preferences.call("save_preferences")
 	_refresh()
@@ -184,13 +167,6 @@ func _refresh() -> void:
 			{"language": LocalizationScript.t("common.locale_short.%s" % locale)},
 		)
 	)
-	(_buttons[&"training_resume"] as Button).text = LocalizationScript.t(
-		&"access.resume_training"
-	)
-	(_buttons[&"training_reset"] as Button).text = LocalizationScript.t(
-		&"access.reset_training"
-	)
-	(_buttons[&"training_help"] as Button).text = LocalizationScript.t(&"access.training_help")
 
 
 func _refresh_audio_slider(snapshot: Dictionary, key: StringName, label_key: StringName) -> void:
@@ -291,7 +267,7 @@ func _build_interface() -> void:
 	_panel = ColorRect.new()
 	_panel.name = "AccessibilityPanel"
 	_panel.position = Vector2(820.0, 78.0)
-	_panel.size = Vector2(442.0, 1010.0)
+	_panel.size = Vector2(442.0, 842.0)
 	_panel.color = Color(0.025, 0.035, 0.04, 0.97)
 	_panel.visible = false
 	add_child(_panel)
@@ -314,9 +290,6 @@ func _build_interface() -> void:
 	_add_button(&"haptics", 662.0, _cycle_intensity.bind(&"haptic_intensity"))
 	_add_button(&"left_handed", 718.0, _toggle_boolean.bind(&"left_handed"))
 	_add_button(&"locale", 774.0, _cycle_locale)
-	_add_button(&"training_resume", 830.0, _resume_training)
-	_add_button(&"training_reset", 886.0, _reset_training)
-	_add_button(&"training_help", 942.0, _open_training_help)
 
 
 func _add_audio_slider(key: StringName, label_key: StringName, y: float) -> void:
@@ -380,7 +353,7 @@ func _apply_layout() -> void:
 		return
 	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
 	var available_height: float = maxf(viewport_size.y - 90.0, 1.0)
-	var scale_factor: float = minf(1.0, minf(viewport_size.x / 470.0, available_height / 1010.0))
+	var scale_factor: float = minf(1.0, minf(viewport_size.x / 470.0, available_height / 842.0))
 	_panel.scale = Vector2.ONE * scale_factor
 	_panel.position = Vector2(viewport_size.x - _panel.size.x * scale_factor - 18.0, 72.0)
 	_access_button.position = trigger_rect_for(

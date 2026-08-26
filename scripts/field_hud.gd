@@ -8,10 +8,6 @@ const AccessibilityPanelScript: GDScript = preload("res://scripts/accessibility_
 const CharacterHoverCardScript: GDScript = preload("res://scripts/character_hover_card.gd")
 const ExpeditionRadarScript: GDScript = preload("res://scripts/expedition_radar.gd")
 const FieldUIBuilderScript: GDScript = preload("res://scripts/field_ui_builder.gd")
-const ContextTutorialPresenterScript: GDScript = preload(
-	"res://scripts/context_tutorial_presenter.gd"
-)
-const InputModalityTrackerScript: GDScript = preload("res://scripts/input_modality_tracker.gd")
 const RefitServiceScript: GDScript = preload("res://scripts/refit_service.gd")
 const FIELD_THEME: Resource = preload("res://data/field_hud_theme.tres")
 const AMBER: Color = Color("f5a62d")
@@ -33,10 +29,7 @@ var _outpost_interface: Control
 var _accessibility: CanvasLayer
 var _refit_service: RefCounted
 var _ui_scale: float = 1.0
-var _tutorial_presenter: CanvasLayer
-var _tutorial_director: RefCounted
-var _modality_tracker: RefCounted
-var _tutorial_terminal_yield: bool = false
+var _modal_radar_yield: bool = false
 var _radar: Control
 var _radar_coordinator: RefCounted
 var _radar_contacts_source: Node
@@ -68,12 +61,6 @@ func _ready() -> void:
 	_accessibility.connect("preferences_changed", _on_preferences_changed)
 	add_child(_accessibility)
 	_on_preferences_changed(_accessibility.call("get_preferences") as Dictionary)
-	_modality_tracker = InputModalityTrackerScript.new() as RefCounted
-	_tutorial_presenter = ContextTutorialPresenterScript.new() as CanvasLayer
-	add_child(_tutorial_presenter)
-	_tutorial_presenter.call(
-		"apply_preferences", _accessibility.call("get_preferences") as Dictionary
-	)
 	_radar = ExpeditionRadarScript.new() as Control
 	add_child(_radar)
 	if _radar_coordinator != null:
@@ -94,16 +81,8 @@ func configure_refit(
 
 
 func _process(delta: float) -> void:
-	if _tutorial_presenter != null:
-		var settings_open: bool = bool(_accessibility.call("is_panel_visible"))
-		_tutorial_presenter.call(
-			"set_focus_yielded", _tutorial_terminal_yield or settings_open
-		)
-		if _radar != null:
-			_radar.visible = (
-				not _tutorial_terminal_yield
-				and not bool(_tutorial_presenter.call("_is_prompt_visible"))
-			)
+	if _radar != null:
+		_radar.visible = not _modal_radar_yield
 	if _radar != null and _radar_contacts_source != null:
 		_radar.call("sync_contacts", _radar_contacts_source.call("get_combat_snapshots"))
 	_advance_charge_pulse(delta)
@@ -273,8 +252,6 @@ func _on_preferences_changed(snapshot: Dictionary) -> void:
 	_ui_scale = clampf(float(snapshot.get(&"ui_scale", 1.0)), 0.85, 1.25)
 	_left_handed = bool(snapshot.get(&"left_handed", false))
 	_vfx_intensity = clampf(float(snapshot.get(&"vfx_intensity", 1.0)), 0.0, 1.0)
-	if _tutorial_presenter != null:
-		_tutorial_presenter.call("apply_preferences", snapshot)
 	if _drive_panel != null:
 		apply_layout(
 			get_viewport().get_visible_rect().size,
@@ -291,60 +268,8 @@ func get_touch_exclusions() -> Array[Rect2]:
 	return FIELD_THEME.call("touch_exclusions", _layout, mobile) as Array[Rect2]
 
 
-func _bind_context_tutorial(director: RefCounted, mobile: CanvasLayer) -> bool:
-	if director == null or _tutorial_presenter == null or _modality_tracker == null:
-		return false
-	_tutorial_director = director
-	if not bool(_tutorial_presenter.call("bind", director, _modality_tracker, mobile)):
-		return false
-	_tutorial_presenter.connect("skip_requested", Callable(director, "suppress"))
-	_tutorial_presenter.connect("resume_requested", Callable(self, "_resume_context_tutorial"))
-	_tutorial_presenter.connect("reset_requested", Callable(self, "_reset_context_tutorial"))
-	_accessibility.connect("training_resume_requested", Callable(self, "_resume_context_tutorial"))
-	_accessibility.connect("training_reset_requested", Callable(self, "_reset_context_tutorial"))
-	_accessibility.connect(
-		"training_help_requested", Callable(self, "_open_tutorial_help")
-	)
-	return true
-
-
-func _resume_context_tutorial() -> void:
-	if _tutorial_director != null:
-		_tutorial_director.call("resume")
-	if _tutorial_presenter != null:
-		_tutorial_presenter.call("reveal_current_prompt")
-
-
-func _reset_context_tutorial() -> void:
-	if _tutorial_director != null:
-		_tutorial_director.call("reset_training")
-	if _tutorial_presenter != null:
-		_tutorial_presenter.call("reveal_current_prompt")
-
-
-func _open_tutorial_help() -> void:
-	if _tutorial_presenter != null:
-		_tutorial_presenter.call("set_focus_yielded", false)
-		_tutorial_presenter.call("_open_help")
-
-
-func _set_tutorial_terminal_yielded(yielded: bool) -> void:
-	_tutorial_terminal_yield = yielded
-
-
-func _get_context_tutorial_presenter() -> CanvasLayer:
-	return _tutorial_presenter
-
-
-func _get_context_tutorial_director() -> RefCounted:
-	return _tutorial_director
-
-
-func _is_tutorial_help_modal_open() -> bool:
-	return (
-		_tutorial_presenter != null
-		and bool(_tutorial_presenter.call("is_help_modal_open"))
-	)
+func _set_modal_radar_yielded(yielded: bool) -> void:
+	_modal_radar_yield = yielded
 
 
 func get_field_state_snapshot() -> Dictionary:

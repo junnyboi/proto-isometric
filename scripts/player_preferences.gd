@@ -17,7 +17,6 @@ var _camera_shake_intensity: float = 1.0
 var _reduced_flash: bool = false
 var _haptics: bool = true
 var _haptic_intensity: float = 1.0
-var _onboarding_seen: bool = false
 var _left_handed: bool = false
 var _sfx_enabled: bool = true
 var _master_volume: float = 1.0
@@ -99,10 +98,6 @@ func set_value(key: StringName, value: Variant) -> bool:
 			if valid:
 				_haptic_intensity = snappedf(value, 0.5)
 				_haptics = _haptic_intensity > 0.0
-		&"onboarding_seen":
-			valid = value is bool
-			if valid:
-				_onboarding_seen = value
 		&"left_handed":
 			valid = value is bool
 			if valid:
@@ -159,7 +154,6 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 	var flash: Variant = snapshot.get(&"reduced_flash")
 	var haptics: Variant = snapshot.get(&"haptics")
 	var haptic_intensity: Variant = snapshot.get(&"haptic_intensity", 1.0 if haptics else 0.0)
-	var onboarding: Variant = snapshot.get(&"onboarding_seen", false)
 	var left_handed: Variant = snapshot.get(&"left_handed", false)
 	var sfx_enabled: Variant = snapshot.get(&"sfx_enabled", true)
 	var master_volume: Variant = snapshot.get(&"master_volume", 1.0)
@@ -177,7 +171,6 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 		or not flash is bool
 		or not haptics is bool
 		or not _valid_intensity(haptic_intensity)
-		or not onboarding is bool
 		or not left_handed is bool
 		or not sfx_enabled is bool
 		or not master_volume is float
@@ -196,7 +189,6 @@ func restore_dictionary(snapshot: Dictionary) -> bool:
 		or not set_value(&"camera_shake_intensity", shake_intensity)
 		or not set_value(&"reduced_flash", flash)
 		or not set_value(&"haptic_intensity", haptic_intensity)
-		or not set_value(&"onboarding_seen", onboarding)
 		or not set_value(&"left_handed", left_handed)
 		or not set_value(&"sfx_enabled", sfx_enabled)
 		or not set_value(&"master_volume", master_volume)
@@ -221,7 +213,6 @@ func to_dictionary() -> Dictionary:
 		&"reduced_flash": _reduced_flash,
 		&"haptics": _haptics,
 		&"haptic_intensity": _haptic_intensity,
-		&"onboarding_seen": _onboarding_seen,
 		&"left_handed": _left_handed,
 		&"sfx_enabled": _sfx_enabled,
 		&"master_volume": _master_volume,
@@ -244,7 +235,6 @@ func _apply(snapshot: Dictionary) -> void:
 	_reduced_flash = bool(snapshot[&"reduced_flash"])
 	_haptics = bool(snapshot[&"haptics"])
 	_haptic_intensity = float(snapshot.get(&"haptic_intensity", 1.0 if _haptics else 0.0))
-	_onboarding_seen = bool(snapshot.get(&"onboarding_seen", false))
 	_left_handed = bool(snapshot.get(&"left_handed", false))
 	_sfx_enabled = bool(snapshot.get(&"sfx_enabled", true))
 	_master_volume = float(snapshot.get(&"master_volume", 1.0))

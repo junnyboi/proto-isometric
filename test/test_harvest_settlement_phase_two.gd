@@ -630,6 +630,26 @@ static func _test_live_integration(cases: Array[Dictionary], runtime: Node2D) ->
 	)
 	var boundary: RefCounted = bridge.call("get_transaction_boundary") as RefCounted
 	var farm_runtime: RefCounted = bridge.call("get_farm_runtime") as RefCounted
+	var hud: CanvasLayer = runtime.get_node_or_null("FieldHUD") as CanvasLayer
+	var retired_operation: Dictionary = (
+		farm_runtime.call("preview", &"tutorial_state") as Dictionary
+		if farm_runtime != null
+		else {}
+	)
+	_add(
+		cases,
+		"P2-17 live field contains no tutorial authority UI or mutation path",
+		bridge != null
+		and not bridge.has_method("get_context_tutorial_director")
+		and hud != null
+		and hud.find_child("ContextTutorialCard", true, false) == null
+		and mobile != null
+		and not mobile.has_method("_set_tutorial_touch_exclusion")
+		and (
+			farm_runtime == null
+			or retired_operation.get(&"reason", &"") == &"unknown_operation"
+		),
+	)
 	if boundary == null or farm_runtime == null:
 		_add(
 			cases,
