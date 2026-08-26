@@ -22,6 +22,8 @@ const MAX_WIDTH: float = 438.0
 const HEADER_HEIGHT: float = 116.0
 const FOOTER_HEIGHT: float = 38.0
 const BASE_ROW_HEIGHT: float = 66.0
+const VIEW_ACTIONS: StringName = &"actions"
+const VIEW_DETAILS: StringName = &"details"
 
 var _controller: Node
 var _mobile_controls: CanvasLayer
@@ -31,6 +33,9 @@ var _panel: PanelContainer
 var _title_label: Label
 var _subkind_label: Label
 var _status_label: Label
+var _tab_bar: HBoxContainer
+var _details_tab: Button
+var _actions_tab: Button
 var _detail_panel: PanelContainer
 var _detail_title_label: Label
 var _detail_body_label: Label
@@ -38,6 +43,9 @@ var _detail_scroll: ScrollContainer
 var _detail_stack: VBoxContainer
 var _scroll: ScrollContainer
 var _row_stack: VBoxContainer
+var _touch_bar: HBoxContainer
+var _back_button: Button
+var _activate_button: Button
 var _footer_label: Label
 var _rows: Array[Button] = []
 var _fact_rows: Array[Label] = []
@@ -48,6 +56,8 @@ var _selected_action_id: StringName = &""
 var _ui_scale: float = 1.0
 var _left_handed: bool = false
 var _last_result_key: StringName = &""
+var _active_view: StringName = VIEW_ACTIONS
+var _last_activation_usec: int = 0
 
 
 func _ready() -> void:
@@ -119,6 +129,19 @@ func get_selected_action_id() -> StringName:
 	return _selected_action_id
 
 
+func get_active_view() -> StringName:
+	return _active_view
+
+
+func has_terminal_controls() -> bool:
+	return (
+		_back_button != null
+		and _activate_button != null
+		and _back_button.custom_minimum_size.y >= 44.0
+		and _activate_button.custom_minimum_size.y >= 44.0
+	)
+
+
 func apply_preferences(snapshot: Dictionary) -> void:
 	_ui_scale = clampf(float(snapshot.get(&"ui_scale", 1.0)), 0.85, 1.25)
 	_left_handed = bool(snapshot.get(&"left_handed", false))
@@ -144,7 +167,11 @@ func handle_modal_event(event: InputEvent) -> bool:
 	elif event.is_action_pressed(CommandsScript.CANCEL, false, true) or event.is_action_pressed(
 		"ui_cancel", false, true
 	):
-		_controller.call("close_menu")
+		_handle_back()
+	elif _is_compact_layout() and event.is_action_pressed("ui_left", false, true):
+		_set_active_view(VIEW_DETAILS)
+	elif _is_compact_layout() and event.is_action_pressed("ui_right", false, true):
+		_set_active_view(VIEW_ACTIONS)
 	elif _is_up(event):
 		_controller.call("navigate_menu", -1)
 	elif _is_down(event):
@@ -235,6 +262,7 @@ func _on_snapshot_opened(snapshot: Dictionary) -> void:
 	_snapshot = snapshot.duplicate(true)
 	_detail_result.clear()
 	_last_result_key = &""
+	_active_view = VIEW_ACTIONS
 	_panel.visible = true
 	_veil.visible = true
 	_apply_layout(get_viewport().get_visible_rect().size)
@@ -256,6 +284,7 @@ func _on_snapshot_closed() -> void:
 	_snapshot.clear()
 	_detail_result.clear()
 	_selected_action_id = &""
+	_active_view = VIEW_ACTIONS
 	_panel.visible = false
 	_veil.visible = false
 	_refresh_details()
@@ -271,6 +300,8 @@ func _on_execution_result(result: Dictionary) -> void:
 	if ExecutionResultScript.validate(result):
 		_detail_result = result.duplicate(true)
 		_last_result_key = result[&"reason_key"] as StringName
+		if _is_compact_layout():
+			_active_view = VIEW_DETAILS
 	else:
 		_detail_result.clear()
 		_last_result_key = result.get(&"reason_key", result.get(&"reason", &"")) as StringName
@@ -313,6 +344,7 @@ func _refresh_status() -> void:
 	else:
 		_status_label.text = LocalizationScript.t(&"interaction.menu.status_ready")
 	_footer_label.text = LocalizationScript.t(&"interaction.menu.bindings")
+	_refresh_terminal_labels()
 
 
 func _refresh_details() -> void:
@@ -323,6 +355,8 @@ func _refresh_details() -> void:
 		_detail_panel.visible = false
 		for row: Label in _fact_rows:
 			row.visible = false
+		_active_view = VIEW_ACTIONS
+		_apply_view_visibility()
 		return
 	_detail_panel.visible = true
 	_detail_title_label.text = _localized(
@@ -346,6 +380,7 @@ func _refresh_details() -> void:
 		)
 		row.text = "%s  //  %s" % [label, _fact_value_text(fact)]
 		row.accessibility_name = "%s, %s" % [label, _fact_value_text(fact)]
+	_apply_view_visibility()
 	_apply_layout(get_viewport().get_visible_rect().size)
 
 
@@ -521,15 +556,21 @@ func _apply_layout(viewport_size: Vector2) -> void:
 	_panel.size = popup.size
 	var rows: Rect2 = _layout[&"row_viewport"] as Rect2
 	_scroll.custom_minimum_size = Vector2(0.0, rows.size.y)
+	_apply_view_visibility()
 	_title_label.add_theme_font_size_override("font_size", roundi(24.0 * _ui_scale))
 	_subkind_label.add_theme_font_size_override("font_size", roundi(12.0 * _ui_scale))
 	_status_label.add_theme_font_size_override("font_size", roundi(12.0 * _ui_scale))
 	_detail_title_label.add_theme_font_size_override("font_size", roundi(15.0 * _ui_scale))
 	_detail_body_label.add_theme_font_size_override("font_size", roundi(12.0 * _ui_scale))
 	_footer_label.add_theme_font_size_override("font_size", roundi(11.0 * _ui_scale))
+	var detail_share: float = 0.62 if _is_compact_layout() else 0.4
 	_detail_panel.custom_minimum_size.y = (
-		minf(220.0 * _ui_scale, popup.size.y * 0.4) if _detail_panel.visible else 0.0
+		minf(360.0 * _ui_scale, popup.size.y * detail_share)
+		if _detail_panel.visible
+		else 0.0
 	)
+	for button: Button in [_details_tab, _actions_tab, _back_button, _activate_button]:
+		button.add_theme_font_size_override("font_size", roundi(13.0 * _ui_scale))
 	for fact_row: Label in _fact_rows:
 		fact_row.add_theme_font_size_override("font_size", roundi(12.0 * _ui_scale))
 	for row: Button in _rows:
@@ -581,6 +622,18 @@ func _build_interface() -> void:
 	_status_label = _label(12, TEAL)
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	stack.add_child(_status_label)
+	_tab_bar = HBoxContainer.new()
+	_tab_bar.name = "CompactViewTabs"
+	_tab_bar.add_theme_constant_override("separation", 6)
+	stack.add_child(_tab_bar)
+	_details_tab = _terminal_button("DetailsTab", &"interaction.menu.tab.details")
+	_details_tab.toggle_mode = true
+	_details_tab.pressed.connect(_set_active_view.bind(VIEW_DETAILS))
+	_tab_bar.add_child(_details_tab)
+	_actions_tab = _terminal_button("ActionsTab", &"interaction.menu.tab.actions")
+	_actions_tab.toggle_mode = true
+	_actions_tab.pressed.connect(_set_active_view.bind(VIEW_ACTIONS))
+	_tab_bar.add_child(_actions_tab)
 	_detail_panel = PanelContainer.new()
 	_detail_panel.name = "DecisionCard"
 	_detail_panel.visible = false
@@ -626,9 +679,94 @@ func _build_interface() -> void:
 	_row_stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_row_stack.add_theme_constant_override("separation", 5)
 	_scroll.add_child(_row_stack)
+	_touch_bar = HBoxContainer.new()
+	_touch_bar.name = "TerminalControls"
+	_touch_bar.add_theme_constant_override("separation", 6)
+	stack.add_child(_touch_bar)
+	_back_button = _terminal_button("BackButton", &"interaction.menu.back")
+	_back_button.pressed.connect(_handle_back)
+	_touch_bar.add_child(_back_button)
+	_activate_button = _terminal_button("ActivateButton", &"interaction.menu.activate")
+	_activate_button.pressed.connect(_activate_selected)
+	_touch_bar.add_child(_activate_button)
 	_footer_label = _label(11, MUTED)
 	_footer_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	stack.add_child(_footer_label)
+
+
+func _terminal_button(control_name: String, label_key: StringName) -> Button:
+	var button: Button = Button.new()
+	button.name = control_name
+	button.text = LocalizationScript.t(label_key)
+	button.set_meta("label_key", label_key)
+	button.custom_minimum_size = Vector2(0.0, 44.0)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.focus_mode = Control.FOCUS_ALL
+	button.add_theme_color_override("font_color", TEXT)
+	button.add_theme_color_override("font_disabled_color", DISABLED)
+	button.add_theme_stylebox_override("normal", _row_style(false, true, false))
+	button.add_theme_stylebox_override("hover", _row_style(false, true, true))
+	button.add_theme_stylebox_override("pressed", _row_style(true, true, true))
+	return button
+
+
+func _refresh_terminal_labels() -> void:
+	for button: Button in [_details_tab, _actions_tab, _back_button, _activate_button]:
+		if button != null:
+			button.text = LocalizationScript.t(button.get_meta("label_key") as StringName)
+
+
+func _set_active_view(view: StringName) -> void:
+	if view not in [VIEW_ACTIONS, VIEW_DETAILS]:
+		return
+	if view == VIEW_DETAILS and _detail_result.is_empty():
+		return
+	_active_view = view
+	_apply_view_visibility()
+	_apply_layout(get_viewport().get_visible_rect().size)
+
+
+func _handle_back() -> void:
+	if _controller == null:
+		return
+	if _is_compact_layout() and _active_view == VIEW_DETAILS:
+		_set_active_view(VIEW_ACTIONS)
+	else:
+		_controller.call("close_menu")
+
+
+func _activate_selected() -> void:
+	var now: int = Time.get_ticks_usec()
+	if now - _last_activation_usec < 150_000:
+		return
+	_last_activation_usec = now
+	if _controller != null and bool(_controller.call("is_menu_open")):
+		_controller.call("confirm_menu")
+
+
+func _is_compact_layout() -> bool:
+	var viewport: Vector2 = get_viewport().get_visible_rect().size
+	var mobile: bool = _mobile_controls != null and bool(_mobile_controls.call("is_mobile_device"))
+	return mobile or viewport.y > viewport.x or viewport.x < 700.0 or viewport.y < 500.0
+
+
+func _apply_view_visibility() -> void:
+	if _detail_panel == null or _scroll == null or _tab_bar == null:
+		return
+	var has_details: bool = ExecutionResultScript.validate_view(
+		_detail_result.get(&"view", {}) as Dictionary
+	)
+	var compact: bool = _is_compact_layout()
+	_tab_bar.visible = compact
+	_details_tab.disabled = not has_details
+	if compact:
+		_detail_panel.visible = has_details and _active_view == VIEW_DETAILS
+		_scroll.visible = _active_view == VIEW_ACTIONS
+	else:
+		_detail_panel.visible = has_details
+		_scroll.visible = true
+	_details_tab.button_pressed = compact and _active_view == VIEW_DETAILS
+	_actions_tab.button_pressed = compact and _active_view == VIEW_ACTIONS
 
 
 func _detail_style() -> StyleBoxFlat:

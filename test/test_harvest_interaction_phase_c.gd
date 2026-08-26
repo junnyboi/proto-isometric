@@ -251,6 +251,15 @@ static func _test_controller_and_presenter(cases: Array[Dictionary]) -> void:
 		"PHC-14 keyboard navigation and mouse/touch outside-close share modal ownership",
 		down_owned and mouse_owned and not controller.call("is_menu_open"),
 	)
+	controller.call("open_menu")
+	presenter.call("_activate_selected")
+	presenter.call("_activate_selected")
+	_add(
+		cases,
+		"PHC-15 duplicate terminal Activate signals execute only once",
+		int(harness.get("mutations")) == 2 and controller.call("is_menu_open"),
+	)
+	controller.call("close_menu")
 	presenter.free()
 	controller.free()
 	avatar.free()
@@ -270,7 +279,7 @@ static func _test_live_integration(cases: Array[Dictionary], runtime: Node2D) ->
 	var world_nodes_after: int = runtime.get_node("WorldObjectLayer").get_child_count()
 	_add(
 		cases,
-		"PHC-15 live map has one pooled CanvasLayer presenter and no per-target world nodes or leaks",
+		"PHC-16 live map has one pooled CanvasLayer presenter and no per-target world nodes or leaks",
 		(
 			presenter != null
 			and runtime.find_children(
@@ -282,9 +291,11 @@ static func _test_live_integration(cases: Array[Dictionary], runtime: Node2D) ->
 	)
 	_add(
 		cases,
-		"PHC-16 live target reticle diamond remains retained after menu cycles",
+		"PHC-17 live target reticle diamond remains retained after menu cycles",
 		reticle != null and reticle.name == "AdjacentTargetReticle" and reticle.is_inside_tree(),
 	)
+	var mobile: CanvasLayer = runtime.get("_mobile_controls") as CanvasLayer
+	mobile.call("force_mobile", true)
 	controller.call("open_menu")
 	var live_snapshot: Dictionary = controller.call("get_menu_snapshot") as Dictionary
 	var inspect_index: int = _action_index(live_snapshot, &"interaction.action.inspect")
@@ -294,7 +305,7 @@ static func _test_live_integration(cases: Array[Dictionary], runtime: Node2D) ->
 	var visible_facts: int = int(presenter.call("get_visible_fact_count"))
 	_add(
 		cases,
-		"PHC-17 live Inspect fills one fixed twelve-row Decision Card pool without closing",
+		"PHC-18 live Inspect fills one fixed twelve-row Decision Card pool without closing",
 		(
 			inspected
 			and controller.call("is_menu_open")
@@ -303,9 +314,26 @@ static func _test_live_integration(cases: Array[Dictionary], runtime: Node2D) ->
 			and visible_facts <= 12
 		),
 	)
-	controller.call("close_menu")
-	var mobile: CanvasLayer = runtime.get("_mobile_controls") as CanvasLayer
-	mobile.call("force_mobile", true)
+	var details_open: bool = presenter.call("get_active_view") == &"details"
+	presenter.call("_handle_back")
+	var back_to_actions: bool = (
+		controller.call("is_menu_open") and presenter.call("get_active_view") == &"actions"
+	)
+	presenter.call("_activate_selected")
+	var activated_details: bool = presenter.call("get_active_view") == &"details"
+	presenter.call("_handle_back")
+	presenter.call("_handle_back")
+	_add(
+		cases,
+		"PHC-19 compact tabs and terminal Back/Activate own the two-step modal flow",
+		(
+			details_open
+			and presenter.call("has_terminal_controls")
+			and back_to_actions
+			and activated_details
+			and not controller.call("is_menu_open")
+		),
+	)
 	controller.call("open_menu")
 	var popup: Rect2 = presenter.call("get_popup_bounds") as Rect2
 	var dock: Rect2 = mobile.call("_get_command_dock_bounds") as Rect2
@@ -318,14 +346,14 @@ static func _test_live_integration(cases: Array[Dictionary], runtime: Node2D) ->
 	_add(
 		cases,
 			(
-				"PHC-18 popup owns mobile exclusions while action and zoom controls hide"
+				"PHC-20 popup owns mobile exclusions while action and zoom controls hide"
 			),
 			popup in exclusions and dock in exclusions and mobile.call("get_smash_button") != null
 			and runtime.get("_hud") != null and not command_dock.visible and not zoom_panel.visible,
 	)
 	_add(
 		cases,
-		"PHC-19 movement, Tool, and Smash inputs are suppressed while the modal is open",
+		"PHC-21 movement, Tool, and Smash inputs are suppressed while the modal is open",
 		Vector2(runtime.call("get_velocity")) == Vector2.ZERO
 		and bool(mobile.call("is_modal_input_suppressed"))
 		and not bool(mobile.call("begin_touch", 77, Vector2(120.0, 220.0)))

@@ -7,6 +7,9 @@ const OptionScript: GDScript = preload("res://scripts/interaction_option.gd")
 
 const MAX_NEXT_STEPS: int = 2
 const TERRAIN_SUBKINDS: Array[StringName] = [&"crop", &"plot", &"terrain"]
+const DEPOSIT_SUBKINDS: Array[StringName] = [
+	&"deposit_biomass", &"deposit_mineral", &"deposit_salvage",
+]
 
 
 static func build(
@@ -59,7 +62,7 @@ static func _view_for(menu: Dictionary, option: Dictionary) -> Dictionary:
 	var subkind: StringName = menu[&"target_subkind"] as StringName
 	if operation == &"inspect" and subkind in TERRAIN_SUBKINDS:
 		return _terrain_view(menu, subkind)
-	return _fallback_view(menu, option)
+	return _provider_view(menu, option, subkind)
 
 
 static func _terrain_view(menu: Dictionary, subkind: StringName) -> Dictionary:
@@ -137,6 +140,194 @@ static func _terrain_view(menu: Dictionary, subkind: StringName) -> Dictionary:
 		_next_step_parameters(menu),
 		facts,
 	)
+
+
+static func _provider_view(
+	menu: Dictionary,
+	option: Dictionary,
+	subkind: StringName,
+) -> Dictionary:
+	var state: Dictionary = menu[&"target_state"] as Dictionary
+	var facts: Array[Dictionary] = [
+		_fact(
+			&"interaction.inspect.fact.target_subkind",
+			ExecutionResultScript.VALUE_TEXT_KEY,
+			_subkind_value(subkind),
+		),
+	]
+	match subkind:
+		&"home":
+			_append_boolean(facts, state, &"bed", &"interaction.inspect.fact.bed")
+			_append_boolean(facts, state, &"storage", &"interaction.inspect.fact.storage")
+			_append_boolean(facts, state, &"safehouse", &"interaction.inspect.fact.safehouse")
+			_append_integer(facts, state, &"animal_capacity", &"interaction.inspect.fact.capacity")
+			_append_integer(facts, state, &"item_count", &"interaction.inspect.fact.item_count")
+			_append_integer(facts, state, &"occupied_slots", &"interaction.inspect.fact.occupied_slots")
+			_append_integer(facts, state, &"capacity_slots", &"interaction.inspect.fact.storage_slots")
+		&"storage":
+			_append_boolean(facts, state, &"available", &"interaction.inspect.fact.available")
+			_append_integer(facts, state, &"item_count", &"interaction.inspect.fact.item_count")
+			_append_integer(facts, state, &"occupied_slots", &"interaction.inspect.fact.occupied_slots")
+			_append_integer(facts, state, &"capacity_slots", &"interaction.inspect.fact.storage_slots")
+			_append_integer(
+				facts, state, &"robot_item_count", &"interaction.inspect.fact.robot_item_count"
+			)
+		&"shipping":
+			_append_integer(facts, state, &"item_count", &"interaction.inspect.fact.item_count")
+			_append_integer(facts, state, &"money", &"interaction.inspect.fact.credit_value")
+		&"facility":
+			_append_boolean(facts, state, &"repaired", &"interaction.inspect.fact.repaired")
+			_append_boolean(facts, state, &"powered", &"interaction.inspect.fact.powered")
+		&"machine":
+			_append_enum(facts, state, &"state", &"interaction.inspect.fact.state", &"machine")
+			_append_integer(facts, state, &"complete_day", &"interaction.inspect.fact.complete_day")
+		&"resident":
+			_append_integer(facts, state, &"points", &"interaction.inspect.fact.relationship")
+			_append_integer(facts, state, &"last_talk_day", &"interaction.inspect.fact.last_talk_day")
+		&"livestock":
+			_append_integer(facts, state, &"bond", &"interaction.inspect.fact.bond")
+		&"tree", &"resource":
+			_append_reward_facts(facts, state)
+		&"pickup":
+			_append_integer(facts, state, &"count", &"interaction.inspect.fact.item_count")
+		&"herd":
+			_append_integer(facts, state, &"population", &"interaction.inspect.fact.population")
+			_append_integer(facts, state, &"trust", &"interaction.inspect.fact.trust")
+			_append_boolean(facts, state, &"active", &"interaction.inspect.fact.active")
+		&"hostile":
+			_append_integer(facts, state, &"health", &"interaction.inspect.fact.health")
+			_append_integer(facts, state, &"max_health", &"interaction.inspect.fact.max_health")
+			_append_boolean(facts, state, &"is_boss", &"interaction.inspect.fact.boss")
+		&"hazard":
+			_append_decimal(facts, state, &"age", &"interaction.inspect.fact.age")
+			_append_boolean(facts, state, &"prepared", &"interaction.inspect.fact.prepared")
+		&"ruin":
+			_append_boolean(facts, state, &"activated", &"interaction.inspect.fact.activated")
+		&"expedition_gate":
+			_append_integer(facts, state, &"unbanked_scrap", &"interaction.inspect.fact.unbanked_scrap")
+			_append_integer(facts, state, &"worm_cores", &"interaction.inspect.fact.worm_cores")
+		&"construction":
+			_append_enum(facts, state, &"state", &"interaction.inspect.fact.state", &"construction")
+			_append_integer(facts, state, &"level", &"interaction.inspect.fact.level")
+			_append_integer(facts, state, &"orientation", &"interaction.inspect.fact.orientation")
+		_ when subkind in DEPOSIT_SUBKINDS:
+			_append_deposit_facts(facts, state)
+	_append_operation_facts(facts, option)
+	_append_integer_value(
+		facts,
+		&"interaction.inspect.fact.available_actions",
+		_enabled_action_count(menu, option[&"action_id"] as StringName),
+	)
+	return _view(
+		menu[&"target_title_key"] as StringName,
+		&"interaction.inspect.current.body",
+		_next_step_parameters(menu, option[&"action_id"] as StringName),
+		facts,
+	)
+
+
+static func _append_operation_facts(facts: Array[Dictionary], option: Dictionary) -> void:
+	var arguments: Dictionary = option[&"arguments"] as Dictionary
+	match option[&"operation"] as StringName:
+		&"review_drops":
+			_append_integer(facts, arguments, &"tier", &"interaction.inspect.fact.tier")
+		&"review_gate_risk":
+			_append_integer(
+				facts, arguments, &"unbanked_scrap", &"interaction.inspect.fact.unbanked_scrap"
+			)
+			_append_integer(facts, arguments, &"worm_cores", &"interaction.inspect.fact.worm_cores")
+		&"review_sanctuary":
+			_append_boolean(facts, arguments, &"activated", &"interaction.inspect.fact.activated")
+
+
+static func _append_deposit_facts(facts: Array[Dictionary], state: Dictionary) -> void:
+	_append_integer(facts, state, &"remaining_charges", &"interaction.inspect.fact.remaining")
+	_append_integer(facts, state, &"capacity", &"interaction.inspect.fact.capacity")
+	_append_integer(facts, state, &"tier", &"interaction.inspect.fact.tier")
+	_append_enum(facts, state, &"phase", &"interaction.inspect.fact.state", &"deposit")
+	_append_integer(facts, state, &"renewal_day", &"interaction.inspect.fact.renewal_day")
+	_append_integer(facts, state, &"reward_count", &"interaction.inspect.fact.yield")
+
+
+static func _append_reward_facts(facts: Array[Dictionary], state: Dictionary) -> void:
+	var reward: Dictionary = state.get(&"reward", {}) as Dictionary
+	_append_integer(facts, reward, &"count", &"interaction.inspect.fact.yield")
+
+
+static func _append_boolean(
+	facts: Array[Dictionary],
+	state: Dictionary,
+	key: StringName,
+	label_key: StringName,
+) -> void:
+	if state.get(key) is bool:
+		facts.append(_fact(label_key, ExecutionResultScript.VALUE_BOOLEAN, state[key]))
+
+
+static func _append_integer(
+	facts: Array[Dictionary],
+	state: Dictionary,
+	key: StringName,
+	label_key: StringName,
+) -> void:
+	if state.get(key) is int:
+		_append_integer_value(facts, label_key, int(state[key]))
+
+
+static func _append_integer_value(
+	facts: Array[Dictionary],
+	label_key: StringName,
+	value: int,
+) -> void:
+	if facts.size() < ExecutionResultScript.MAX_FACTS:
+		facts.append(_fact(label_key, ExecutionResultScript.VALUE_INTEGER, value))
+
+
+static func _append_decimal(
+	facts: Array[Dictionary],
+	state: Dictionary,
+	key: StringName,
+	label_key: StringName,
+) -> void:
+	if state.get(key) is float:
+		facts.append(_fact(label_key, ExecutionResultScript.VALUE_DECIMAL, state[key]))
+
+
+static func _append_enum(
+	facts: Array[Dictionary],
+	state: Dictionary,
+	key: StringName,
+	label_key: StringName,
+	category: StringName,
+) -> void:
+	if state.has(key) and state[key] is String or state[key] is StringName:
+		facts.append(
+			_fact(label_key, ExecutionResultScript.VALUE_TEXT_KEY, _enum_value(category, state[key]))
+		)
+
+
+static func _enum_value(category: StringName, value: Variant) -> StringName:
+	var normalized: String = str(value).trim_prefix("machine.")
+	var allowed: Dictionary = {
+		&"construction": [&"complete", &"constructing"],
+		&"deposit": [&"depleted", &"renewing", &"rich"],
+		&"machine": [&"complete", &"idle", &"running"],
+	}
+	if StringName(normalized) not in allowed.get(category, []):
+		return &"interaction.value.unknown"
+	return StringName("interaction.value.%s.%s" % [str(category), normalized])
+
+
+static func _subkind_value(subkind: StringName) -> StringName:
+	return StringName("interaction.subkind.%s" % _safe_suffix(str(subkind)))
+
+
+static func _enabled_action_count(menu: Dictionary, excluded_action_id: StringName) -> int:
+	var count: int = 0
+	for option: Dictionary in menu[&"options"] as Array[Dictionary]:
+		if bool(option[&"enabled"]) and option[&"action_id"] != excluded_action_id:
+			count += 1
+	return count
 
 
 static func _fallback_view(menu: Dictionary, option: Dictionary) -> Dictionary:

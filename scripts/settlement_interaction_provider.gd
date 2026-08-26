@@ -22,6 +22,7 @@ static func terminal_option() -> Dictionary:
 
 
 static func settler(cell: Vector2i, settler_id: StringName) -> Dictionary:
+	var no_cost: Array[Dictionary] = []
 	return TargetBridgeScript.project(
 		cell,
 		{
@@ -30,6 +31,18 @@ static func settler(cell: Vector2i, settler_id: StringName) -> Dictionary:
 			&"target_id": settler_id,
 			&"target_subkind": &"settler",
 			&"target_state": {&"settler_id": str(settler_id)},
-			&"option_inputs": [terminal_option()],
+			&"option_inputs": [
+				TargetBridgeScript.option_input(
+					&"interaction.action.inspect",
+					&"inspect",
+					{&"cell": cell},
+					true,
+					&"",
+					0,
+					no_cost,
+					OptionScript.CLOSE_NEVER,
+				),
+				terminal_option(),
+			],
 		},
 	)

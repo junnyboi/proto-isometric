@@ -47,6 +47,21 @@ static func count_all(farm: Dictionary, item_id: StringName) -> int:
 	return total
 
 
+static func summary(farm: Dictionary, container_id: StringName) -> Dictionary:
+	var inventory: Dictionary = _inventory(farm, container_id)
+	if inventory.is_empty():
+		return {}
+	var stacks: Array[Dictionary] = inventory.get(&"stacks", []) as Array[Dictionary]
+	var item_count: int = 0
+	for stack: Dictionary in stacks:
+		item_count += maxi(int(stack.get(&"count", 0)), 0)
+	return {
+		&"item_count": item_count,
+		&"occupied_slots": stacks.size(),
+		&"capacity_slots": int(inventory.get(&"capacity_slots", 0)),
+	}
+
+
 static func transfer(
 	farm: Dictionary,
 	source_id: StringName,

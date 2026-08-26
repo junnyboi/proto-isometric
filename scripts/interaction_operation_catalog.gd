@@ -279,7 +279,6 @@ static func _build_descriptors() -> Array[Dictionary]:
 	_add_read(result, &"read_service", [PROVIDER_FACILITY, PROVIDER_RESIDENT])
 	_add_read(result, &"read_shipping", [PROVIDER_MACHINE])
 	_add_read(result, &"read_storage", [PROVIDER_FACILITY, PROVIDER_MACHINE])
-	_add_read(result, &"read_threat", [PROVIDER_WILDERNESS])
 	_add_cross_domain(result, &"request_complete", [PROVIDER_RESIDENT])
 	_add_read(result, &"review_drops", [PROVIDER_WILDERNESS])
 	_add_read(result, &"review_first_clear", [PROVIDER_WILDERNESS])

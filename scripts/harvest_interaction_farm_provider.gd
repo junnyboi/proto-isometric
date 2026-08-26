@@ -105,6 +105,12 @@ static func terrain(
 
 static func home(farm: Dictionary, cell: Vector2i) -> Dictionary:
 	var services: Dictionary = HomesteadServiceScript.home_services(farm)
+	var home_summary: Dictionary = InventoryServiceScript.summary(
+		farm, InventoryServiceScript.HOME_ID
+	)
+	services[&"item_count"] = int(home_summary.get(&"item_count", 0))
+	services[&"occupied_slots"] = int(home_summary.get(&"occupied_slots", 0))
+	services[&"capacity_slots"] = int(home_summary.get(&"capacity_slots", 0))
 	var sleep: Dictionary = DayAdvanceServiceScript.build_candidate(farm, 0)
 	var options: Array[Dictionary] = [
 		_inspect(cell),
@@ -126,7 +132,13 @@ static func home(farm: Dictionary, cell: Vector2i) -> Dictionary:
 	return _target(cell, HomesteadServiceScript.HOME_ID, &"home", services, options)
 
 
-static func storage(_farm: Dictionary, cell: Vector2i) -> Dictionary:
+static func storage(farm: Dictionary, cell: Vector2i) -> Dictionary:
+	var home_summary: Dictionary = InventoryServiceScript.summary(
+		farm, InventoryServiceScript.HOME_ID
+	)
+	var robot_summary: Dictionary = InventoryServiceScript.summary(
+		farm, InventoryServiceScript.ROBOT_ID
+	)
 	var options: Array[Dictionary] = [
 		_inspect(cell),
 		_read(
@@ -135,7 +147,17 @@ static func storage(_farm: Dictionary, cell: Vector2i) -> Dictionary:
 		_read(&"storage", &"read_storage", {&"container_id": InventoryServiceScript.HOME_ID}, 200),
 	]
 	return _target(
-		cell, EconomyServiceScript.SEED_SHOP_ID, &"storage", {&"available": true}, options
+		cell,
+		EconomyServiceScript.SEED_SHOP_ID,
+		&"storage",
+		{
+			&"available": true,
+			&"item_count": int(home_summary.get(&"item_count", 0)),
+			&"occupied_slots": int(home_summary.get(&"occupied_slots", 0)),
+			&"capacity_slots": int(home_summary.get(&"capacity_slots", 0)),
+			&"robot_item_count": int(robot_summary.get(&"item_count", 0)),
+		},
+		options,
 	)
 
 

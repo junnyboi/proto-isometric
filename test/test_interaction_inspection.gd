@@ -3,6 +3,7 @@ extends RefCounted
 const CatalogScript: GDScript = preload("res://scripts/interaction_option_catalog.gd")
 const CodecScript: GDScript = preload("res://scripts/interaction_contract_codec.gd")
 const ExecutionResultScript: GDScript = preload("res://scripts/interaction_execution_result.gd")
+const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 const MenuScript: GDScript = preload("res://scripts/interaction_menu_snapshot.gd")
 const OperationCatalogScript: GDScript = preload("res://scripts/interaction_operation_catalog.gd")
 const OptionScript: GDScript = preload("res://scripts/interaction_option.gd")
@@ -19,6 +20,8 @@ static func evaluate() -> Array[Dictionary]:
 	_test_determinism(cases)
 	_test_terrain_cards(cases)
 	_test_fallback(cases)
+	_test_current_provider_cards(cases)
+	_test_read_operation_reachability(cases)
 	return cases
 
 
@@ -327,7 +330,7 @@ static func _test_fallback(cases: Array[Dictionary]) -> void:
 		(
 			ExecutionResultScript.validate(result, fixture[&"descriptor"] as Dictionary)
 			and ((result[&"view"] as Dictionary)[&"body_key"]
-				== &"interaction.inspect.generic.body")
+					== &"interaction.inspect.current.body")
 			and (result[&"observed_state"] as Dictionary) == state
 			and _result_fact_count(result) == 2
 			and parameters.size() <= 6
@@ -346,7 +349,175 @@ static func _test_fallback(cases: Array[Dictionary]) -> void:
 			stale_option,
 			fixture[&"descriptor"],
 		).is_empty(),
+		)
+
+
+static func _test_current_provider_cards(cases: Array[Dictionary]) -> void:
+	var fixtures: Array[Dictionary] = [
+		_provider_fixture(
+			&"home",
+			{
+				&"bed": true,
+				&"storage": true,
+				&"safehouse": true,
+				&"animal_capacity": 4,
+				&"item_count": 12,
+				&"occupied_slots": 1,
+				&"capacity_slots": 48,
+			},
+		),
+		_provider_fixture(
+			&"storage",
+			{
+				&"available": true,
+				&"item_count": 12,
+				&"occupied_slots": 1,
+				&"capacity_slots": 48,
+				&"robot_item_count": 5,
+			},
+		),
+		_provider_fixture(&"shipping", {&"item_count": 6, &"money": 84}),
+		_provider_fixture(&"facility", {&"repaired": true, &"powered": false}),
+		_provider_fixture(&"machine", {&"state": &"machine.running", &"complete_day": 9}),
+		_provider_fixture(&"resident", {&"points": 42, &"last_talk_day": 8}),
+		_provider_fixture(&"livestock", {&"bond": 31}),
+		_provider_fixture(&"tree", {&"reward": {&"count": 3}}),
+		_provider_fixture(&"resource", {&"reward": {&"count": 2}}),
+		_provider_fixture(&"pickup", {&"count": 5}),
+		_provider_fixture(&"herd", {&"population": 7, &"trust": 12, &"active": true}),
+		_provider_fixture(
+			&"hostile", {&"health": 33, &"max_health": 50, &"is_boss": false}
+		),
+		_provider_fixture(&"hazard", {&"age": 0.75, &"prepared": true}),
+		_provider_fixture(&"ruin", {&"activated": false}),
+		_provider_fixture(
+			&"expedition_gate", {&"unbanked_scrap": 18, &"worm_cores": 1}
+		),
+		_provider_fixture(
+			&"construction",
+			{&"state": "constructing", &"level": 2, &"orientation": 1},
+			&"inspect_construction",
+		),
+		_provider_fixture(
+			&"deposit_salvage", _deposit_state(&"depleted"), &"inspect_deposit"
+		),
+		_provider_fixture(
+			&"deposit_mineral", _deposit_state(&"rich"), &"inspect_deposit"
+		),
+		_provider_fixture(
+			&"deposit_biomass", _deposit_state(&"renewing"), &"inspect_deposit"
+		),
+		_provider_fixture(&"settler", {&"settler_id": "settler.amara_voss"}),
+	]
+	var valid: bool = true
+	var localized: bool = true
+	var result_by_subkind: Dictionary = {}
+	for fixture: Dictionary in fixtures:
+		var result: Dictionary = _build_read(fixture)
+		var view: Dictionary = result.get(&"view", {}) as Dictionary
+		var facts: Array = view.get(&"facts", []) as Array
+		var subkind: StringName = (fixture[&"menu"] as Dictionary)[&"target_subkind"]
+		valid = (
+			valid
+			and ExecutionResultScript.validate(result, fixture[&"descriptor"] as Dictionary)
+			and not bool(result[&"mutated"])
+			and result[&"observed_state"] == fixture[&"state"]
+			and facts.size() in range(2, ExecutionResultScript.MAX_FACTS + 1)
+			and _fact_value(result, &"interaction.inspect.fact.target_subkind")
+			== StringName("interaction.subkind.%s" % str(subkind))
+		)
+		localized = localized and _view_is_localized(view)
+		result_by_subkind[subkind] = result
+	_add(
+		cases,
+		"INS-14 every current provider family returns a bounded non-mutating card",
+		valid and fixtures.size() == 20,
 	)
+	_add(
+		cases,
+		"INS-15 construction, deposits, herds, and hostiles expose actionable state",
+		(
+			_fact_value(result_by_subkind[&"construction"], &"interaction.inspect.fact.level")
+			== 2
+			and _fact_value(
+				result_by_subkind[&"deposit_salvage"], &"interaction.inspect.fact.remaining"
+			) == 0
+			and _fact_value(
+				result_by_subkind[&"deposit_mineral"], &"interaction.inspect.fact.remaining"
+			) == 3
+			and _fact_value(
+				result_by_subkind[&"herd"], &"interaction.inspect.fact.population"
+			) == 7
+			and _fact_value(
+				result_by_subkind[&"hostile"], &"interaction.inspect.fact.health"
+			) == 33
+			and _fact_value(
+				result_by_subkind[&"home"], &"interaction.inspect.fact.occupied_slots"
+			) == 1
+			and _fact_value(
+				result_by_subkind[&"storage"], &"interaction.inspect.fact.robot_item_count"
+			) == 5
+		),
+	)
+	_add(
+		cases,
+		"INS-16 all provider card fields have exact English and Simplified Chinese keys",
+		localized,
+	)
+	_add(
+		cases,
+		"INS-17 emitted threat review has one canonical name and no dead alias",
+		(
+			OperationCatalogScript.operations().has(&"review_threat")
+			and not OperationCatalogScript.operations().has(&"read_threat")
+		),
+	)
+
+
+static func _test_read_operation_reachability(cases: Array[Dictionary]) -> void:
+	var read_count: int = 0
+	var reachable: bool = true
+	for descriptor: Dictionary in OperationCatalogScript.descriptors():
+		if descriptor[&"route"] != OperationCatalogScript.ROUTE_READ:
+			continue
+		read_count += 1
+		var provider_id: StringName = descriptor[&"allowed_provider_ids"][0]
+		var fixture: Dictionary = _read_route_fixture(
+			descriptor[&"operation"] as StringName,
+			provider_id,
+			descriptor[&"allowed_close_behaviors"][0] as StringName,
+		)
+		var result: Dictionary = _build_read(fixture)
+		reachable = (
+			reachable
+			and not fixture.is_empty()
+			and (fixture[&"option"] as Dictionary)[&"provider_id"] == provider_id
+			and ExecutionResultScript.validate(result, descriptor)
+			and not bool(result[&"mutated"])
+		)
+	_add(
+		cases,
+		"INS-18 every registered read operation reaches one deterministic adapter",
+		reachable and read_count >= 20,
+	)
+
+
+static func _view_is_localized(view: Dictionary) -> bool:
+	for locale: StringName in [&"en", &"zh-CN"]:
+		if (
+			not LocalizationScript.has_key(locale, view[&"title_key"] as StringName)
+			or not LocalizationScript.has_key(locale, view[&"body_key"] as StringName)
+		):
+			return false
+		for fact: Dictionary in view[&"facts"] as Array[Dictionary]:
+			if not LocalizationScript.has_key(locale, fact[&"label_key"] as StringName):
+				return false
+			if (
+				fact[&"value_kind"] == ExecutionResultScript.VALUE_TEXT_KEY
+				and not LocalizationScript.has_key(locale, fact[&"value"] as StringName)
+			):
+				return false
+	return true
 
 
 static func _read_fixture(
@@ -395,6 +566,115 @@ static func _read_fixture(
 		&"menu": menu,
 		&"option": option,
 		&"state": state,
+	}
+
+
+static func _provider_fixture(
+	subkind: StringName,
+	state: Dictionary,
+	operation: StringName = &"inspect",
+	close_behavior: StringName = OptionScript.CLOSE_NEVER,
+) -> Dictionary:
+	var action_id: StringName = StringName("interaction.action.route.%s" % str(operation))
+	if operation == &"inspect":
+		action_id = &"interaction.action.inspect"
+	if operation == &"inspect_construction":
+		action_id = &"interaction.action.inspect_construction"
+	elif operation == &"inspect_deposit":
+		action_id = &"interaction.action.inspect_deposit"
+	var inputs: Array[Dictionary] = [
+		_input(action_id, operation, 0, close_behavior),
+	]
+	var target: Dictionary = TargetScript.build(
+		Vector2i(7, 9),
+		StringName("%s.provider_fixture" % str(subkind)),
+		_target_kind_for(subkind),
+		subkind,
+		StringName("interaction.target.%s.title" % str(subkind)),
+		state,
+		inputs,
+	)
+	var menu: Dictionary = CatalogScript.build_menu(target)
+	var option: Dictionary = _action(menu, action_id)
+	return {
+		&"descriptor": OperationCatalogScript.descriptor_for(
+			operation,
+			option.get(&"provider_id", &"") as StringName,
+		),
+		&"menu": menu,
+		&"option": option,
+		&"state": state,
+	}
+
+
+static func _read_route_fixture(
+	operation: StringName,
+	provider_id: StringName,
+	close_behavior: StringName,
+) -> Dictionary:
+	var subkind: StringName = &"home"
+	var state: Dictionary = {}
+	match provider_id:
+		OperationCatalogScript.PROVIDER_CONSTRUCTION:
+			subkind = &"construction"
+			state = {&"state": "complete", &"level": 1, &"orientation": 0}
+		OperationCatalogScript.PROVIDER_DEPOSIT:
+			subkind = &"deposit_salvage"
+			state = _deposit_state(&"rich")
+		OperationCatalogScript.PROVIDER_LEGACY:
+			subkind = &"expedition_gate"
+			state = {&"unbanked_scrap": 8, &"worm_cores": 1}
+		OperationCatalogScript.PROVIDER_LIVESTOCK:
+			subkind = &"livestock"
+			state = {&"bond": 3}
+		OperationCatalogScript.PROVIDER_MACHINE:
+			subkind = &"machine"
+			state = {&"state": &"machine.idle", &"complete_day": 0}
+		OperationCatalogScript.PROVIDER_PICKUP:
+			subkind = &"pickup"
+			state = {&"count": 1}
+		OperationCatalogScript.PROVIDER_RESIDENT:
+			subkind = &"resident"
+			state = {&"points": 1, &"last_talk_day": 0}
+		OperationCatalogScript.PROVIDER_RESOURCE:
+			subkind = &"tree"
+			state = {&"reward": {&"count": 2}}
+		OperationCatalogScript.PROVIDER_TERRAIN:
+			subkind = &"terrain"
+			state = _terrain_state()
+		OperationCatalogScript.PROVIDER_WILDERNESS:
+			subkind = &"hostile"
+			state = {&"health": 9, &"max_health": 9, &"is_boss": false}
+	return _provider_fixture(subkind, state, operation, close_behavior)
+
+
+static func _target_kind_for(subkind: StringName) -> StringName:
+	if subkind in [&"tree"]:
+		return &"tree"
+	if subkind in [&"pickup"]:
+		return &"pickup"
+	if subkind in [&"herd", &"livestock"]:
+		return &"friendly_fauna"
+	if subkind in [&"hazard", &"hostile"]:
+		return &"hostile"
+	if subkind in [&"resident", &"settler"]:
+		return &"resident"
+	if subkind in [&"deposit_biomass", &"deposit_mineral", &"deposit_salvage"]:
+		return &"resource"
+	return &"structure"
+
+
+static func _deposit_state(phase: StringName) -> Dictionary:
+	return {
+		&"source_kind": "salvage",
+		&"remaining_charges": 3 if phase == &"rich" else 0,
+		&"capacity": 3,
+		&"tier": 2,
+		&"phase": str(phase),
+		&"renewal_day": 14 if phase == &"renewing" else 0,
+		&"reserved_by": "",
+		&"reward_item_id": "item.material.scrap",
+		&"reward_count": 2,
 	}
 
 
