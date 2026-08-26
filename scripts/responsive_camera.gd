@@ -8,6 +8,10 @@ const USER_ZOOM_STEP: float = 0.1
 const PINCH_ZOOM_STEP: float = 0.01
 const MIN_PINCH_DISTANCE: float = 24.0
 const CONTROL_SIZE: Vector2 = Vector2(48.0, 44.0)
+const LANDSCAPE_ZOOM_TOP: float = -76.0
+const LANDSCAPE_ZOOM_BOTTOM: float = -24.0
+const PORTRAIT_ZOOM_TOP: float = -232.0
+const PORTRAIT_ZOOM_BOTTOM: float = -180.0
 
 var _preferences: RefCounted
 var _user_zoom: float = 1.0
@@ -29,7 +33,7 @@ func _ready() -> void:
 	var snapshot: Dictionary = _preferences.call("load_preferences") as Dictionary
 	_user_zoom = float(snapshot.get(&"camera_zoom", 1.0))
 	_build_zoom_controls()
-	get_viewport().size_changed.connect(_apply_responsive_zoom)
+	get_viewport().size_changed.connect(_on_viewport_resized)
 	_apply_responsive_zoom()
 
 
@@ -82,6 +86,16 @@ func get_pinch_snapshot() -> Dictionary:
 
 func bind_mobile_controls(controls: CanvasLayer) -> void:
 	_mobile_controls = controls
+	if controls != null and not controls.is_connected("layout_changed", _layout_zoom_controls):
+		controls.connect("layout_changed", _layout_zoom_controls)
+	if controls != null and not controls.is_connected(
+		"modal_input_changed", _on_modal_input_changed
+	):
+		controls.connect("modal_input_changed", _on_modal_input_changed)
+	_layout_zoom_controls()
+	_on_modal_input_changed(
+		bool(controls.call("is_modal_input_suppressed")) if controls != null else false
+	)
 
 
 func adjust_user_zoom(steps: int) -> bool:
@@ -221,9 +235,8 @@ func _build_zoom_controls() -> void:
 	_zoom_panel.anchor_right = 0.5
 	_zoom_panel.anchor_bottom = 1.0
 	_zoom_panel.offset_left = -94.0
-	_zoom_panel.offset_top = -76.0
 	_zoom_panel.offset_right = 94.0
-	_zoom_panel.offset_bottom = -24.0
+	_layout_zoom_controls()
 	_zoom_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	_zoom_panel.add_theme_stylebox_override("panel", _control_panel_style())
 	layer.add_child(_zoom_panel)
@@ -247,6 +260,33 @@ func _build_zoom_controls() -> void:
 	_zoom_in_button.pressed.connect(adjust_user_zoom.bind(1))
 	controls.add_child(_zoom_in_button)
 	_refresh_zoom_controls()
+
+
+func _on_viewport_resized() -> void:
+	_apply_responsive_zoom()
+	_layout_zoom_controls()
+
+
+func _layout_zoom_controls() -> void:
+	if _zoom_panel == null:
+		return
+	var viewport_size: Vector2 = (
+		get_viewport().get_visible_rect().size if is_inside_tree() else Vector2(1280.0, 720.0)
+	)
+	var portrait: bool = viewport_size.y > viewport_size.x
+	var left_handed: bool = _mobile_controls != null and bool(_mobile_controls.get("_left_handed"))
+	var portrait_anchor: float = 1.0 if left_handed else 0.0
+	_zoom_panel.anchor_left = portrait_anchor if portrait else 0.5
+	_zoom_panel.anchor_right = portrait_anchor if portrait else 0.5
+	_zoom_panel.offset_left = (-198.0 if left_handed else 10.0) if portrait else -94.0
+	_zoom_panel.offset_right = (-10.0 if left_handed else 198.0) if portrait else 94.0
+	_zoom_panel.offset_top = PORTRAIT_ZOOM_TOP if portrait else LANDSCAPE_ZOOM_TOP
+	_zoom_panel.offset_bottom = PORTRAIT_ZOOM_BOTTOM if portrait else LANDSCAPE_ZOOM_BOTTOM
+
+
+func _on_modal_input_changed(suppressed: bool) -> void:
+	if _zoom_panel != null:
+		_zoom_panel.visible = not suppressed
 
 
 func _make_zoom_button(node_name: String, text: String) -> Button:

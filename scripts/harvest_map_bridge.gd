@@ -148,6 +148,7 @@ func _bootstrap() -> void:
 				Callable(self, "_target_snapshot"),
 				Callable(self, "_execute_productive_action"),
 				Callable(self, "_menu_target_snapshot"),
+				Callable(_interaction_phase_b_service, "execute_quick"),
 			)
 		)
 	):
@@ -259,13 +260,17 @@ func _initialize_interaction_phase_b_service() -> void:
 	_interaction_phase_b_service = service
 
 
-func _commit_farm_candidate(candidate: Dictionary) -> bool:
+func _commit_farm_candidate(candidate: Dictionary) -> Variant:
 	if _transactions == null:
 		return false
 	var result: Dictionary = (
 		_transactions.call("transact", &"farm_candidate", {&"farm": candidate}) as Dictionary
 	)
-	return bool(result.get(&"ok", false))
+	return {
+		&"ok": bool(result.get(&"ok", false)),
+		&"reason": result.get(&"reason", &"") as StringName,
+		&"farm": ((result[&"candidate"] as Dictionary)[&"farm"] as Dictionary).duplicate(true),
+	}
 
 
 func _publish_envelope(envelope: Dictionary) -> bool:

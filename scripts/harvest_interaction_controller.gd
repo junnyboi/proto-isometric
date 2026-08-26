@@ -6,6 +6,7 @@ signal menu_snapshot_refreshed(snapshot: Dictionary)
 signal menu_snapshot_closed
 signal menu_selection_changed(index: int, action_id: StringName)
 signal menu_execution_result(result: Dictionary)
+signal quick_action_result(result: Dictionary)
 signal tool_preview_contact(result: Dictionary)
 
 const CatalogScript: GDScript = preload("res://scripts/interaction_option_catalog.gd")
@@ -13,6 +14,7 @@ const CommandsScript: GDScript = preload("res://scripts/harvest_command_intents.
 const MenuScript: GDScript = preload("res://scripts/interaction_menu_snapshot.gd")
 const ResolverScript: GDScript = preload("res://scripts/interaction_resolver.gd")
 const ReticleScript: GDScript = preload("res://scripts/target_reticle.gd")
+const QuickCoordinatorScript: GDScript = preload("res://scripts/quick_action_coordinator.gd")
 const TargetBridgeScript: GDScript = preload(
 	"res://scripts/harvest_interaction_target_bridge.gd"
 )
@@ -30,6 +32,7 @@ var _zoom: Callable
 var _target_query: Callable
 var _menu_target_query: Callable
 var _productive_action: Callable
+var _quick_action: Callable
 var _reticle: Node2D
 var _tool_presenter: Node2D
 var _selected_tool: int = 0
@@ -41,6 +44,7 @@ var _menu_snapshot: Dictionary = {}
 var _selected_index: int = -1
 var _selected_action_id: StringName = &""
 var _executing: bool = false
+var _quick_coordinator: RefCounted
 
 
 func _ready() -> void:
@@ -84,6 +88,7 @@ func configure(
 	target_query: Callable,
 	productive_action: Callable = Callable(),
 	menu_target_query: Callable = Callable(),
+	quick_action: Callable = Callable(),
 ) -> bool:
 	if (
 		world == null
@@ -103,6 +108,8 @@ func configure(
 	_target_query = target_query
 	_productive_action = productive_action
 	_menu_target_query = menu_target_query
+	_quick_action = quick_action
+	_configure_quick_action()
 	_reticle.call("configure", grid_to_screen)
 	_sync_target()
 	return true
@@ -137,6 +144,10 @@ func get_reticle() -> Node2D:
 
 func get_tool_presenter() -> Node2D:
 	return _tool_presenter
+
+
+func get_quick_action_coordinator() -> RefCounted:
+	return _quick_coordinator
 
 
 func is_menu_open() -> bool:
@@ -182,6 +193,22 @@ func close_menu() -> bool:
 	if was_open:
 		menu_snapshot_closed.emit()
 	return was_open
+
+
+func attempt_quick_action() -> Dictionary:
+	if is_menu_open():
+		return {&"result_id": &"quick.busy", &"reason": &"menu_open", &"mutated": false}
+	if _quick_coordinator == null:
+		open_menu()
+		return {
+			&"result_id": &"quick.unavailable",
+			&"reason": &"coordinator_unavailable",
+			&"mutated": false,
+		}
+	cancel_pending_tool()
+	var result: Dictionary = _quick_coordinator.call("attempt") as Dictionary
+	quick_action_result.emit(result.duplicate(true))
+	return result
 
 
 func navigate_menu(direction: int) -> bool:
@@ -280,6 +307,8 @@ func _dispatch(action: StringName) -> void:
 			open_menu()
 		CommandsScript.TOOL_ACTION:
 			_attempt_tool()
+		CommandsScript.QUICK_ACTION:
+			attempt_quick_action()
 		CommandsScript.PREVIOUS_TOOL:
 			_selected_tool = posmod(_selected_tool - 1, TOOLS.size())
 		CommandsScript.NEXT_TOOL:
@@ -295,6 +324,24 @@ func _dispatch(action: StringName) -> void:
 		CommandsScript.ZOOM_OUT:
 			if _zoom.is_valid():
 				_zoom.call(-1)
+
+
+func _configure_quick_action() -> void:
+	_quick_coordinator = null
+	if not _productive_action.is_valid() or not _menu_target_query.is_valid():
+		return
+	var executor: Callable = _quick_action if _quick_action.is_valid() else _productive_action
+	var coordinator: RefCounted = QuickCoordinatorScript.new() as RefCounted
+	if bool(
+		coordinator.call(
+			"configure",
+			Callable(self, "_resolve"),
+			Callable(self, "_build_menu"),
+			executor,
+			Callable(self, "open_menu"),
+		)
+	):
+		_quick_coordinator = coordinator
 
 
 func _attempt_tool() -> void:

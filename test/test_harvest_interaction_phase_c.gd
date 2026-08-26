@@ -280,18 +280,20 @@ static func _test_live_integration(cases: Array[Dictionary], runtime: Node2D) ->
 	mobile.call("force_mobile", true)
 	controller.call("open_menu")
 	var popup: Rect2 = presenter.call("get_popup_bounds") as Rect2
+	var dock: Rect2 = mobile.call("_get_command_dock_bounds") as Rect2
 	var exclusions: Array[Rect2] = mobile.call("get_touch_exclusions") as Array[Rect2]
+	var command_dock: Control = mobile.get("_command_dock") as Control
+	var zoom_panel: Control = runtime.get("_camera").get_node("CameraZoomLayer/CameraZoomPanel")
 	var smash_events: Array[int] = [0]
 	mobile.connect("smash_pressed", func() -> void: smash_events[0] += 1)
 	mobile.call("trigger_smash")
 	_add(
 		cases,
-		(
-			"PHC-17 open popup bounds join mobile touch exclusions while "
-			+ "Smash and settings controls remain allocated"
-		),
-		popup in exclusions and mobile.call("get_smash_button") != null
-		and runtime.get("_hud") != null and exclusions.size() == 5,
+			(
+				"PHC-17 popup owns mobile exclusions while action and zoom controls hide"
+			),
+			popup in exclusions and dock in exclusions and mobile.call("get_smash_button") != null
+			and runtime.get("_hud") != null and not command_dock.visible and not zoom_panel.visible,
 	)
 	_add(
 		cases,

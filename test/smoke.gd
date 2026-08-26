@@ -230,10 +230,9 @@ func _test_isometric_map() -> void:
 	_check(not drive_rect.intersects(outpost_rect), "desktop HUD panels respect exclusions")
 	mobile_controls.call("force_mobile", true)
 	map.call("_refresh_outpost_interface")
-	var touch_exclusions: Array[Rect2] = (
-		mobile_controls.call("get_touch_exclusions") as Array[Rect2]
-	)
-	_check(touch_exclusions.size() == 4, "mobile controls expose HUD and control exclusions")
+	var touch_exclusions: Array[Rect2] = mobile_controls.call("get_touch_exclusions")
+	var command_dock: Rect2 = mobile_controls.call("_get_command_dock_bounds") as Rect2
+	_check(command_dock in touch_exclusions, "mobile controls own command dock touches")
 	_check(
 		not bool(mobile_controls.call("begin_touch", 44, drive_rect.get_center())),
 		"mobile joystick cannot claim HUD touches",

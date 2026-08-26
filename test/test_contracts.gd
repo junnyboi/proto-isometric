@@ -53,6 +53,9 @@ const HarvestPhaseZeroTestsScript: GDScript = preload("res://test/test_harvest_p
 const HarvestSettlementPhaseOneTestsScript: GDScript = preload(
 	"res://test/test_harvest_settlement_phase_one.gd"
 )
+const HarvestSettlementPhaseTwoTestsScript: GDScript = preload(
+	"res://test/test_harvest_settlement_phase_two.gd"
+)
 const EnvironmentRewardFeedbackTestsScript: GDScript = preload(
 	"res://test/test_environment_reward_feedback.gd"
 )
@@ -136,4 +139,5 @@ static func evaluate(
 			coordinator.call("get_profile_snapshot") as Dictionary,
 		)
 	)
+	cases.append_array(HarvestSettlementPhaseTwoTestsScript.evaluate(runtime as Node2D))
 	return cases

@@ -2,6 +2,8 @@ extends CanvasLayer
 
 signal smash_pressed
 signal command_pressed(action: StringName)
+signal layout_changed
+signal modal_input_changed(suppressed: bool)
 
 const HarvestCommandsScript: GDScript = preload("res://scripts/harvest_command_intents.gd")
 const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
@@ -30,6 +32,7 @@ var _drive_vector: Vector2 = Vector2.ZERO
 var _layout: Dictionary = {}
 var _touch_exclusions: Array[Rect2] = []
 var _modal_exclusion: Rect2 = Rect2()
+var _zoom_panel_exclusion: Rect2 = Rect2()
 var _modal_input_suppressed: bool = false
 var _joystick: Control
 var _smash_button: Button
@@ -106,13 +109,13 @@ func apply_layout(viewport_size: Vector2) -> bool:
 	if not bool(FIELD_THEME.call("validate_layout", candidate, true)):
 		return false
 	_layout = candidate.duplicate(true)
-	_refresh_touch_exclusions()
 	var smash: Rect2 = _layout[&"smash_button"] as Rect2
 	if _smash_button != null:
 		_smash_button.position = smash.position
 		_smash_button.size = smash.size
 		_smash_button.pivot_offset = smash.size * 0.5
 	_layout_command_dock(viewport_size, smash)
+	_refresh_touch_exclusions()
 	_cancel_touch_interactions()
 	return true
 
@@ -123,6 +126,12 @@ func get_layout_snapshot() -> Dictionary:
 
 func get_touch_exclusions() -> Array[Rect2]:
 	return _touch_exclusions.duplicate()
+
+
+func _get_command_dock_bounds() -> Rect2:
+	if _command_dock == null:
+		return Rect2()
+	return Rect2(_command_dock.position, _command_dock.size)
 
 
 func is_modal_input_suppressed() -> bool:
@@ -137,6 +146,13 @@ func _set_modal_input_suppressed(suppressed: bool) -> void:
 	_modal_input_suppressed = suppressed
 	if suppressed:
 		_cancel_touch_interactions()
+		if _smash_button != null:
+			_smash_button.visible = false
+		if _command_dock != null:
+			_command_dock.visible = false
+	else:
+		_apply_visibility()
+	modal_input_changed.emit(suppressed)
 
 
 func _set_modal_touch_exclusion(rect: Rect2, active: bool) -> void:
@@ -307,6 +323,10 @@ func _build_command_dock() -> void:
 	var definitions: Array[Dictionary] = [
 		{&"action": HarvestCommandsScript.CONTEXT, &"label": "USE"},
 		{&"action": HarvestCommandsScript.TOOL_ACTION, &"label": "TOOL"},
+		{
+			&"action": HarvestCommandsScript.QUICK_ACTION,
+			&"label": LocalizationScript.t(&"mobile.quick_action"),
+		},
 		{&"action": HarvestCommandsScript.PREVIOUS_TOOL, &"label": "◀"},
 		{&"action": HarvestCommandsScript.NEXT_TOOL, &"label": "▶"},
 		{&"action": HarvestCommandsScript.INVENTORY, &"label": "BAG"},
@@ -318,6 +338,11 @@ func _build_command_dock() -> void:
 		var action: StringName = definition[&"action"] as StringName
 		button.name = "%sButton" % String(action).to_pascal_case()
 		button.text = str(definition[&"label"])
+		button.accessibility_name = (
+			LocalizationScript.t(&"mobile.quick_action_accessibility")
+			if action == HarvestCommandsScript.QUICK_ACTION
+			else button.text
+		)
 		button.focus_mode = Control.FOCUS_NONE
 		button.add_theme_font_size_override("font_size", 13)
 		button.add_theme_color_override("font_color", Color("fff4dc"))
@@ -363,6 +388,11 @@ func _clamp_origin(position: Vector2) -> Vector2:
 
 func _refresh_touch_exclusions() -> void:
 	_touch_exclusions = FIELD_THEME.call("touch_exclusions", _layout, true) as Array[Rect2]
+	var dock: Rect2 = _get_command_dock_bounds()
+	if dock.has_area():
+		_touch_exclusions.append(dock)
+	if _zoom_panel_exclusion.has_area():
+		_touch_exclusions.append(_zoom_panel_exclusion)
 	if _modal_exclusion.has_area():
 		_touch_exclusions.append(_modal_exclusion)
 
@@ -389,29 +419,42 @@ func _layout_command_dock(viewport_size: Vector2, smash: Rect2) -> void:
 	if _command_dock == null:
 		return
 	const COLUMNS: int = 4
-	const CELL: Vector2 = Vector2(56.0, 46.0)
-	const GAP: float = 6.0
-	var width: float = float(COLUMNS) * CELL.x + float(COLUMNS - 1) * GAP
-	var height: float = CELL.y * 2.0 + GAP
-	var x: float = smash.position.x - width - 14.0
+	var compact: bool = viewport_size.x < 620.0
+	var cell: Vector2 = Vector2(48.0, 42.0) if compact else Vector2(56.0, 46.0)
+	var gap: float = 4.0 if compact else 6.0
+	var separation: float = 8.0 if compact else 14.0
+	var width: float = float(COLUMNS) * cell.x + float(COLUMNS - 1) * gap
+	var height: float = cell.y * 2.0 + gap
+	var x: float = smash.position.x - width - separation
 	if _left_handed:
-		x = smash.end.x + 14.0
+		x = smash.end.x + separation
 	x = clampf(x, 10.0, viewport_size.x - width - 10.0)
 	var y: float = clampf(
 		smash.get_center().y - height * 0.5,
 		10.0,
 		viewport_size.y - height - 10.0,
 	)
+	var portrait: bool = viewport_size.y > viewport_size.x
+	var zoom_x: float = viewport_size.x * 0.5 - 94.0
+	if portrait:
+		zoom_x = viewport_size.x - 198.0 if _left_handed else 10.0
+	_zoom_panel_exclusion = Rect2(
+		Vector2(zoom_x, viewport_size.y - (232.0 if portrait else 76.0)),
+		Vector2(188.0, 52.0),
+	)
+	var candidate: Rect2 = Rect2(Vector2(x, y), Vector2(width, height))
+	if candidate.intersects(_zoom_panel_exclusion):
+		y = maxf(10.0, _zoom_panel_exclusion.position.y - height - 8.0)
 	_command_dock.position = Vector2(x, y)
 	_command_dock.size = Vector2(width, height)
 	var actions: Array = _command_buttons.keys()
 	for index: int in range(actions.size()):
 		var button: Button = _command_buttons[actions[index]] as Button
 		button.position = Vector2(
-			float(index % COLUMNS) * (CELL.x + GAP),
-			float(index / COLUMNS) * (CELL.y + GAP),
+			float(index % COLUMNS) * (cell.x + gap),
+			float(index / COLUMNS) * (cell.y + gap),
 		)
-		button.size = CELL
+		button.size = cell
 
 
 func _on_viewport_resized() -> void:
@@ -469,11 +512,16 @@ func _apply_preferences(snapshot: Dictionary) -> void:
 	_haptics = _haptic_intensity > 0.0
 	if is_inside_tree():
 		apply_layout(get_viewport().get_visible_rect().size)
+	layout_changed.emit()
 
 
 func _on_locale_changed(_locale: StringName) -> void:
 	if _smash_button != null:
 		_smash_button.text = LocalizationScript.t(&"mobile.smash")
+	var quick: Button = _command_buttons.get(HarvestCommandsScript.QUICK_ACTION) as Button
+	if quick != null:
+		quick.text = LocalizationScript.t(&"mobile.quick_action")
+		quick.accessibility_name = LocalizationScript.t(&"mobile.quick_action_accessibility")
 
 
 func _mirror_rect(rect: Rect2, width: float) -> Rect2:

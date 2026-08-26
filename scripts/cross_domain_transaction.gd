@@ -6,6 +6,7 @@ const DurableUpgradeServiceScript: GDScript = preload("res://scripts/durable_upg
 const EcologyDirectorScript: GDScript = preload("res://scripts/ecology_director.gd")
 const FarmCapabilityServiceScript: GDScript = preload("res://scripts/farm_capability_service.gd")
 const FarmSaveSchemaScript: GDScript = preload("res://scripts/farm_save_schema.gd")
+const ReceiptLedgerScript: GDScript = preload("res://scripts/exact_once_receipt_ledger.gd")
 const FarmStateScript: GDScript = preload("res://scripts/farm_state.gd")
 const HomesteadServiceScript: GDScript = preload("res://scripts/homestead_service.gd")
 const InventoryServiceScript: GDScript = preload("res://scripts/inventory_service.gd")
@@ -55,7 +56,64 @@ func transact(operation: StringName, arguments: Dictionary = {}) -> Dictionary:
 	var built: Dictionary = _build(source, operation, arguments)
 	if not bool(built.get(&"ok", false)):
 		return _result(false, source, built.get(&"reason", &"rejected") as StringName)
-	var candidate: Dictionary = built[&"candidate"] as Dictionary
+	return _commit_candidate(source, built[&"candidate"] as Dictionary)
+
+
+func transact_exact_once(
+	operation: StringName,
+	arguments: Dictionary,
+	token: String,
+	payload: Dictionary,
+	deterministic_result: Dictionary,
+) -> Dictionary:
+	var source: Dictionary = _envelope.duplicate(true)
+	var ledger: Dictionary = (source[&"farm"] as Dictionary)[&"receipts"] as Dictionary
+	var previous: Dictionary = ReceiptLedgerScript.lookup(ledger, token, payload)
+	var status: StringName = previous[&"status"] as StringName
+	if status == &"duplicate":
+		return _receipt_result(true, source, &"", status, previous[&"result"], true)
+	if status != &"missing":
+		return _receipt_result(false, source, status, status, null, false)
+	var built: Dictionary = _build(source, operation, arguments)
+	if not bool(built.get(&"ok", false)):
+		return _receipt_result(
+			false,
+			source,
+			built.get(&"reason", &"rejected") as StringName,
+			&"not_recorded",
+			null,
+			false,
+		)
+	var candidate: Dictionary = (built[&"candidate"] as Dictionary).duplicate(true)
+	var farm: Dictionary = (candidate[&"farm"] as Dictionary).duplicate(true)
+	var recorded: Dictionary = ReceiptLedgerScript.record(
+		farm[&"receipts"], token, payload, deterministic_result
+	)
+	if not bool(recorded[&"ok"]):
+		return _receipt_result(
+			false,
+			source,
+		recorded[&"status"] as StringName,
+		recorded[&"status"] as StringName,
+		null,
+		false,
+		)
+	farm[&"receipts"] = recorded[&"candidate"]
+	candidate[&"farm"] = FarmSaveSchemaScript.validate(farm)
+	if (candidate[&"farm"] as Dictionary).is_empty():
+		return _receipt_result(false, source, &"invalid_receipt_candidate", &"invalid", null, false)
+	var committed: Dictionary = _commit_candidate(source, candidate)
+	return _receipt_result(
+		bool(committed[&"ok"]),
+		committed[&"candidate"],
+		committed[&"reason"] as StringName,
+		&"recorded" if bool(committed[&"ok"]) else &"not_recorded",
+		deterministic_result if bool(committed[&"ok"]) else null,
+		false,
+	)
+
+
+func _commit_candidate(source: Dictionary, candidate: Dictionary) -> Dictionary:
 	var validated: Dictionary = _repository.call("validate_envelope", candidate) as Dictionary
 	if validated.is_empty():
 		return _result(false, source, &"invalid_candidate")
@@ -72,26 +130,70 @@ func transact(operation: StringName, arguments: Dictionary = {}) -> Dictionary:
 		)
 	):
 		return _result(false, source, &"persistence_failed")
-	if _publish.is_valid() and not bool(_publish.call(validated.duplicate(true))):
-		var live_restored: bool = bool(_publish.call(source.duplicate(true)))
+	var committed: Dictionary = _committed_after_save(validated)
+	if _publish.is_valid() and not bool(_publish.call(committed.duplicate(true))):
+		var rollback_candidate: Dictionary = _rollback_candidate(source, committed)
 		var persisted_restored: bool = bool(
 			(
 				_repository
 				. call(
 				"save_state",
-				source[&"world"],
-				source[&"active_run"],
-				source[&"profile"],
-				source[&"farm"],
+				rollback_candidate[&"world"],
+				rollback_candidate[&"active_run"],
+				rollback_candidate[&"profile"],
+				rollback_candidate[&"farm"],
 			)
 		)
 		)
+		var restored: Dictionary = (
+			_committed_after_save(source) if persisted_restored else source.duplicate(true)
+		)
+		var live_restored: bool = bool(_publish.call(restored.duplicate(true)))
 		var rollback_reason: StringName = (
 			&"publish_failed" if live_restored and persisted_restored else &"rollback_failed"
 		)
-		return _result(false, source, rollback_reason)
-	_envelope = validated
+		_envelope = restored if persisted_restored else source
+		return _result(false, _envelope, rollback_reason)
+	_envelope = committed
 	return _result(true, _envelope, &"")
+
+
+func _committed_after_save(fallback: Dictionary) -> Dictionary:
+	if _repository.has_method("get_last_committed_envelope"):
+		var committed: Dictionary = _repository.call("get_last_committed_envelope") as Dictionary
+		if not committed.is_empty():
+			return committed
+	return fallback.duplicate(true)
+
+
+func _rollback_candidate(source: Dictionary, committed: Dictionary) -> Dictionary:
+	var candidate: Dictionary = source.duplicate(true)
+	if not _repository.has_method("get_last_committed_envelope"):
+		return candidate
+	var committed_farm: Dictionary = committed.get(&"farm", {}) as Dictionary
+	var revisions: Dictionary = committed_farm.get(&"revisions", {}) as Dictionary
+	if not revisions.is_empty():
+		(candidate[&"farm"] as Dictionary)[&"revisions"] = revisions.duplicate(true)
+	return candidate
+
+
+func _receipt_result(
+	ok: bool,
+	envelope: Dictionary,
+	reason: StringName,
+	status: StringName,
+	receipt_result: Variant,
+	replayed: bool,
+) -> Dictionary:
+	var result: Dictionary = _result(ok, envelope, reason)
+	result[&"receipt_status"] = status
+	result[&"receipt_result"] = (
+		receipt_result.duplicate(true)
+		if receipt_result is Array or receipt_result is Dictionary
+		else receipt_result
+	)
+	result[&"replayed"] = replayed
+	return result
 
 
 func _build(source: Dictionary, operation: StringName, arguments: Dictionary) -> Dictionary:

@@ -9,6 +9,7 @@ const HomesteadPresentationScript: GDScript = preload(
 	"res://scripts/homestead_presentation_catalog.gd"
 )
 const HomesteadServiceScript: GDScript = preload("res://scripts/homestead_service.gd")
+const CodecScript: GDScript = preload("res://scripts/interaction_contract_codec.gd")
 const ResolverScript: GDScript = preload("res://scripts/interaction_resolver.gd")
 const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
 const WildernessProviderScript: GDScript = preload(
@@ -172,6 +173,65 @@ func execute(
 	return _execute_option(cell, current)
 
 
+func execute_quick(
+	intent: StringName,
+	tool_id: StringName,
+	resolved: Dictionary,
+	option: Dictionary = {},
+) -> Dictionary:
+	if intent != ResolverScript.ACTION_CONTEXT or tool_id != ToolServiceScript.TOOL_CONTEXT:
+		return _result(false, &"invalid_quick_intent")
+	if not bool(resolved.get(&"valid", false)) or option.is_empty():
+		return _result(false, &"invalid_resolved_target")
+	var cell: Vector2i = resolved[&"target_cell"] as Vector2i
+	var current: Dictionary = _current_option(cell, tool_id, option[&"action_id"])
+	if current.is_empty() or not _same_identity(option, current, resolved):
+		return _result(false, &"stale_target_identity")
+	if not bool(current[&"enabled"]):
+		return _result(false, current[&"reason_key"])
+	var source: Dictionary = _transactions.call("get_snapshot") as Dictionary
+	var revision: int = int(((source[&"farm"] as Dictionary)[&"revisions"] as Dictionary)[
+		&"result_revision"
+	])
+	var digest: String = CodecScript.digest(current)
+	var token: String = "quick:%d:%s" % [revision, digest.left(32)]
+	var payload: Dictionary = {
+		&"action_id": str(current[&"action_id"]),
+		&"operation": str(current[&"operation"]),
+		&"option_digest": digest,
+		&"source_revision": revision,
+	}
+	var deterministic: Dictionary = {
+		&"result_id": "quick.result.%s" % digest.left(24),
+		&"action_id": str(current[&"action_id"]),
+		&"operation": str(current[&"operation"]),
+		&"source_revision": revision,
+	}
+	var result: Dictionary = _transactions.call(
+		"transact_exact_once",
+		current[&"operation"],
+		(current[&"arguments"] as Dictionary).duplicate(true),
+		token,
+		payload,
+		deterministic,
+	) as Dictionary
+	return _finalize_quick(result, current, cell)
+
+
+func _finalize_quick(
+	result: Dictionary,
+	option: Dictionary,
+	cell: Vector2i,
+) -> Dictionary:
+	if not _sync_cross_domain_farm(result):
+		return _result(false, &"live_farm_sync_failed")
+	if not bool(result.get(&"ok", false)):
+		return result
+	if not bool(result.get(&"replayed", false)):
+		_committed.call(option[&"operation"], cell, result.duplicate(true))
+	return result
+
+
 func _execute_tool(cell: Vector2i, tool_id: StringName, resolved: Dictionary) -> Dictionary:
 	var actions: Array[StringName] = _tool_actions(tool_id)
 	if actions.is_empty():
@@ -213,11 +273,19 @@ func _execute_option(cell: Vector2i, option: Dictionary) -> Dictionary:
 		result = _farm_runtime.call("transact", operation, arguments) as Dictionary
 	if bool(result.get(&"ok", false)):
 		if operation in CROSS_DOMAIN_OPERATIONS:
-			var envelope: Dictionary = result[&"candidate"] as Dictionary
-			if not bool(_farm_runtime.call("sync_committed", envelope[&"farm"])):
+			if not _sync_cross_domain_farm(result):
 				return _result(false, &"live_farm_sync_failed")
 		_committed.call(operation, cell, result.duplicate(true))
+	elif operation in CROSS_DOMAIN_OPERATIONS:
+		_sync_cross_domain_farm(result)
 	return result
+
+
+func _sync_cross_domain_farm(result: Dictionary) -> bool:
+	var envelope: Dictionary = result.get(&"candidate", {}) as Dictionary
+	if envelope.is_empty() or not envelope.get(&"farm", {}) is Dictionary:
+		return false
+	return bool(_farm_runtime.call("sync_committed", envelope[&"farm"]))
 
 
 func _current_option(

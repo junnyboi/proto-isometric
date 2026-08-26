@@ -88,10 +88,23 @@ func transact(operation: StringName, arguments: Dictionary = {}) -> Dictionary:
 	if candidate.is_empty():
 		_last_error = &"invalid_candidate"
 		return {&"ok": false, &"candidate": source, &"reason": _last_error}
-	if not bool(_commit_candidate.call(candidate)):
+	var commit_result: Variant = _commit_candidate.call(candidate)
+	if not commit_result is Dictionary and not bool(commit_result):
 		_last_error = &"persistence_failed"
 		return {&"ok": false, &"candidate": source, &"reason": _last_error}
-	_farm = candidate
+	if commit_result is Dictionary:
+		var commit_dictionary: Dictionary = commit_result as Dictionary
+		var farm_value: Variant = commit_dictionary.get(&"farm", commit_dictionary)
+		var committed: Dictionary = FarmSaveSchemaScript.validate(farm_value)
+		if committed.is_empty():
+			_last_error = &"invalid_committed_farm"
+			return {&"ok": false, &"candidate": source, &"reason": _last_error}
+		_farm = committed
+		if commit_dictionary.has(&"ok") and not bool(commit_dictionary[&"ok"]):
+			_last_error = commit_dictionary.get(&"reason", &"persistence_failed") as StringName
+			return {&"ok": false, &"candidate": _farm.duplicate(true), &"reason": _last_error}
+	else:
+		_farm = candidate
 	_last_error = &""
 	result[&"candidate"] = _farm.duplicate(true)
 	return result

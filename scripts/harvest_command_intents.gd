@@ -6,6 +6,7 @@ const MOVE_LEFT: StringName = &"harvest_move_left"
 const MOVE_RIGHT: StringName = &"harvest_move_right"
 const CONTEXT: StringName = &"harvest_context"
 const TOOL_ACTION: StringName = &"harvest_tool_action"
+const QUICK_ACTION: StringName = &"harvest_quick_action"
 const PREVIOUS_TOOL: StringName = &"harvest_previous_tool"
 const NEXT_TOOL: StringName = &"harvest_next_tool"
 const INVENTORY: StringName = &"harvest_inventory"
@@ -24,6 +25,7 @@ const ACTIONS: Array[StringName] = [
 	MOVE_RIGHT,
 	CONTEXT,
 	TOOL_ACTION,
+	QUICK_ACTION,
 	PREVIOUS_TOOL,
 	NEXT_TOOL,
 	INVENTORY,
@@ -122,6 +124,7 @@ static func _keyboard_descriptors() -> Dictionary:
 		MOVE_RIGHT: [_physical_key(KEY_D), _logical_key(KEY_RIGHT)],
 		CONTEXT: [_physical_key(KEY_E)],
 		TOOL_ACTION: [_physical_key(KEY_F)],
+		QUICK_ACTION: [_physical_key(KEY_G)],
 		PREVIOUS_TOOL: [_physical_key(KEY_Q)],
 		NEXT_TOOL: [_physical_key(KEY_R)],
 		INVENTORY: [_physical_key(KEY_I)],
@@ -146,6 +149,7 @@ static func _controller_descriptors() -> Dictionary:
 		MOVE_RIGHT: [_joy_axis(JOY_AXIS_LEFT_X, 1.0), _joy_button(JOY_BUTTON_DPAD_RIGHT)],
 		CONTEXT: [_joy_button(JOY_BUTTON_A)],
 		TOOL_ACTION: [_joy_button(JOY_BUTTON_Y)],
+		QUICK_ACTION: [_joy_axis(JOY_AXIS_TRIGGER_LEFT, 1.0)],
 		PREVIOUS_TOOL: [_joy_button(JOY_BUTTON_LEFT_SHOULDER)],
 		NEXT_TOOL: [_joy_button(JOY_BUTTON_RIGHT_STICK)],
 		INVENTORY: [_joy_button(JOY_BUTTON_BACK)],
@@ -172,6 +176,7 @@ static func _touch_descriptors() -> Dictionary:
 		MOVE_RIGHT: [_touch(&"joystick", &"right")],
 		CONTEXT: [_touch(&"context_button")],
 		TOOL_ACTION: [_touch(&"tool_button")],
+		QUICK_ACTION: [_touch(&"quick_action_button")],
 		PREVIOUS_TOOL: [_touch(&"previous_tool_button")],
 		NEXT_TOOL: [_touch(&"next_tool_button")],
 		INVENTORY: [_touch(&"inventory_button")],
