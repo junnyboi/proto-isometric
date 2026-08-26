@@ -13,13 +13,19 @@ const DepositProviderScript: GDScript = preload(
 )
 const OccupancyScript: GDScript = preload("res://scripts/building_occupancy_index.gd")
 const EcologyDirectorScript: GDScript = preload("res://scripts/ecology_director.gd")
+const ExecutionResultScript: GDScript = preload("res://scripts/interaction_execution_result.gd")
 const FarmProviderScript: GDScript = preload("res://scripts/harvest_interaction_farm_provider.gd")
 const FarmStateScript: GDScript = preload("res://scripts/farm_state.gd")
 const HomesteadPresentationScript: GDScript = preload(
 	"res://scripts/homestead_presentation_catalog.gd"
 )
 const HomesteadServiceScript: GDScript = preload("res://scripts/homestead_service.gd")
+const IronjawDesertArcScript: GDScript = preload("res://scripts/ironjaw_desert_arc.gd")
 const CodecScript: GDScript = preload("res://scripts/interaction_contract_codec.gd")
+const OperationCatalogScript: GDScript = preload("res://scripts/interaction_operation_catalog.gd")
+const ReadResultCatalogScript: GDScript = preload(
+	"res://scripts/interaction_read_result_catalog.gd"
+)
 const ResolverScript: GDScript = preload("res://scripts/interaction_resolver.gd")
 const SettlementProviderScript: GDScript = preload(
 	"res://scripts/settlement_interaction_provider.gd"
@@ -36,52 +42,6 @@ const WoodlandClearingScript: GDScript = preload("res://scripts/woodland_clearin
 const SHIPPING_CELL: Vector2i = Vector2i(7, 7)
 const STORAGE_CELL: Vector2i = Vector2i(8, 7)
 const WORKSHOP_CELL: Vector2i = Vector2i(9, 7)
-const CROSS_DOMAIN_OPERATIONS: Array[StringName] = [
-	&"animal_feed",
-	&"animal_pet",
-	&"animal_product",
-	&"craft_claim",
-	&"craft_start",
-	&"facility_power",
-	&"facility_repair",
-	&"gift",
-	&"herd_interact",
-	&"request_complete",
-	&"sleep",
-	&"talk",
-	&"upgrade",
-	&"world_clear_reward",
-]
-const READ_OPERATIONS: Array[StringName] = [
-	&"admire",
-	&"inspect",
-	&"observe_herd",
-	&"read_herd_yield",
-	&"read_inventory",
-	&"read_machine_progress",
-	&"read_relationship",
-	&"read_safehouse",
-	&"read_service",
-	&"read_shipping",
-	&"read_storage",
-	&"review_drops",
-	&"review_first_clear",
-	&"review_forecast",
-	&"review_gate_biome",
-	&"review_gate_risk",
-	&"review_habitat",
-	&"review_mitigation",
-	&"review_sanctuary",
-	&"read_threat",
-]
-const CONSTRUCTION_UI_OPERATIONS: Array[StringName] = [
-	&"open_construction",
-	&"open_construction_move",
-	&"confirm_construction_upgrade",
-	&"confirm_construction_demolish",
-	&"preview_extraction_range",
-	&"open_settlement",
-]
 
 var _map: Node2D
 var _farm_runtime: RefCounted
@@ -145,7 +105,12 @@ func project(cell: Vector2i, selected_tool: StringName) -> Dictionary:
 	var projection: Dictionary = {}
 	match description[&"family"] as StringName:
 		&"terrain":
-			projection = FarmProviderScript.terrain(farm, cell, selected_tool)
+			projection = FarmProviderScript.terrain(
+				farm,
+				cell,
+				selected_tool,
+				_terrain_inspection_descriptor(cell, world, farm, description),
+			)
 		&"home":
 			projection = FarmProviderScript.home(farm, cell)
 			if not projection.is_empty():
@@ -229,6 +194,24 @@ func project(cell: Vector2i, selected_tool: StringName) -> Dictionary:
 	return projection
 
 
+func _terrain_inspection_descriptor(
+	cell: Vector2i,
+	world: RefCounted,
+	farm: Dictionary,
+	description: Dictionary,
+) -> Dictionary:
+	return {
+		&"biome_id": world.call("_biome_at", cell) as StringName,
+		&"blocked": bool(description.get(&"blocked", false)),
+		&"farmable": (
+			WoodlandClearingScript.is_farm_apron(cell)
+			or IronjawDesertArcScript.deep_tillable(farm, cell)
+		),
+		&"surface_id": world.call("terrain_at", cell) as StringName,
+		&"walkable": bool(world.call("is_walkable", cell)),
+	}
+
+
 func _append_projection_option(projection: Dictionary, option: Dictionary) -> void:
 	var options: Array = projection[&"option_inputs"] as Array
 	options.append(option)
@@ -252,12 +235,22 @@ func execute(
 		return _execute_tool(cell, tool_id, resolved)
 	if option.is_empty():
 		return _result(false, &"missing_option")
-	var current: Dictionary = _current_option(cell, tool_id, option[&"action_id"])
-	if current.is_empty() or not _same_identity(option, current, resolved):
+	var pair: Dictionary = _current_pair(cell, tool_id, option[&"action_id"])
+	var current: Dictionary = pair.get(&"option", {}) as Dictionary
+	if (
+		pair.is_empty()
+		or current.is_empty()
+		or not _same_identity(option, current, resolved, pair[&"descriptor"])
+	):
 		return _result(false, &"stale_target_identity")
 	if not bool(current[&"enabled"]):
 		return _result(false, current[&"reason_key"])
-	return _execute_option(cell, current)
+	return _execute_option(
+		cell,
+		pair[&"menu"] as Dictionary,
+		current,
+		pair[&"descriptor"] as Dictionary,
+	)
 
 
 func execute_quick(
@@ -271,8 +264,13 @@ func execute_quick(
 	if not bool(resolved.get(&"valid", false)) or option.is_empty():
 		return _result(false, &"invalid_resolved_target")
 	var cell: Vector2i = resolved[&"target_cell"] as Vector2i
-	var current: Dictionary = _current_option(cell, tool_id, option[&"action_id"])
-	if current.is_empty() or not _same_identity(option, current, resolved):
+	var pair: Dictionary = _current_pair(cell, tool_id, option[&"action_id"])
+	var current: Dictionary = pair.get(&"option", {}) as Dictionary
+	if (
+		pair.is_empty()
+		or current.is_empty()
+		or not _same_identity(option, current, resolved, pair[&"descriptor"])
+	):
 		return _result(false, &"stale_target_identity")
 	if not bool(current[&"enabled"]):
 		return _result(false, current[&"reason_key"])
@@ -324,14 +322,20 @@ func _execute_tool(cell: Vector2i, tool_id: StringName, resolved: Dictionary) ->
 	if actions.is_empty():
 		return _result(false, &"unknown_tool")
 	for action_id: StringName in actions:
-		var current: Dictionary = _current_option(cell, tool_id, action_id)
-		if current.is_empty():
+		var pair: Dictionary = _current_pair(cell, tool_id, action_id)
+		var current: Dictionary = pair.get(&"option", {}) as Dictionary
+		if pair.is_empty() or current.is_empty():
 			continue
 		if not _resolved_identity_matches(current, resolved):
 			return _result(false, &"stale_target_identity")
 		if not bool(current[&"enabled"]):
 			return _result(false, current[&"reason_key"])
-		return _execute_option(cell, current)
+		return _execute_option(
+			cell,
+			pair[&"menu"] as Dictionary,
+			current,
+			pair[&"descriptor"] as Dictionary,
+		)
 	return _result(false, &"tool_has_no_compatible_target")
 
 
@@ -348,31 +352,78 @@ func _tool_actions(tool_id: StringName) -> Array[StringName]:
 	return []
 
 
-func _execute_option(cell: Vector2i, option: Dictionary) -> Dictionary:
+func _execute_option(
+	cell: Vector2i,
+	menu: Dictionary,
+	option: Dictionary,
+	descriptor: Dictionary,
+) -> Dictionary:
+	if descriptor.is_empty():
+		return _result(false, &"operation_unrouted")
 	var operation: StringName = option[&"operation"] as StringName
-	if operation in READ_OPERATIONS or operation == &"inspect_deposit":
-		return _result(true, &"preview_only")
-	if operation in CONSTRUCTION_UI_OPERATIONS:
-		var opened: Dictionary = _result(true, &"")
-		opened[&"arguments"] = (option[&"arguments"] as Dictionary).duplicate(true)
-		_committed.call(operation, cell, opened.duplicate(true))
-		return opened
+	var route: StringName = descriptor[&"route"] as StringName
+	var result: Dictionary = {}
+	match route:
+		OperationCatalogScript.ROUTE_READ:
+			result = ReadResultCatalogScript.build(menu, option, descriptor)
+		OperationCatalogScript.ROUTE_CONSTRUCTION_UI:
+			var opened: Dictionary = _result(true, &"")
+			opened[&"arguments"] = (option[&"arguments"] as Dictionary).duplicate(true)
+			_committed.call(operation, cell, opened.duplicate(true))
+			result = _ui_result(menu, option, descriptor)
+		OperationCatalogScript.ROUTE_CROSS_DOMAIN, OperationCatalogScript.ROUTE_FARM:
+			result = _execute_persistent_option(cell, option, route)
+		_:
+			result = _result(false, &"operation_unrouted")
+	return result
+
+
+func _execute_persistent_option(
+	cell: Vector2i,
+	option: Dictionary,
+	route: StringName,
+) -> Dictionary:
+	var operation: StringName = option[&"operation"] as StringName
 	var arguments: Dictionary = (option[&"arguments"] as Dictionary).duplicate(true)
-	var result: Dictionary
 	if operation == &"deposit_gather":
 		return _execute_deposit_gather(cell, option, arguments)
-	if operation in CROSS_DOMAIN_OPERATIONS:
+	var result: Dictionary
+	if route == OperationCatalogScript.ROUTE_CROSS_DOMAIN:
 		result = _transactions.call("transact", operation, arguments) as Dictionary
 	else:
 		result = _farm_runtime.call("transact", operation, arguments) as Dictionary
 	if bool(result.get(&"ok", false)):
-		if operation in CROSS_DOMAIN_OPERATIONS:
+		if route == OperationCatalogScript.ROUTE_CROSS_DOMAIN:
 			if not _sync_cross_domain_farm(result):
 				return _result(false, &"live_farm_sync_failed")
 		_committed.call(operation, cell, result.duplicate(true))
-	elif operation in CROSS_DOMAIN_OPERATIONS:
+	elif route == OperationCatalogScript.ROUTE_CROSS_DOMAIN:
 		_sync_cross_domain_farm(result)
 	return result
+
+
+func _ui_result(
+	menu: Dictionary,
+	option: Dictionary,
+	descriptor: Dictionary,
+) -> Dictionary:
+	return ExecutionResultScript.build(
+		true,
+		&"",
+		false,
+		menu[&"snapshot_id"] as StringName,
+		option[&"action_id"] as StringName,
+		menu[&"target_id"] as StringName,
+		menu[&"target_cell"] as Vector2i,
+		menu[&"target_state"] as Dictionary,
+		{
+			&"title_key": menu[&"target_title_key"] as StringName,
+			&"body_key": &"interaction.result.ui_success.body",
+			&"parameters": {},
+			&"facts": [],
+		},
+		descriptor,
+	)
 
 
 func _execute_deposit_gather(
@@ -412,18 +463,58 @@ func _sync_cross_domain_farm(result: Dictionary) -> bool:
 	return bool(_farm_runtime.call("sync_committed", envelope[&"farm"]))
 
 
-func _current_option(
+func _current_pair(
 	cell: Vector2i, selected_tool: StringName, action_id: StringName
 ) -> Dictionary:
 	var menu: Dictionary = CatalogScript.build_menu(project(cell, selected_tool))
+	if menu.is_empty():
+		return {}
 	for candidate: Dictionary in menu.get(&"options", []) as Array[Dictionary]:
 		if candidate[&"action_id"] == action_id:
-			return candidate.duplicate(true)
+			var descriptor: Dictionary = OperationCatalogScript.descriptor_for(
+				candidate[&"operation"] as StringName,
+				candidate[&"provider_id"] as StringName,
+			)
+			if (
+				descriptor.is_empty()
+				or not OperationCatalogScript.accepts(
+					descriptor,
+					candidate[&"provider_id"] as StringName,
+					candidate[&"operation"] as StringName,
+					candidate[&"close_behavior"] as StringName,
+				)
+			):
+				return {}
+			return {
+				&"descriptor": descriptor,
+				&"menu": menu.duplicate(true),
+				&"option": candidate.duplicate(true),
+			}
 	return {}
 
 
-func _same_identity(option: Dictionary, current: Dictionary, resolved: Dictionary) -> bool:
-	return option == current and _resolved_identity_matches(current, resolved)
+func _same_identity(
+	option: Dictionary,
+	current: Dictionary,
+	resolved: Dictionary,
+	descriptor: Dictionary,
+) -> bool:
+	if (
+		descriptor[&"mutability"] == OperationCatalogScript.MUTABILITY_MUTATING
+		and option != current
+	):
+		return false
+	for key: StringName in [
+		&"action_id",
+		&"provider_id",
+		&"target_id",
+		&"target_kind",
+		&"target_subkind",
+		&"operation",
+	]:
+		if option[key] != current[key]:
+			return false
+	return _resolved_identity_matches(current, resolved)
 
 
 func _resolved_identity_matches(option: Dictionary, resolved: Dictionary) -> bool:
@@ -431,7 +522,6 @@ func _resolved_identity_matches(option: Dictionary, resolved: Dictionary) -> boo
 	return (
 		affected.size() == 1
 		and affected[0] == resolved[&"target_cell"]
-		and option[&"target_kind"] == resolved[&"target_kind"]
 	)
 
 

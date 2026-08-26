@@ -7,6 +7,7 @@ const CrossDomainTransactionScript: GDScript = preload("res://scripts/cross_doma
 const DurableUpgradeCatalogScript: GDScript = preload("res://scripts/durable_upgrade_catalog.gd")
 const EconomyServiceScript: GDScript = preload("res://scripts/economy_service.gd")
 const EcologyDirectorScript: GDScript = preload("res://scripts/ecology_director.gd")
+const ExecutionResultScript: GDScript = preload("res://scripts/interaction_execution_result.gd")
 const FarmProviderScript: GDScript = preload("res://scripts/harvest_interaction_farm_provider.gd")
 const FarmSaveSchemaScript: GDScript = preload("res://scripts/farm_save_schema.gd")
 const HazardCatalogScript: GDScript = preload("res://scripts/hazard_opportunity_catalog.gd")
@@ -506,6 +507,45 @@ static func _test_live_service(cases: Array[Dictionary], runtime: Node2D) -> voi
 			and before == gameplay_after
 			and not workbench.is_empty()
 			and (workbench[&"options"] as Array).size() <= 32
+		),
+	)
+	var inspect_cell: Vector2i = _apron_cell()
+	var inspect_menu: Dictionary = (
+		_menu(service.call("project", inspect_cell, ToolServiceScript.TOOL_HOE))
+		if service != null
+		else {}
+	)
+	var inspect_option: Dictionary = _action(
+		inspect_menu, &"interaction.action.inspect"
+	)
+	var inspect_before: Dictionary = farm_runtime.call("get_snapshot") as Dictionary
+	var inspect_result: Dictionary = (
+		service.call(
+			"execute",
+			ResolverScript.ACTION_CONTEXT,
+			ToolServiceScript.TOOL_HOE,
+			{
+				&"valid": true,
+				&"target_cell": inspect_cell,
+				&"target_kind": inspect_menu.get(&"target_kind", &"") as StringName,
+				&"action": ResolverScript.ACTION_CONTEXT,
+				&"rejection_reason": &"",
+			},
+			inspect_option,
+		) as Dictionary
+		if service != null and not inspect_option.is_empty()
+		else {}
+	)
+	var inspect_after: Dictionary = farm_runtime.call("get_snapshot") as Dictionary
+	_add(
+		cases,
+		"PHB-17 live Terrain Inspect returns a useful Decision Card without mutation",
+		(
+			ExecutionResultScript.validate(inspect_result)
+			and bool(inspect_result[&"ok"])
+			and not bool(inspect_result[&"mutated"])
+			and (((inspect_result[&"view"] as Dictionary)[&"facts"] as Array).size() >= 5)
+			and inspect_before == inspect_after
 		),
 	)
 	if controller != null:

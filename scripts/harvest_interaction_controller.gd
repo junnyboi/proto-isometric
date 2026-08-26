@@ -18,7 +18,9 @@ signal safe_menu_action_committed(
 
 const CatalogScript: GDScript = preload("res://scripts/interaction_option_catalog.gd")
 const CommandsScript: GDScript = preload("res://scripts/harvest_command_intents.gd")
+const ExecutionResultScript: GDScript = preload("res://scripts/interaction_execution_result.gd")
 const MenuScript: GDScript = preload("res://scripts/interaction_menu_snapshot.gd")
+const OperationCatalogScript: GDScript = preload("res://scripts/interaction_operation_catalog.gd")
 const ResolverScript: GDScript = preload("res://scripts/interaction_resolver.gd")
 const ReticleScript: GDScript = preload("res://scripts/target_reticle.gd")
 const QuickCoordinatorScript: GDScript = preload("res://scripts/quick_action_coordinator.gd")
@@ -300,22 +302,28 @@ func confirm_menu() -> bool:
 	var option: Dictionary = (_menu_snapshot[&"options"] as Array)[_selected_index] as Dictionary
 	if not bool(option[&"enabled"]):
 		return false
-	var resolved: Dictionary = _resolve(ResolverScript.ACTION_CONTEXT)
-	if not bool(resolved[&"valid"]):
-		close_menu()
-		return false
+	var resolved: Dictionary = {
+		&"valid": true,
+		&"target_cell": _menu_snapshot[&"target_cell"] as Vector2i,
+		&"target_kind": option[&"target_kind"] as StringName,
+		&"action": ResolverScript.ACTION_CONTEXT,
+		&"rejection_reason": ResolverScript.REJECT_NONE,
+	}
 	_executing = true
-	var result: Dictionary = {&"ok": true, &"reason": &"preview_only"}
-	if option[&"operation"] != &"inspect" and _productive_action.is_valid():
-		result = _productive_action.call(
+	var result: Dictionary = {}
+	if _productive_action.is_valid():
+		var raw_result: Dictionary = _productive_action.call(
 			ResolverScript.ACTION_CONTEXT,
-			ToolServiceScript.TOOL_CONTEXT,
+			get_selected_tool(),
 			resolved,
 			option.duplicate(true),
 		) as Dictionary
+		result = _validated_or_adapted_result(raw_result, option)
+	if result.is_empty():
+		result = _failure_result(option, &"interaction.reason.invalid_execution_result")
 	_executing = false
 	menu_execution_result.emit(result.duplicate(true))
-	if bool(result.get(&"ok", false)):
+	if bool(result.get(&"mutated", false)):
 		safe_menu_action_committed.emit(
 			snapshot_id, option.duplicate(true), result.duplicate(true)
 		)
@@ -329,6 +337,64 @@ func confirm_menu() -> bool:
 	else:
 		refresh_menu_if_stale()
 	return bool(result.get(&"ok", false))
+
+
+func _validated_or_adapted_result(raw_result: Dictionary, option: Dictionary) -> Dictionary:
+	var descriptor: Dictionary = OperationCatalogScript.descriptor_for(
+		option[&"operation"] as StringName,
+		option[&"provider_id"] as StringName,
+	)
+	if descriptor.is_empty():
+		return {}
+	if ExecutionResultScript.validate(raw_result, descriptor):
+		return raw_result.duplicate(true)
+	if not raw_result.has(&"ok"):
+		return {}
+	var ok: bool = bool(raw_result.get(&"ok", false))
+	var mutability: StringName = descriptor[&"mutability"] as StringName
+	var mutated: bool = ok and mutability == OperationCatalogScript.MUTABILITY_MUTATING
+	var reason: StringName = raw_result.get(
+		&"reason_key", raw_result.get(&"reason", &"")
+	) as StringName
+	if not ok:
+		reason = _reason_key(reason)
+	var body_key: StringName = (
+		&"interaction.result.mutation_success.body"
+		if mutated
+		else &"interaction.result.ui_success.body"
+	)
+	if not ok:
+		body_key = &"interaction.result.failure.body"
+	return ExecutionResultScript.build(
+		ok,
+		reason,
+		mutated,
+		_menu_snapshot[&"snapshot_id"] as StringName,
+		option[&"action_id"] as StringName,
+		_menu_snapshot[&"target_id"] as StringName,
+		_menu_snapshot[&"target_cell"] as Vector2i,
+		_menu_snapshot[&"target_state"] as Dictionary,
+		{
+			&"title_key": _menu_snapshot[&"target_title_key"] as StringName,
+			&"body_key": body_key,
+			&"parameters": {},
+			&"facts": [],
+		},
+		descriptor,
+	)
+
+
+func _failure_result(option: Dictionary, reason_key: StringName) -> Dictionary:
+	var raw: Dictionary = {&"ok": false, &"reason_key": reason_key}
+	return _validated_or_adapted_result(raw, option)
+
+
+func _reason_key(reason: StringName) -> StringName:
+	if str(reason).begins_with("interaction.reason."):
+		return reason
+	if reason == &"":
+		return &"interaction.reason.rejected"
+	return StringName("interaction.reason.%s" % str(reason))
 
 
 func cancel_pending_tool() -> bool:

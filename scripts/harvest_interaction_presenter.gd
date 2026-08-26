@@ -1,6 +1,7 @@
 extends CanvasLayer
 
 const CommandsScript: GDScript = preload("res://scripts/harvest_command_intents.gd")
+const ExecutionResultScript: GDScript = preload("res://scripts/interaction_execution_result.gd")
 const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 const MenuScript: GDScript = preload("res://scripts/interaction_menu_snapshot.gd")
 const OptionScript: GDScript = preload("res://scripts/interaction_option.gd")
@@ -30,11 +31,18 @@ var _panel: PanelContainer
 var _title_label: Label
 var _subkind_label: Label
 var _status_label: Label
+var _detail_panel: PanelContainer
+var _detail_title_label: Label
+var _detail_body_label: Label
+var _detail_scroll: ScrollContainer
+var _detail_stack: VBoxContainer
 var _scroll: ScrollContainer
 var _row_stack: VBoxContainer
 var _footer_label: Label
 var _rows: Array[Button] = []
+var _fact_rows: Array[Label] = []
 var _snapshot: Dictionary = {}
+var _detail_result: Dictionary = {}
 var _layout: Dictionary = {}
 var _selected_action_id: StringName = &""
 var _ui_scale: float = 1.0
@@ -90,6 +98,18 @@ func get_pool_size() -> int:
 func get_visible_row_count() -> int:
 	var count: int = 0
 	for row: Button in _rows:
+		if row.visible:
+			count += 1
+	return count
+
+
+func get_fact_pool_size() -> int:
+	return _fact_rows.size()
+
+
+func get_visible_fact_count() -> int:
+	var count: int = 0
+	for row: Label in _fact_rows:
 		if row.visible:
 			count += 1
 	return count
@@ -213,11 +233,13 @@ func _on_snapshot_opened(snapshot: Dictionary) -> void:
 	if not MenuScript.validate(snapshot):
 		return
 	_snapshot = snapshot.duplicate(true)
+	_detail_result.clear()
 	_last_result_key = &""
 	_panel.visible = true
 	_veil.visible = true
 	_apply_layout(get_viewport().get_visible_rect().size)
 	_refresh_snapshot()
+	_refresh_details()
 	_set_mobile_modal(true)
 
 
@@ -225,14 +247,18 @@ func _on_snapshot_refreshed(snapshot: Dictionary) -> void:
 	if not MenuScript.validate(snapshot):
 		return
 	_snapshot = snapshot.duplicate(true)
+	_detail_result.clear()
 	_refresh_snapshot()
+	_refresh_details()
 
 
 func _on_snapshot_closed() -> void:
 	_snapshot.clear()
+	_detail_result.clear()
 	_selected_action_id = &""
 	_panel.visible = false
 	_veil.visible = false
+	_refresh_details()
 	_set_mobile_modal(false)
 
 
@@ -242,8 +268,14 @@ func _on_selection_changed(_index: int, action_id: StringName) -> void:
 
 
 func _on_execution_result(result: Dictionary) -> void:
-	_last_result_key = result.get(&"reason", &"") as StringName
+	if ExecutionResultScript.validate(result):
+		_detail_result = result.duplicate(true)
+		_last_result_key = result[&"reason_key"] as StringName
+	else:
+		_detail_result.clear()
+		_last_result_key = result.get(&"reason_key", result.get(&"reason", &"")) as StringName
 	if is_open():
+		_refresh_details()
 		_refresh_status()
 
 
@@ -276,9 +308,78 @@ func _refresh_status() -> void:
 		_status_label.text = LocalizationScript.t(
 			&"interaction.menu.result", {"result": _localized(_last_result_key, _humanize(_last_result_key))}
 		)
+	elif not _detail_result.is_empty():
+		_status_label.text = LocalizationScript.t(&"interaction.menu.status_inspected")
 	else:
 		_status_label.text = LocalizationScript.t(&"interaction.menu.status_ready")
 	_footer_label.text = LocalizationScript.t(&"interaction.menu.bindings")
+
+
+func _refresh_details() -> void:
+	if _detail_panel == null:
+		return
+	var view: Dictionary = _detail_result.get(&"view", {}) as Dictionary
+	if not ExecutionResultScript.validate_view(view):
+		_detail_panel.visible = false
+		for row: Label in _fact_rows:
+			row.visible = false
+		return
+	_detail_panel.visible = true
+	_detail_title_label.text = _localized(
+		view[&"title_key"] as StringName,
+		LocalizationScript.t(&"interaction.inspect.generic.title"),
+	)
+	_detail_body_label.text = LocalizationScript.t(
+		view[&"body_key"] as StringName,
+		_localized_parameters(view[&"parameters"] as Dictionary),
+	)
+	var facts: Array = view[&"facts"] as Array
+	for index: int in _fact_rows.size():
+		var row: Label = _fact_rows[index]
+		row.visible = index < facts.size()
+		if not row.visible:
+			continue
+		var fact: Dictionary = facts[index] as Dictionary
+		var label: String = _localized(
+			fact[&"label_key"] as StringName,
+			LocalizationScript.t(&"interaction.inspect.fact.unknown"),
+		)
+		row.text = "%s  //  %s" % [label, _fact_value_text(fact)]
+		row.accessibility_name = "%s, %s" % [label, _fact_value_text(fact)]
+	_apply_layout(get_viewport().get_visible_rect().size)
+
+
+func _localized_parameters(parameters: Dictionary) -> Dictionary:
+	var result: Dictionary = parameters.duplicate(true)
+	for key: Variant in result.keys():
+		if str(key).ends_with("_key") and result[key] is StringName:
+			result[key] = _localized(
+				result[key] as StringName,
+				LocalizationScript.t(&"interaction.inspect.next.none"),
+			)
+	return result
+
+
+func _fact_value_text(fact: Dictionary) -> String:
+	var kind: StringName = fact[&"value_kind"] as StringName
+	var value: Variant = fact[&"value"]
+	match kind:
+		ExecutionResultScript.VALUE_TEXT_KEY:
+			return _localized(
+				value as StringName,
+				LocalizationScript.t(&"interaction.value.unknown"),
+			)
+		ExecutionResultScript.VALUE_BOOLEAN:
+			return LocalizationScript.t(
+				&"interaction.value.boolean.true"
+				if bool(value)
+				else &"interaction.value.boolean.false"
+			)
+		ExecutionResultScript.VALUE_INTEGER:
+			return str(int(value))
+		ExecutionResultScript.VALUE_DECIMAL:
+			return String.num(float(value), 2)
+	return LocalizationScript.t(&"interaction.value.unknown")
 
 
 func _refresh_selection() -> void:
@@ -423,7 +524,14 @@ func _apply_layout(viewport_size: Vector2) -> void:
 	_title_label.add_theme_font_size_override("font_size", roundi(24.0 * _ui_scale))
 	_subkind_label.add_theme_font_size_override("font_size", roundi(12.0 * _ui_scale))
 	_status_label.add_theme_font_size_override("font_size", roundi(12.0 * _ui_scale))
+	_detail_title_label.add_theme_font_size_override("font_size", roundi(15.0 * _ui_scale))
+	_detail_body_label.add_theme_font_size_override("font_size", roundi(12.0 * _ui_scale))
 	_footer_label.add_theme_font_size_override("font_size", roundi(11.0 * _ui_scale))
+	_detail_panel.custom_minimum_size.y = (
+		minf(220.0 * _ui_scale, popup.size.y * 0.4) if _detail_panel.visible else 0.0
+	)
+	for fact_row: Label in _fact_rows:
+		fact_row.add_theme_font_size_override("font_size", roundi(12.0 * _ui_scale))
 	for row: Button in _rows:
 		row.custom_minimum_size.y = float(_layout[&"row_height"])
 		row.add_theme_font_size_override("font_size", roundi(14.0 * _ui_scale))
@@ -473,6 +581,38 @@ func _build_interface() -> void:
 	_status_label = _label(12, TEAL)
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	stack.add_child(_status_label)
+	_detail_panel = PanelContainer.new()
+	_detail_panel.name = "DecisionCard"
+	_detail_panel.visible = false
+	_detail_panel.add_theme_stylebox_override("panel", _detail_style())
+	stack.add_child(_detail_panel)
+	var detail_layout: VBoxContainer = VBoxContainer.new()
+	detail_layout.add_theme_constant_override("separation", 4)
+	_detail_panel.add_child(detail_layout)
+	_detail_title_label = _label(15, AMBER)
+	_detail_title_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	detail_layout.add_child(_detail_title_label)
+	_detail_body_label = _label(12, TEXT)
+	_detail_body_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	detail_layout.add_child(_detail_body_label)
+	_detail_scroll = ScrollContainer.new()
+	_detail_scroll.name = "BoundedDetailScroll"
+	_detail_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_detail_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_detail_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	detail_layout.add_child(_detail_scroll)
+	_detail_stack = VBoxContainer.new()
+	_detail_stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_detail_stack.add_theme_constant_override("separation", 3)
+	_detail_scroll.add_child(_detail_stack)
+	for index: int in ExecutionResultScript.MAX_FACTS:
+		var fact_row: Label = _label(12, MUTED)
+		fact_row.name = "DecisionFact%02d" % index
+		fact_row.visible = false
+		fact_row.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		fact_row.custom_minimum_size.y = 24.0
+		_detail_stack.add_child(fact_row)
+		_fact_rows.append(fact_row)
 	var divider: HSeparator = HSeparator.new()
 	divider.add_theme_constant_override("separation", 2)
 	stack.add_child(divider)
@@ -489,6 +629,19 @@ func _build_interface() -> void:
 	_footer_label = _label(11, MUTED)
 	_footer_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	stack.add_child(_footer_label)
+
+
+func _detail_style() -> StyleBoxFlat:
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = Color(PANEL_ALT, 0.92)
+	style.border_color = Color(AMBER, 0.72)
+	style.set_border_width_all(1)
+	style.border_width_left = 3
+	style.content_margin_left = 10.0
+	style.content_margin_top = 8.0
+	style.content_margin_right = 10.0
+	style.content_margin_bottom = 8.0
+	return style
 
 
 func _panel_style() -> StyleBoxFlat:
@@ -558,6 +711,7 @@ func _on_locale_changed(_locale: StringName) -> void:
 	var selected: StringName = _selected_action_id
 	if is_open():
 		_refresh_snapshot()
+		_refresh_details()
 		_selected_action_id = selected
 		_refresh_selection()
 

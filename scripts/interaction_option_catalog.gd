@@ -35,7 +35,7 @@ const PROVIDER_SUBKINDS: Dictionary = {
 	PROVIDER_PICKUP: [&"pickup"],
 	PROVIDER_FACILITY: [&"home", &"facility", &"ruin"],
 	PROVIDER_MACHINE: [&"storage", &"shipping", &"machine"],
-	PROVIDER_RESIDENT: [&"resident"],
+	PROVIDER_RESIDENT: [&"resident", &"settler"],
 	PROVIDER_LIVESTOCK: [&"livestock"],
 	PROVIDER_CONSTRUCTION: [&"construction"],
 	PROVIDER_DEPOSIT: [&"deposit_salvage", &"deposit_mineral", &"deposit_biomass"],

@@ -19,6 +19,9 @@ const ExpeditionRadarTestsScript: GDScript = preload("res://test/test_expedition
 const FieldUITestsScript: GDScript = preload("res://test/test_field_ui.gd")
 const FrozenTundraTestsScript: GDScript = preload("res://test/test_frozen_tundra.gd")
 const InputFeelTestsScript: GDScript = preload("res://test/test_input_feel.gd")
+const InteractionInspectionTestsScript: GDScript = preload(
+	"res://test/test_interaction_inspection.gd"
+)
 const IronjawBossTestsScript: GDScript = preload("res://test/test_ironjaw_boss.gd")
 const KilnheartBossTestsScript: GDScript = preload("res://test/test_kilnheart_boss.gd")
 const LavaFieldsTestsScript: GDScript = preload("res://test/test_lava_fields.gd")
@@ -126,6 +129,7 @@ static func evaluate(
 	cases.append_array(WalkerLocomotionFeedbackTestsScript.evaluate())
 	cases.append_array(HUDFeedbackTestsScript.evaluate())
 	cases.append_array(HarvestPhaseZeroTestsScript.evaluate())
+	cases.append_array(InteractionInspectionTestsScript.evaluate())
 	cases.append_array(EnvironmentRewardFeedbackTestsScript.evaluate())
 	cases.append_array(FeedbackAccessibilityTestsScript.evaluate())
 	cases.append_array(JuiceCertificationTestsScript.evaluate())

@@ -51,7 +51,7 @@ class Harness:
 		var inputs: Array[Dictionary] = [
 			TargetBridgeScript.option_input(
 				&"interaction.action.alpha",
-				&"test_alpha",
+				&"till",
 				{&"cell": target_cell},
 				true,
 				&"",
@@ -59,7 +59,7 @@ class Harness:
 			),
 			TargetBridgeScript.option_input(
 				&"interaction.action.beta",
-				&"test_beta",
+				&"water",
 				{&"cell": target_cell},
 				true,
 				&"",
@@ -67,7 +67,7 @@ class Harness:
 			),
 			TargetBridgeScript.option_input(
 				&"interaction.action.gamma",
-				&"test_gamma",
+				&"harvest",
 				{&"cell": target_cell},
 				false,
 				&"interaction.reason.blocked",

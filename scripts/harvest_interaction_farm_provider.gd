@@ -23,7 +23,12 @@ const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
 const MAX_SHIPPING_ROWS: int = 24
 
 
-static func terrain(farm: Dictionary, cell: Vector2i, selected_tool: StringName) -> Dictionary:
+static func terrain(
+	farm: Dictionary,
+	cell: Vector2i,
+	selected_tool: StringName,
+	terrain_descriptor: Dictionary = {},
+) -> Dictionary:
 	var plot: Dictionary = FarmStateScript.plot_at(farm, cell)
 	var subkind: StringName = &"terrain"
 	if not plot.is_empty():
@@ -87,7 +92,15 @@ static func terrain(farm: Dictionary, cell: Vector2i, selected_tool: StringName)
 			)
 		)
 	)
-	return _target(cell, target_id, subkind, {&"plot": plot}, options)
+	var state: Dictionary = {
+		&"biome_id": terrain_descriptor.get(&"biome_id", &"unknown") as StringName,
+		&"blocked": bool(terrain_descriptor.get(&"blocked", false)),
+		&"farmable": bool(terrain_descriptor.get(&"farmable", false)),
+		&"plot": plot,
+		&"surface_id": terrain_descriptor.get(&"surface_id", &"unknown") as StringName,
+		&"walkable": bool(terrain_descriptor.get(&"walkable", true)),
+	}
+	return _target(cell, target_id, subkind, state, options)
 
 
 static func home(farm: Dictionary, cell: Vector2i) -> Dictionary:

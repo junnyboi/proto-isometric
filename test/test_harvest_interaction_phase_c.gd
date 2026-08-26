@@ -27,6 +27,8 @@ class Harness:
 
 	var version: int = 1
 	var mutations: int = 0
+	var facing: StringName = &"SE"
+	var last_resolved_cell: Vector2i = Vector2i(-999, -999)
 
 	func project(value: Vector2i) -> Vector2:
 		return Vector2(value * 10)
@@ -35,7 +37,7 @@ class Harness:
 		return Vector2i.ZERO
 
 	func player_facing() -> StringName:
-		return &"SE"
+		return facing
 
 	func zoom(_direction: int) -> void:
 		pass
@@ -70,10 +72,11 @@ class Harness:
 	func execute(
 		_intent: StringName,
 		_tool: StringName,
-		_resolved: Dictionary,
+		resolved: Dictionary,
 		_option: Dictionary = {},
 	) -> Dictionary:
 		mutations += 1
+		last_resolved_cell = resolved[&"target_cell"] as Vector2i
 		return {&"ok": true, &"reason": &""}
 
 
@@ -199,11 +202,17 @@ static func _test_controller_and_presenter(cases: Array[Dictionary]) -> void:
 	)
 	LocalizationScript.set_locale(&"en")
 	_add(cases, "PHC-09 locale refresh preserves selected action identity", locale_preserved)
+	harness.set("facing", &"N")
 	var confirmed: bool = bool(controller.call("handle_touch_command", CommandsScript.CONTEXT))
 	_add(
 		cases,
-		"PHC-10 touch Context second press confirms exactly once",
-		confirmed and int(harness.get("mutations")) == 1 and not controller.call("is_menu_open"),
+		"PHC-10 confirmation stays bound to the sealed target when facing changes",
+		(
+			confirmed
+			and int(harness.get("mutations")) == 1
+			and harness.get("last_resolved_cell") == Vector2i(1, 0)
+			and not controller.call("is_menu_open")
+		),
 	)
 	controller.call("open_menu")
 	controller.call("select_menu_index", 2)
@@ -276,6 +285,25 @@ static func _test_live_integration(cases: Array[Dictionary], runtime: Node2D) ->
 		"PHC-16 live target reticle diamond remains retained after menu cycles",
 		reticle != null and reticle.name == "AdjacentTargetReticle" and reticle.is_inside_tree(),
 	)
+	controller.call("open_menu")
+	var live_snapshot: Dictionary = controller.call("get_menu_snapshot") as Dictionary
+	var inspect_index: int = _action_index(live_snapshot, &"interaction.action.inspect")
+	if inspect_index >= 0:
+		controller.call("select_menu_index", inspect_index)
+	var inspected: bool = bool(controller.call("confirm_menu")) if inspect_index >= 0 else false
+	var visible_facts: int = int(presenter.call("get_visible_fact_count"))
+	_add(
+		cases,
+		"PHC-17 live Inspect fills one fixed twelve-row Decision Card pool without closing",
+		(
+			inspected
+			and controller.call("is_menu_open")
+			and int(presenter.call("get_fact_pool_size")) == 12
+			and visible_facts >= 2
+			and visible_facts <= 12
+		),
+	)
+	controller.call("close_menu")
 	var mobile: CanvasLayer = runtime.get("_mobile_controls") as CanvasLayer
 	mobile.call("force_mobile", true)
 	controller.call("open_menu")
@@ -290,14 +318,14 @@ static func _test_live_integration(cases: Array[Dictionary], runtime: Node2D) ->
 	_add(
 		cases,
 			(
-				"PHC-17 popup owns mobile exclusions while action and zoom controls hide"
+				"PHC-18 popup owns mobile exclusions while action and zoom controls hide"
 			),
 			popup in exclusions and dock in exclusions and mobile.call("get_smash_button") != null
 			and runtime.get("_hud") != null and not command_dock.visible and not zoom_panel.visible,
 	)
 	_add(
 		cases,
-		"PHC-18 movement, Tool, and Smash inputs are suppressed while the modal is open",
+		"PHC-19 movement, Tool, and Smash inputs are suppressed while the modal is open",
 		Vector2(runtime.call("get_velocity")) == Vector2.ZERO
 		and bool(mobile.call("is_modal_input_suppressed"))
 		and not bool(mobile.call("begin_touch", 77, Vector2(120.0, 220.0)))
@@ -313,6 +341,14 @@ static func _key(code: Key) -> InputEventKey:
 	event.keycode = code
 	event.pressed = true
 	return event
+
+
+static func _action_index(snapshot: Dictionary, action_id: StringName) -> int:
+	var options: Array = snapshot.get(&"options", []) as Array
+	for index: int in options.size():
+		if (options[index] as Dictionary)[&"action_id"] == action_id:
+			return index
+	return -1
 
 
 static func _add(cases: Array[Dictionary], label: String, passed: bool) -> void:
