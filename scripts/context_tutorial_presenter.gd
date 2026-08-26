@@ -15,6 +15,8 @@ const TEAL: Color = Color("4eb6aa")
 const INK: Color = Color("11171b")
 const VIEWPORT_INSET: float = 12.0
 const PROMPT_VISIBLE_SECONDS: float = 6.0
+const PROMPT_FADE_SECONDS: float = 1.0
+const COUNTDOWN_HEIGHT: float = 4.0
 
 var _director: RefCounted
 var _modality_tracker: RefCounted
@@ -24,6 +26,8 @@ var _title: Label
 var _body: Label
 var _binding: Label
 var _progress: Label
+var _countdown_track: ColorRect
+var _countdown_fill: ColorRect
 var _skip: Button
 var _more_help: Button
 var _veil: ColorRect
@@ -88,6 +92,7 @@ func reveal_current_prompt() -> bool:
 	_displayed_lesson = lesson
 	_prompt_elapsed = 0.0
 	_prompt_active = true
+	_update_prompt_presentation()
 	_refresh_visibility()
 	return true
 
@@ -131,6 +136,7 @@ func _process(delta: float) -> void:
 		and get_current_lesson() >= 0
 	):
 		_prompt_elapsed += maxf(delta, 0.0)
+		_update_prompt_presentation()
 		if _prompt_elapsed >= PROMPT_VISIBLE_SECONDS:
 			_prompt_active = false
 			_refresh_visibility()
@@ -218,6 +224,7 @@ func _refresh(reveal_new_lesson: bool = false) -> void:
 		_prompt_elapsed = 0.0
 		_prompt_active = true
 	_displayed_lesson = lesson
+	_update_prompt_presentation()
 	var lesson_id: StringName = StateScript.lesson_id(lesson)
 	if lesson_id != &"":
 		_title.text = LocalizationScript.t("tutorial.lesson.%s.title" % lesson_id)
@@ -248,6 +255,32 @@ func _refresh_visibility() -> void:
 	_veil.visible = _help_open
 	_help_panel.visible = _help_open
 	_sync_touch_exclusion()
+
+
+func _update_prompt_presentation() -> void:
+	if _card == null or _countdown_fill == null or _countdown_track == null:
+		return
+	var remaining_ratio: float = clampf(
+		1.0 - _prompt_elapsed / PROMPT_VISIBLE_SECONDS, 0.0, 1.0
+	)
+	var fade_start: float = PROMPT_VISIBLE_SECONDS - PROMPT_FADE_SECONDS
+	var fade_progress: float = clampf(
+		(_prompt_elapsed - fade_start) / PROMPT_FADE_SECONDS, 0.0, 1.0
+	)
+	var eased_fade: float = fade_progress * fade_progress * (3.0 - 2.0 * fade_progress)
+	_card.modulate.a = 1.0 - eased_fade
+	_countdown_fill.size.x = _countdown_track.size.x * remaining_ratio
+	_countdown_fill.color = TEAL.lerp(AMBER, fade_progress)
+
+
+func get_prompt_presentation() -> Dictionary:
+	return {
+		&"remaining_ratio": (
+			clampf(1.0 - _prompt_elapsed / PROMPT_VISIBLE_SECONDS, 0.0, 1.0)
+		),
+		&"alpha": _card.modulate.a if _card != null else 0.0,
+		&"active": _prompt_active,
+	}
 
 
 func _apply_accessibility(lesson_id: StringName) -> void:
@@ -294,10 +327,20 @@ func _build_card() -> void:
 	_binding = _label("Binding", Vector2(16.0, 80.0), Vector2(240.0, 26.0), 15, TEAL)
 	_progress = _label("Progress", Vector2(260.0, 80.0), Vector2(100.0, 26.0), 13, Color("a9b5b5"))
 	_progress.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_countdown_track = ColorRect.new()
+	_countdown_track.name = "CountdownTrack"
+	_countdown_track.color = Color(0.08, 0.12, 0.12, 0.92)
+	_countdown_track.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_countdown_fill = ColorRect.new()
+	_countdown_fill.name = "CountdownFill"
+	_countdown_fill.color = TEAL
+	_countdown_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_countdown_track.add_child(_countdown_fill)
 	_card.add_child(_title)
 	_card.add_child(_body)
 	_card.add_child(_binding)
 	_card.add_child(_progress)
+	_card.add_child(_countdown_track)
 	_skip = _button("Skip", _skip_training)
 	_more_help = _button("MoreHelp", _open_help)
 	_card.add_child(_skip)
@@ -388,6 +431,14 @@ func _layout_card(size: Vector2) -> void:
 	_binding.size.x = content_width * 0.68
 	_progress.position.x = 16.0 + content_width * 0.68
 	_progress.size.x = content_width * 0.32
+	_countdown_track.position = Vector2.ZERO
+	_countdown_track.size = Vector2(size.x, COUNTDOWN_HEIGHT)
+	_countdown_fill.position = Vector2.ZERO
+	_countdown_fill.size = Vector2(
+		_countdown_track.size.x
+		* clampf(1.0 - _prompt_elapsed / PROMPT_VISIBLE_SECONDS, 0.0, 1.0),
+		COUNTDOWN_HEIGHT,
+	)
 	var button_height: float = 40.0 * _ui_scale
 	var button_x: float = size.x - actions_width - 12.0
 	_skip.position = Vector2(button_x, 12.0)

@@ -323,7 +323,7 @@ func confirm_menu() -> bool:
 		result = _failure_result(option, &"interaction.reason.invalid_execution_result")
 	_executing = false
 	menu_execution_result.emit(result.duplicate(true))
-	if bool(result.get(&"mutated", false)):
+	if bool(result.get(&"ok", false)):
 		safe_menu_action_committed.emit(
 			snapshot_id, option.duplicate(true), result.duplicate(true)
 		)

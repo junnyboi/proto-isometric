@@ -348,17 +348,48 @@ static func _test_live_runtime(cases: Array[Dictionary], runtime: Node2D) -> voi
 	)
 	if director == null or presenter == null:
 		return
-	director.call("reset_training")
+	hud.call("_reset_context_tutorial")
 	var radar: Control = hud.get_node("ExpeditionRadar") as Control
 	hud.call("_process", 0.0)
 	var radar_yielded: bool = not radar.visible
-	presenter.call("_process", PresenterScript.PROMPT_VISIBLE_SECONDS + 0.01)
+	var initial_presentation: Dictionary = presenter.call("get_prompt_presentation") as Dictionary
+	presenter.call(
+		"_process",
+		PresenterScript.PROMPT_VISIBLE_SECONDS - PresenterScript.PROMPT_FADE_SECONDS,
+	)
+	var fade_start: Dictionary = presenter.call("get_prompt_presentation") as Dictionary
+	presenter.call("_process", PresenterScript.PROMPT_FADE_SECONDS * 0.5)
+	var mid_fade: Dictionary = presenter.call("get_prompt_presentation") as Dictionary
+	_add(
+		cases,
+		"P3 countdown drains linearly before an eased final-second fade",
+		is_equal_approx(float(initial_presentation[&"remaining_ratio"]), 1.0)
+		and is_equal_approx(float(initial_presentation[&"alpha"]), 1.0)
+		and is_equal_approx(
+			float(fade_start[&"remaining_ratio"]),
+			PresenterScript.PROMPT_FADE_SECONDS / PresenterScript.PROMPT_VISIBLE_SECONDS,
+		)
+		and is_equal_approx(float(fade_start[&"alpha"]), 1.0)
+		and is_equal_approx(
+			float(mid_fade[&"remaining_ratio"]),
+			PresenterScript.PROMPT_FADE_SECONDS * 0.5
+			/ PresenterScript.PROMPT_VISIBLE_SECONDS,
+		)
+		and is_equal_approx(float(mid_fade[&"alpha"]), 0.5),
+	)
+	presenter.call("_process", PresenterScript.PROMPT_FADE_SECONDS * 0.5 + 0.01)
 	hud.call("_process", 0.0)
 	var prompt_timed_out: bool = not bool(presenter.call("_is_prompt_visible"))
 	var radar_after_timeout: bool = radar.visible
 	hud.call("_resume_context_tutorial")
 	hud.call("_process", 0.0)
-	var replayed: bool = bool(presenter.call("_is_prompt_visible")) and not radar.visible
+	var replay_presentation: Dictionary = presenter.call("get_prompt_presentation") as Dictionary
+	var replayed: bool = (
+		bool(presenter.call("_is_prompt_visible"))
+		and not radar.visible
+		and is_equal_approx(float(replay_presentation[&"remaining_ratio"]), 1.0)
+		and is_equal_approx(float(replay_presentation[&"alpha"]), 1.0)
+	)
 	_add(
 		cases,
 		"P3 compact prompt auto-hides restores radar and Resume replays it",
