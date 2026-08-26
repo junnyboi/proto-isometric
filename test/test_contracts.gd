@@ -50,6 +50,9 @@ const WalkerLocomotionFeedbackTestsScript: GDScript = preload(
 )
 const HUDFeedbackTestsScript: GDScript = preload("res://test/test_hud_feedback.gd")
 const HarvestPhaseZeroTestsScript: GDScript = preload("res://test/test_harvest_phase_zero.gd")
+const HarvestSettlementPhaseOneTestsScript: GDScript = preload(
+	"res://test/test_harvest_settlement_phase_one.gd"
+)
 const EnvironmentRewardFeedbackTestsScript: GDScript = preload(
 	"res://test/test_environment_reward_feedback.gd"
 )
@@ -124,6 +127,13 @@ static func evaluate(
 					coordinator.call("get_profile_snapshot") as Dictionary,
 				)
 			)
+		)
+	)
+	cases.append_array(
+		HarvestSettlementPhaseOneTestsScript.evaluate(
+			world,
+			coordinator.call("get_run_snapshot") as Dictionary,
+			coordinator.call("get_profile_snapshot") as Dictionary,
 		)
 	)
 	return cases

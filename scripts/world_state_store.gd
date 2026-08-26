@@ -2,6 +2,7 @@ extends RefCounted
 
 var _path: String = ""
 var _last_error: String = ""
+var _fault_injector: RefCounted
 
 
 func configure(path: String) -> bool:
@@ -22,6 +23,9 @@ func read_text(path: String = "", max_bytes: int = 2_097_152) -> String:
 	var target: String = _resolved(path)
 	if target.is_empty() or not FileAccess.file_exists(target):
 		return ""
+	if _fault(&"open"):
+		_last_error = "Injected save open failure."
+		return ""
 	var file: FileAccess = FileAccess.open(target, FileAccess.READ)
 	if file == null:
 		_last_error = "Could not open save file: %s" % FileAccess.get_open_error()
@@ -36,23 +40,26 @@ func read_text(path: String = "", max_bytes: int = 2_097_152) -> String:
 	return text
 
 
-func write_text(path: String, text: String, max_bytes: int = 2_097_152) -> bool:
+func write_text(
+	path: String,
+	text: String,
+	max_bytes: int = 2_097_152,
+	injector: RefCounted = null,
+) -> bool:
 	_last_error = ""
+	if injector != null:
+		_fault_injector = injector
 	var target: String = _resolved(path)
-	if target.is_empty():
-		_last_error = "Save path is empty."
+	if not _write_preflight(target, text, max_bytes):
 		return false
-	if text.to_utf8_buffer().size() > max_bytes:
-		_last_error = "Encoded save exceeds %d bytes." % max_bytes
+	if _fault(&"open"):
+		_last_error = "Injected save open failure."
 		return false
 	var file: FileAccess = FileAccess.open(target, FileAccess.WRITE)
 	if file == null:
 		_last_error = "Could not open save file for writing: %s" % FileAccess.get_open_error()
 		return false
-	file.store_string(text)
-	file.flush()
-	file.close()
-	return true
+	return _store_text(file, target, text)
 
 
 func rename(source: String, target: String) -> bool:
@@ -89,9 +96,48 @@ func get_path() -> String:
 	return _path
 
 
+func set_fault_injector(injector: RefCounted) -> void:
+	_fault_injector = injector
+
+
+func _write_preflight(target: String, text: String, max_bytes: int) -> bool:
+	if target.is_empty():
+		_last_error = "Save path is empty."
+		return false
+	if text.to_utf8_buffer().size() > max_bytes:
+		_last_error = "Encoded save exceeds %d bytes." % max_bytes
+		return false
+	return true
+
+
+func _store_text(file: FileAccess, target: String, text: String) -> bool:
+	if _fault(&"write"):
+		_last_error = "Injected save write failure."
+		file.close()
+		remove(target)
+		return false
+	file.store_string(text)
+	if _fault(&"flush"):
+		_last_error = "Injected save flush/close failure."
+		file.close()
+		remove(target)
+		return false
+	file.flush()
+	file.close()
+	return true
+
+
 func _resolved(path: String) -> String:
 	return _path if path.is_empty() else path
 
 
 func _absolute(path: String) -> String:
 	return ProjectSettings.globalize_path(path) if path.begins_with("user://") else path
+
+
+func _fault(phase: StringName) -> bool:
+	return (
+		_fault_injector != null
+		and _fault_injector.has_method("should_fail")
+		and bool(_fault_injector.call("should_fail", phase))
+	)

@@ -7,9 +7,18 @@ const ProfileStateScript: GDScript = preload("res://scripts/profile_state.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const FarmSaveSchemaScript: GDScript = preload("res://scripts/farm_save_schema.gd")
 const WorldMutationLedgerScript: GDScript = preload("res://scripts/world_mutation_ledger.gd")
+const EnvelopeMigrationsScript: GDScript = preload(
+	"res://scripts/save_envelope_migrations.gd"
+)
+const BudgetCatalogScript: GDScript = preload("res://scripts/persistence_budget_catalog.gd")
+const StateHashScript: GDScript = preload("res://scripts/persistence_state_hash.gd")
+const BrowserCapabilityScript: GDScript = preload(
+	"res://scripts/browser_persistence_capability.gd"
+)
 
-const FORMAT_VERSION: int = 4
+const FORMAT_VERSION: int = 5
 const LEGACY_FORMAT_VERSION: int = 3
+const PREVIOUS_FORMAT_VERSION: int = 4
 const WORLD_GENERATION_VERSION: int = 1
 const MAX_FILE_BYTES: int = 2_097_152
 const MAX_WORLD_ITEMS: int = 100_000
@@ -40,7 +49,9 @@ var _quarantine_paths: Array[String] = []
 var _writes_blocked: bool = false
 var _default_farm: Dictionary = {}
 var _configured_default_mode: StringName = RuntimeIdsScript.MODE_FRESH_FARM
-
+var _fault_injector: RefCounted
+var _last_committed_envelope: Dictionary = {}
+var _persistence_capability: Dictionary = {}
 
 func configure(
 	path: String,
@@ -65,8 +76,13 @@ func configure(
 		return false
 	_configured_default_mode = default_gameplay_mode
 	_reset_result()
+	_persistence_capability = BrowserCapabilityScript.probe()
+	if _persistence_capability[&"status"] != String(BrowserCapabilityScript.STATUS_AVAILABLE):
+		push_warning(
+			"Save storage is %s: %s. Progress may not survive browser cleanup."
+			% [_persistence_capability[&"status"], _persistence_capability[&"reason"]]
+		)
 	return true
-
 
 func load_state() -> Dictionary:
 	_reset_result()
@@ -81,18 +97,18 @@ func load_state() -> Dictionary:
 		_writes_blocked = true
 		_last_error = "A save from a newer format remains preserved for recovery."
 		return {}
-	_quarantine_interrupted_temp()
 	var primary: Dictionary = _read_candidate(_path)
 	var backup: Dictionary = _read_candidate(_path + ".bak")
-	if primary[&"kind"] == &"future" or backup[&"kind"] == &"future":
-		_quarantine_invalid(primary, "future")
-		_quarantine_invalid(backup, "future")
+	var temporary: Dictionary = _read_candidate(_path + ".tmp", false)
+	if _any_candidate_has_kind([primary, backup, temporary], &"future"):
+		for candidate: Dictionary in [primary, backup, temporary]:
+			_quarantine_invalid(candidate, "future")
 		_status = STATUS_INCOMPATIBLE
 		_writes_blocked = true
 		_last_error = "A save from a newer format was preserved for recovery."
 		return {}
 	var candidates: Array[Dictionary] = []
-	for candidate: Dictionary in [primary, backup]:
+	for candidate: Dictionary in [primary, backup, temporary]:
 		if candidate[&"kind"] == &"valid":
 			candidates.append(candidate)
 		elif candidate[&"kind"] == &"invalid":
@@ -110,15 +126,15 @@ func load_state() -> Dictionary:
 	_selected_source = str(selected[&"path"])
 	_write_sequence = int((envelope[&"metadata"] as Dictionary)[&"write_sequence"])
 	_migration_source = int((envelope[&"metadata"] as Dictionary)[&"migration_source"])
-	if selected[&"source_version"] in [1, 2, LEGACY_FORMAT_VERSION]:
+	if selected[&"source_version"] in [1, 2, LEGACY_FORMAT_VERSION, PREVIOUS_FORMAT_VERSION]:
 		_status = STATUS_MIGRATED
 	elif _selected_source != _path or not _quarantine_paths.is_empty():
 		_status = STATUS_RECOVERED
 	else:
 		_status = STATUS_LOADED
 	_default_farm = (envelope[&"farm"] as Dictionary).duplicate(true)
+	_last_committed_envelope = envelope.duplicate(true)
 	return envelope
-
 
 func save_state(
 	world: Dictionary, active_run: Variant, profile: Dictionary, farm: Dictionary = {}
@@ -138,9 +154,8 @@ func save_state(
 		world, active_run, profile, farm_candidate, next_sequence
 	)
 	if envelope.is_empty():
-		return _fail_save("Refused to write an invalid schema-4 state.")
+		return _fail_save("Refused to write an invalid schema-5 state.")
 	return _commit_envelope(envelope, next_sequence)
-
 
 func save_candidate_envelope(source: Dictionary, farm_candidate: Dictionary) -> bool:
 	if _writes_blocked:
@@ -160,7 +175,6 @@ func save_candidate_envelope(source: Dictionary, farm_candidate: Dictionary) -> 
 	if envelope.is_empty():
 		return _fail_save("Refused to write an invalid detached candidate envelope.")
 	return _commit_envelope(envelope, next_sequence)
-
 
 func _make_envelope(
 	world: Dictionary,
@@ -184,13 +198,23 @@ func _make_envelope(
 		&"profile": profile.duplicate(true),
 		&"farm": farm.duplicate(true),
 	}
+	if _last_committed_envelope.is_empty():
+		envelope = StateHashScript.apply_initial(envelope)
+	else:
+		envelope = StateHashScript.apply_next(_last_committed_envelope, envelope)
+	if envelope.is_empty():
+		return {}
 	return validate_envelope(envelope)
 
-
 func _commit_envelope(envelope: Dictionary, sequence: int) -> bool:
-	var encoded: String = JSON.stringify(envelope, "", true, true)
+	var preflight: Dictionary = BudgetCatalogScript.preflight(envelope)
+	if not bool(preflight[&"ok"]):
+		return _fail_save("Canonical save exceeds its persistence budget.")
+	var encoded: String = BudgetCatalogScript.canonical_json(envelope)
 	var temporary_path: String = _path + ".tmp"
-	if not bool(_file_store.call("write_text", temporary_path, encoded, MAX_FILE_BYTES)):
+	if not bool(
+		_file_store.call("write_text", temporary_path, encoded, MAX_FILE_BYTES, _fault_injector)
+	):
 		return _fail_save(str(_file_store.call("get_last_error")))
 	var temporary: Dictionary = _read_candidate(temporary_path, false)
 	if (
@@ -200,18 +224,18 @@ func _commit_envelope(envelope: Dictionary, sequence: int) -> bool:
 				((temporary[&"envelope"] as Dictionary)[&"metadata"] as Dictionary)[&"write_sequence"]
 			)
 			!= sequence
-		)
-	):
+			)
+		):
 		_file_store.call("remove", temporary_path)
 		return _fail_save("Temporary save validation failed.")
 	if not _rotate_validated_temp(temporary_path):
 		return false
 	_write_sequence = sequence
 	_default_farm = (envelope[&"farm"] as Dictionary).duplicate(true)
+	_last_committed_envelope = envelope.duplicate(true)
 	_status = STATUS_LOADED
 	_selected_source = _path
 	return true
-
 
 func validate_envelope(envelope: Dictionary) -> Dictionary:
 	if not _exact_keys(
@@ -242,7 +266,7 @@ func validate_envelope(envelope: Dictionary) -> Dictionary:
 	var world: Dictionary = _normalize_world(envelope.get(&"world"), robot_cell)
 	if world.is_empty():
 		return {}
-	return {
+	var normalized: Dictionary = {
 		&"save_format_version": FORMAT_VERSION,
 		&"metadata": metadata,
 		&"world": world,
@@ -250,7 +274,18 @@ func validate_envelope(envelope: Dictionary) -> Dictionary:
 		&"profile": profile,
 		&"farm": farm,
 	}
+	var revisions: Dictionary = farm[&"revisions"] as Dictionary
+	if int(revisions[&"result_revision"]) > 0 and not StateHashScript.result_hash_matches(normalized):
+		return {}
+	return normalized if bool(BudgetCatalogScript.preflight(normalized)[&"ok"]) else {}
 
+func set_fault_injector(injector: RefCounted) -> void:
+	_fault_injector = injector
+	if _file_store != null:
+		_file_store.call("set_fault_injector", injector)
+
+func get_last_committed_envelope() -> Dictionary:
+	return _last_committed_envelope.duplicate(true)
 
 func clear_committed() -> bool:
 	if _file_store == null:
@@ -261,37 +296,33 @@ func clear_committed() -> bool:
 	_reset_result()
 	return cleared
 
-
 func get_status() -> StringName:
 	return _status
-
 
 func get_last_error() -> String:
 	return _last_error
 
-
 func get_selected_source() -> String:
 	return _selected_source
-
 
 func get_write_sequence() -> int:
 	return _write_sequence
 
-
 func get_quarantine_paths() -> Array[String]:
 	return _quarantine_paths.duplicate()
-
 
 func is_write_blocked() -> bool:
 	return _writes_blocked
 
-
 func get_default_farm() -> Dictionary:
 	return _default_farm.duplicate(true)
 
-
 func get_gameplay_mode() -> StringName:
 	return FarmSaveSchemaScript.mode_of(_default_farm)
+
+
+func get_persistence_capability() -> Dictionary:
+	return _persistence_capability.duplicate(true)
 
 
 func _read_candidate(path: String, allow_legacy: bool = true) -> Dictionary:
@@ -307,7 +338,6 @@ func _read_candidate(path: String, allow_legacy: bool = true) -> Dictionary:
 	if not _variant_is_bounded(raw):
 		return _candidate(path, &"invalid")
 	return _classify_candidate(path, raw, allow_legacy)
-
 
 func _classify_candidate(path: String, raw: Dictionary, allow_legacy: bool) -> Dictionary:
 	if raw.has("save_format_version"):
@@ -325,17 +355,16 @@ func _classify_candidate(path: String, raw: Dictionary, allow_legacy: bool) -> D
 		else _candidate(path, &"invalid")
 	)
 
-
 func _classify_current(path: String, raw: Dictionary) -> Dictionary:
 	var version: Variant = _json_integer(raw.get("save_format_version"), 1, MAX_SEQUENCE)
 	if version == null:
 		return _candidate(path, &"invalid")
 	if int(version) > FORMAT_VERSION:
 		return _candidate(path, &"future", {}, int(version))
-	if int(version) == LEGACY_FORMAT_VERSION:
-		var migrated: Dictionary = _migrate_schema_three(raw)
+	if int(version) in [LEGACY_FORMAT_VERSION, PREVIOUS_FORMAT_VERSION]:
+		var migrated: Dictionary = _migrate_envelope(raw, int(version))
 		return (
-			_candidate(path, &"valid", migrated, LEGACY_FORMAT_VERSION)
+			_candidate(path, &"valid", migrated, int(version))
 			if not migrated.is_empty()
 			else _candidate(path, &"invalid")
 		)
@@ -348,41 +377,17 @@ func _classify_current(path: String, raw: Dictionary) -> Dictionary:
 		else _candidate(path, &"invalid")
 	)
 
-
-func _migrate_schema_three(raw: Dictionary) -> Dictionary:
-	if not _exact_keys(
-		raw,
-		[&"save_format_version", &"metadata", &"world", &"active_run", &"profile"],
-	):
-		return {}
-	var version: Variant = _json_integer(raw.get(&"save_format_version"), 1, MAX_SEQUENCE)
-	var metadata: Dictionary = _normalize_metadata(raw.get(&"metadata"))
-	var active_run: Variant = _normalize_run(raw.get(&"active_run"))
-	var profile: Dictionary = _normalize_profile(raw.get(&"profile"))
-	if (
-		version == null
-		or int(version) != LEGACY_FORMAT_VERSION
-		or metadata.is_empty()
-		or (active_run is bool and not bool(active_run))
-		or profile.is_empty()
-	):
-		return {}
-	var robot_cell: Vector2i = Vector2i(MAX_COORDINATE + 1, MAX_COORDINATE + 1)
-	if active_run is Dictionary:
-		var cell: Array = (active_run as Dictionary)[&"player_cell"] as Array
-		robot_cell = Vector2i(int(cell[0]), int(cell[1]))
-	var world: Dictionary = _normalize_world(raw.get(&"world"), robot_cell)
-	if world.is_empty():
-		return {}
-	return {
-		&"save_format_version": FORMAT_VERSION,
-		&"metadata": metadata,
-		&"world": world,
-		&"active_run": active_run,
-		&"profile": profile,
-		&"farm": FarmSaveSchemaScript.make_neutral(RuntimeIdsScript.MODE_LEGACY_EXPEDITION, true),
-	}
-
+func _migrate_envelope(raw: Dictionary, version: int) -> Dictionary:
+	var arguments: Array[Callable] = [
+		_normalize_metadata, _normalize_world, _normalize_run, _normalize_profile
+	]
+	if version == LEGACY_FORMAT_VERSION:
+		return EnvelopeMigrationsScript.migrate_schema_three(
+			raw, arguments[0], arguments[1], arguments[2], arguments[3]
+		)
+	return EnvelopeMigrationsScript.migrate_schema_four(
+		raw, arguments[0], arguments[1], arguments[2], arguments[3]
+	)
 
 func _candidate(
 	path: String,
@@ -397,7 +402,6 @@ func _candidate(
 		&"source_version": source_version,
 	}
 
-
 func _candidate_precedes(first: Dictionary, second: Dictionary) -> bool:
 	var first_sequence: int = _candidate_sequence(first)
 	var second_sequence: int = _candidate_sequence(second)
@@ -406,21 +410,27 @@ func _candidate_precedes(first: Dictionary, second: Dictionary) -> bool:
 		or (first_sequence == second_sequence and str(first[&"path"]) == _path)
 	)
 
-
 func _candidate_sequence(candidate: Dictionary) -> int:
 	var envelope: Dictionary = candidate[&"envelope"] as Dictionary
 	return int((envelope[&"metadata"] as Dictionary)[&"write_sequence"])
 
+func _any_candidate_has_kind(candidates: Array, kind: StringName) -> bool:
+	for candidate: Dictionary in candidates:
+		if candidate[&"kind"] == kind:
+			return true
+	return false
 
 func _rotate_validated_temp(temporary_path: String) -> bool:
 	var backup_path: String = _path + ".bak"
 	if bool(_file_store.call("exists", _path)):
-		if not bool(_file_store.call("remove", backup_path)):
-			_file_store.call("remove", temporary_path)
-			return _fail_save(str(_file_store.call("get_last_error")))
-		if not bool(_file_store.call("rename", _path, backup_path)):
-			_file_store.call("remove", temporary_path)
-			return _fail_save(str(_file_store.call("get_last_error")))
+		if not _prepare_backup(temporary_path, backup_path):
+			return false
+	if _fault(&"rename"):
+		return _fail_save("Injected rename phase failure.")
+	if _fault(&"publish"):
+		if bool(_file_store.call("exists", backup_path)):
+			_file_store.call("rename", backup_path, _path)
+		return _fail_save("Injected publish phase failure.")
 	if not bool(_file_store.call("rename", temporary_path, _path)):
 		var failure: String = str(_file_store.call("get_last_error"))
 		if (
@@ -431,17 +441,21 @@ func _rotate_validated_temp(temporary_path: String) -> bool:
 		return _fail_save(failure)
 	return true
 
-
-func _quarantine_interrupted_temp() -> void:
-	var temporary_path: String = _path + ".tmp"
-	if bool(_file_store.call("exists", temporary_path)):
-		_quarantine(temporary_path, "interrupted")
-
+func _prepare_backup(temporary_path: String, backup_path: String) -> bool:
+	if _fault(&"backup"):
+		_file_store.call("remove", temporary_path)
+		return _fail_save("Injected backup phase failure.")
+	if not bool(_file_store.call("remove", backup_path)):
+		_file_store.call("remove", temporary_path)
+		return _fail_save(str(_file_store.call("get_last_error")))
+	if not bool(_file_store.call("rename", _path, backup_path)):
+		_file_store.call("remove", temporary_path)
+		return _fail_save(str(_file_store.call("get_last_error")))
+	return true
 
 func _quarantine_invalid(candidate: Dictionary, reason: String) -> void:
 	if candidate[&"kind"] in [&"invalid", &"future"]:
 		_quarantine(str(candidate[&"path"]), reason)
-
 
 func _quarantine(source: String, reason: String) -> void:
 	if not bool(_file_store.call("exists", source)):
@@ -454,7 +468,6 @@ func _quarantine(source: String, reason: String) -> void:
 	if bool(_file_store.call("rename", source, target)):
 		_quarantine_paths.append(target)
 
-
 func _existing_quarantine(reason: String) -> Array[String]:
 	var matches: Array[String] = []
 	var directory: DirAccess = DirAccess.open(_path.get_base_dir())
@@ -463,6 +476,7 @@ func _existing_quarantine(reason: String) -> Array[String]:
 	var prefixes: Array[String] = [
 		_path.get_file() + ".quarantine.%s." % reason,
 		_path.get_file() + ".bak.quarantine.%s." % reason,
+		_path.get_file() + ".tmp.quarantine.%s." % reason,
 	]
 	for file_name: String in directory.get_files():
 		for prefix: String in prefixes:
@@ -471,7 +485,6 @@ func _existing_quarantine(reason: String) -> Array[String]:
 				break
 	matches.sort()
 	return matches
-
 
 func _normalize_metadata(value: Variant) -> Dictionary:
 	if not value is Dictionary:
@@ -513,7 +526,6 @@ func _normalize_metadata(value: Variant) -> Dictionary:
 		&"saved_at_unix": int(saved_at),
 		&"migration_source": int(migration),
 	}
-
 
 func _normalize_world(value: Variant, robot_cell: Vector2i) -> Dictionary:
 	if not value is Dictionary:
@@ -559,7 +571,6 @@ func _normalize_world(value: Variant, robot_cell: Vector2i) -> Dictionary:
 		normalized.clear()
 	return normalized
 
-
 func _normalize_mutation_ledger(normalized: Dictionary, value: Variant) -> Dictionary:
 	var ledger: Dictionary = WorldMutationLedgerScript.validate(value)
 	if ledger.is_empty():
@@ -575,14 +586,12 @@ func _normalize_mutation_ledger(normalized: Dictionary, value: Variant) -> Dicti
 	result[&"mutation_ledger"] = ledger
 	return result
 
-
 func _normalize_run(value: Variant) -> Variant:
 	if value == null:
 		return null
 	if not value is Dictionary:
 		return false
 	return _normalize_run_dictionary(value as Dictionary)
-
 
 func _normalize_run_dictionary(run: Dictionary) -> Variant:
 	var events: Variant = run.get(&"applied_event_ids")
@@ -653,7 +662,6 @@ func _normalize_run_dictionary(run: Dictionary) -> Variant:
 	normalized[&"player_cell"] = player_cell
 	return _restore_normalized_run(normalized)
 
-
 func _run_keys(run: Dictionary) -> Variant:
 	var keys: Array[StringName] = [
 		&"state_version",
@@ -691,7 +699,6 @@ func _run_keys(run: Dictionary) -> Variant:
 			keys.append_array(group)
 	return keys
 
-
 func _normalize_run_numbers(run: Dictionary) -> bool:
 	for key: StringName in [
 		&"state_version",
@@ -713,7 +720,6 @@ func _normalize_run_numbers(run: Dictionary) -> bool:
 		run[key] = int(number)
 	return true
 
-
 func _restore_normalized_run(normalized: Dictionary) -> Variant:
 	if not _run_string_arrays_are_valid(
 		normalized[&"applied_event_ids"] as Array, normalized[&"active_module_ids"] as Array
@@ -727,7 +733,6 @@ func _restore_normalized_run(normalized: Dictionary) -> Variant:
 		return false
 	return state.call("to_dictionary") as Dictionary
 
-
 func _run_string_arrays_are_valid(events: Array, modules: Array) -> bool:
 	for event_id: Variant in events:
 		if not event_id is String or (event_id as String).length() > 64:
@@ -736,7 +741,6 @@ func _run_string_arrays_are_valid(events: Array, modules: Array) -> bool:
 		if not module_id is String or (module_id as String).length() > 64:
 			return false
 	return true
-
 
 func _normalize_reward_drops(values: Array) -> Variant:
 	var drops: Array[Dictionary] = []
@@ -771,7 +775,6 @@ func _normalize_reward_drops(values: Array) -> Variant:
 		)
 	return drops
 
-
 func _normalize_relay_objectives(values: Array) -> Variant:
 	var objectives: Array[Dictionary] = []
 	for value: Variant in values:
@@ -789,7 +792,6 @@ func _normalize_relay_objectives(values: Array) -> Variant:
 			return null
 		objectives.append({&"objective_id": str(objective[&"objective_id"]), &"cell": cell})
 	return objectives
-
 
 func _normalize_profile(value: Variant) -> Dictionary:
 	if not value is Dictionary:
@@ -833,7 +835,6 @@ func _normalize_profile(value: Variant) -> Dictionary:
 		return {}
 	return state.call("to_dictionary") as Dictionary
 
-
 func _normalize_cells(value: Variant) -> Variant:
 	if not value is Array or (value as Array).size() > MAX_WORLD_ITEMS:
 		return null
@@ -850,7 +851,6 @@ func _normalize_cells(value: Variant) -> Variant:
 		result.append(cell as Array)
 	result.sort_custom(_cell_precedes)
 	return result
-
 
 func _normalize_amounts(value: Variant) -> Variant:
 	if not value is Array or (value as Array).size() > MAX_WORLD_ITEMS:
@@ -875,14 +875,12 @@ func _normalize_amounts(value: Variant) -> Variant:
 	result.sort_custom(_amount_precedes)
 	return result
 
-
 func _normalize_cell(value: Variant) -> Variant:
 	if not value is Array or (value as Array).size() != 2:
 		return null
 	var x: Variant = _json_integer(value[0], -MAX_COORDINATE, MAX_COORDINATE)
 	var y: Variant = _json_integer(value[1], -MAX_COORDINATE, MAX_COORDINATE)
 	return null if x == null or y == null else [int(x), int(y)]
-
 
 func _json_integer(value: Variant, minimum: int, maximum: int) -> Variant:
 	if not value is int and not value is float:
@@ -891,7 +889,6 @@ func _json_integer(value: Variant, minimum: int, maximum: int) -> Variant:
 	if not is_finite(number) or number != floor(number) or number < minimum or number > maximum:
 		return null
 	return int(number)
-
 
 func _variant_is_bounded(value: Variant, depth: int = 0) -> bool:
 	if depth > 8:
@@ -902,7 +899,6 @@ func _variant_is_bounded(value: Variant, depth: int = 0) -> bool:
 		return _array_is_bounded(value as Array, depth)
 	return not value is String or (value as String).length() <= 256
 
-
 func _dictionary_is_bounded(value: Dictionary, depth: int) -> bool:
 	if value.size() > 128:
 		return false
@@ -910,7 +906,6 @@ func _dictionary_is_bounded(value: Dictionary, depth: int) -> bool:
 		if not _variant_is_bounded(child, depth + 1):
 			return false
 	return true
-
 
 func _array_is_bounded(value: Array, depth: int) -> bool:
 	if value.size() > MAX_WORLD_ITEMS:
@@ -920,7 +915,6 @@ func _array_is_bounded(value: Array, depth: int) -> bool:
 			return false
 	return true
 
-
 func _exact_keys(value: Dictionary, expected: Array[StringName]) -> bool:
 	if value.size() != expected.size():
 		return false
@@ -929,14 +923,11 @@ func _exact_keys(value: Dictionary, expected: Array[StringName]) -> bool:
 			return false
 	return true
 
-
 func _cell_precedes(first: Array, second: Array) -> bool:
 	return first[1] < second[1] or (first[1] == second[1] and first[0] < second[0])
 
-
 func _amount_precedes(first: Dictionary, second: Dictionary) -> bool:
 	return _cell_precedes(first[&"cell"] as Array, second[&"cell"] as Array)
-
 
 func _cell_arrays_overlap(first: Array, second: Array) -> bool:
 	var seen: Dictionary = {}
@@ -947,13 +938,11 @@ func _cell_arrays_overlap(first: Array, second: Array) -> bool:
 			return true
 	return false
 
-
 func _amounts_overlap_cells(amounts: Array, cells: Array) -> bool:
 	var amount_cells: Array = []
 	for entry: Dictionary in amounts:
 		amount_cells.append(entry[&"cell"])
 	return _cell_arrays_overlap(amount_cells, cells)
-
 
 func _run_cross_invariants(run: Dictionary) -> bool:
 	var relay_event: String = "event.relay.completed"
@@ -962,12 +951,17 @@ func _run_cross_invariants(run: Dictionary) -> bool:
 		== (relay_event in (run[&"applied_event_ids"] as Array))
 	)
 
+func _fault(phase: StringName) -> bool:
+	return (
+		_fault_injector != null
+		and _fault_injector.has_method("should_fail")
+		and bool(_fault_injector.call("should_fail", phase))
+	)
 
 func _fail_save(message: String) -> bool:
 	_status = STATUS_SAVE_FAILED
 	_last_error = message
 	return false
-
 
 func _reset_result() -> void:
 	_status = STATUS_EMPTY
@@ -977,4 +971,5 @@ func _reset_result() -> void:
 	_migration_source = 0
 	_quarantine_paths.clear()
 	_writes_blocked = false
+	_last_committed_envelope.clear()
 	_default_farm = FarmSaveSchemaScript.make_neutral(_configured_default_mode)

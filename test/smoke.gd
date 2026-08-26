@@ -684,7 +684,7 @@ func _test_isometric_map() -> void:
 	var live_envelope: Dictionary = SmokeHelpersScript.read_test_json(save_path)
 	_check(
 		(
-			int(live_envelope.get("save_format_version", -1)) == 4
+			int(live_envelope.get("save_format_version", -1)) == 5
 			and live_envelope.has("metadata")
 			and live_envelope.has("world")
 			and live_envelope.has("active_run")
@@ -692,11 +692,11 @@ func _test_isometric_map() -> void:
 			and live_envelope.has("farm")
 			and (live_envelope["farm"] as Dictionary)["mode"] == "gameplay_mode.legacy_expedition"
 		),
-		"live field writes a complete schema-4 envelope",
+		"live field writes a complete schema-5 envelope",
 	)
 	_check(
 		"module.worn_plates" in (live_envelope["active_run"] as Dictionary)["active_module_ids"],
-		"live schema-four save persists Worn Plates",
+		"live schema-five save persists Worn Plates",
 	)
 	map.free()
 	await process_frame

@@ -28,7 +28,7 @@ Home time uses deterministic day, night, and rain music with bounded equal-power
 
 The runtime uses stable command intents, a pure adjacent-cell resolver, batched dirty-indexed farm and homestead rendering, deterministic diagonal depth, and no per-crop, per-resident, or per-animal scene nodes. Farming, inventory, economy, machines, upgrades, facilities, relationships, requests, and livestock mutations all validate detached candidate snapshots and persist through one cross-domain transaction boundary.
 
-Schema-4 persistence preserves legacy schema-1/2/3 migration while adding bounded farm and homestead domains. Save validation enforces exact keys, hard collection caps, canonical sorting, stable IDs, coordinate bounds, duplicate rejection, exact-once token histories, atomic primary/backup replacement, and quarantine for malformed or future data.
+Schema-5 persistence preserves legacy schema-1/2/3/4 migration while adding bounded settlement sections, exact-once receipts, canonical gameplay revisions, section budgets, recoverable validated temporary saves, and an honest browser-storage capability warning. Save validation enforces exact keys, hard collection caps, canonical sorting, stable IDs, coordinate bounds, duplicate rejection, atomic primary/backup replacement, and quarantine for malformed or future data.
 
 ## Develop and verify
 

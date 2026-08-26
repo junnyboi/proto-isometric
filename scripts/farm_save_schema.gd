@@ -7,8 +7,12 @@ const EcologyDirectorScript: GDScript = preload("res://scripts/ecology_director.
 const ItemCatalogScript: GDScript = preload("res://scripts/item_catalog.gd")
 const RecipeCatalogScript: GDScript = preload("res://scripts/recipe_catalog.gd")
 const HomesteadSaveSchemaScript: GDScript = preload("res://scripts/homestead_save_schema.gd")
+const SettlementSectionsScript: GDScript = preload(
+	"res://scripts/settlement_persistence_sections.gd"
+)
 
-const STATE_VERSION: int = 1
+const STATE_VERSION: int = 2
+const LEGACY_SUBSTATE_VERSION: int = 1
 const MAX_YEAR: int = 9_999
 const MAX_DAY: int = 366
 const MAX_MINUTE_OF_DAY: int = 1_439
@@ -89,7 +93,7 @@ static func make_neutral(
 		&"mode": String(mode),
 		&"calendar_weather":
 		{
-			&"state_version": STATE_VERSION,
+			&"state_version": LEGACY_SUBSTATE_VERSION,
 			&"year": 1,
 			&"season_id": SEASON_NEUTRAL,
 			&"day": 1,
@@ -100,55 +104,77 @@ static func make_neutral(
 		},
 		&"plots": [],
 		&"inventories": [],
-		&"economy": {&"state_version": STATE_VERSION, &"money": 0, &"shipping": []},
+		&"economy": {
+			&"state_version": LEGACY_SUBSTATE_VERSION, &"money": 0, &"shipping": []
+		},
 		&"placed_entities": [],
 		&"machines": [],
-		&"homestead":
-		{
-			&"state_version": STATE_VERSION,
-			&"facilities": [],
-			&"residents": [],
-			&"ruins": [],
-		},
+		&"homestead": HomesteadSaveSchemaScript.make_neutral(),
 		&"tools":
 		{
-			&"state_version": STATE_VERSION,
+			&"state_version": LEGACY_SUBSTATE_VERSION,
 			&"equipped_tool_id": "",
 			&"upgrade_ids": [],
 		},
 		&"ecology":
 		{
-			&"state_version": STATE_VERSION,
+			&"state_version": LEGACY_SUBSTATE_VERSION,
 			&"deltas": [],
 			&"boss_first_clear_ids": [],
 		},
 		&"migration_tokens": migration_tokens,
 		&"day_tokens": [],
+		&"gathering": SettlementSectionsScript.neutral_gathering(),
+		&"logistics": SettlementSectionsScript.neutral_logistics(),
+		&"fishing": SettlementSectionsScript.neutral_fishing(),
+		&"orchard": SettlementSectionsScript.neutral_orchard(),
+		&"tutorial": SettlementSectionsScript.neutral_tutorial(),
+		&"receipts": {&"state_version": 1, &"entries": []},
+		&"revisions": {
+			&"state_version": 1,
+			&"source_revision": 0,
+			&"result_revision": 0,
+			&"source_hash": "",
+			&"result_hash": "",
+		},
 	}
+
+
+static func migrate_v1(snapshot: Variant) -> Dictionary:
+	if not snapshot is Dictionary:
+		return {}
+	var legacy: Dictionary = snapshot as Dictionary
+	if not _exact_keys(legacy, _top_level_keys(false)):
+		return {}
+	if _json_integer(legacy.get(&"state_version"), 1, 1) == null:
+		return {}
+	var candidate: Dictionary = legacy.duplicate(true)
+	var homestead: Dictionary = HomesteadSaveSchemaScript.migrate_v1(candidate[&"homestead"])
+	if homestead.is_empty():
+		return {}
+	candidate[&"state_version"] = STATE_VERSION
+	candidate[&"homestead"] = homestead
+	candidate[&"gathering"] = SettlementSectionsScript.neutral_gathering()
+	candidate[&"logistics"] = SettlementSectionsScript.neutral_logistics()
+	candidate[&"fishing"] = SettlementSectionsScript.neutral_fishing()
+	candidate[&"orchard"] = SettlementSectionsScript.neutral_orchard()
+	candidate[&"tutorial"] = SettlementSectionsScript.neutral_tutorial()
+	candidate[&"receipts"] = {&"state_version": 1, &"entries": []}
+	candidate[&"revisions"] = {
+		&"state_version": 1,
+		&"source_revision": 0,
+		&"result_revision": 0,
+		&"source_hash": "",
+		&"result_hash": "",
+	}
+	return validate(candidate)
 
 
 static func validate(snapshot: Variant) -> Dictionary:
 	if not snapshot is Dictionary:
 		return {}
 	var farm: Dictionary = snapshot as Dictionary
-	if not _exact_keys(
-		farm,
-		[
-			&"state_version",
-			&"mode",
-			&"calendar_weather",
-			&"plots",
-			&"inventories",
-			&"economy",
-			&"placed_entities",
-			&"machines",
-			&"homestead",
-			&"tools",
-			&"ecology",
-			&"migration_tokens",
-			&"day_tokens",
-		],
-	):
+	if not _exact_keys(farm, _top_level_keys(true)):
 		return {}
 	var state_version: Variant = _json_integer(
 		farm.get(&"state_version"), STATE_VERSION, STATE_VERSION
@@ -171,6 +197,13 @@ static func validate(snapshot: Variant) -> Dictionary:
 	var machines: Variant = _normalize_machines(farm.get(&"machines"))
 	var migration_tokens: Variant = _normalize_migration_tokens(farm.get(&"migration_tokens"))
 	var day_tokens: Variant = _normalize_tokens(farm.get(&"day_tokens"), MAX_DAY_TOKENS, "day:")
+	var gathering: Dictionary = SettlementSectionsScript.validate_gathering(farm.get(&"gathering"))
+	var logistics: Dictionary = SettlementSectionsScript.validate_logistics(farm.get(&"logistics"))
+	var fishing: Dictionary = SettlementSectionsScript.validate_fishing(farm.get(&"fishing"))
+	var orchard: Dictionary = SettlementSectionsScript.validate_orchard(farm.get(&"orchard"))
+	var tutorial: Dictionary = SettlementSectionsScript.validate_tutorial(farm.get(&"tutorial"))
+	var receipts: Dictionary = SettlementSectionsScript.validate_receipts(farm.get(&"receipts"))
+	var revisions: Dictionary = SettlementSectionsScript.validate_revisions(farm.get(&"revisions"))
 	if (
 		calendar_weather.is_empty()
 		or economy.is_empty()
@@ -183,6 +216,20 @@ static func validate(snapshot: Variant) -> Dictionary:
 		or machines == null
 		or migration_tokens == null
 		or day_tokens == null
+		or gathering.is_empty()
+		or logistics.is_empty()
+		or fishing.is_empty()
+		or orchard.is_empty()
+		or tutorial.is_empty()
+		or receipts.is_empty()
+		or revisions.is_empty()
+	):
+		return {}
+	if not SettlementSectionsScript.validate_links(
+		homestead[&"construction"] as Dictionary,
+		gathering,
+		homestead[&"workforce"] as Dictionary,
+		logistics,
 	):
 		return {}
 	return {
@@ -199,6 +246,13 @@ static func validate(snapshot: Variant) -> Dictionary:
 		&"ecology": ecology,
 		&"migration_tokens": migration_tokens,
 		&"day_tokens": day_tokens,
+		&"gathering": gathering,
+		&"logistics": logistics,
+		&"fishing": fishing,
+		&"orchard": orchard,
+		&"tutorial": tutorial,
+		&"receipts": receipts,
+		&"revisions": revisions,
 	}
 
 
@@ -231,7 +285,7 @@ static func _normalize_calendar(value: Variant) -> Dictionary:
 	):
 		return {}
 	var state_version: Variant = _json_integer(
-		calendar.get(&"state_version"), STATE_VERSION, STATE_VERSION
+		calendar.get(&"state_version"), LEGACY_SUBSTATE_VERSION, LEGACY_SUBSTATE_VERSION
 	)
 	var year: Variant = _json_integer(calendar.get(&"year"), 1, MAX_YEAR)
 	var day: Variant = _json_integer(calendar.get(&"day"), 1, MAX_DAY)
@@ -259,7 +313,7 @@ static func _normalize_calendar(value: Variant) -> Dictionary:
 		):
 			return {}
 	return {
-		&"state_version": STATE_VERSION,
+		&"state_version": LEGACY_SUBSTATE_VERSION,
 		&"year": int(year),
 		&"season_id": String(season_id),
 		&"day": int(day),
@@ -281,7 +335,7 @@ static func _normalize_economy(value: Variant) -> Dictionary:
 	if not _exact_keys(economy, keys):
 		return {}
 	var state_version: Variant = _json_integer(
-		economy.get(&"state_version"), STATE_VERSION, STATE_VERSION
+		economy.get(&"state_version"), LEGACY_SUBSTATE_VERSION, LEGACY_SUBSTATE_VERSION
 	)
 	var money: Variant = _json_integer(economy.get(&"money"), 0, MAX_MONEY)
 	var shipping: Variant = _normalize_shipping(economy.get(&"shipping"))
@@ -300,7 +354,7 @@ static func _normalize_economy(value: Variant) -> Dictionary:
 	):
 		return {}
 	var result: Dictionary = {
-		&"state_version": STATE_VERSION,
+		&"state_version": LEGACY_SUBSTATE_VERSION,
 		&"money": int(money),
 		&"shipping": shipping,
 	}
@@ -325,7 +379,7 @@ static func _normalize_tools(value: Variant) -> Dictionary:
 	if not _exact_keys(tools, keys):
 		return {}
 	var state_version: Variant = _json_integer(
-		tools.get(&"state_version"), STATE_VERSION, STATE_VERSION
+		tools.get(&"state_version"), LEGACY_SUBSTATE_VERSION, LEGACY_SUBSTATE_VERSION
 	)
 	var upgrades: Variant = _normalize_upgrade_ids(tools.get(&"upgrade_ids"))
 	var equipped: StringName = StringName(str(tools.get(&"equipped_tool_id", "")))
@@ -342,7 +396,7 @@ static func _normalize_tools(value: Variant) -> Dictionary:
 	):
 		return {}
 	var result: Dictionary = {
-		&"state_version": STATE_VERSION,
+		&"state_version": LEGACY_SUBSTATE_VERSION,
 		&"equipped_tool_id": String(equipped),
 		&"upgrade_ids": upgrades,
 	}
@@ -359,7 +413,7 @@ static func _normalize_ecology(value: Variant) -> Dictionary:
 	if not _exact_keys(ecology, [&"state_version", &"deltas", &"boss_first_clear_ids"]):
 		return {}
 	var state_version: Variant = _json_integer(
-		ecology.get(&"state_version"), STATE_VERSION, STATE_VERSION
+		ecology.get(&"state_version"), LEGACY_SUBSTATE_VERSION, LEGACY_SUBSTATE_VERSION
 	)
 	var deltas: Variant = EcologyDirectorScript.normalize_deltas(ecology.get(&"deltas"))
 	var boss_clears: Variant = EcologyDirectorScript.normalize_boss_clears(
@@ -368,7 +422,7 @@ static func _normalize_ecology(value: Variant) -> Dictionary:
 	if state_version == null or deltas == null or boss_clears == null:
 		return {}
 	return {
-		&"state_version": STATE_VERSION,
+		&"state_version": LEGACY_SUBSTATE_VERSION,
 		&"deltas": deltas,
 		&"boss_first_clear_ids": boss_clears,
 	}
@@ -711,6 +765,19 @@ static func _json_integer(value: Variant, minimum: int, maximum: int) -> Variant
 
 static func _cell_precedes(first: Array, second: Array) -> bool:
 	return first[1] < second[1] or (first[1] == second[1] and first[0] < second[0])
+
+
+static func _top_level_keys(include_p1: bool) -> Array[StringName]:
+	var keys: Array[StringName] = [
+		&"state_version", &"mode", &"calendar_weather", &"plots", &"inventories", &"economy",
+		&"placed_entities", &"machines", &"homestead", &"tools", &"ecology",
+		&"migration_tokens", &"day_tokens",
+	]
+	if include_p1:
+		keys.append_array(
+			[&"gathering", &"logistics", &"fishing", &"orchard", &"tutorial", &"receipts", &"revisions"]
+		)
+	return keys
 
 
 static func _exact_keys(value: Dictionary, expected: Array[StringName]) -> bool:

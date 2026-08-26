@@ -53,4 +53,4 @@ active_cell_limit = 1600
 visible_cell_limit = 841
 coordinate_limit = 1000000
 playable_half_extent = 72
-save_schema = 4
+save_schema = 5

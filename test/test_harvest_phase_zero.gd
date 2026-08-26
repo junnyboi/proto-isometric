@@ -124,11 +124,18 @@ static func _test_neutral_farm(cases: Array[Dictionary]) -> void:
 				&"machines",
 				&"homestead",
 				&"tools",
-				&"ecology",
-				&"migration_tokens",
-				&"day_tokens",
-			]
-		),
+					&"ecology",
+					&"migration_tokens",
+					&"day_tokens",
+					&"gathering",
+					&"logistics",
+					&"fishing",
+					&"orchard",
+					&"tutorial",
+					&"receipts",
+					&"revisions",
+				]
+			),
 	)
 	_add_case(cases, "PH-02 farm validation is detached", neutral == original)
 	(validated[&"calendar_weather"] as Dictionary)[&"year"] = 2

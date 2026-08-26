@@ -34,7 +34,7 @@ static func _test_schema_one(cases: Array[Dictionary], migrator: RefCounted) -> 
 	var migrated: Dictionary = migrator.call("migrate", source) as Dictionary
 	_add_case(
 		cases,
-		"schema 1 fixture migrates to a schema-4 envelope",
+		"schema 1 fixture migrates to a schema-5 envelope",
 		_is_envelope(migrated, 1) and int(migrator.call("get_source_version")) == 1,
 	)
 	_add_case(cases, "schema 1 migration does not mutate its input", source == original)
@@ -229,7 +229,7 @@ static func _test_strict_rejections(cases: Array[Dictionary], migrator: RefCount
 		(migrator.call("migrate", oversized) as Dictionary).is_empty(),
 	)
 	var future: Dictionary = valid.duplicate(true)
-	future[&"schema"] = 5.0
+	future[&"schema"] = 6.0
 	_add_case(
 		cases,
 		"migration rejects future schemas explicitly",
@@ -238,7 +238,7 @@ static func _test_strict_rejections(cases: Array[Dictionary], migrator: RefCount
 				(migrator.call("migrate", future) as Dictionary).is_empty()
 				and int(migrator.call("get_source_version")) == 0
 			)
-			or int(migrator.call("get_source_version")) == 5
+				or int(migrator.call("get_source_version")) == 6
 		),
 	)
 	var missing: Dictionary = valid.duplicate(true)
@@ -277,7 +277,7 @@ static func _is_envelope(snapshot: Dictionary, source_version: int) -> bool:
 		return false
 	var metadata: Dictionary = snapshot.get(&"metadata", {}) as Dictionary
 	return (
-		int(snapshot.get(&"save_format_version", -1)) == 4
+		int(snapshot.get(&"save_format_version", -1)) == 5
 		and snapshot.has(&"world")
 		and snapshot.has(&"active_run")
 		and snapshot.has(&"profile")

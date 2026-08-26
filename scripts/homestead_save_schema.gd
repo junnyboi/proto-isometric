@@ -4,8 +4,11 @@ const HomesteadServiceScript: GDScript = preload("res://scripts/homestead_servic
 const LivestockServiceScript: GDScript = preload("res://scripts/livestock_service.gd")
 const RelationshipServiceScript: GDScript = preload("res://scripts/relationship_service.gd")
 const ResidentServiceScript: GDScript = preload("res://scripts/resident_service.gd")
+const SettlementSectionsScript: GDScript = preload(
+	"res://scripts/settlement_persistence_sections.gd"
+)
 
-const STATE_VERSION: int = 1
+const STATE_VERSION: int = 2
 const MAX_FACILITIES: int = 64
 const MAX_RESIDENTS: int = 64
 const MAX_RUINS: int = 1_024
@@ -16,17 +19,49 @@ const MAX_ABSOLUTE_DAY: int = 9_999 * 4 * 14
 const MAX_COORDINATE: int = 1_000_000
 
 
+static func make_neutral() -> Dictionary:
+	return {
+		&"state_version": STATE_VERSION,
+		&"facilities": [],
+		&"residents": [],
+		&"ruins": [],
+		&"construction": SettlementSectionsScript.neutral_construction(),
+		&"workforce": SettlementSectionsScript.neutral_workforce(),
+	}
+
+
+static func migrate_v1(value: Variant) -> Dictionary:
+	if not value is Dictionary:
+		return {}
+	var legacy: Dictionary = value as Dictionary
+	var active: bool = legacy.has(&"home")
+	var keys: Array[StringName] = [&"state_version", &"facilities", &"residents", &"ruins"]
+	if active:
+		keys.append_array([&"home", &"relationships", &"requests", &"animals"])
+	if not _exact_keys(legacy, keys) or _json_integer(legacy[&"state_version"], 1, 1) == null:
+		return {}
+	var candidate: Dictionary = legacy.duplicate(true)
+	candidate[&"state_version"] = STATE_VERSION
+	candidate[&"construction"] = SettlementSectionsScript.neutral_construction()
+	candidate[&"workforce"] = SettlementSectionsScript.neutral_workforce()
+	return normalize(candidate)
+
+
 static func normalize(value: Variant) -> Dictionary:
 	if not value is Dictionary:
 		return {}
 	var homestead: Dictionary = value as Dictionary
 	var neutral: bool = not homestead.has(&"home")
-	var keys: Array[StringName] = [&"state_version", &"facilities", &"residents", &"ruins"]
+	var keys: Array[StringName] = [
+		&"state_version", &"facilities", &"residents", &"ruins", &"construction", &"workforce"
+	]
 	if not neutral:
 		keys.append_array([&"home", &"relationships", &"requests", &"animals"])
 	if not _exact_keys(homestead, keys):
 		return {}
-	var version: Variant = _json_integer(homestead.get(&"state_version"), 1, 1)
+	var version: Variant = _json_integer(
+		homestead.get(&"state_version"), STATE_VERSION, STATE_VERSION
+	)
 	if version == null:
 		return {}
 	if neutral:
@@ -38,11 +73,19 @@ static func _normalize_neutral(homestead: Dictionary) -> Dictionary:
 	for key: StringName in [&"facilities", &"residents", &"ruins"]:
 		if not homestead[key] is Array or not (homestead[key] as Array).is_empty():
 			return {}
+	var construction: Dictionary = SettlementSectionsScript.validate_construction(
+		homestead[&"construction"]
+	)
+	var workforce: Dictionary = SettlementSectionsScript.validate_workforce(homestead[&"workforce"])
+	if construction.is_empty() or workforce.is_empty():
+		return {}
 	return {
 		&"state_version": STATE_VERSION,
 		&"facilities": [],
 		&"residents": [],
 		&"ruins": [],
+		&"construction": construction,
+		&"workforce": workforce,
 	}
 
 
@@ -54,6 +97,12 @@ static func _normalize_active(homestead: Dictionary) -> Dictionary:
 	var requests: Variant = _normalize_requests(homestead.get(&"requests"))
 	var animals: Variant = _normalize_animals(homestead.get(&"animals"))
 	var ruins: Variant = _normalize_ruins(homestead.get(&"ruins"))
+	var construction: Dictionary = SettlementSectionsScript.validate_construction(
+		homestead.get(&"construction")
+	)
+	var workforce: Dictionary = SettlementSectionsScript.validate_workforce(
+		homestead.get(&"workforce")
+	)
 	if (
 		home.is_empty()
 		or facilities == null
@@ -62,6 +111,8 @@ static func _normalize_active(homestead: Dictionary) -> Dictionary:
 		or requests == null
 		or animals == null
 		or ruins == null
+		or construction.is_empty()
+		or workforce.is_empty()
 	):
 		return {}
 	if not _ruins_synchronized(home, facilities as Array, ruins as Array):
@@ -77,6 +128,8 @@ static func _normalize_active(homestead: Dictionary) -> Dictionary:
 		&"requests": requests,
 		&"animals": animals,
 		&"ruins": ruins,
+		&"construction": construction,
+		&"workforce": workforce,
 	}
 
 

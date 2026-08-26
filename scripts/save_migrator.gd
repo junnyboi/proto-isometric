@@ -5,7 +5,7 @@ const ProfileStateScript: GDScript = preload("res://scripts/profile_state.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const FarmSaveSchemaScript: GDScript = preload("res://scripts/farm_save_schema.gd")
 
-const TARGET_VERSION: int = 4
+const TARGET_VERSION: int = 5
 const WORLD_GENERATION_VERSION: int = 1
 const COORDINATE_LIMIT: int = 1_000_000
 const LEGACY_GRID_SIZE: int = 18

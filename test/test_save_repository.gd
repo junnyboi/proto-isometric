@@ -12,7 +12,7 @@ static func evaluate(
 	var cases: Array[Dictionary] = []
 	_clear_artifacts(TEST_ROOT)
 	var repository: RefCounted = _repository(TEST_ROOT, world)
-	_add_case(cases, "schema-4 repository configures", repository != null)
+	_add_case(cases, "schema-5 repository configures", repository != null)
 	_add_case(
 		cases,
 		"empty repository returns no state",
@@ -46,15 +46,15 @@ static func _test_commit_and_rotation(
 	var world_snapshot: Dictionary = world.call("make_snapshot") as Dictionary
 	_add_case(
 		cases,
-		"first schema-4 save commits",
+		"first schema-5 save commits",
 		bool(repository.call("save_state", world_snapshot, run_snapshot, profile_snapshot)),
 	)
 	var first: Dictionary = _read_json(TEST_ROOT)
 	_add_case(
 		cases,
-		"fresh save has the complete schema-4 envelope",
+		"fresh save has the complete schema-5 envelope",
 		(
-			int(first.get("save_format_version", -1)) == 4
+			int(first.get("save_format_version", -1)) == 5
 			and first.has("metadata")
 			and first.has("world")
 			and first.has("active_run")
@@ -66,7 +66,7 @@ static func _test_commit_and_rotation(
 	)
 	_add_case(
 		cases,
-		"second schema-4 save rotates a retained backup",
+		"second schema-5 save rotates a retained backup",
 		(
 			bool(repository.call("save_state", world_snapshot, run_snapshot, profile_snapshot))
 			and FileAccess.file_exists(TEST_ROOT + ".bak")
@@ -83,7 +83,7 @@ static func _test_commit_and_rotation(
 	)
 	_add_case(
 		cases,
-		"schema-4 reload preserves world profile and canonical run state",
+		"schema-5 reload preserves world profile and canonical run state",
 		(
 			loaded[&"world"] == world_snapshot
 			and loaded[&"profile"] == profile_snapshot
@@ -126,7 +126,7 @@ static func _test_scrap_only_reward(
 	var drops: Array = (loaded.get(&"active_run", {}) as Dictionary).get(&"run_drops", [])
 	_add_case(
 		cases,
-		"schema-4 repository preserves a Scrap-only herd reward",
+		"schema-5 repository preserves a Scrap-only herd reward",
 		(
 			saved
 			and drops.size() == 1
@@ -198,10 +198,10 @@ static func _test_legacy_load_and_commit(cases: Array[Dictionary], world: RefCou
 	var reloaded: Dictionary = repository.call("load_state") as Dictionary
 	_add_case(
 		cases,
-		"migrated state commits and reloads canonically as schema 4",
+		"migrated state commits and reloads canonically as schema 5",
 		(
 			committed
-			and int(reloaded[&"save_format_version"]) == 4
+			and int(reloaded[&"save_format_version"]) == 5
 			and reloaded[&"world"] == migrated[&"world"]
 			and reloaded[&"active_run"] == migrated[&"active_run"]
 			and reloaded[&"profile"] == migrated[&"profile"]
@@ -229,10 +229,10 @@ static func _test_schema_three_load_and_commit(
 	var migrated: Dictionary = reopened.call("load_state") as Dictionary
 	_add_case(
 		cases,
-		"schema 3 opens through a detached deterministic v3-to-v4 migration",
+		"schema 3 opens through a detached deterministic v3-to-v5 migration",
 		(
-				not migrated.is_empty()
-				and int(migrated[&"save_format_version"]) == 4
+					not migrated.is_empty()
+					and int(migrated[&"save_format_version"]) == 5
 				and reopened.call("get_status") == &"migrated"
 				and _semantically_equal(migrated[&"world"], schema_three[&"world"])
 				and _semantically_equal(migrated[&"active_run"], schema_three[&"active_run"])
@@ -252,7 +252,7 @@ static func _test_schema_three_load_and_commit(
 	var second_migration: Dictionary = second.call("load_state") as Dictionary
 	_add_case(
 		cases,
-		"v3-to-v4 migration is deterministic",
+		"v3-to-v5 migration is deterministic",
 		migrated == second_migration,
 	)
 	var committed: bool = bool(
@@ -263,11 +263,15 @@ static func _test_schema_three_load_and_commit(
 	var reloaded: Dictionary = reopened.call("load_state") as Dictionary
 	_add_case(
 		cases,
-		"normal save commits migrated schema 3 as schema 4 and retains legacy backup",
+		"normal save commits migrated schema 3 as schema 5 and retains legacy backup",
 		(
 			committed
-			and int(reloaded[&"save_format_version"]) == 4
-			and reloaded[&"farm"] == migrated[&"farm"]
+			and int(reloaded[&"save_format_version"]) == 5
+			and _farm_without_revisions(reloaded[&"farm"] as Dictionary)
+			== _farm_without_revisions(migrated[&"farm"] as Dictionary)
+			and int(
+				(((reloaded[&"farm"] as Dictionary)[&"revisions"] as Dictionary)[&"result_revision"])
+			) == 1
 			and _read_text(TEST_ROOT + ".bak") == schema_three_text
 		),
 	)
@@ -358,18 +362,19 @@ static func _test_interrupted_temp(
 	var loaded: Dictionary = repository.call("load_state") as Dictionary
 	_add_case(
 		cases,
-		"uncommitted temporary save never outranks primary",
+		"valid newest temporary save participates in atomic recovery",
 		(
-			int((loaded[&"metadata"] as Dictionary)[&"write_sequence"]) == 1
-			and repository.call("get_selected_source") == TEST_ROOT
+			int((loaded[&"metadata"] as Dictionary)[&"write_sequence"]) == 999
+			and repository.call("get_selected_source") == TEST_ROOT + ".tmp"
+			and repository.call("get_status") == &"recovered"
 		),
 	)
 	_add_case(
 		cases,
-		"interrupted temporary save is quarantined diagnostically",
+		"valid recovered temporary save remains intact until the next commit",
 		(
-			not FileAccess.file_exists(TEST_ROOT + ".tmp")
-			and (repository.call("get_quarantine_paths") as Array).size() == 1
+			FileAccess.file_exists(TEST_ROOT + ".tmp")
+			and (repository.call("get_quarantine_paths") as Array).is_empty()
 		),
 	)
 
@@ -385,7 +390,7 @@ static func _test_future_quarantine(
 	_write_json(
 		TEST_ROOT,
 		{
-			"save_format_version": 5,
+				"save_format_version": 6,
 			"metadata": {},
 			"world": {},
 			"active_run": null,
@@ -448,7 +453,7 @@ static func _test_future_restart(
 	primary_repository.call(
 		"save_state", world.call("make_snapshot"), run_snapshot, profile_snapshot
 	)
-	_write_json(TEST_ROOT + ".bak", {"save_format_version": 5})
+	_write_json(TEST_ROOT + ".bak", {"save_format_version": 6})
 	primary_repository.call("load_state")
 	var backup_quarantine: Array = primary_repository.call("get_quarantine_paths") as Array
 	var backup_reopened: RefCounted = _repository(TEST_ROOT, world)
@@ -520,7 +525,7 @@ static func _test_atomic_rejection(
 	overlapping_world[&"placed_rocks"] = [[4, 4]]
 	_add_case(
 		cases,
-		"schema-4 rejects contradictory world delta sets",
+		"schema-5 rejects contradictory world delta sets",
 		(
 			not bool(
 				repository.call("save_state", overlapping_world, run_snapshot, profile_snapshot)
@@ -532,7 +537,7 @@ static func _test_atomic_rejection(
 	mismatched_run[&"starter_relay_completed"] = true
 	_add_case(
 		cases,
-		"schema-4 rejects relay state without its idempotency event",
+		"schema-5 rejects relay state without its idempotency event",
 		(
 			not bool(
 				repository.call("save_state", world_snapshot, mismatched_run, profile_snapshot)
@@ -544,7 +549,7 @@ static func _test_atomic_rejection(
 	var original: Dictionary = envelope.duplicate(true)
 	_add_case(
 		cases,
-		"schema-4 validation is detached from its input",
+		"schema-5 validation is detached from its input",
 		(
 			not (repository.call("validate_envelope", envelope) as Dictionary).is_empty()
 			and envelope == original
@@ -554,21 +559,21 @@ static func _test_atomic_rejection(
 	farm_unknown[&"unexpected"] = true
 	_add_case(
 		cases,
-		"schema-4 rejects unknown farm fields atomically",
+		"schema-5 rejects unknown farm fields atomically",
 		(repository.call("validate_envelope", envelope) as Dictionary).is_empty(),
 	)
 	envelope = _read_json(TEST_ROOT)
 	(envelope[&"farm"] as Dictionary)[&"mode"] = "gameplay_mode.unknown"
 	_add_case(
 		cases,
-		"schema-4 rejects malformed farm metadata",
+		"schema-5 rejects malformed farm metadata",
 		(repository.call("validate_envelope", envelope) as Dictionary).is_empty(),
 	)
 	envelope = _read_json(TEST_ROOT)
 	envelope[&"unexpected"] = true
 	_add_case(
 		cases,
-		"schema-4 rejects unknown fields instead of dropping them",
+		"schema-5 rejects unknown fields instead of dropping them",
 		(repository.call("validate_envelope", envelope) as Dictionary).is_empty(),
 	)
 
@@ -613,6 +618,12 @@ static func _semantically_equal(first: Variant, second: Variant) -> bool:
 				return false
 		return true
 	return first == second
+
+
+static func _farm_without_revisions(farm: Dictionary) -> Dictionary:
+	var result: Dictionary = farm.duplicate(true)
+	result.erase(&"revisions")
+	return result
 
 
 static func _read_text(path: String) -> String:

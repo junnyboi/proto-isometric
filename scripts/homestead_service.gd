@@ -65,8 +65,10 @@ static func ensure_default(farm: Dictionary) -> Dictionary:
 		ruins.append(_ruin_record(definition_value))
 	facilities.sort_custom(_id_precedes.bind(&"facility_id"))
 	ruins.sort_custom(_id_precedes.bind(&"ruin_id"))
+	var construction: Dictionary = homestead[&"construction"] as Dictionary
+	var workforce: Dictionary = homestead[&"workforce"] as Dictionary
 	candidate[&"homestead"] = {
-		&"state_version": 1,
+		&"state_version": 2,
 		&"home": {
 			&"home_id": String(HOME_ID),
 			&"cell": [HOME_CELL.x, HOME_CELL.y],
@@ -82,6 +84,8 @@ static func ensure_default(farm: Dictionary) -> Dictionary:
 		&"requests": [],
 		&"animals": [],
 		&"ruins": ruins,
+		&"construction": construction.duplicate(true),
+		&"workforce": workforce.duplicate(true),
 	}
 	return candidate
 
