@@ -81,12 +81,12 @@ func _validate_heartbeat(elapsed: int) -> void:
 	if not is_instance_valid(_runtime):
 		_fail("runtime_freed_at_%d" % elapsed)
 		return
-	var bridge: Node = _runtime.get_node_or_null("HarvestPhaseTwo")
-	var transactions: RefCounted = (
-		bridge.get("_transactions") as RefCounted if bridge != null else null
-	)
+	if not bool(_runtime.call("_save_world_state")):
+		_fail("save_failed_at_%d" % elapsed)
+		return
+	var repository: RefCounted = _runtime.get("_state_store") as RefCounted
 	var envelope: Dictionary = (
-		transactions.call("get_snapshot") as Dictionary if transactions != null else {}
+		repository.call("load_state") as Dictionary if repository != null else {}
 	)
 	if envelope.is_empty():
 		_fail("envelope_missing_at_%d" % elapsed)
