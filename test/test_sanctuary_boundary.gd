@@ -6,6 +6,21 @@ const TILE_SIZE: Vector2 = Vector2(90.0, 45.0)
 const MAP_ORIGIN: Vector2 = Vector2(760.0, 70.0)
 
 
+class MarkerWorld:
+	extends RefCounted
+
+	var woodland_cell: Vector2i
+
+	func _init(cell: Vector2i) -> void:
+		woodland_cell = cell
+
+	func _is_sanctuary_outpost(_cell: Vector2i) -> bool:
+		return true
+
+	func _biome_at(cell: Vector2i) -> StringName:
+		return &"woodland" if cell == woodland_cell else &"desert"
+
+
 static func evaluate(world: RefCounted) -> Array[Dictionary]:
 	var cases: Array[Dictionary] = []
 	var outpost: Vector2i = InfiniteWorldScript.SAFE_STARTER_OUTPOST
@@ -45,7 +60,7 @@ static func evaluate(world: RefCounted) -> Array[Dictionary]:
 	)
 	_add(
 		cases,
-		"all three labeled starter services expose sanctuary boundaries",
+		"legacy expedition starter services retain their sanctuary markers",
 		int(renderer.call("get_visible_sanctuary_count")) == 3,
 	)
 	_add(
@@ -85,6 +100,23 @@ static func evaluate(world: RefCounted) -> Array[Dictionary]:
 		"every labeled starter outpost suppresses enemies within the radius",
 		bool(world.call("_is_in_sanctuary", Vector2(service_only))),
 	)
+	var remote: Vector2i = Vector2i(40, 40)
+	var marker_renderer: Node2D = WorldObjectsScript.new() as Node2D
+	marker_renderer.call(
+		"configure",
+		{},
+		{},
+		{service_only: true, remote: true},
+		projection,
+	)
+	marker_renderer.set("_world", MarkerWorld.new(service_only))
+	marker_renderer.call("set_visible_cells", [service_only, remote] as Array[Vector2i])
+	_add(
+		cases,
+		"remote sanctuary keeps its marker while woodland remains visually quiet",
+		int(marker_renderer.call("get_visible_sanctuary_count")) == 1,
+	)
+	marker_renderer.free()
 	for biome: StringName in [&"oasis", &"frozen", &"lava"]:
 		var biome_outpost: Vector2i = _find_biome_outpost(world, biome)
 		_add(cases, "%s biome owns a procedural outpost" % biome, biome_outpost != Vector2i.MAX)

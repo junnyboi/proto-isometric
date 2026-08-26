@@ -76,6 +76,8 @@ The entire inner clearing is safe, not merely a collection of overlapping neon c
 
 Remote ruins retain the existing luminous sanctuary ring only after repair or activation. An unrepaired ruin is a landmark, not free immunity. This gives ruin restoration mechanical value while keeping the home visually calmer.
 
+**Implementation update — 27 August 2026.** The world-object renderer now suppresses both the `SAFE ZONE` label and luminous sanctuary ring for every active service inside the woodland biome. Gameplay sanctuary queries remain unchanged, while active remote-biome ruins continue to advertise their localized protection boundary.
+
 ### 4.3 World continuity
 
 The existing desert, wetland, frozen, and volcanic regions remain. Golden coordinates outside the reserved opening area must retain their current terrain and movement behavior. For the first release, the world should remain the current streamed **145×145 bounded field**, not be marketed as truly infinite. Expanding that boundary would affect generation, save validation, objectives, testing, and edge streaming, and is not required to prove the farming loop.[3]
