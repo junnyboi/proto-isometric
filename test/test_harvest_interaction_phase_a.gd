@@ -271,10 +271,10 @@ static func _test_determinism(cases: Array[Dictionary]) -> void:
 		"PHA-08 1000 shuffled registration/input orders are byte-equivalent",
 		deterministic,
 	)
-	var families: bool = CatalogScript.provider_ids().size() == 9
+	var families: bool = CatalogScript.provider_ids().size() == 10
 	for provider_id: StringName in CatalogScript.provider_ids():
 		families = families and str(provider_id).begins_with("interaction.provider.")
-	_add(cases, "PHA-09 all nine launch provider families register canonically", families)
+	_add(cases, "PHA-09 all ten launch provider families register canonically", families)
 
 
 static func _test_controller_lifecycle(cases: Array[Dictionary]) -> void:

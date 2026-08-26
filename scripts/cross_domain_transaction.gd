@@ -1,6 +1,9 @@
 extends RefCounted
 
 const CalendarStateScript: GDScript = preload("res://scripts/calendar_state.gd")
+const ConstructionTransactionScript: GDScript = preload(
+	"res://scripts/construction_transaction_service.gd"
+)
 const DayAdvanceServiceScript: GDScript = preload("res://scripts/day_advance_service.gd")
 const DurableUpgradeServiceScript: GDScript = preload("res://scripts/durable_upgrade_service.gd")
 const EcologyDirectorScript: GDScript = preload("res://scripts/ecology_director.gd")
@@ -205,6 +208,10 @@ func _build(source: Dictionary, operation: StringName, arguments: Dictionary) ->
 	var candidate: Dictionary = source.duplicate(true)
 	var farm: Dictionary = candidate[&"farm"] as Dictionary
 	var mutation: Dictionary = {&"ok": false, &"candidate": farm, &"reason": &"unknown_operation"}
+	if operation in ConstructionTransactionScript.OPERATIONS:
+		return ConstructionTransactionScript.build(
+			candidate, operation, arguments, _world_validator
+		)
 	match operation:
 		&"harvest":
 			mutation = FarmStateScript.harvest(farm, arguments[&"cell"] as Vector2i)
@@ -341,6 +348,7 @@ func _build_placement(candidate: Dictionary, arguments: Dictionary) -> Dictionar
 	)
 	if adapted.is_empty():
 		return {&"ok": false, &"candidate": candidate, &"reason": &"invalid_placement"}
+	adapted[&"mutation_ledger"] = (placed[&"candidate"] as Dictionary).duplicate(true)
 	candidate[&"world"] = adapted
 	return {&"ok": true, &"candidate": candidate}
 

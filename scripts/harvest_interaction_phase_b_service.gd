@@ -2,6 +2,10 @@ extends RefCounted
 
 const CalendarStateScript: GDScript = preload("res://scripts/calendar_state.gd")
 const CatalogScript: GDScript = preload("res://scripts/interaction_option_catalog.gd")
+const ConstructionProviderScript: GDScript = preload(
+	"res://scripts/construction_interaction_provider.gd"
+)
+const OccupancyScript: GDScript = preload("res://scripts/building_occupancy_index.gd")
 const EcologyDirectorScript: GDScript = preload("res://scripts/ecology_director.gd")
 const FarmProviderScript: GDScript = preload("res://scripts/harvest_interaction_farm_provider.gd")
 const FarmStateScript: GDScript = preload("res://scripts/farm_state.gd")
@@ -19,6 +23,7 @@ const WoodlandClearingScript: GDScript = preload("res://scripts/woodland_clearin
 
 const SHIPPING_CELL: Vector2i = Vector2i(7, 7)
 const STORAGE_CELL: Vector2i = Vector2i(8, 7)
+const WORKSHOP_CELL: Vector2i = Vector2i(9, 7)
 const CROSS_DOMAIN_OPERATIONS: Array[StringName] = [
 	&"animal_feed",
 	&"animal_pet",
@@ -55,7 +60,13 @@ const READ_OPERATIONS: Array[StringName] = [
 	&"review_habitat",
 	&"review_mitigation",
 	&"review_sanctuary",
-	&"review_threat",
+	&"read_threat",
+]
+const CONSTRUCTION_UI_OPERATIONS: Array[StringName] = [
+	&"open_construction",
+	&"open_construction_move",
+	&"confirm_construction_upgrade",
+	&"confirm_construction_demolish",
 ]
 
 var _map: Node2D
@@ -113,8 +124,27 @@ func project(cell: Vector2i, selected_tool: StringName) -> Dictionary:
 			projection = FarmProviderScript.shipping(farm, cell)
 		&"facility":
 			projection = FarmProviderScript.facility(farm, cell, description[&"target_id"])
+			var facility_id: StringName = description[&"target_id"] as StringName
+			var facility: Dictionary = HomesteadServiceScript.facility_state(farm, facility_id)
+			if (
+				facility_id == HomesteadServiceScript.WORKSHOP_ID
+				and bool(facility.get(&"repaired", false))
+				and bool(facility.get(&"powered", false))
+				and not projection.is_empty()
+			):
+				_append_projection_option(
+					projection, ConstructionProviderScript.catalog_option()
+				)
 		&"machine":
 			projection = FarmProviderScript.machine(farm, cell, description[&"record"])
+			if cell == WORKSHOP_CELL and not projection.is_empty():
+				_append_projection_option(
+					projection, ConstructionProviderScript.catalog_option()
+				)
+		&"construction":
+			projection = ConstructionProviderScript.building(
+				farm, cell, description[&"record"]
+			)
 		&"resident":
 			projection = FarmProviderScript.resident(farm, cell, description[&"target_id"])
 		&"livestock":
@@ -150,6 +180,16 @@ func project(cell: Vector2i, selected_tool: StringName) -> Dictionary:
 		&"gate":
 			projection = WildernessProviderScript.gate(cell, _active_run())
 	return projection
+
+
+func _append_projection_option(projection: Dictionary, option: Dictionary) -> void:
+	var options: Array = projection[&"option_inputs"] as Array
+	options.append(option)
+	options.sort_custom(
+		func(a: Dictionary, b: Dictionary) -> bool:
+			return str(a[&"action_id"]) < str(b[&"action_id"])
+	)
+	projection[&"option_inputs"] = options
 
 
 func execute(
@@ -265,6 +305,11 @@ func _execute_option(cell: Vector2i, option: Dictionary) -> Dictionary:
 	var operation: StringName = option[&"operation"] as StringName
 	if operation in READ_OPERATIONS:
 		return _result(true, &"preview_only")
+	if operation in CONSTRUCTION_UI_OPERATIONS:
+		var opened: Dictionary = _result(true, &"")
+		opened[&"arguments"] = (option[&"arguments"] as Dictionary).duplicate(true)
+		_committed.call(operation, cell, opened.duplicate(true))
+		return opened
 	var arguments: Dictionary = (option[&"arguments"] as Dictionary).duplicate(true)
 	var result: Dictionary
 	if operation in CROSS_DOMAIN_OPERATIONS:
@@ -406,6 +451,14 @@ func _pickup_at(cell: Vector2i) -> Dictionary:
 
 func _presentation_at(cell: Vector2i) -> Dictionary:
 	var farm: Dictionary = _farm_runtime.call("get_snapshot") as Dictionary
+	var building: Dictionary = OccupancyScript.building_at(OccupancyScript.build(farm), cell)
+	if not building.is_empty():
+		return {
+			&"family": &"construction",
+			&"kind": ResolverScript.KIND_STRUCTURE,
+			&"target_id": StringName(str(building[&"instance_id"])),
+			&"record": building,
+		}
 	for record: Dictionary in HomesteadPresentationScript.build_records(farm):
 		if record[&"cell"] != cell:
 			continue

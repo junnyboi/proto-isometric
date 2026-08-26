@@ -52,6 +52,7 @@ var _selected_index: int = -1
 var _selected_action_id: StringName = &""
 var _executing: bool = false
 var _quick_coordinator: RefCounted
+var _external_modal: bool = false
 
 
 func _ready() -> void:
@@ -72,7 +73,7 @@ func _process(delta: float) -> void:
 	if _world == null:
 		return
 	_sync_target()
-	if is_menu_open():
+	if is_menu_open() or _external_modal:
 		return
 	_update_hold_repeat(delta)
 	for action: StringName in CommandsScript.action_ids():
@@ -125,16 +126,28 @@ func configure(
 func handle_touch_command(action: StringName) -> bool:
 	if action not in CommandsScript.action_ids() or action in CommandsScript.MOVE_ACTIONS:
 		return false
+	if _external_modal:
+		return true
 	if action in [CommandsScript.RUN, CommandsScript.COMBAT_ATTACK]:
 		return false
 	if is_menu_open():
-		if action == CommandsScript.CONTEXT:
-			return confirm_menu()
-		if action == CommandsScript.CANCEL:
-			return close_menu()
-		return true
+		return _handle_menu_touch(action)
 	_dispatch(action)
 	return true
+
+
+func _handle_menu_touch(action: StringName) -> bool:
+	if action == CommandsScript.CONTEXT:
+		return confirm_menu()
+	if action == CommandsScript.CANCEL:
+		return close_menu()
+	return true
+
+
+func _set_external_modal(active: bool) -> void:
+	_external_modal = active
+	if active:
+		close_menu()
 
 
 func get_selected_tool() -> StringName:

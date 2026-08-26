@@ -56,6 +56,7 @@ var _placed_rocks: Dictionary = {}
 var _dropped_scrap: Dictionary = {}
 var _collected_scrap: Dictionary = {}
 var _mutation_ledger: Dictionary = {&"cleared": [], &"placed": []}
+var _placed_occupancy: Dictionary = {}
 var _gameplay_mode: StringName = RuntimeIdsScript.MODE_LEGACY_EXPEDITION
 var _world_seed: int = WoodlandClearingScript.DEFAULT_SEED
 var _ruin_registry: RefCounted = RuinRegistryScript.new() as RefCounted
@@ -398,6 +399,7 @@ func apply_snapshot(snapshot: Dictionary) -> void:
 			if snapshot.has("mutation_ledger")
 			else WorldMutationLedgerScript.from_legacy(snapshot)
 		)
+	_rebuild_placed_occupancy()
 	_clear_active_chunks()
 
 
@@ -495,6 +497,8 @@ func _generate_cell(cell: Vector2i) -> void:
 		_elevation[cell] = 0
 		_rocks.erase(cell)
 		_blocked.erase(cell)
+	if _placed_occupancy.has(cell):
+		_blocked[cell] = true
 	var amount: int = int(_dropped_scrap.get(cell, 0))
 	if amount <= 0 and not _collected_scrap.has(cell):
 		amount = _generated_scrap_amount(cell)
@@ -509,6 +513,18 @@ func _set_rock(cell: Vector2i) -> void:
 	_blocked[cell] = true
 	_outposts.erase(cell)
 	_scrap.erase(cell)
+
+
+func _rebuild_placed_occupancy() -> void:
+	_placed_occupancy.clear()
+	var normalized: Dictionary = WorldMutationLedgerScript.validate(_mutation_ledger)
+	for record: Dictionary in normalized.get(&"placed", []) as Array[Dictionary]:
+		var anchor: Array = record[&"anchor"] as Array
+		for offset: Array in record[&"footprint"] as Array[Array]:
+			var cell: Vector2i = Vector2i(
+				int(anchor[0]) + int(offset[0]), int(anchor[1]) + int(offset[1])
+			)
+			_placed_occupancy[cell] = str(record[&"stable_id"])
 
 
 func _base_terrain(cell: Vector2i) -> StringName:

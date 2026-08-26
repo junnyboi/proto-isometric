@@ -12,6 +12,8 @@ Farm income and recovered wilderness materials restore three nearby ruins: **Lyr
 
 The homestead can support three engineered domestic species: the **Mossback Grazer**, **Coilhen**, and **Rustsnout Rooter**. Feeding, petting, and product collection use exact-once daily tokens, bounded animal capacity, and persistent bond state. Furnace and irrigation installations extend the farm’s machine and upgrade economy without bypassing the shared transaction boundary.
 
+The repaired workshop now opens a seven-blueprint construction planner for shelter, storage, gathering, fabrication, and fishing infrastructure. Placement previews rotate over canonical footprints, reject actors, crops, machines, trees, water, protected routes, and corridor cuts, then debit one material bill through the exact-once settlement transaction boundary. New sites begin as GPT Image 2 scaffolds, complete after one authoritative sleep, block movement immediately, and support terminal-driven inspect, move, upgrade, and explicitly confirmed partial-refund demolition actions.
+
 ## Controls
 
 Use **WASD** or the **arrow keys** to move and hold **Shift** to run. Press **E** for context interactions, **G** for a uniquely safe Quick action, **F** to use the selected farming tool, **Q/R** to cycle tools, **I** for inventory, **M** for the journal/map, **+/-** to zoom, and **Space**, **J**, or **K** for the preserved combat Smash. Controller and touch commands map to the same stable intent catalog. Mobile presents a floating movement joystick plus an eight-slot command dock with Context, Tool, Quick, Cycle, Inventory, Journal, Cancel, and the preserved Smash control.

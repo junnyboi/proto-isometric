@@ -100,7 +100,10 @@ func _process(delta: float) -> void:
 			"set_focus_yielded", _tutorial_terminal_yield or settings_open
 		)
 		if _radar != null:
-			_radar.visible = not bool(_tutorial_presenter.call("_is_prompt_visible"))
+			_radar.visible = (
+				not _tutorial_terminal_yield
+				and not bool(_tutorial_presenter.call("_is_prompt_visible"))
+			)
 	if _radar != null and _radar_contacts_source != null:
 		_radar.call("sync_contacts", _radar_contacts_source.call("get_combat_snapshots"))
 	_advance_charge_pulse(delta)

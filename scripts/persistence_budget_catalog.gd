@@ -1,8 +1,13 @@
 extends RefCounted
 
 const SectionsScript: GDScript = preload("res://scripts/settlement_persistence_sections.gd")
+const ConstructionCatalogScript: GDScript = preload(
+	"res://scripts/construction_blueprint_catalog.gd"
+)
+const ConstructionLinksScript: GDScript = preload("res://scripts/construction_envelope_links.gd")
 const ReceiptLedgerScript: GDScript = preload("res://scripts/exact_once_receipt_ledger.gd")
 const StateHashScript: GDScript = preload("res://scripts/persistence_state_hash.gd")
+const WorldLedgerScript: GDScript = preload("res://scripts/world_mutation_ledger.gd")
 
 const MAX_CANONICAL_BYTES: int = 1_572_864
 const ORDINARY_TARGET_BYTES: int = 262_144
@@ -94,10 +99,14 @@ static func simultaneous_maximum(base_envelope: Dictionary) -> Dictionary:
 	var farm: Dictionary = envelope[&"farm"] as Dictionary
 	var homestead: Dictionary = farm[&"homestead"] as Dictionary
 	var buildings: Array[Dictionary] = []
+	var blueprint_ids: Array[StringName] = ConstructionCatalogScript.ids()
 	for index: int in SectionsScript.MAX_BUILDINGS:
-		var footprint: Array[Array] = []
-		for cell_index: int in SectionsScript.MAX_FOOTPRINT_CELLS:
-			footprint.append([index * 20 + cell_index, index * 20])
+		var blueprint_id: StringName = blueprint_ids[index % blueprint_ids.size()]
+		var anchor: Vector2i = Vector2i(index * 20, index * 20)
+		var orientation: int = index % 4
+		var footprint: Array[Array] = ConstructionCatalogScript.encoded_footprint(
+			blueprint_id, anchor, orientation
+		)
 		var stacks: Array[Dictionary] = []
 		for stack_index: int in SectionsScript.MAX_LOCAL_STACKS:
 			stacks.append({&"item_id": "item.maximum.%02d" % stack_index, &"count": 999_999})
@@ -114,10 +123,10 @@ static func simultaneous_maximum(base_envelope: Dictionary) -> Dictionary:
 		buildings.append(
 			{
 				&"instance_id": "building.maximum.%03d" % index,
-				&"blueprint_id": "blueprint.maximum.%03d" % index,
-				&"anchor": [index * 20, index * 20],
-				&"orientation": index % 4,
-				&"level": 99,
+				&"blueprint_id": str(blueprint_id),
+				&"anchor": [anchor.x, anchor.y],
+				&"orientation": orientation,
+				&"level": ConstructionCatalogScript.MAX_LEVEL,
 				&"state": "complete",
 				&"footprint": footprint,
 				&"local_stacks": stacks,
@@ -138,10 +147,32 @@ static func simultaneous_maximum(base_envelope: Dictionary) -> Dictionary:
 	farm[&"receipts"] = _maximum_receipts()
 	farm[&"revisions"] = _maximum_revisions()
 	envelope[&"farm"] = farm
+	envelope[&"world"] = _maximum_world(envelope[&"world"], buildings)
 	var revisions: Dictionary = farm[&"revisions"] as Dictionary
 	revisions[&"result_hash"] = StateHashScript.state_hash(envelope)
 	(envelope[&"farm"] as Dictionary)[&"revisions"] = revisions
 	return envelope
+
+
+static func _maximum_world(world_value: Variant, buildings: Array[Dictionary]) -> Dictionary:
+	var world: Dictionary = (world_value as Dictionary).duplicate(true)
+	var ledger: Dictionary = (
+		WorldLedgerScript.validate(world[&"mutation_ledger"])
+		if world.has(&"mutation_ledger")
+		else WorldLedgerScript.from_legacy(world)
+	)
+	for building: Dictionary in buildings:
+		var placed: Dictionary = WorldLedgerScript.place(
+			ledger, ConstructionLinksScript.ledger_record(building)
+		)
+		if not bool(placed[&"ok"]):
+			return {}
+		ledger = placed[&"candidate"] as Dictionary
+	var adapted: Dictionary = WorldLedgerScript.legacy_arrays_exact(world, ledger)
+	if adapted.is_empty():
+		return {}
+	adapted[&"mutation_ledger"] = ledger
+	return adapted
 
 
 static func _maximum_deltas() -> Array[Dictionary]:

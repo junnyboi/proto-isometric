@@ -12,6 +12,9 @@ const EnvelopeMigrationsScript: GDScript = preload(
 )
 const BudgetCatalogScript: GDScript = preload("res://scripts/persistence_budget_catalog.gd")
 const StateHashScript: GDScript = preload("res://scripts/persistence_state_hash.gd")
+const ConstructionLinksScript: GDScript = preload(
+	"res://scripts/construction_envelope_links.gd"
+)
 const BrowserCapabilityScript: GDScript = preload(
 	"res://scripts/browser_persistence_capability.gd"
 )
@@ -289,7 +292,12 @@ func _validate_envelope(envelope: Dictionary, verify_result_hash: bool) -> Dicti
 		and not StateHashScript.result_hash_matches(normalized)
 	):
 		return {}
-	return normalized if bool(BudgetCatalogScript.preflight(normalized)[&"ok"]) else {}
+	return (
+		normalized
+		if ConstructionLinksScript.validate(normalized)
+		and bool(BudgetCatalogScript.preflight(normalized)[&"ok"])
+		else {}
+	)
 
 func set_fault_injector(injector: RefCounted) -> void:
 	_fault_injector = injector

@@ -1,6 +1,13 @@
 extends Node
 
 const AudioServiceScript: GDScript = preload("res://scripts/audio_service.gd")
+const ConstructionModeScript: GDScript = preload("res://scripts/construction_mode_controller.gd")
+const ConstructionPresentationScript: GDScript = preload(
+	"res://scripts/construction_presentation_catalog.gd"
+)
+const ConstructionRuntimeScript: GDScript = preload(
+	"res://scripts/construction_runtime_coordinator.gd"
+)
 const CrossDomainTransactionScript: GDScript = preload("res://scripts/cross_domain_transaction.gd")
 const FarmRendererScript: GDScript = preload("res://scripts/farm_render_adapter.gd")
 const HomesteadPresentationScript: GDScript = preload(
@@ -60,6 +67,8 @@ var _transactions: RefCounted
 var _interaction_phase_b_service: RefCounted
 var _wilderness_runtime: RefCounted
 var _context_tutorial: RefCounted
+var _construction_runtime: RefCounted
+var _construction_mode: Node2D
 var _ready_for_commands: bool = false
 var _last_presentation_signature: int = 0
 var _last_music_track: StringName = &""
@@ -110,6 +119,14 @@ func get_context_tutorial_director() -> RefCounted:
 	return _context_tutorial
 
 
+func get_construction_mode_controller() -> Node2D:
+	return _construction_mode
+
+
+func get_construction_runtime() -> RefCounted:
+	return _construction_runtime
+
+
 func set_tutorial_capability(lesson: int, available: bool = true) -> bool:
 	return (
 		_context_tutorial != null
@@ -140,6 +157,8 @@ func is_ready_for_commands() -> bool:
 func is_interaction_menu_open() -> bool:
 	if _controller != null and bool(_controller.call("is_menu_open")):
 		return true
+	if _construction_mode != null and bool(_construction_mode.call("is_active")):
+		return true
 	var hud: CanvasLayer = _map.get("_hud") as CanvasLayer if _map != null else null
 	return hud != null and bool(hud.call("_is_tutorial_help_modal_open"))
 
@@ -147,9 +166,10 @@ func is_interaction_menu_open() -> bool:
 func get_live_presentation_records() -> Array[Dictionary]:
 	if _farm_runtime == null:
 		return []
-	return HomesteadPresentationScript.build_records(
-		_farm_runtime.call("get_snapshot") as Dictionary
-	)
+	var farm: Dictionary = _farm_runtime.call("get_snapshot") as Dictionary
+	var records: Array[Dictionary] = HomesteadPresentationScript.build_records(farm)
+	records.append_array(ConstructionPresentationScript.build_records(farm))
+	return records
 
 
 func get_selected_clearing_track() -> StringName:
@@ -205,8 +225,7 @@ func _bootstrap() -> void:
 	if not bool(_presenter.call("bind", _controller, mobile)):
 		push_error("Phase C interaction presenter rejected live authorities.")
 		return
-	if not _initialize_context_tutorial(mobile):
-		push_error("P3 contextual tutorial rejected live authorities.")
+	if not _initialize_post_interaction(mobile):
 		return
 	_farm_renderer = FarmRendererScript.new() as Node2D
 	_farm_renderer.name = "FarmRenderAdapter"
@@ -221,6 +240,16 @@ func _bootstrap() -> void:
 	_sync_clearing_music()
 	_initialize_wilderness()
 	_ready_for_commands = true
+
+
+func _initialize_post_interaction(mobile: CanvasLayer) -> bool:
+	if not _initialize_context_tutorial(mobile):
+		push_error("P3 contextual tutorial rejected live authorities.")
+		return false
+	if not _initialize_construction(mobile):
+		push_error("P4 construction mode rejected live authorities.")
+		return false
+	return true
 
 
 func _on_menu_opened(snapshot: Dictionary) -> void:
@@ -399,6 +428,27 @@ func _initialize_interaction_phase_b_service() -> void:
 	_interaction_phase_b_service = service
 
 
+func _initialize_construction(mobile: CanvasLayer) -> bool:
+	if _farm_runtime == null or _transactions == null:
+		return true
+	_construction_runtime = ConstructionRuntimeScript.new() as RefCounted
+	if not bool(_construction_runtime.call("configure", _map, _farm_runtime, _transactions)):
+		return false
+	_construction_runtime.connect("construction_committed", _on_construction_committed)
+	set_tutorial_capability(ContextTutorialStateScript.LESSON_BUILD, true)
+	_construction_mode = ConstructionModeScript.new() as Node2D
+	_construction_mode.name = "ConstructionModeController"
+	_map.add_child(_construction_mode)
+	if not bool(
+		_construction_mode.call(
+			"configure", _construction_runtime, Callable(_map, "grid_to_screen"), mobile
+		)
+	):
+		return false
+	_construction_mode.connect("mode_changed", _on_construction_mode_changed)
+	return true
+
+
 func _commit_farm_candidate(candidate: Dictionary) -> Variant:
 	if _transactions == null:
 		return false
@@ -522,6 +572,14 @@ func _execute_productive_action(
 func _on_phase_b_committed(
 	operation: StringName, cell: Vector2i, result: Dictionary
 ) -> void:
+	if operation in [
+		&"open_construction",
+		&"open_construction_move",
+		&"confirm_construction_upgrade",
+		&"confirm_construction_demolish",
+	]:
+		_open_construction_operation(operation, result)
+		return
 	var dirty: Array[Vector2i] = []
 	for value: Variant in result.get(&"dirty_cells", []):
 		if value is Vector2i:
@@ -535,6 +593,43 @@ func _on_phase_b_committed(
 	_sync_ruin_registry()
 	_sync_clearing_music()
 	_play_action_sfx(operation, cell)
+
+
+func _open_construction_operation(operation: StringName, result: Dictionary) -> void:
+	if _construction_mode == null:
+		return
+	var arguments: Dictionary = result.get(&"arguments", {}) as Dictionary
+	var instance_id: StringName = arguments.get(&"instance_id", &"") as StringName
+	match operation:
+		&"open_construction":
+			_construction_mode.call("open_build")
+		&"open_construction_move":
+			_construction_mode.call("open_move", instance_id)
+		&"confirm_construction_upgrade":
+			_construction_mode.call("request_upgrade", instance_id)
+		&"confirm_construction_demolish":
+			_construction_mode.call("request_demolish", instance_id)
+
+
+func _on_construction_mode_changed(active: bool) -> void:
+	if _controller != null:
+		_controller.call("_set_external_modal", active)
+	_set_tutorial_terminal_yield(active)
+
+
+func _on_construction_committed(operation: StringName, result: Dictionary) -> void:
+	var dirty: Array[Vector2i] = []
+	for value: Variant in result.get(&"dirty_cells", []):
+		if value is Vector2i:
+			dirty.append(value as Vector2i)
+	_refresh_render_indexes(dirty)
+	var objects: Node2D = _map.get("_world_objects") as Node2D
+	if objects != null:
+		objects.call("invalidate_static_objects")
+	if operation == &"construction_place":
+		var proof: Dictionary = result.duplicate(true)
+		proof[&"committed"] = true
+		record_tutorial_build_mode(proof)
 
 
 func _context_operation(cell: Vector2i) -> StringName:
@@ -620,6 +715,7 @@ func _refresh_render_indexes(dirty_cells: Array[Vector2i] = []) -> void:
 		_append_structure(indexes, WORKSHOP_CELL, &"workshop_bench", WORKSHOP_TEXTURE)
 		var farm: Dictionary = _farm_runtime.call("get_snapshot") as Dictionary
 		_merge_indexes(indexes, HomesteadPresentationScript.build_chunk_indexes(farm))
+		_merge_indexes(indexes, ConstructionPresentationScript.build_chunk_indexes(farm))
 		if _has_machine(farm, MachineServiceScript.FURNACE_ID):
 			_append_structure(indexes, FURNACE_CELL, &"furnace", FURNACE_TEXTURE)
 		if _has_upgrade(farm, &"upgrade.irrigation.grid_radius"):
@@ -685,9 +781,9 @@ func _sync_presentation_state() -> void:
 		return
 	var previous: Array[Vector2i] = []
 	if _farm_runtime != null:
-		previous = HomesteadPresentationScript.presentation_cells(
-			_farm_runtime.call("get_snapshot") as Dictionary
-		)
+		var farm: Dictionary = _farm_runtime.call("get_snapshot") as Dictionary
+		previous = HomesteadPresentationScript.presentation_cells(farm)
+		previous.append_array(ConstructionPresentationScript.presentation_cells(farm))
 	_refresh_render_indexes(previous)
 	_sync_ruin_registry()
 

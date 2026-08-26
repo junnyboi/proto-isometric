@@ -12,6 +12,7 @@ const VALID_KINDS: Array[StringName] = [
 	&"structure.workbench",
 	&"structure.furnace",
 	&"structure.storage",
+	&"structure.settlement",
 ]
 
 
@@ -85,6 +86,45 @@ static func place(ledger: Dictionary, record: Dictionary) -> Dictionary:
 		if normalized.is_empty()
 		else _result(true, normalized, &"")
 	)
+
+
+static func remove_placed(ledger: Dictionary, stable_identifier: StringName) -> Dictionary:
+	var source: Dictionary = validate(ledger)
+	if source.is_empty():
+		return _result(false, ledger, &"invalid_ledger")
+	var candidate: Dictionary = source.duplicate(true)
+	var records: Array = candidate[&"placed"] as Array
+	for index: int in records.size():
+		if str((records[index] as Dictionary)[&"stable_id"]) != str(stable_identifier):
+			continue
+		records.remove_at(index)
+		candidate[&"placed"] = records
+		return _result(true, validate(candidate), &"")
+	return _result(false, source, &"placed_record_missing")
+
+
+static func replace_placed(
+	ledger: Dictionary, stable_identifier: StringName, record: Dictionary
+) -> Dictionary:
+	var removed: Dictionary = remove_placed(ledger, stable_identifier)
+	if not bool(removed[&"ok"]):
+		return removed
+	var placed: Dictionary = place(removed[&"candidate"], record)
+	return (
+		placed
+		if bool(placed[&"ok"])
+		else _result(false, validate(ledger), placed[&"reason"] as StringName)
+	)
+
+
+static func placed_record(ledger: Dictionary, stable_identifier: StringName) -> Dictionary:
+	var source: Dictionary = validate(ledger)
+	if source.is_empty():
+		return {}
+	for record: Dictionary in source[&"placed"] as Array[Dictionary]:
+		if str(record[&"stable_id"]) == str(stable_identifier):
+			return record.duplicate(true)
+	return {}
 
 
 static func clear(ledger: Dictionary, record: Dictionary) -> Dictionary:

@@ -1,6 +1,7 @@
 extends RefCounted
 
 const CalendarStateScript: GDScript = preload("res://scripts/calendar_state.gd")
+const ConstructionDayScript: GDScript = preload("res://scripts/construction_day_service.gd")
 const EconomyServiceScript: GDScript = preload("res://scripts/economy_service.gd")
 const FarmStateScript: GDScript = preload("res://scripts/farm_state.gd")
 const MachineServiceScript: GDScript = preload("res://scripts/machine_service.gd")
@@ -33,6 +34,15 @@ static func build_candidate(
 	if StringName(calendar[&"forecast_weather_id"]) == &"weather.rain":
 		candidate = FarmStateScript.apply_rain(candidate, current_absolute)
 	candidate = FarmStateScript.grow(candidate, current_absolute)
+	var construction: Dictionary = ConstructionDayScript.advance(candidate)
+	if not bool(construction[&"ok"]):
+		return {
+			&"ok": false,
+			&"candidate": source,
+			&"day_token": token,
+			&"reason": construction[&"reason"],
+		}
+	candidate = construction[&"candidate"] as Dictionary
 	candidate = MachineServiceScript.advance(candidate, current_absolute + 1)
 	var settled: Dictionary = EconomyServiceScript.settle(candidate, token)
 	if not bool(settled[&"ok"]):
