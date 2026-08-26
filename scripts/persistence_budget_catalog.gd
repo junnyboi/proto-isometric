@@ -7,6 +7,7 @@ const ConstructionCatalogScript: GDScript = preload(
 const ConstructionLinksScript: GDScript = preload("res://scripts/construction_envelope_links.gd")
 const ReceiptLedgerScript: GDScript = preload("res://scripts/exact_once_receipt_ledger.gd")
 const ResourceDepositCatalogScript: GDScript = preload("res://scripts/resource_deposit_catalog.gd")
+const ItemCatalogScript: GDScript = preload("res://scripts/item_catalog.gd")
 const StateHashScript: GDScript = preload("res://scripts/persistence_state_hash.gd")
 const WorldLedgerScript: GDScript = preload("res://scripts/world_mutation_ledger.gd")
 
@@ -109,8 +110,13 @@ static func simultaneous_maximum(base_envelope: Dictionary) -> Dictionary:
 			blueprint_id, anchor, orientation
 		)
 		var stacks: Array[Dictionary] = []
-		for stack_index: int in SectionsScript.MAX_LOCAL_STACKS:
-			stacks.append({&"item_id": "item.maximum.%02d" % stack_index, &"count": 999_999})
+		var item_ids: Array[StringName] = ItemCatalogScript.ids()
+		item_ids.sort_custom(func(a: StringName, b: StringName) -> bool: return str(a) < str(b))
+		for stack_index: int in mini(SectionsScript.MAX_LOCAL_STACKS, item_ids.size()):
+			var item_id: StringName = item_ids[stack_index]
+			stacks.append(
+				{&"item_id": str(item_id), &"count": ItemCatalogScript.stack_limit(item_id)}
+			)
 		var recipes: Array[Dictionary] = []
 		for recipe_index: int in SectionsScript.MAX_RECIPES_PER_BUILDING:
 			recipes.append(
@@ -209,6 +215,7 @@ static func _maximum_workforce() -> Dictionary:
 	var housing: Array[Dictionary] = []
 	var work: Array[Dictionary] = []
 	var concerns: Array[Dictionary] = []
+	var reports: Array[Dictionary] = []
 	for index: int in SectionsScript.MAX_SETTLERS:
 		var settler_id: String = "settler.maximum.%02d" % index
 		settlers.append(
@@ -217,16 +224,38 @@ static func _maximum_workforce() -> Dictionary:
 		)
 		housing.append({&"settler_id": settler_id, &"bed_id": "bed.maximum.%02d" % index})
 		work.append(
-			{&"settler_id": settler_id, &"site_id": "building.maximum.%03d" % index,
+			{&"settler_id": settler_id, &"site_id": "building.maximum.%03d" % (index / 2),
 			&"slot": 31, &"shift": index % 2}
 		)
 		concerns.append(
 			{&"concern_id": "concern.maximum.%02d" % index, &"settler_id": settler_id,
 			&"reason_id": "reason.maximum.%02d" % index, &"opened_day": 999_999}
 		)
+		reports.append(
+			{
+				&"report_id": "report.shift.building.maximum.%03d.31.%d" % [index / 2, index % 2],
+				&"site_id": "building.maximum.%03d" % (index / 2),
+				&"settler_id": settler_id, &"slot": 31, &"shift": index % 2,
+				&"absolute_day": 999_999, &"status": "productive", &"reason": "",
+				&"source_id": "source.maximum.%03d" % index,
+				&"item_id": str(ItemCatalogScript.ids()[0]),
+				&"count": 1,
+			}
+		)
+	for index: int in range(SectionsScript.MAX_SETTLERS / 2, SectionsScript.MAX_BUILDINGS):
+		reports.append(
+			{
+				&"report_id": "report.shift.building.maximum.%03d.idle" % index,
+				&"site_id": "building.maximum.%03d" % index,
+				&"settler_id": "", &"slot": -1, &"shift": -1,
+				&"absolute_day": 999_999, &"status": "idle", &"reason": "no_worker",
+				&"source_id": "", &"item_id": "", &"count": 0,
+			}
+		)
 	return {
 		&"state_version": 1, &"settlers": settlers, &"housing_assignments": housing,
 		&"work_assignments": work, &"concerns": concerns,
+		&"shift_reports": reports,
 		&"applicant_lifecycle": {
 			&"current_applicant_id": "settler.maximum.applicant",
 			&"offered_day": 999_996,

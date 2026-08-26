@@ -173,12 +173,23 @@ func _refresh_roster() -> void:
 		var housing: Dictionary = entry[&"housing"] as Dictionary
 		var assignment: Dictionary = entry[&"assignment"] as Dictionary
 		var work_text: String = LocalizationScript.t(&"settlement.roster.unassigned")
+		var work_status: String = LocalizationScript.t(
+			StringName("settlement.work.status.%s" % str(entry.get(&"work_status", "resting")))
+		)
+		var shift_report: Dictionary = entry.get(&"shift_report", {}) as Dictionary
+		if str(entry.get(&"work_status", "")) == "idle" and not shift_report.is_empty():
+			work_status = LocalizationScript.t(
+				StringName("settlement.work.idle.%s" % str(shift_report[&"reason"]))
+			)
 		if not assignment.is_empty():
-			work_text = "%s #%d // %s" % [
-				_site_label(str(assignment[&"site_id"])),
-				int(assignment[&"slot"]) + 1,
-				_shift_label(int(assignment[&"shift"])),
-			]
+			work_text = "%s #%d // %s // %s" % [
+					_site_label(str(assignment[&"site_id"])),
+					int(assignment[&"slot"]) + 1,
+					_shift_label(int(assignment[&"shift"])),
+					work_status,
+				]
+		else:
+			work_text = "%s // %s" % [work_text, work_status]
 		_roster_list.add_item(
 			"%s  //  %s  //  %s  //  %s" % [
 				str(entry[&"name"]), str(state[&"status"]),
@@ -210,7 +221,19 @@ func _refresh_sites() -> void:
 	for site: Dictionary in _snapshot.get(&"sites", []) as Array[Dictionary]:
 		var blueprint_id: StringName = StringName(str(site[&"blueprint_id"]))
 		var definition: Dictionary = BlueprintCatalogScript.definition(blueprint_id)
-		_site_select.add_item(LocalizationScript.t(definition[&"label_key"]))
+		var label: String = LocalizationScript.t(definition[&"label_key"])
+		var output_count: int = 0
+		for stack: Dictionary in site.get(&"local_stacks", []) as Array[Dictionary]:
+			output_count += int(stack[&"count"])
+		if output_count > 0:
+			label += " // " + LocalizationScript.t(
+				&"settlement.work.output_count", {&"count": output_count}
+			)
+		for report: Dictionary in site.get(&"shift_reports", []) as Array[Dictionary]:
+			if str(report[&"reason"]) == "no_worker":
+				label += " // " + LocalizationScript.t(&"settlement.work.idle.no_worker")
+				break
+		_site_select.add_item(label)
 		_site_select.set_item_metadata(_site_select.item_count - 1, str(site[&"site_id"]))
 	_select_metadata(_site_select, previous_site)
 	_refresh_slots()

@@ -8,6 +8,9 @@ const ConstructionDayScript: GDScript = preload("res://scripts/construction_day_
 const EconomyServiceScript: GDScript = preload("res://scripts/economy_service.gd")
 const FarmStateScript: GDScript = preload("res://scripts/farm_state.gd")
 const GatheringStateScript: GDScript = preload("res://scripts/gathering_state_service.gd")
+const GatheringExtractionScript: GDScript = preload(
+	"res://scripts/gathering_extraction_service.gd"
+)
 const MachineServiceScript: GDScript = preload("res://scripts/machine_service.gd")
 const ResidentServiceScript: GDScript = preload("res://scripts/resident_service.gd")
 const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
@@ -18,6 +21,7 @@ static func build_candidate(
 	world_seed: int = CalendarStateScript.DEFAULT_WORLD_SEED,
 	requested_token: String = "",
 	source_resolver: Callable = Callable(),
+	work_safety_resolver: Callable = Callable(),
 ) -> Dictionary:
 	var source: Dictionary = farm.duplicate(true)
 	var calendar: Dictionary = source[&"calendar_weather"] as Dictionary
@@ -48,6 +52,19 @@ static func build_candidate(
 			&"reason": construction[&"reason"],
 		}
 	candidate = construction[&"candidate"] as Dictionary
+	var extracted: Dictionary = GatheringExtractionScript.advance(
+		candidate,
+		world_seed,
+		current_absolute,
+		source_resolver,
+		work_safety_resolver,
+	)
+	if not bool(extracted[&"ok"]):
+		return {
+			&"ok": false, &"candidate": source, &"day_token": token,
+			&"reason": extracted[&"reason"],
+		}
+	candidate = extracted[&"candidate"] as Dictionary
 	candidate = MachineServiceScript.advance(candidate, current_absolute + 1)
 	var settled: Dictionary = EconomyServiceScript.settle(candidate, token)
 	if not bool(settled[&"ok"]):
@@ -99,5 +116,7 @@ static func build_candidate(
 		&"candidate": candidate,
 		&"day_token": token,
 		&"money_earned": int(settled.get(&"money_earned", 0)),
+		&"construction_work": construction.get(&"work_results", []),
+		&"shift_results": extracted[&"shift_results"],
 		&"reason": &"",
 	}

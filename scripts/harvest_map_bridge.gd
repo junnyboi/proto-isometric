@@ -399,9 +399,10 @@ func _initialize_farm_runtime() -> void:
 				"configure",
 				repository.call("get_default_farm") as Dictionary,
 				Callable(self, "_commit_farm_candidate"),
-				WoodlandClearingScript.DEFAULT_SEED,
-				Callable(_map.get("_world") as RefCounted, "_resource_source_at"),
-			)
+					WoodlandClearingScript.DEFAULT_SEED,
+					Callable(_map.get("_world") as RefCounted, "_resource_source_at"),
+					Callable(_map.get("_world") as RefCounted, "_is_home_safe"),
+				)
 		)
 	):
 		push_error("PH-14 farm runtime rejected its schema-5 source.")

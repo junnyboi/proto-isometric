@@ -378,7 +378,7 @@ static func _assignment_cases(
 		cases,
 		"P6 recovering settlers reject work without mutating source state",
 		not blocked[&"ok"]
-		and blocked[&"reason"] == &"settler_unavailable"
+		and blocked[&"reason"] == &"settler_recovering"
 		and blocked[&"candidate"] == recovering,
 	)
 	var two_people: Dictionary = _with_second_settler(after)
@@ -466,6 +466,7 @@ static func _pre_p6_hash_case(cases: Array[Dictionary], transactions: RefCounted
 	var farm: Dictionary = legacy[&"farm"] as Dictionary
 	var workforce: Dictionary = (farm[&"homestead"] as Dictionary)[&"workforce"] as Dictionary
 	workforce.erase(&"applicant_lifecycle")
+	workforce.erase(&"shift_reports")
 	var revisions: Dictionary = farm[&"revisions"] as Dictionary
 	if int(revisions[&"result_revision"]) == 0:
 		legacy = StateHashScript.apply_initial(legacy)
@@ -522,6 +523,7 @@ static func _schema_cases(cases: Array[Dictionary]) -> void:
 	var neutral: Dictionary = SectionsScript.neutral_workforce()
 	var legacy: Dictionary = neutral.duplicate(true)
 	legacy.erase(&"applicant_lifecycle")
+	legacy.erase(&"shift_reports")
 	var migrated: Dictionary = SectionsScript.validate_workforce(legacy)
 	_add(
 		cases,

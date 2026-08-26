@@ -6,6 +6,7 @@ const ApplicantLifecycleScript: GDScript = preload(
 	"res://scripts/applicant_lifecycle_service.gd"
 )
 const CodecScript: GDScript = preload("res://scripts/interaction_contract_codec.gd")
+const SettlerDayScript: GDScript = preload("res://scripts/settler_day_service.gd")
 const WorkforceScript: GDScript = preload("res://scripts/workforce_service.gd")
 
 var _farm_runtime: RefCounted
@@ -24,11 +25,24 @@ func snapshot() -> Dictionary:
 	if _farm_runtime == null:
 		return {}
 	var farm: Dictionary = _farm_runtime.call("get_snapshot") as Dictionary
+	var roster: Array[Dictionary] = WorkforceScript.roster(farm)
+	for entry: Dictionary in roster:
+		var settler_id: StringName = StringName(str(entry[&"settler_id"]))
+		entry[&"work_status"] = SettlerDayScript.presentation_status(farm, settler_id)
+		entry[&"shift_report"] = SettlerDayScript.last_shift_report(farm, settler_id)
+	var sites: Array[Dictionary] = WorkforceScript.site_snapshots(farm)
+	var workforce: Dictionary = ((farm[&"homestead"] as Dictionary)[&"workforce"] as Dictionary)
+	for site: Dictionary in sites:
+		var reports: Array[Dictionary] = []
+		for report: Dictionary in workforce[&"shift_reports"] as Array[Dictionary]:
+			if str(report[&"site_id"]) == str(site[&"site_id"]):
+				reports.append(report.duplicate(true))
+		site[&"shift_reports"] = reports
 	return {
 		&"offer": ApplicantLifecycleScript.current_offer(farm),
 		&"lifecycle": ApplicantLifecycleScript.lifecycle_state(farm),
-		&"roster": WorkforceScript.roster(farm),
-		&"sites": WorkforceScript.site_snapshots(farm),
+		&"roster": roster,
+		&"sites": sites,
 		&"source_revision": int((farm[&"revisions"] as Dictionary)[&"result_revision"]),
 	}
 

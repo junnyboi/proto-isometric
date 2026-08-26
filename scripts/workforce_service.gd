@@ -26,6 +26,8 @@ static func availability(farm: Dictionary, settler_id: StringName) -> Dictionary
 	if settler.is_empty():
 		return {&"available": false, &"reason": &"settler_missing"}
 	var day: int = CalendarScript.absolute_day(farm[&"calendar_weather"])
+	if settler[&"status"] == "recovering":
+		return {&"available": false, &"reason": &"settler_recovering"}
 	if settler[&"status"] != "active":
 		return {&"available": false, &"reason": &"settler_unavailable"}
 	if int(settler[&"injured_until_day"]) > day:
@@ -78,6 +80,9 @@ static func assign(
 		}
 	)
 	workforce[&"work_assignments"] = assignments
+	workforce[&"shift_reports"] = _reports_without(
+		workforce, str(settler_id), str(site_id)
+	)
 	return _write_workforce(source, workforce)
 
 
@@ -94,6 +99,7 @@ static func unassign(farm: Dictionary, settler_id: StringName) -> Dictionary:
 	if not found:
 		return _result(false, source, &"work_assignment_missing")
 	workforce[&"work_assignments"] = assignments
+	workforce[&"shift_reports"] = _reports_without(workforce, str(settler_id), "")
 	return _write_workforce(source, workforce)
 
 
@@ -112,9 +118,10 @@ static func site_snapshots(farm: Dictionary) -> Array[Dictionary]:
 			{
 				&"site_id": str(building[&"instance_id"]),
 				&"blueprint_id": str(blueprint_id),
-				&"slot_types": slot_types,
-				&"level": int(building[&"level"]),
-			}
+					&"slot_types": slot_types,
+					&"level": int(building[&"level"]),
+					&"local_stacks": (building[&"local_stacks"] as Array).duplicate(true),
+				}
 		)
 	result.sort_custom(
 		func(a: Dictionary, b: Dictionary) -> bool:
@@ -178,6 +185,19 @@ static func _housing_for(workforce: Dictionary, settler_id: StringName) -> Dicti
 static func _workforce(farm: Dictionary) -> Dictionary:
 	var homestead: Dictionary = farm.get(&"homestead", {}) as Dictionary
 	return (homestead.get(&"workforce", {}) as Dictionary).duplicate(true)
+
+
+static func _reports_without(
+	workforce: Dictionary, settler_id: String, site_id: String
+) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for report: Dictionary in workforce.get(&"shift_reports", []) as Array[Dictionary]:
+		if str(report[&"settler_id"]) == settler_id:
+			continue
+		if not site_id.is_empty() and str(report[&"site_id"]) == site_id:
+			continue
+		result.append(report.duplicate(true))
+	return result
 
 
 static func _result(

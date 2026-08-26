@@ -20,6 +20,7 @@ const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
 var _farm: Dictionary = {}
 var _commit_candidate: Callable
 var _source_resolver: Callable
+var _work_safety_resolver: Callable
 var _world_seed: int = CalendarStateScript.DEFAULT_WORLD_SEED
 var _last_error: StringName = &""
 
@@ -29,11 +30,13 @@ func configure(
 	commit_candidate: Callable,
 	world_seed: int = 0,
 	source_resolver: Callable = Callable(),
+	work_safety_resolver: Callable = Callable(),
 ) -> bool:
 	if not commit_candidate.is_valid():
 		return false
 	_commit_candidate = commit_candidate
 	_source_resolver = source_resolver
+	_work_safety_resolver = work_safety_resolver
 	_world_seed = world_seed if world_seed != 0 else CalendarStateScript.DEFAULT_WORLD_SEED
 	var initialized: Dictionary = InventoryServiceScript.ensure_default(farm)
 	initialized = CalendarStateScript.ensure_default(initialized, _world_seed)
@@ -169,7 +172,7 @@ func _build_operation(operation: StringName, arguments: Dictionary) -> Dictionar
 			result = EconomyServiceScript.purchase_workshop_upgrade(_farm)
 		&"sleep":
 			result = DayAdvanceServiceScript.build_candidate(
-				_farm, _world_seed, "", _source_resolver
+				_farm, _world_seed, "", _source_resolver, _work_safety_resolver
 			)
 		&"facility_repair":
 			result = HomesteadServiceScript.repair(

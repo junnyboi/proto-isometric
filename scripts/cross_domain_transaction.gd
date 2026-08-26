@@ -247,9 +247,10 @@ func _build(source: Dictionary, operation: StringName, arguments: Dictionary) ->
 			mutation = DayAdvanceServiceScript.build_candidate(
 				farm,
 				_world_seed,
-				"",
-				Callable(_world_validator, "_resource_source_at"),
-			)
+					"",
+					Callable(_world_validator, "_resource_source_at"),
+					Callable(_world_validator, "_is_home_safe"),
+				)
 		&"upgrade":
 			mutation = DurableUpgradeServiceScript.purchase(
 				farm, arguments[&"upgrade_id"] as StringName

@@ -1,6 +1,7 @@
 extends RefCounted
 
 const HousingScript: GDScript = preload("res://scripts/housing_protection_service.gd")
+const SettlerDayScript: GDScript = preload("res://scripts/settler_day_service.gd")
 const SettlerCatalogScript: GDScript = preload("res://scripts/settler_catalog.gd")
 
 const TEXTURES: Dictionary = {
@@ -42,6 +43,11 @@ static func build_records(farm: Dictionary) -> Array[Dictionary]:
 		var slot: int = int(bed[&"slot"])
 		var base_cell: Vector2i = bed[&"cell"] as Vector2i
 		var cell: Vector2i = base_cell + BED_OFFSETS[slot % BED_OFFSETS.size()]
+		var work_status: StringName = SettlerDayScript.presentation_status(farm, settler_id)
+		if work_status in [SettlerDayScript.WORKING, SettlerDayScript.CARRYING]:
+			var work_cell: Vector2i = SettlerDayScript.work_cell(farm, settler_id)
+			if absi(work_cell.x) < 1_000_000 and absi(work_cell.y) < 1_000_000:
+				cell = work_cell
 		result.append(
 			{
 				&"cell": cell,
@@ -53,7 +59,8 @@ static func build_records(farm: Dictionary) -> Array[Dictionary]:
 				&"texture_path": texture.resource_path,
 				&"draw_size": DRAW_SIZE,
 				&"draw_offset": DRAW_OFFSET,
-				&"status": StringName(str(settler[&"status"])),
+					&"status": work_status,
+					&"settler_state": StringName(str(settler[&"status"])),
 				&"bed_id": str(bed[&"bed_id"]),
 			}
 		)

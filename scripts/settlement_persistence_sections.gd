@@ -2,6 +2,7 @@ extends RefCounted
 
 const ReceiptLedgerScript: GDScript = preload("res://scripts/exact_once_receipt_ledger.gd")
 const StateHashScript: GDScript = preload("res://scripts/persistence_state_hash.gd")
+const ItemCatalogScript: GDScript = preload("res://scripts/item_catalog.gd")
 
 const STATE_VERSION: int = 1
 const MAX_BUILDINGS: int = 64
@@ -11,6 +12,7 @@ const MAX_SETTLERS: int = 24
 const MAX_HOUSING_ASSIGNMENTS: int = 24
 const MAX_WORK_ASSIGNMENTS: int = 24
 const MAX_CONCERNS: int = 24
+const MAX_SHIFT_REPORTS: int = 88
 const MAX_LOGISTICS_JOBS: int = 128
 const MAX_FISHING_SPOTS: int = 64
 const MAX_TREES: int = 512
@@ -38,6 +40,7 @@ static func neutral_workforce() -> Dictionary:
 		&"work_assignments": [],
 		&"concerns": [],
 		&"applicant_lifecycle": neutral_applicant_lifecycle(),
+		&"shift_reports": [],
 	}
 
 
@@ -100,9 +103,13 @@ static func validate_workforce(value: Variant) -> Dictionary:
 	]
 	if _exact_keys(canonical, legacy_keys):
 		canonical[&"applicant_lifecycle"] = neutral_applicant_lifecycle()
+	var pre_p7_keys: Array[StringName] = legacy_keys.duplicate()
+	pre_p7_keys.append(&"applicant_lifecycle")
+	if _exact_keys(canonical, pre_p7_keys):
+		canonical[&"shift_reports"] = []
 	var keys: Array[StringName] = [
 		&"state_version", &"settlers", &"housing_assignments", &"work_assignments", &"concerns",
-		&"applicant_lifecycle",
+		&"applicant_lifecycle", &"shift_reports",
 	]
 	var section: Dictionary = _section(canonical, keys)
 	if section.is_empty():
@@ -120,9 +127,15 @@ static func validate_workforce(value: Variant) -> Dictionary:
 		section[&"concerns"], MAX_CONCERNS, _concern, &"concern_id"
 	)
 	var lifecycle: Dictionary = _applicant_lifecycle(section[&"applicant_lifecycle"])
-	if settlers == null or housing == null or work == null or concerns == null or lifecycle.is_empty():
+	var reports: Variant = _records(
+		section[&"shift_reports"], MAX_SHIFT_REPORTS, _shift_report, &"report_id"
+	)
+	if (
+		settlers == null or housing == null or work == null or concerns == null
+		or lifecycle.is_empty() or reports == null
+	):
 		return {}
-	if not _workforce_links_are_valid(settlers, housing, work, concerns):
+	if not _workforce_links_are_valid(settlers, housing, work, concerns, reports):
 		return {}
 	return {
 		&"state_version": STATE_VERSION,
@@ -131,6 +144,7 @@ static func validate_workforce(value: Variant) -> Dictionary:
 		&"work_assignments": work,
 		&"concerns": concerns,
 		&"applicant_lifecycle": lifecycle,
+		&"shift_reports": reports,
 	}
 
 
@@ -198,6 +212,9 @@ static func validate_links(
 			return false
 	for assignment: Dictionary in workforce.get(&"work_assignments", []) as Array[Dictionary]:
 		if not building_ids.has(str(assignment[&"site_id"])):
+			return false
+	for report: Dictionary in workforce.get(&"shift_reports", []) as Array[Dictionary]:
+		if not building_ids.has(str(report[&"site_id"])):
 			return false
 	for job: Dictionary in logistics.get(&"jobs", []) as Array[Dictionary]:
 		if (
@@ -300,6 +317,53 @@ static func _work(value: Dictionary) -> Dictionary:
 		&"site_id": str(value[&"site_id"]),
 		&"slot": int(slot),
 		&"shift": int(shift),
+	}
+
+
+static func _shift_report(value: Dictionary) -> Dictionary:
+	var keys: Array[StringName] = [
+		&"report_id", &"site_id", &"settler_id", &"slot", &"shift", &"absolute_day",
+		&"status", &"reason", &"source_id", &"item_id", &"count",
+	]
+	if not _exact_keys(value, keys):
+		return {}
+	var slot: Variant = _integer(value[&"slot"], -1, 31)
+	var shift: Variant = _integer(value[&"shift"], -1, 1)
+	var day: Variant = _integer(value[&"absolute_day"], 1, MAX_NUMBER)
+	var count: Variant = _integer(value[&"count"], 0, MAX_NUMBER)
+	if (
+		slot == null or shift == null or day == null or count == null
+		or not _identifier(value[&"report_id"]) or not _identifier(value[&"site_id"])
+		or str(value[&"status"]) not in ["productive", "idle"]
+	):
+		return {}
+	var settler_id: String = str(value[&"settler_id"])
+	var reason: String = str(value[&"reason"])
+	var source_id: String = str(value[&"source_id"])
+	var item_id: String = str(value[&"item_id"])
+	var productive: bool = str(value[&"status"]) == "productive"
+	if productive:
+		if (
+			settler_id.is_empty() or not _identifier(settler_id) or int(slot) < 0
+			or int(shift) < 0 or not reason.is_empty() or not _identifier(source_id)
+			or StringName(item_id) not in ItemCatalogScript.ids() or int(count) < 1
+			or int(count) > ItemCatalogScript.stack_limit(StringName(item_id))
+		):
+			return {}
+	else:
+		if reason.is_empty() or not _identifier(reason) or int(count) != 0:
+			return {}
+		if not source_id.is_empty() or not item_id.is_empty():
+			return {}
+		if settler_id.is_empty() != (int(slot) == -1 and int(shift) == -1):
+			return {}
+		if not settler_id.is_empty() and not _identifier(settler_id):
+			return {}
+	return {
+		&"report_id": str(value[&"report_id"]), &"site_id": str(value[&"site_id"]),
+		&"settler_id": settler_id, &"slot": int(slot), &"shift": int(shift),
+		&"absolute_day": int(day), &"status": str(value[&"status"]), &"reason": reason,
+		&"source_id": source_id, &"item_id": item_id, &"count": int(count),
 	}
 
 
@@ -467,7 +531,12 @@ static func _stacks(value: Variant) -> Variant:
 		var stack: Dictionary = raw as Dictionary if raw is Dictionary else {}
 		if not _exact_keys(stack, [&"item_id", &"count"]) or not _identifier(stack.get(&"item_id")):
 			return null
-		var count: Variant = _integer(stack.get(&"count"), 1, MAX_NUMBER)
+		var item_name: StringName = StringName(str(stack.get(&"item_id", "")))
+		if item_name not in ItemCatalogScript.ids():
+			return null
+		var count: Variant = _integer(
+			stack.get(&"count"), 1, ItemCatalogScript.stack_limit(item_name)
+		)
 		var item_id: String = str(stack[&"item_id"])
 		if count == null or seen.has(item_id):
 			return null
@@ -522,7 +591,7 @@ static func _building_footprints_are_unique(buildings: Array) -> bool:
 
 
 static func _workforce_links_are_valid(
-	settlers: Array, housing: Array, work: Array, concerns: Array
+	settlers: Array, housing: Array, work: Array, concerns: Array, reports: Array
 ) -> bool:
 	var settler_ids: Dictionary = {}
 	for settler: Dictionary in settlers:
@@ -551,6 +620,28 @@ static func _workforce_links_are_valid(
 		if not settler_ids.has(settler_id) or concerned_settlers.has(settler_id):
 			return false
 		concerned_settlers[settler_id] = true
+	for report: Dictionary in reports:
+		var report_settler: String = str(report[&"settler_id"])
+		var report_site: String = str(report[&"site_id"])
+		if report_settler.is_empty():
+			for assignment: Dictionary in work:
+				if str(assignment[&"site_id"]) == report_site:
+					return false
+			continue
+		if not settler_ids.has(report_settler):
+			return false
+		var linked: bool = false
+		for assignment: Dictionary in work:
+			if (
+				str(assignment[&"settler_id"]) == report_settler
+				and str(assignment[&"site_id"]) == report_site
+				and int(assignment[&"slot"]) == int(report[&"slot"])
+				and int(assignment[&"shift"]) == int(report[&"shift"])
+			):
+				linked = true
+				break
+		if not linked:
+			return false
 	return true
 
 

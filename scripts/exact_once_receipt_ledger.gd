@@ -141,6 +141,23 @@ static func namespace_of(token: String) -> StringName:
 	return &"" if separator <= 0 else StringName(token.left(separator))
 
 
+static func retain_prefix(ledger: Variant, prefix: String, limit: int) -> Dictionary:
+	var normalized: Dictionary = validate(ledger)
+	if normalized.is_empty() or prefix.is_empty() or limit < 0 or limit > MAX_RECEIPTS:
+		return {}
+	var matching: Array[Dictionary] = []
+	var retained: Array[Dictionary] = []
+	for entry: Dictionary in normalized[&"entries"] as Array[Dictionary]:
+		if str(entry[&"token"]).begins_with(prefix):
+			matching.append(entry.duplicate(true))
+		else:
+			retained.append(entry.duplicate(true))
+	var start: int = maxi(matching.size() - limit, 0)
+	for index: int in range(start, matching.size()):
+		retained.append(matching[index])
+	return validate({&"state_version": STATE_VERSION, &"entries": retained})
+
+
 static func _record_failure(ledger: Dictionary, status: StringName) -> Dictionary:
 	return {&"ok": false, &"status": status, &"candidate": ledger, &"result": null}
 

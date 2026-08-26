@@ -139,6 +139,13 @@ static func demolish(farm: Dictionary, instance_id: StringName) -> Dictionary:
 			retained.append(current.duplicate(true))
 	construction[&"buildings"] = retained
 	homestead[&"construction"] = construction
+	var workforce: Dictionary = homestead.get(&"workforce", {}) as Dictionary
+	var reports: Array[Dictionary] = []
+	for report: Dictionary in workforce.get(&"shift_reports", []) as Array[Dictionary]:
+		if str(report[&"site_id"]) != str(instance_id):
+			reports.append(report.duplicate(true))
+	workforce[&"shift_reports"] = reports
+	homestead[&"workforce"] = SectionsScript.validate_workforce(workforce)
 	candidate[&"homestead"] = homestead
 	var blueprint_id: StringName = StringName(str(record[&"blueprint_id"]))
 	var refund: Dictionary = _refund_bill(CatalogScript.bill(blueprint_id))
@@ -193,6 +200,9 @@ static func _consume(farm: Dictionary, materials: Dictionary) -> Dictionary:
 
 
 static func has_dependencies(farm: Dictionary, instance_id: StringName) -> bool:
+	var site: Dictionary = building(farm, instance_id)
+	if not site.is_empty() and not (site[&"local_stacks"] as Array).is_empty():
+		return true
 	var homestead: Dictionary = farm.get(&"homestead", {}) as Dictionary
 	var workforce: Dictionary = homestead.get(&"workforce", {}) as Dictionary
 	var bed_prefix: String = "bed.%s." % str(instance_id)
