@@ -12,6 +12,7 @@ const KIND_RESIDENT: StringName = &"resident"
 const KIND_FRIENDLY_FAUNA: StringName = &"friendly_fauna"
 const KIND_HOSTILE: StringName = &"hostile"
 const KIND_PICKUP: StringName = &"pickup"
+const KIND_RESOURCE: StringName = &"resource"
 
 const ACTION_PREVIEW: StringName = &"preview"
 const ACTION_CONTEXT: StringName = &"context"
@@ -29,6 +30,7 @@ const REJECT_FRIENDLY_FIRE: StringName = &"friendly_fire_denied"
 
 const PRIORITY: Array[StringName] = [
 	KIND_PICKUP,
+	KIND_RESOURCE,
 	KIND_RESIDENT,
 	KIND_FRIENDLY_FAUNA,
 	KIND_HOSTILE,
@@ -47,7 +49,8 @@ const MASK_RESIDENT: int = 1 << 5
 const MASK_FRIENDLY_FAUNA: int = 1 << 6
 const MASK_HOSTILE: int = 1 << 7
 const MASK_PICKUP: int = 1 << 8
-const MASK_ALL: int = (1 << 9) - 1
+const MASK_RESOURCE: int = 1 << 9
+const MASK_ALL: int = (1 << 10) - 1
 const BITS: Dictionary = {
 	KIND_TERRAIN: MASK_TERRAIN,
 	KIND_PLOT: MASK_PLOT,
@@ -58,6 +61,7 @@ const BITS: Dictionary = {
 	KIND_FRIENDLY_FAUNA: MASK_FRIENDLY_FAUNA,
 	KIND_HOSTILE: MASK_HOSTILE,
 	KIND_PICKUP: MASK_PICKUP,
+	KIND_RESOURCE: MASK_RESOURCE,
 }
 
 

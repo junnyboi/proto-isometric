@@ -646,5 +646,14 @@
   "interaction.action.demolish_construction.label": "拆除建筑",
   "interaction.reason.construction_not_movable": "仅可移动已完工、已清空且允许移动的建筑。",
   "interaction.reason.construction_upgrade_unavailable": "升级不可用或材料不足。",
-  "interaction.reason.construction_protected": "拆除前请清空本地存储与生产政策。"
+  "interaction.reason.construction_protected": "拆除前请清空本地存储与生产政策。",
+  "interaction.target.deposit_salvage.title": "有限废料堆",
+  "interaction.target.deposit_mineral.title": "有限矿脉",
+  "interaction.target.deposit_biomass.title": "管理型生物质地块",
+  "interaction.action.inspect_deposit.label": "检查资源点",
+  "interaction.action.gather_deposit.label": "采集一次",
+  "interaction.action.preview_extraction_range.label": "切换资源范围",
+  "interaction.reason.deposit_renewing": "管理型生物质正在再生。",
+  "interaction.reason.deposit_exhausted": "该有限资源点已枯竭。",
+  "interaction.reason.deposit_reserved": "该资源点已由一座工作建筑预留。"
 }

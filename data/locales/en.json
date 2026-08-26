@@ -646,5 +646,14 @@
   "interaction.action.demolish_construction.label": "Demolish Building",
   "interaction.reason.construction_not_movable": "Complete, empty, movable buildings only.",
   "interaction.reason.construction_upgrade_unavailable": "Upgrade unavailable or materials insufficient.",
-  "interaction.reason.construction_protected": "Empty local storage and policies before demolition."
+  "interaction.reason.construction_protected": "Empty local storage and policies before demolition.",
+  "interaction.target.deposit_salvage.title": "Finite Salvage Cluster",
+  "interaction.target.deposit_mineral.title": "Finite Mineral Seam",
+  "interaction.target.deposit_biomass.title": "Managed Biomass Patch",
+  "interaction.action.inspect_deposit.label": "Inspect Source",
+  "interaction.action.gather_deposit.label": "Gather One Charge",
+  "interaction.action.preview_extraction_range.label": "Toggle Source Range",
+  "interaction.reason.deposit_renewing": "Managed biomass is renewing.",
+  "interaction.reason.deposit_exhausted": "This finite source is exhausted.",
+  "interaction.reason.deposit_reserved": "A work building has reserved this source."
 }

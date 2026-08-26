@@ -13,11 +13,13 @@ const PROVIDER_MACHINE: StringName = &"interaction.provider.storage_shipping_mac
 const PROVIDER_RESIDENT: StringName = &"interaction.provider.resident"
 const PROVIDER_LIVESTOCK: StringName = &"interaction.provider.livestock"
 const PROVIDER_CONSTRUCTION: StringName = &"interaction.provider.construction"
+const PROVIDER_DEPOSIT: StringName = &"interaction.provider.deposit"
 const PROVIDER_WILDERNESS: StringName = &"interaction.provider.wilderness"
 const PROVIDER_LEGACY: StringName = &"interaction.provider.legacy_expedition"
 const PROVIDERS: Array[StringName] = [
 	PROVIDER_FACILITY,
 	PROVIDER_CONSTRUCTION,
+	PROVIDER_DEPOSIT,
 	PROVIDER_LEGACY,
 	PROVIDER_LIVESTOCK,
 	PROVIDER_MACHINE,
@@ -36,6 +38,7 @@ const PROVIDER_SUBKINDS: Dictionary = {
 	PROVIDER_RESIDENT: [&"resident"],
 	PROVIDER_LIVESTOCK: [&"livestock"],
 	PROVIDER_CONSTRUCTION: [&"construction"],
+	PROVIDER_DEPOSIT: [&"deposit_salvage", &"deposit_mineral", &"deposit_biomass"],
 	PROVIDER_WILDERNESS: [&"wilderness", &"hostile", &"hazard", &"herd"],
 	PROVIDER_LEGACY: [&"legacy_expedition", &"expedition_gate"],
 }

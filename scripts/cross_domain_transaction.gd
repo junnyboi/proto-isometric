@@ -4,6 +4,9 @@ const CalendarStateScript: GDScript = preload("res://scripts/calendar_state.gd")
 const ConstructionTransactionScript: GDScript = preload(
 	"res://scripts/construction_transaction_service.gd"
 )
+const DepositGatheringOperationScript: GDScript = preload(
+	"res://scripts/deposit_gathering_operation.gd"
+)
 const DayAdvanceServiceScript: GDScript = preload("res://scripts/day_advance_service.gd")
 const DurableUpgradeServiceScript: GDScript = preload("res://scripts/durable_upgrade_service.gd")
 const EcologyDirectorScript: GDScript = preload("res://scripts/ecology_director.gd")
@@ -36,10 +39,14 @@ func configure(
 	world_validator: RefCounted,
 	publish: Callable = Callable(),
 	world_seed: int = CalendarStateScript.DEFAULT_WORLD_SEED,
+	allow_structural_source: bool = false,
 ) -> bool:
 	if repository == null or world_validator == null:
 		return false
-	var normalized: Dictionary = repository.call("validate_envelope", envelope) as Dictionary
+	var validator: StringName = (
+		&"validate_candidate_envelope" if allow_structural_source else &"validate_envelope"
+	)
+	var normalized: Dictionary = repository.call(validator, envelope) as Dictionary
 	if normalized.is_empty():
 		return false
 	_envelope = normalized
@@ -208,10 +215,10 @@ func _build(source: Dictionary, operation: StringName, arguments: Dictionary) ->
 	var candidate: Dictionary = source.duplicate(true)
 	var farm: Dictionary = candidate[&"farm"] as Dictionary
 	var mutation: Dictionary = {&"ok": false, &"candidate": farm, &"reason": &"unknown_operation"}
-	if operation in ConstructionTransactionScript.OPERATIONS:
-		return ConstructionTransactionScript.build(
-			candidate, operation, arguments, _world_validator
-		)
+	if operation == DepositGatheringOperationScript.OPERATION or (
+		operation in ConstructionTransactionScript.OPERATIONS
+	):
+		return _build_specialized(candidate, operation, arguments)
 	match operation:
 		&"harvest":
 			mutation = FarmStateScript.harvest(farm, arguments[&"cell"] as Vector2i)
@@ -233,7 +240,12 @@ func _build(source: Dictionary, operation: StringName, arguments: Dictionary) ->
 		&"craft_claim":
 			mutation = MachineServiceScript.claim(farm, arguments[&"machine_id"] as StringName)
 		&"sleep":
-			mutation = DayAdvanceServiceScript.build_candidate(farm, _world_seed)
+			mutation = DayAdvanceServiceScript.build_candidate(
+				farm,
+				_world_seed,
+				"",
+				Callable(_world_validator, "_resource_source_at"),
+			)
 		&"upgrade":
 			mutation = DurableUpgradeServiceScript.purchase(
 				farm, arguments[&"upgrade_id"] as StringName
@@ -330,6 +342,20 @@ func _build(source: Dictionary, operation: StringName, arguments: Dictionary) ->
 		return {&"ok": false, &"candidate": source, &"reason": mutation[&"reason"]}
 	candidate[&"farm"] = FarmSaveSchemaScript.validate(mutation[&"candidate"])
 	return {&"ok": not (candidate[&"farm"] as Dictionary).is_empty(), &"candidate": candidate}
+
+
+func _build_specialized(
+	candidate: Dictionary,
+	operation: StringName,
+	arguments: Dictionary,
+) -> Dictionary:
+	if operation == DepositGatheringOperationScript.OPERATION:
+		return DepositGatheringOperationScript.build(
+			candidate, arguments, _world_seed, _world_validator
+		)
+	return ConstructionTransactionScript.build(
+		candidate, operation, arguments, _world_validator
+	)
 
 
 func _build_placement(candidate: Dictionary, arguments: Dictionary) -> Dictionary:

@@ -6,6 +6,9 @@ const DurableUpgradeCatalogScript: GDScript = preload("res://scripts/durable_upg
 const EcologyDirectorScript: GDScript = preload("res://scripts/ecology_director.gd")
 const ItemCatalogScript: GDScript = preload("res://scripts/item_catalog.gd")
 const RecipeCatalogScript: GDScript = preload("res://scripts/recipe_catalog.gd")
+const ResourceDepositDeltaValidatorScript: GDScript = preload(
+	"res://scripts/resource_deposit_delta_validator.gd"
+)
 const HomesteadSaveSchemaScript: GDScript = preload("res://scripts/homestead_save_schema.gd")
 const SettlementSectionsScript: GDScript = preload(
 	"res://scripts/settlement_persistence_sections.gd"
@@ -231,6 +234,8 @@ static func validate(snapshot: Variant) -> Dictionary:
 		homestead[&"workforce"] as Dictionary,
 		logistics,
 	):
+		return {}
+	if not ResourceDepositDeltaValidatorScript.validate(gathering):
 		return {}
 	return {
 		&"state_version": STATE_VERSION,

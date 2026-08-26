@@ -9,6 +9,7 @@ const RECORD_FENCE: StringName = &"fence"
 const RECORD_STRUCTURE: StringName = &"structure"
 const RECORD_RESIDENT: StringName = &"resident"
 const RECORD_LIVESTOCK: StringName = &"livestock"
+const RECORD_DEPOSIT: StringName = &"deposit"
 const RECORD_TYPES: Array[StringName] = [
 	RECORD_SOIL,
 	RECORD_CROP,
@@ -16,6 +17,7 @@ const RECORD_TYPES: Array[StringName] = [
 	RECORD_STRUCTURE,
 	RECORD_RESIDENT,
 	RECORD_LIVESTOCK,
+	RECORD_DEPOSIT,
 ]
 
 var _visible_chunks: Dictionary = {}

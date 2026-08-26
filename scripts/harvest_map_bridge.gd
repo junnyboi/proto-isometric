@@ -9,6 +9,9 @@ const ConstructionRuntimeScript: GDScript = preload(
 	"res://scripts/construction_runtime_coordinator.gd"
 )
 const CrossDomainTransactionScript: GDScript = preload("res://scripts/cross_domain_transaction.gd")
+const ExtractionRangeOverlayScript: GDScript = preload(
+	"res://scripts/extraction_range_overlay.gd"
+)
 const FarmRendererScript: GDScript = preload("res://scripts/farm_render_adapter.gd")
 const HomesteadPresentationScript: GDScript = preload(
 	"res://scripts/homestead_presentation_catalog.gd"
@@ -38,6 +41,9 @@ const MachineServiceScript: GDScript = preload("res://scripts/machine_service.gd
 const PlayerPreferencesScript: GDScript = preload("res://scripts/player_preferences.gd")
 const ResolverScript: GDScript = preload("res://scripts/interaction_resolver.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
+const ResourceDepositPresentationScript: GDScript = preload(
+	"res://scripts/resource_deposit_presentation.gd"
+)
 const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
 const WildernessRuntimeScript: GDScript = preload("res://scripts/wilderness_runtime.gd")
 const WoodlandClearingScript: GDScript = preload("res://scripts/woodland_clearing.gd")
@@ -69,6 +75,8 @@ var _wilderness_runtime: RefCounted
 var _context_tutorial: RefCounted
 var _construction_runtime: RefCounted
 var _construction_mode: Node2D
+var _extraction_range_overlay: Node2D
+var _visible_chunks: Array[Vector2i] = []
 var _ready_for_commands: bool = false
 var _last_presentation_signature: int = 0
 var _last_music_track: StringName = &""
@@ -362,6 +370,22 @@ func _initialize_farm_runtime() -> void:
 		or repository.call("get_gameplay_mode") != RuntimeIdsScript.MODE_FRESH_FARM
 	):
 		return
+	_farm_runtime = FarmRuntimeScript.new() as RefCounted
+	if not bool(
+		(
+			_farm_runtime
+			. call(
+				"configure",
+				repository.call("get_default_farm") as Dictionary,
+				Callable(self, "_commit_farm_candidate"),
+				WoodlandClearingScript.DEFAULT_SEED,
+				Callable(_map.get("_world") as RefCounted, "_resource_source_at"),
+			)
+		)
+	):
+		push_error("PH-14 farm runtime rejected its schema-5 source.")
+		_farm_runtime = null
+		return
 	var source_envelope: Dictionary = {
 		&"save_format_version": repository.FORMAT_VERSION,
 		&"metadata":
@@ -376,7 +400,7 @@ func _initialize_farm_runtime() -> void:
 		&"world": (_map.get("_world") as RefCounted).call("make_snapshot"),
 		&"active_run": (_map.get("_run_coordinator") as RefCounted).call("get_run_snapshot"),
 		&"profile": (_map.get("_run_coordinator") as RefCounted).call("get_profile_snapshot"),
-		&"farm": repository.call("get_default_farm"),
+		&"farm": _farm_runtime.call("get_snapshot"),
 	}
 	_transactions = CrossDomainTransactionScript.new() as RefCounted
 	if not bool(
@@ -387,27 +411,14 @@ func _initialize_farm_runtime() -> void:
 			source_envelope,
 			repository,
 			_map.get("_world") as RefCounted,
-			Callable(self, "_publish_envelope"),
-			WoodlandClearingScript.DEFAULT_SEED,
-		)
+				Callable(self, "_publish_envelope"),
+				WoodlandClearingScript.DEFAULT_SEED,
+				true,
+			)
 		)
 	):
 		push_error("PH-21 cross-domain transaction boundary rejected the live envelope.")
 		_transactions = null
-	_farm_runtime = FarmRuntimeScript.new() as RefCounted
-	if not bool(
-		(
-			_farm_runtime
-			. call(
-				"configure",
-				repository.call("get_default_farm") as Dictionary,
-				Callable(self, "_commit_farm_candidate"),
-				WoodlandClearingScript.DEFAULT_SEED,
-			)
-		)
-	):
-		push_error("PH-14 farm runtime rejected its schema-4 source.")
-		_farm_runtime = null
 
 
 func _initialize_interaction_phase_b_service() -> void:
@@ -446,6 +457,19 @@ func _initialize_construction(mobile: CanvasLayer) -> bool:
 	):
 		return false
 	_construction_mode.connect("mode_changed", _on_construction_mode_changed)
+	_extraction_range_overlay = ExtractionRangeOverlayScript.new() as Node2D
+	_extraction_range_overlay.name = "ExtractionRangeOverlay"
+	_map.add_child(_extraction_range_overlay)
+	var world: RefCounted = _map.get("_world") as RefCounted
+	if not bool(
+		_extraction_range_overlay.call(
+			"configure",
+			Callable(_map, "grid_to_screen"),
+			Callable(_farm_runtime, "get_snapshot"),
+			world,
+		)
+	):
+		return false
 	return true
 
 
@@ -572,6 +596,13 @@ func _execute_productive_action(
 func _on_phase_b_committed(
 	operation: StringName, cell: Vector2i, result: Dictionary
 ) -> void:
+	if operation == &"preview_extraction_range":
+		if _extraction_range_overlay != null:
+			var arguments: Dictionary = result.get(&"arguments", {}) as Dictionary
+			_extraction_range_overlay.call(
+				"toggle_site", arguments.get(&"instance_id", &"") as StringName
+			)
+		return
 	if operation in [
 		&"open_construction",
 		&"open_construction_move",
@@ -589,6 +620,10 @@ func _on_phase_b_committed(
 		var objects: Node2D = _map.get("_world_objects") as Node2D
 		if objects != null:
 			objects.call("invalidate_static_objects")
+	if operation == &"deposit_gather":
+		dirty.append(cell)
+		if _extraction_range_overlay != null:
+			_extraction_range_overlay.call("refresh")
 	_refresh_render_indexes(dirty)
 	_sync_ruin_registry()
 	_sync_clearing_music()
@@ -716,6 +751,13 @@ func _refresh_render_indexes(dirty_cells: Array[Vector2i] = []) -> void:
 		var farm: Dictionary = _farm_runtime.call("get_snapshot") as Dictionary
 		_merge_indexes(indexes, HomesteadPresentationScript.build_chunk_indexes(farm))
 		_merge_indexes(indexes, ConstructionPresentationScript.build_chunk_indexes(farm))
+		var world: RefCounted = _map.get("_world") as RefCounted
+		_merge_indexes(
+			indexes,
+			ResourceDepositPresentationScript.build_chunk_indexes(
+				farm, world, _visible_chunks
+			),
+		)
 		if _has_machine(farm, MachineServiceScript.FURNACE_ID):
 			_append_structure(indexes, FURNACE_CELL, &"furnace", FURNACE_TEXTURE)
 		if _has_upgrade(farm, &"upgrade.irrigation.grid_radius"):
@@ -868,4 +910,11 @@ func _sync_visible_chunks() -> void:
 		var chunk: Vector2i = Vector2i(floori(float(cell.x) / 8.0), floori(float(cell.y) / 8.0))
 		if chunk not in chunks:
 			chunks.append(chunk)
+	chunks.sort_custom(
+		func(a: Vector2i, b: Vector2i) -> bool:
+			return a.y < b.y or (a.y == b.y and a.x < b.x)
+	)
+	if chunks != _visible_chunks:
+		_visible_chunks = chunks.duplicate()
+		_refresh_render_indexes()
 	_farm_renderer.call("set_visible_chunks", chunks)

@@ -76,6 +76,19 @@ static func building(
 			800,
 		),
 	]
+	if complete and blueprint_id in [
+		CatalogScript.SALVAGE_CAMP,
+		CatalogScript.SURVEY_DRILL,
+		CatalogScript.COPPICE_STATION,
+	]:
+		options.append(
+			TargetBridgeScript.option_input(
+				&"interaction.action.preview_extraction_range",
+				&"preview_extraction_range",
+				{&"instance_id": instance_id}, true, &"", 160, no_cost,
+				OptionScript.CLOSE_NEVER,
+			)
+		)
 	return TargetBridgeScript.project(
 		cell,
 		{

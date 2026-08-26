@@ -6,6 +6,7 @@ const ConstructionCatalogScript: GDScript = preload(
 )
 const ConstructionLinksScript: GDScript = preload("res://scripts/construction_envelope_links.gd")
 const ReceiptLedgerScript: GDScript = preload("res://scripts/exact_once_receipt_ledger.gd")
+const ResourceDepositCatalogScript: GDScript = preload("res://scripts/resource_deposit_catalog.gd")
 const StateHashScript: GDScript = preload("res://scripts/persistence_state_hash.gd")
 const WorldLedgerScript: GDScript = preload("res://scripts/world_mutation_ledger.gd")
 
@@ -178,14 +179,28 @@ static func _maximum_world(world_value: Variant, buildings: Array[Dictionary]) -
 static func _maximum_deltas() -> Array[Dictionary]:
 	var records: Array[Dictionary] = []
 	for index: int in SectionsScript.MAX_RESOURCE_DELTAS:
+		var kind: StringName = (
+			ResourceDepositCatalogScript.SALVAGE
+			if index % 2 == 0
+			else ResourceDepositCatalogScript.MINERAL
+		)
+		var cell: Vector2i = Vector2i(
+			-72 + index % 145, -72 + floori(float(index) / 145.0)
+		)
 		records.append(
 			{
-				&"source_id": "source.maximum.%03d" % index,
-				&"remaining_charges": 999_999,
-				&"renewal_day": 999_999,
-				&"reserved_by": "building.maximum.%03d" % (index % SectionsScript.MAX_BUILDINGS),
-			}
-		)
+				&"source_id": str(
+					ResourceDepositCatalogScript.canonical_source_id(kind, cell)
+				),
+				&"remaining_charges": 0,
+					&"renewal_day": 0,
+					&"reserved_by": "building.maximum.%03d" % (index % SectionsScript.MAX_BUILDINGS),
+				}
+			)
+	records.sort_custom(
+		func(a: Dictionary, b: Dictionary) -> bool:
+			return str(a[&"source_id"]) < str(b[&"source_id"])
+	)
 	return records
 
 

@@ -4,6 +4,9 @@ const OasisWetlandsScript: GDScript = preload("res://scripts/oasis_wetlands.gd")
 const FrozenTundraScript: GDScript = preload("res://scripts/frozen_tundra.gd")
 const LavaFieldsScript: GDScript = preload("res://scripts/lava_fields.gd")
 const RuinRegistryScript: GDScript = preload("res://scripts/ruin_registry.gd")
+const ResourceDepositCatalogScript: GDScript = preload(
+	"res://scripts/resource_deposit_catalog.gd"
+)
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const WoodlandClearingScript: GDScript = preload("res://scripts/woodland_clearing.gd")
 const WorldMutationLedgerScript: GDScript = preload("res://scripts/world_mutation_ledger.gd")
@@ -96,6 +99,7 @@ func _get_generation_precedence() -> Array[StringName]:
 		&"clearing",
 		&"protected_paths_apron",
 		&"obstacles",
+		&"projected_resources",
 		&"mutations",
 		&"structures",
 	]
@@ -103,6 +107,10 @@ func _get_generation_precedence() -> Array[StringName]:
 
 func _get_gameplay_mode() -> StringName:
 	return _gameplay_mode
+
+
+func _get_world_seed() -> int:
+	return _world_seed
 
 
 func _get_ruin_registry() -> RefCounted:
@@ -324,6 +332,28 @@ func _is_pond(cell: Vector2i) -> bool:
 	return _is_fresh_farm() and cell == WoodlandClearingScript.POND_CELL
 
 
+func _resource_source_at(cell: Vector2i) -> Dictionary:
+	if not is_valid_cell(cell):
+		return {}
+	_ensure_cell(cell)
+	var source: Dictionary = ResourceDepositCatalogScript.project_at(
+		cell, _world_seed, _gameplay_mode
+	)
+	if source.is_empty():
+		return {}
+	if (
+		_is_outpost(cell)
+		or _is_pond(cell)
+		or _tree_kind_at(cell) != &""
+		or _is_protected_clearing_cell(cell)
+		or _placed_occupancy.has(cell)
+		or bool(_rocks.get(cell, false))
+		or int(_scrap.get(cell, 0)) > 0
+	):
+		return {}
+	return source
+
+
 func _outpost_kind_at(cell: Vector2i) -> StringName:
 	return _ruin_registry.call("legacy_kind_for", cell) as StringName
 
@@ -504,6 +534,8 @@ func _generate_cell(cell: Vector2i) -> void:
 		amount = _generated_scrap_amount(cell)
 	if amount > 0 and not _blocked.has(cell):
 		_scrap[cell] = amount
+	if not _resource_source_at(cell).is_empty():
+		_blocked[cell] = true
 
 
 func _set_rock(cell: Vector2i) -> void:

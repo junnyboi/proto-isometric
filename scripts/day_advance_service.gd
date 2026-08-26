@@ -4,6 +4,7 @@ const CalendarStateScript: GDScript = preload("res://scripts/calendar_state.gd")
 const ConstructionDayScript: GDScript = preload("res://scripts/construction_day_service.gd")
 const EconomyServiceScript: GDScript = preload("res://scripts/economy_service.gd")
 const FarmStateScript: GDScript = preload("res://scripts/farm_state.gd")
+const GatheringStateScript: GDScript = preload("res://scripts/gathering_state_service.gd")
 const MachineServiceScript: GDScript = preload("res://scripts/machine_service.gd")
 const ResidentServiceScript: GDScript = preload("res://scripts/resident_service.gd")
 const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
@@ -13,6 +14,7 @@ static func build_candidate(
 	farm: Dictionary,
 	world_seed: int = CalendarStateScript.DEFAULT_WORLD_SEED,
 	requested_token: String = "",
+	source_resolver: Callable = Callable(),
 ) -> Dictionary:
 	var source: Dictionary = farm.duplicate(true)
 	var calendar: Dictionary = source[&"calendar_weather"] as Dictionary
@@ -51,6 +53,18 @@ static func build_candidate(
 		}
 	candidate = settled[&"candidate"] as Dictionary
 	candidate = CalendarStateScript.advance_calendar(candidate, world_seed)
+	var renewed: Dictionary = GatheringStateScript.advance_day(
+		candidate,
+		world_seed,
+		CalendarStateScript.absolute_day(candidate[&"calendar_weather"]),
+		source_resolver,
+	)
+	if not bool(renewed[&"ok"]):
+		return {
+			&"ok": false, &"candidate": source, &"day_token": token,
+			&"reason": renewed[&"reason"],
+		}
+	candidate = renewed[&"candidate"] as Dictionary
 	candidate = ToolServiceScript.recover(candidate)
 	var arrivals: Dictionary = ResidentServiceScript.reconcile_arrivals(candidate)
 	if arrivals[&"reason"] not in [&"", &"no_arrivals", &"homestead_inactive"]:

@@ -5,6 +5,9 @@ const CatalogScript: GDScript = preload("res://scripts/interaction_option_catalo
 const ConstructionProviderScript: GDScript = preload(
 	"res://scripts/construction_interaction_provider.gd"
 )
+const DepositProviderScript: GDScript = preload(
+	"res://scripts/resource_deposit_interaction_provider.gd"
+)
 const OccupancyScript: GDScript = preload("res://scripts/building_occupancy_index.gd")
 const EcologyDirectorScript: GDScript = preload("res://scripts/ecology_director.gd")
 const FarmProviderScript: GDScript = preload("res://scripts/harvest_interaction_farm_provider.gd")
@@ -67,6 +70,7 @@ const CONSTRUCTION_UI_OPERATIONS: Array[StringName] = [
 	&"open_construction_move",
 	&"confirm_construction_upgrade",
 	&"confirm_construction_demolish",
+	&"preview_extraction_range",
 ]
 
 var _map: Node2D
@@ -91,6 +95,13 @@ func configure(
 
 
 func resolver_snapshot(cell: Vector2i) -> Dictionary:
+	var world: RefCounted = _map.get("_world") as RefCounted
+	var source: Dictionary = world.call("_resource_source_at", cell) as Dictionary
+	if not source.is_empty():
+		return {
+			&"kinds": [ResolverScript.KIND_RESOURCE], &"blocked": true,
+			&"home": false, &"machine": false, &"tool_damage": false,
+		}
 	var description: Dictionary = _describe(cell)
 	if bool(description.get(&"out_of_bounds", false)):
 		return {&"kinds": [], &"out_of_bounds": true}
@@ -108,10 +119,19 @@ func resolver_snapshot(cell: Vector2i) -> Dictionary:
 
 
 func project(cell: Vector2i, selected_tool: StringName) -> Dictionary:
+	var farm: Dictionary = _farm_runtime.call("get_snapshot") as Dictionary
+	var world: RefCounted = _map.get("_world") as RefCounted
+	var source: Dictionary = world.call("_resource_source_at", cell) as Dictionary
+	if not source.is_empty():
+		return DepositProviderScript.deposit(
+			farm,
+			source,
+			CalendarStateScript.absolute_day(farm[&"calendar_weather"]),
+			selected_tool,
+		)
 	var description: Dictionary = _describe(cell)
 	if description.is_empty() or bool(description.get(&"out_of_bounds", false)):
 		return {}
-	var farm: Dictionary = _farm_runtime.call("get_snapshot") as Dictionary
 	var projection: Dictionary = {}
 	match description[&"family"] as StringName:
 		&"terrain":
@@ -303,7 +323,7 @@ func _tool_actions(tool_id: StringName) -> Array[StringName]:
 
 func _execute_option(cell: Vector2i, option: Dictionary) -> Dictionary:
 	var operation: StringName = option[&"operation"] as StringName
-	if operation in READ_OPERATIONS:
+	if operation in READ_OPERATIONS or operation == &"inspect_deposit":
 		return _result(true, &"preview_only")
 	if operation in CONSTRUCTION_UI_OPERATIONS:
 		var opened: Dictionary = _result(true, &"")
@@ -312,6 +332,8 @@ func _execute_option(cell: Vector2i, option: Dictionary) -> Dictionary:
 		return opened
 	var arguments: Dictionary = (option[&"arguments"] as Dictionary).duplicate(true)
 	var result: Dictionary
+	if operation == &"deposit_gather":
+		return _execute_deposit_gather(cell, option, arguments)
 	if operation in CROSS_DOMAIN_OPERATIONS:
 		result = _transactions.call("transact", operation, arguments) as Dictionary
 	else:
@@ -323,6 +345,36 @@ func _execute_option(cell: Vector2i, option: Dictionary) -> Dictionary:
 		_committed.call(operation, cell, result.duplicate(true))
 	elif operation in CROSS_DOMAIN_OPERATIONS:
 		_sync_cross_domain_farm(result)
+	return result
+
+
+func _execute_deposit_gather(
+	cell: Vector2i,
+	option: Dictionary,
+	arguments: Dictionary,
+) -> Dictionary:
+	var source: Dictionary = _transactions.call("get_snapshot") as Dictionary
+	var revision: int = int(((source[&"farm"] as Dictionary)[&"revisions"] as Dictionary)[
+		&"result_revision"
+	])
+	var digest: String = CodecScript.digest(option)
+	var token: String = "deposit:%d:%s" % [revision, digest.left(32)]
+	var payload: Dictionary = {
+		&"source_id": str(arguments[&"source_id"]), &"option_digest": digest,
+		&"source_revision": revision,
+	}
+	var deterministic: Dictionary = {
+		&"result_id": "deposit.result.%s" % digest.left(24),
+		&"source_id": str(arguments[&"source_id"]), &"source_revision": revision,
+	}
+	var result: Dictionary = _transactions.call(
+		"transact_exact_once", &"deposit_gather", arguments, token, payload, deterministic
+	) as Dictionary
+	if not _sync_cross_domain_farm(result):
+		return _result(false, &"live_farm_sync_failed")
+	if bool(result.get(&"ok", false)) and not bool(result.get(&"replayed", false)):
+		result[&"dirty_cells"] = [cell]
+		_committed.call(&"deposit_gather", cell, result.duplicate(true))
 	return result
 
 
