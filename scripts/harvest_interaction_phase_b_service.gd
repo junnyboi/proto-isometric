@@ -1,6 +1,9 @@
 extends RefCounted
 
 const CalendarStateScript: GDScript = preload("res://scripts/calendar_state.gd")
+const BlueprintCatalogScript: GDScript = preload(
+	"res://scripts/construction_blueprint_catalog.gd"
+)
 const CatalogScript: GDScript = preload("res://scripts/interaction_option_catalog.gd")
 const ConstructionProviderScript: GDScript = preload(
 	"res://scripts/construction_interaction_provider.gd"
@@ -18,6 +21,12 @@ const HomesteadPresentationScript: GDScript = preload(
 const HomesteadServiceScript: GDScript = preload("res://scripts/homestead_service.gd")
 const CodecScript: GDScript = preload("res://scripts/interaction_contract_codec.gd")
 const ResolverScript: GDScript = preload("res://scripts/interaction_resolver.gd")
+const SettlementProviderScript: GDScript = preload(
+	"res://scripts/settlement_interaction_provider.gd"
+)
+const SettlerPresentationScript: GDScript = preload(
+	"res://scripts/settler_presentation_catalog.gd"
+)
 const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
 const WildernessProviderScript: GDScript = preload(
 	"res://scripts/harvest_interaction_world_provider.gd"
@@ -71,6 +80,7 @@ const CONSTRUCTION_UI_OPERATIONS: Array[StringName] = [
 	&"confirm_construction_upgrade",
 	&"confirm_construction_demolish",
 	&"preview_extraction_range",
+	&"open_settlement",
 ]
 
 var _map: Node2D
@@ -138,6 +148,8 @@ func project(cell: Vector2i, selected_tool: StringName) -> Dictionary:
 			projection = FarmProviderScript.terrain(farm, cell, selected_tool)
 		&"home":
 			projection = FarmProviderScript.home(farm, cell)
+			if not projection.is_empty():
+				_append_projection_option(projection, SettlementProviderScript.terminal_option())
 		&"storage":
 			projection = FarmProviderScript.storage(farm, cell)
 		&"shipping":
@@ -165,8 +177,23 @@ func project(cell: Vector2i, selected_tool: StringName) -> Dictionary:
 			projection = ConstructionProviderScript.building(
 				farm, cell, description[&"record"]
 			)
+			var construction: Dictionary = description[&"record"] as Dictionary
+			var blueprint_id: StringName = StringName(str(construction[&"blueprint_id"]))
+			if (
+				construction[&"state"] == "complete"
+				and not projection.is_empty()
+				and (
+					BlueprintCatalogScript.housing_capacity(blueprint_id) > 0
+					or not BlueprintCatalogScript.work_slot_types(blueprint_id).is_empty()
+				)
+			):
+				_append_projection_option(projection, SettlementProviderScript.terminal_option())
 		&"resident":
 			projection = FarmProviderScript.resident(farm, cell, description[&"target_id"])
+		&"settler":
+			projection = SettlementProviderScript.settler(
+				cell, description[&"target_id"] as StringName
+			)
 		&"livestock":
 			projection = FarmProviderScript.livestock(farm, cell, description[&"record"])
 		&"tree":
@@ -511,6 +538,14 @@ func _presentation_at(cell: Vector2i) -> Dictionary:
 			&"target_id": StringName(str(building[&"instance_id"])),
 			&"record": building,
 		}
+	for record: Dictionary in SettlerPresentationScript.build_records(farm):
+		if record[&"cell"] == cell:
+			return {
+				&"family": &"settler",
+				&"kind": ResolverScript.KIND_RESIDENT,
+				&"target_id": record[&"stable_id"],
+				&"record": record,
+			}
 	for record: Dictionary in HomesteadPresentationScript.build_records(farm):
 		if record[&"cell"] != cell:
 			continue

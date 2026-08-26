@@ -226,7 +226,16 @@ static func _maximum_workforce() -> Dictionary:
 		)
 	return {
 		&"state_version": 1, &"settlers": settlers, &"housing_assignments": housing,
-		&"work_assignments": work, &"concerns": concerns
+		&"work_assignments": work, &"concerns": concerns,
+		&"applicant_lifecycle": {
+			&"current_applicant_id": "settler.maximum.applicant",
+			&"offered_day": 999_996,
+			&"expires_day": 999_999,
+			&"deferred_until_day": 999_997,
+			&"next_offer_day": 1_000_000,
+			&"sequence": 999_999,
+			&"deferrals": 2,
+		},
 	}
 
 

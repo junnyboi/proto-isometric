@@ -18,6 +18,7 @@ const ConstructionLinksScript: GDScript = preload(
 const BrowserCapabilityScript: GDScript = preload(
 	"res://scripts/browser_persistence_capability.gd"
 )
+const PreP6CompatibilityScript: GDScript = preload("res://scripts/pre_p6_save_compatibility.gd")
 
 const FORMAT_VERSION: int = 5
 const LEGACY_FORMAT_VERSION: int = 3
@@ -259,6 +260,9 @@ func _validate_envelope(envelope: Dictionary, verify_result_hash: bool) -> Dicti
 	)
 	if format_version == null or int(format_version) != FORMAT_VERSION:
 		return {}
+	var pre_p6_hash_valid: bool = PreP6CompatibilityScript.raw_hash_is_valid(
+		envelope, verify_result_hash
+	)
 	var metadata: Dictionary = _normalize_metadata(envelope.get(&"metadata"))
 	var active_run: Variant = _normalize_run(envelope.get(&"active_run"))
 	var profile: Dictionary = _normalize_profile(envelope.get(&"profile"))
@@ -286,19 +290,19 @@ func _validate_envelope(envelope: Dictionary, verify_result_hash: bool) -> Dicti
 		&"farm": farm,
 	}
 	var revisions: Dictionary = farm[&"revisions"] as Dictionary
-	if (
-		verify_result_hash
-		and int(revisions[&"result_revision"]) > 0
-		and not StateHashScript.result_hash_matches(normalized)
-	):
-		return {}
+	if verify_result_hash and int(revisions[&"result_revision"]) > 0:
+		if not StateHashScript.result_hash_matches(normalized):
+			if not pre_p6_hash_valid:
+				return {}
+			revisions[&"result_hash"] = StateHashScript.state_hash(normalized)
+			farm[&"revisions"] = revisions
+			normalized[&"farm"] = farm
 	return (
 		normalized
 		if ConstructionLinksScript.validate(normalized)
 		and bool(BudgetCatalogScript.preflight(normalized)[&"ok"])
 		else {}
 	)
-
 func set_fault_injector(injector: RefCounted) -> void:
 	_fault_injector = injector
 	if _file_store != null:

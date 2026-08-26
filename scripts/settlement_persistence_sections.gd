@@ -37,6 +37,19 @@ static func neutral_workforce() -> Dictionary:
 		&"housing_assignments": [],
 		&"work_assignments": [],
 		&"concerns": [],
+		&"applicant_lifecycle": neutral_applicant_lifecycle(),
+	}
+
+
+static func neutral_applicant_lifecycle() -> Dictionary:
+	return {
+		&"current_applicant_id": "",
+		&"offered_day": 0,
+		&"expires_day": 0,
+		&"deferred_until_day": 0,
+		&"next_offer_day": 7,
+		&"sequence": 0,
+		&"deferrals": 0,
 	}
 
 
@@ -79,10 +92,19 @@ static func validate_gathering(value: Variant) -> Dictionary:
 
 
 static func validate_workforce(value: Variant) -> Dictionary:
-	var keys: Array[StringName] = [
+	if not value is Dictionary:
+		return {}
+	var canonical: Dictionary = (value as Dictionary).duplicate(true)
+	var legacy_keys: Array[StringName] = [
 		&"state_version", &"settlers", &"housing_assignments", &"work_assignments", &"concerns"
 	]
-	var section: Dictionary = _section(value, keys)
+	if _exact_keys(canonical, legacy_keys):
+		canonical[&"applicant_lifecycle"] = neutral_applicant_lifecycle()
+	var keys: Array[StringName] = [
+		&"state_version", &"settlers", &"housing_assignments", &"work_assignments", &"concerns",
+		&"applicant_lifecycle",
+	]
+	var section: Dictionary = _section(canonical, keys)
 	if section.is_empty():
 		return {}
 	var settlers: Variant = _records(
@@ -97,7 +119,8 @@ static func validate_workforce(value: Variant) -> Dictionary:
 	var concerns: Variant = _records(
 		section[&"concerns"], MAX_CONCERNS, _concern, &"concern_id"
 	)
-	if settlers == null or housing == null or work == null or concerns == null:
+	var lifecycle: Dictionary = _applicant_lifecycle(section[&"applicant_lifecycle"])
+	if settlers == null or housing == null or work == null or concerns == null or lifecycle.is_empty():
 		return {}
 	if not _workforce_links_are_valid(settlers, housing, work, concerns):
 		return {}
@@ -107,6 +130,7 @@ static func validate_workforce(value: Variant) -> Dictionary:
 		&"housing_assignments": housing,
 		&"work_assignments": work,
 		&"concerns": concerns,
+		&"applicant_lifecycle": lifecycle,
 	}
 
 
@@ -294,6 +318,48 @@ static func _concern(value: Dictionary) -> Dictionary:
 		&"settler_id": str(value[&"settler_id"]),
 		&"reason_id": str(value[&"reason_id"]),
 		&"opened_day": int(day),
+	}
+
+
+static func _applicant_lifecycle(value: Variant) -> Dictionary:
+	if not value is Dictionary:
+		return {}
+	var lifecycle: Dictionary = value as Dictionary
+	var keys: Array[StringName] = [
+		&"current_applicant_id", &"offered_day", &"expires_day", &"deferred_until_day",
+		&"next_offer_day", &"sequence", &"deferrals",
+	]
+	if not _exact_keys(lifecycle, keys):
+		return {}
+	var offered: Variant = _integer(lifecycle[&"offered_day"], 0, MAX_NUMBER)
+	var expires: Variant = _integer(lifecycle[&"expires_day"], 0, MAX_NUMBER)
+	var deferred: Variant = _integer(lifecycle[&"deferred_until_day"], 0, MAX_NUMBER)
+	var next_offer: Variant = _integer(lifecycle[&"next_offer_day"], 1, MAX_NUMBER)
+	var sequence: Variant = _integer(lifecycle[&"sequence"], 0, MAX_NUMBER)
+	var deferrals: Variant = _integer(lifecycle[&"deferrals"], 0, 2)
+	if (
+		offered == null or expires == null or deferred == null or next_offer == null
+		or sequence == null or deferrals == null
+	):
+		return {}
+	var applicant_id: String = str(lifecycle[&"current_applicant_id"])
+	if applicant_id.is_empty():
+		if int(offered) != 0 or int(expires) != 0 or int(deferred) != 0 or int(deferrals) != 0:
+			return {}
+	elif (
+		not _identifier(applicant_id) or not applicant_id.begins_with("settler.")
+		or int(offered) < 1 or int(expires) <= int(offered)
+		or int(deferred) > 0 and (int(deferred) <= int(offered) or int(deferred) >= int(expires))
+	):
+		return {}
+	return {
+		&"current_applicant_id": applicant_id,
+		&"offered_day": int(offered),
+		&"expires_day": int(expires),
+		&"deferred_until_day": int(deferred),
+		&"next_offer_day": int(next_offer),
+		&"sequence": int(sequence),
+		&"deferrals": int(deferrals),
 	}
 
 

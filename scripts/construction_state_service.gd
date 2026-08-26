@@ -195,6 +195,10 @@ static func _consume(farm: Dictionary, materials: Dictionary) -> Dictionary:
 static func has_dependencies(farm: Dictionary, instance_id: StringName) -> bool:
 	var homestead: Dictionary = farm.get(&"homestead", {}) as Dictionary
 	var workforce: Dictionary = homestead.get(&"workforce", {}) as Dictionary
+	var bed_prefix: String = "bed.%s." % str(instance_id)
+	for housing: Dictionary in workforce.get(&"housing_assignments", []) as Array[Dictionary]:
+		if str(housing[&"bed_id"]).begins_with(bed_prefix):
+			return true
 	for assignment: Dictionary in workforce.get(&"work_assignments", []) as Array[Dictionary]:
 		if str(assignment[&"site_id"]) == str(instance_id):
 			return true

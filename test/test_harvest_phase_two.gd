@@ -60,8 +60,8 @@ static func _test_commands(cases: Array[Dictionary]) -> void:
 				unique_descriptors[signature] = action
 	_add(
 		cases,
-		"PH-09 all fifteen intents have unique keyboard, controller, and touch descriptors",
-		complete and unique_ids.size() == 15 and CommandsScript.validate_defaults(),
+		"PH-09 all sixteen intents have unique keyboard controller and touch descriptors",
+		complete and unique_ids.size() == 16 and CommandsScript.validate_defaults(),
 	)
 	var attack: Dictionary = CommandsScript.descriptors_for(CommandsScript.COMBAT_ATTACK)
 	_add(
@@ -315,9 +315,9 @@ static func _test_touch(cases: Array[Dictionary]) -> void:
 	var smash_rect: Rect2 = Rect2(smash.position, smash.size)
 	_add(
 		cases,
-		"PH-09 portrait touch dock exposes seven commands without covering Smash",
+		"PH-09 portrait touch dock exposes eight commands without covering Smash",
 		(
-			buttons.size() == 7
+			buttons.size() == 8
 			and commands == [CommandsScript.CONTEXT]
 			and smashes.size() == 1
 			and dock.visible

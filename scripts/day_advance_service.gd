@@ -1,5 +1,8 @@
 extends RefCounted
 
+const ApplicantLifecycleScript: GDScript = preload(
+	"res://scripts/applicant_lifecycle_service.gd"
+)
 const CalendarStateScript: GDScript = preload("res://scripts/calendar_state.gd")
 const ConstructionDayScript: GDScript = preload("res://scripts/construction_day_service.gd")
 const EconomyServiceScript: GDScript = preload("res://scripts/economy_service.gd")
@@ -65,6 +68,17 @@ static func build_candidate(
 			&"reason": renewed[&"reason"],
 		}
 	candidate = renewed[&"candidate"] as Dictionary
+	var applicants: Dictionary = ApplicantLifecycleScript.advance_dawn(
+		candidate,
+		world_seed,
+		CalendarStateScript.absolute_day(candidate[&"calendar_weather"]),
+	)
+	if not bool(applicants[&"ok"]):
+		return {
+			&"ok": false, &"candidate": source, &"day_token": token,
+			&"reason": applicants[&"reason"],
+		}
+	candidate = applicants[&"candidate"] as Dictionary
 	candidate = ToolServiceScript.recover(candidate)
 	var arrivals: Dictionary = ResidentServiceScript.reconcile_arrivals(candidate)
 	if arrivals[&"reason"] not in [&"", &"no_arrivals", &"homestead_inactive"]:

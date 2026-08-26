@@ -129,6 +129,7 @@ static func _test_generation_precedence(cases: Array[Dictionary], world: RefCoun
 				&"clearing",
 				&"protected_paths_apron",
 				&"obstacles",
+				&"projected_resources",
 				&"mutations",
 				&"structures",
 			]

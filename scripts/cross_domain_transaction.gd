@@ -1,5 +1,8 @@
 extends RefCounted
 
+const ApplicantLifecycleScript: GDScript = preload(
+	"res://scripts/applicant_lifecycle_service.gd"
+)
 const CalendarStateScript: GDScript = preload("res://scripts/calendar_state.gd")
 const ConstructionTransactionScript: GDScript = preload(
 	"res://scripts/construction_transaction_service.gd"
@@ -25,6 +28,7 @@ const RunStateScript: GDScript = preload("res://scripts/run_state.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const WorldOperationScript: GDScript = preload("res://scripts/harvest_world_operation_adapter.gd")
 const WorldMutationLedgerScript: GDScript = preload("res://scripts/world_mutation_ledger.gd")
+const WorkforceScript: GDScript = preload("res://scripts/workforce_service.gd")
 
 var _envelope: Dictionary = {}
 var _repository: RefCounted
@@ -323,6 +327,31 @@ func _build(source: Dictionary, operation: StringName, arguments: Dictionary) ->
 			)
 		&"ironjaw_first_clear":
 			mutation = IronjawDesertArcScript.complete_first_clear(farm)
+		&"applicant_decision":
+			mutation = ApplicantLifecycleScript.decide(
+				farm,
+				arguments.get(&"decision", &"") as StringName,
+				arguments.get(&"expected_applicant_id", &"") as StringName,
+				int(arguments.get(&"expected_sequence", -1)),
+			)
+		&"workforce_assign":
+			if not _revision_matches(farm, arguments):
+				mutation = _mutation_rejected(farm, &"stale_workforce_revision")
+			else:
+				mutation = WorkforceScript.assign(
+					farm,
+					arguments.get(&"settler_id", &"") as StringName,
+					arguments.get(&"site_id", &"") as StringName,
+					int(arguments.get(&"slot", -1)),
+					int(arguments.get(&"shift", -1)),
+				)
+		&"workforce_unassign":
+			if not _revision_matches(farm, arguments):
+				mutation = _mutation_rejected(farm, &"stale_workforce_revision")
+			else:
+				mutation = WorkforceScript.unassign(
+					farm, arguments.get(&"settler_id", &"") as StringName
+				)
 		&"farm_candidate":
 			var normalized_farm: Dictionary = FarmSaveSchemaScript.validate(
 				arguments.get(&"farm", {})
@@ -500,6 +529,17 @@ func _activate_remote_ruin(farm: Dictionary, ruin_id: StringName) -> Dictionary:
 		farm, "ruin:%s:activated" % ruin_id
 	)
 	return activated[&"candidate"] as Dictionary if bool(activated[&"ok"]) else {}
+
+
+func _revision_matches(farm: Dictionary, arguments: Dictionary) -> bool:
+	var revisions: Dictionary = farm.get(&"revisions", {}) as Dictionary
+	return int(arguments.get(&"expected_revision", -1)) == int(
+		revisions.get(&"result_revision", -2)
+	)
+
+
+func _mutation_rejected(farm: Dictionary, reason: StringName) -> Dictionary:
+	return {&"ok": false, &"candidate": farm.duplicate(true), &"reason": reason}
 
 
 func _result(ok: bool, envelope: Dictionary, reason: StringName) -> Dictionary:

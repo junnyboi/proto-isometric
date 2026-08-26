@@ -60,6 +60,8 @@ const DEFINITIONS: Array[Dictionary] = [
 		&"blueprint_id": SHELTER_POD,
 		&"label_key": &"construction.blueprint.shelter_pod",
 		&"purpose_key": &"construction.purpose.shelter_pod",
+		&"housing_capacity": 2,
+		&"work_slot_types": [],
 		&"footprint": [Vector2i.ZERO, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.ONE],
 		&"entrance": Vector2i(0, 2),
 		&"bill": {&"item.material.wood": 4, &"item.material.stone": 2},
@@ -72,6 +74,8 @@ const DEFINITIONS: Array[Dictionary] = [
 		&"blueprint_id": FIELD_WAREHOUSE,
 		&"label_key": &"construction.blueprint.field_warehouse",
 		&"purpose_key": &"construction.purpose.field_warehouse",
+		&"housing_capacity": 0,
+		&"work_slot_types": [&"logistics", &"hauling"],
 		&"footprint": [
 			Vector2i.ZERO, Vector2i.RIGHT, Vector2i(2, 0),
 			Vector2i.DOWN, Vector2i.ONE, Vector2i(2, 1),
@@ -91,6 +95,8 @@ const DEFINITIONS: Array[Dictionary] = [
 		&"blueprint_id": SALVAGE_CAMP,
 		&"label_key": &"construction.blueprint.salvage_camp",
 		&"purpose_key": &"construction.purpose.salvage_camp",
+		&"housing_capacity": 0,
+		&"work_slot_types": [&"salvage", &"hauling"],
 		&"footprint": [Vector2i.ZERO, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.ONE],
 		&"entrance": Vector2i(0, 2),
 		&"bill": {&"item.material.wood": 4, &"item.material.scrap": 3},
@@ -103,6 +109,8 @@ const DEFINITIONS: Array[Dictionary] = [
 		&"blueprint_id": SURVEY_DRILL,
 		&"label_key": &"construction.blueprint.survey_drill",
 		&"purpose_key": &"construction.purpose.survey_drill",
+		&"housing_capacity": 0,
+		&"work_slot_types": [&"mining", &"survey"],
 		&"footprint": [Vector2i.ZERO, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.ONE],
 		&"entrance": Vector2i(0, 2),
 		&"bill": {&"item.material.stone": 5, &"item.material.scrap": 4},
@@ -115,6 +123,8 @@ const DEFINITIONS: Array[Dictionary] = [
 		&"blueprint_id": COPPICE_STATION,
 		&"label_key": &"construction.blueprint.coppice_station",
 		&"purpose_key": &"construction.purpose.coppice_station",
+		&"housing_capacity": 0,
+		&"work_slot_types": [&"forestry", &"cultivation"],
 		&"footprint": [Vector2i.ZERO, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.ONE],
 		&"entrance": Vector2i(0, 2),
 		&"bill": {&"item.material.wood": 6, &"item.material.stone": 2},
@@ -127,6 +137,8 @@ const DEFINITIONS: Array[Dictionary] = [
 		&"blueprint_id": FABRICATOR_ANNEX,
 		&"label_key": &"construction.blueprint.fabricator_annex",
 		&"purpose_key": &"construction.purpose.fabricator_annex",
+		&"housing_capacity": 0,
+		&"work_slot_types": [&"fabrication", &"repair"],
 		&"footprint": [
 			Vector2i.ZERO, Vector2i.RIGHT, Vector2i(2, 0),
 			Vector2i.DOWN, Vector2i.ONE, Vector2i(2, 1),
@@ -146,6 +158,8 @@ const DEFINITIONS: Array[Dictionary] = [
 		&"blueprint_id": FISHING_PLATFORM,
 		&"label_key": &"construction.blueprint.fishing_platform",
 		&"purpose_key": &"construction.purpose.fishing_platform",
+		&"housing_capacity": 0,
+		&"work_slot_types": [&"fishing", &"maintenance"],
 		&"footprint": [Vector2i.ZERO, Vector2i.RIGHT, Vector2i(2, 0), Vector2i.DOWN],
 		&"entrance": Vector2i.ONE,
 		&"bill": {&"item.material.wood": 6, &"item.material.scrap": 2},
@@ -207,6 +221,21 @@ static func bill(blueprint_id: StringName, level: int = 1) -> Dictionary:
 	return (blueprint[key] as Dictionary).duplicate(true)
 
 
+static func housing_capacity(blueprint_id: StringName) -> int:
+	var blueprint: Dictionary = definition(blueprint_id)
+	return int(blueprint.get(&"housing_capacity", 0))
+
+
+static func work_slot_types(blueprint_id: StringName) -> Array[StringName]:
+	var blueprint: Dictionary = definition(blueprint_id)
+	if blueprint.is_empty():
+		return []
+	var result: Array[StringName] = []
+	for value: Variant in blueprint[&"work_slot_types"] as Array:
+		result.append(StringName(str(value)))
+	return result
+
+
 static func texture_for(blueprint_id: StringName, state: StringName) -> Texture2D:
 	var blueprint: Dictionary = definition(blueprint_id)
 	if blueprint.is_empty():
@@ -240,8 +269,9 @@ static func validate() -> bool:
 
 static func _definition_is_valid(blueprint: Dictionary) -> bool:
 	var expected: Array[StringName] = [
-		&"blueprint_id", &"label_key", &"purpose_key", &"footprint", &"entrance", &"bill",
-		&"upgrade_bill", &"texture", &"draw_size", &"draw_offset",
+		&"blueprint_id", &"label_key", &"purpose_key", &"housing_capacity",
+		&"work_slot_types", &"footprint", &"entrance", &"bill", &"upgrade_bill", &"texture",
+		&"draw_size", &"draw_offset",
 	]
 	if blueprint.keys() != expected:
 		return false
@@ -263,6 +293,18 @@ static func _definition_is_valid(blueprint: Dictionary) -> bool:
 		unique[cell] = true
 	if blueprint[&"entrance"] in unique:
 		return false
+	var capacity: Variant = blueprint[&"housing_capacity"]
+	var slots: Variant = blueprint[&"work_slot_types"]
+	if not capacity is int or int(capacity) < 0 or int(capacity) > 8:
+		return false
+	if not slots is Array or (slots as Array).size() > 4:
+		return false
+	var seen_slots: Dictionary = {}
+	for raw_type: Variant in slots as Array:
+		var slot_type: StringName = StringName(str(raw_type))
+		if str(slot_type).is_empty() or seen_slots.has(slot_type):
+			return false
+		seen_slots[slot_type] = true
 	return (
 		blueprint[&"texture"] is Texture2D
 		and (blueprint[&"draw_size"] as Vector2).x > 0.0
