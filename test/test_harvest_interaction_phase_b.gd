@@ -14,6 +14,7 @@ const HazardCatalogScript: GDScript = preload("res://scripts/hazard_opportunity_
 const HomesteadServiceScript: GDScript = preload("res://scripts/homestead_service.gd")
 const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
 const InventoryServiceScript: GDScript = preload("res://scripts/inventory_service.gd")
+const ItemCatalogScript: GDScript = preload("res://scripts/item_catalog.gd")
 const InteractionServiceScript: GDScript = preload(
 	"res://scripts/harvest_interaction_phase_b_service.gd"
 )
@@ -32,6 +33,7 @@ const WildernessProviderScript: GDScript = preload(
 )
 const WoodlandClearingScript: GDScript = preload("res://scripts/woodland_clearing.gd")
 const WorldMutationLedgerScript: GDScript = preload("res://scripts/world_mutation_ledger.gd")
+const WorldOperationScript: GDScript = preload("res://scripts/harvest_world_operation_adapter.gd")
 
 
 class RepositoryProbe:
@@ -57,9 +59,13 @@ class PublisherProbe:
 
 	var current: Dictionary = {}
 	var calls: int = 0
+	var failures_remaining: int = 0
 
 	func publish(envelope: Dictionary) -> bool:
 		calls += 1
+		if failures_remaining > 0:
+			failures_remaining -= 1
+			return false
 		current = envelope.duplicate(true)
 		return true
 
@@ -392,9 +398,7 @@ static func _test_world_transaction(
 	var kind: StringName = WoodlandClearingScript.tree_kind_at(
 		cell, WoodlandClearingScript.DEFAULT_SEED
 	)
-	var reward: Dictionary = preload("res://scripts/harvest_world_operation_adapter.gd").reward_for(
-		&"tree", kind
-	)
+	var reward: Dictionary = WorldOperationScript.reward_for(&"tree", kind)
 	var source: Dictionary = _source_envelope(farm)
 	var repository: RepositoryProbe = RepositoryProbe.new()
 	var publisher: PublisherProbe = PublisherProbe.new()
@@ -475,6 +479,64 @@ static func _test_world_transaction(
 			and failed[&"candidate"] == source
 		),
 	)
+	var invalid_arguments: Dictionary = arguments.duplicate(true)
+	invalid_arguments[&"reward_count"] = int(reward[&"count"]) + 1
+	var invalid: Dictionary = WorldOperationScript.build(source, invalid_arguments)
+	var full_source: Dictionary = source.duplicate(true)
+	var full_farm: Dictionary = (full_source[&"farm"] as Dictionary).duplicate(true)
+	var inventories: Array = (full_farm[&"inventories"] as Array).duplicate(true)
+	for inventory_index: int in inventories.size():
+		var inventory: Dictionary = (inventories[inventory_index] as Dictionary).duplicate(true)
+		inventory[&"stacks"] = [
+			{
+				&"item_id": String(reward[&"item_id"]),
+				&"count": ItemCatalogScript.stack_limit(reward[&"item_id"] as StringName),
+			}
+		]
+		inventories[inventory_index] = inventory
+	full_farm[&"inventories"] = inventories
+	full_source[&"farm"] = full_farm
+	var capacity: Dictionary = WorldOperationScript.build(full_source, arguments)
+	_add(
+		cases,
+		"PHB-16 world clear rejects forged rewards and full inventory without partial state",
+		(
+			not bool(invalid[&"ok"])
+			and invalid[&"reason"] == &"invalid_world_operation"
+			and invalid[&"candidate"] == source
+			and not bool(capacity[&"ok"])
+			and capacity[&"reason"] == &"inventory_full"
+			and capacity[&"candidate"] == full_source
+		),
+	)
+	var rollback_repository: RepositoryProbe = RepositoryProbe.new()
+	var rollback_publisher: PublisherProbe = PublisherProbe.new()
+	rollback_publisher.failures_remaining = 1
+	var rollback_boundary: RefCounted = CrossDomainTransactionScript.new() as RefCounted
+	var rollback_world: RefCounted = InfiniteWorldScript.new() as RefCounted
+	rollback_boundary.call(
+		"configure",
+		source,
+		rollback_repository,
+		rollback_world,
+		Callable(rollback_publisher, "publish"),
+		WoodlandClearingScript.DEFAULT_SEED,
+	)
+	var publish_failed: Dictionary = rollback_boundary.call(
+		"transact", &"world_clear_reward", arguments
+	)
+	_add(
+		cases,
+		"PHB-17 publication failure durably restores source before reporting failure",
+		(
+			not bool(publish_failed[&"ok"])
+			and publish_failed[&"reason"] == &"publish_failed"
+			and publish_failed[&"candidate"] == source
+			and rollback_repository.saves == 2
+			and rollback_publisher.calls == 2
+			and rollback_publisher.current == source
+		),
+	)
 
 
 static func _test_live_service(cases: Array[Dictionary], runtime: Node2D) -> void:
@@ -503,7 +565,7 @@ static func _test_live_service(cases: Array[Dictionary], runtime: Node2D) -> voi
 	_add(
 		cases,
 		(
-			"PHB-16 live bridge opens without gameplay mutation, "
+			"PHB-18 live bridge opens without gameplay mutation, "
 			+ "and workbench projection is valid"
 		),
 		(
@@ -547,7 +609,7 @@ static func _test_live_service(cases: Array[Dictionary], runtime: Node2D) -> voi
 	var inspect_after: Dictionary = farm_runtime.call("get_snapshot") as Dictionary
 	_add(
 		cases,
-		"PHB-17 live Terrain Inspect returns a useful Decision Card without mutation",
+		"PHB-19 live Terrain Inspect returns a useful Decision Card without mutation",
 		(
 			ExecutionResultScript.validate(inspect_result)
 			and bool(inspect_result[&"ok"])
@@ -584,7 +646,7 @@ static func _test_live_service(cases: Array[Dictionary], runtime: Node2D) -> voi
 	var pond_after: Dictionary = farm_runtime.call("get_snapshot") as Dictionary
 	_add(
 		cases,
-		"PHB-18 live freshwater pond Inspect returns useful state without mutation",
+		"PHB-20 live freshwater pond Inspect returns useful state without mutation",
 		(
 			pond_menu[&"target_subkind"] == &"water"
 			and ExecutionResultScript.validate(pond_result)
@@ -646,7 +708,7 @@ static func _test_stable_features(cases: Array[Dictionary], farm: Dictionary) ->
 	)
 	_add(
 		cases,
-		"PHB-19 pond and safe exit resolve through existing structure kind with truthful actions",
+		"PHB-21 pond and safe exit resolve through existing structure kind with truthful actions",
 		(
 			pond_description[&"family"] == &"water"
 			and pond_menu[&"target_kind"] == ResolverScript.KIND_STRUCTURE
@@ -660,7 +722,7 @@ static func _test_stable_features(cases: Array[Dictionary], farm: Dictionary) ->
 	)
 	_add(
 		cases,
-		"PHB-20 functional props appear only when their owning capability is active",
+		"PHB-22 functional props appear only when their owning capability is active",
 		(
 			locked_pump.is_empty()
 			and locked_well.is_empty()
@@ -671,7 +733,7 @@ static func _test_stable_features(cases: Array[Dictionary], farm: Dictionary) ->
 	)
 	_add(
 		cases,
-		"PHB-21 decorative cells remain excluded from interaction taxonomy",
+		"PHB-23 decorative cells remain excluded from interaction taxonomy",
 		InteractionServiceScript.stable_feature_description(
 			Vector2i(3, 3), unlocked, false
 		).is_empty(),
