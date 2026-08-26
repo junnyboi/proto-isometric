@@ -9,6 +9,7 @@ const VALID_KINDS: Array[StringName] = [
 	&"object.rock",
 	&"object.tree",
 	&"object.resource",
+	&"object.flora",
 	&"structure.workbench",
 	&"structure.furnace",
 	&"structure.storage",

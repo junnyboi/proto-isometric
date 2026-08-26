@@ -30,6 +30,7 @@ const TerrainSurfaceScript: GDScript = preload("res://scripts/terrain_surface.gd
 const SurfaceDriveScript: GDScript = preload("res://scripts/surface_drive.gd")
 const WormTelegraphScript: GDScript = preload("res://scripts/worm_telegraph.gd")
 const WorldObjectsScript: GDScript = preload("res://scripts/world_objects.gd")
+const WildFloraSmashRuntimeScript: GDScript = preload("res://scripts/wild_flora_smash_runtime.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const WebSceneStateScript: GDScript = preload("res://scripts/web_scene_state.gd")
 const WorldSafetyScript: GDScript = preload("res://scripts/world_safety.gd")
@@ -123,6 +124,7 @@ var _visible_cells: Array[Vector2i] = []
 var _worm_telegraph: Node2D
 var _world: RefCounted
 var _world_objects: Node2D
+var _wild_flora_smash: RefCounted = WildFloraSmashRuntimeScript.new() as RefCounted
 
 func _ready() -> void:
 	WebSceneStateScript.set_state("field-building")
@@ -314,6 +316,8 @@ func attack() -> bool:
 		return false
 	_velocity = Vector2.ZERO
 	_drive_input_buffer.call("clear")
+	if bool(_wild_flora_smash.call("begin_if_targeted", self)):
+		return true
 	var screen_direction: Vector2i = IsometricControlsScript.facing_to_screen_direction(_facing)
 	_pending_impact_band = int(_impact_charge.call("get_band")) if _impact_charge != null else 0
 	var footprint: Array[Vector2i] = (
@@ -348,6 +352,8 @@ func attack() -> bool:
 	return not broken_props.is_empty() or not _pending_impact_worm_ids.is_empty()
 
 func _on_avatar_impact_frame() -> void:
+	if bool(_wild_flora_smash.call("resolve_pending", self)):
+		return
 	if _pending_impact_cell == INVALID_CELL:
 		return
 	var target: Vector2i = _pending_impact_cell
@@ -394,7 +400,6 @@ func _on_avatar_impact_frame() -> void:
 		return
 	_update_status(&"status.impact_clear", {"scrap": "%03d" % _scrap_count})
 
-
 func place_destructible_rock(cell: Vector2i) -> bool:
 	if _world == null or not bool(_world.call("place_rock", cell, _robot_grid)):
 		return false
@@ -404,7 +409,6 @@ func place_destructible_rock(cell: Vector2i) -> bool:
 	queue_redraw()
 	return true
 
-
 func _break_rock(cell: Vector2i) -> bool:
 	if _world == null or not bool(_world.call("break_rock", cell)):
 		return false
@@ -412,7 +416,6 @@ func _break_rock(cell: Vector2i) -> bool:
 	_world_objects.call("invalidate_static_objects")
 	queue_redraw()
 	return true
-
 
 func _place_scrap(cell: Vector2i, amount: int = 1) -> bool:
 	if _world == null or not bool(_world.call("place_scrap", cell, amount)):

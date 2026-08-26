@@ -420,9 +420,10 @@ static func livestock(farm: Dictionary, cell: Vector2i, animal: Dictionary) -> D
 
 static func _append_seed_shop(options: Array[Dictionary], farm: Dictionary, active: bool) -> void:
 	for crop_id: StringName in CropCatalogScript.CROP_IDS:
-		var seed_id: StringName = (
-			CropCatalogScript.definition(crop_id)[&"seed_item_id"] as StringName
-		)
+		var crop: Dictionary = CropCatalogScript.definition(crop_id)
+		if &"wild_discovery" in (crop[&"traits"] as Array):
+			continue
+		var seed_id: StringName = crop[&"seed_item_id"] as StringName
 		var purchase: Dictionary = EconomyServiceScript.buy_seed(farm, seed_id, 1)
 		var enabled: bool = active and bool(purchase[&"ok"])
 		var reason: StringName = (

@@ -99,6 +99,76 @@ const DEFINITIONS: Array[Dictionary] = [
 		&"sell_price": 180
 	},
 	{
+		&"item_id": &"item.seed.starflower",
+		&"category": CATEGORY_SEED,
+		&"stack_limit": 99,
+		&"buy_price": 0,
+		&"sell_price": 0
+	},
+	{
+		&"item_id": &"item.produce.starflower",
+		&"category": CATEGORY_PRODUCE,
+		&"stack_limit": 99,
+		&"buy_price": 0,
+		&"sell_price": 42
+	},
+	{
+		&"item_id": &"item.seed.brambleberry",
+		&"category": CATEGORY_SEED,
+		&"stack_limit": 99,
+		&"buy_price": 0,
+		&"sell_price": 0
+	},
+	{
+		&"item_id": &"item.produce.brambleberry",
+		&"category": CATEGORY_PRODUCE,
+		&"stack_limit": 99,
+		&"buy_price": 0,
+		&"sell_price": 28
+	},
+	{
+		&"item_id": &"item.seed.sunpear",
+		&"category": CATEGORY_SEED,
+		&"stack_limit": 99,
+		&"buy_price": 0,
+		&"sell_price": 0
+	},
+	{
+		&"item_id": &"item.produce.sunpear",
+		&"category": CATEGORY_PRODUCE,
+		&"stack_limit": 99,
+		&"buy_price": 0,
+		&"sell_price": 52
+	},
+	{
+		&"item_id": &"item.seed.wildwheat",
+		&"category": CATEGORY_SEED,
+		&"stack_limit": 99,
+		&"buy_price": 0,
+		&"sell_price": 0
+	},
+	{
+		&"item_id": &"item.produce.wildwheat",
+		&"category": CATEGORY_PRODUCE,
+		&"stack_limit": 99,
+		&"buy_price": 0,
+		&"sell_price": 16
+	},
+	{
+		&"item_id": &"item.seed.cotton",
+		&"category": CATEGORY_SEED,
+		&"stack_limit": 99,
+		&"buy_price": 0,
+		&"sell_price": 0
+	},
+	{
+		&"item_id": &"item.produce.cotton",
+		&"category": CATEGORY_PRODUCE,
+		&"stack_limit": 99,
+		&"buy_price": 0,
+		&"sell_price": 34
+	},
+	{
 		&"item_id": &"item.material.wood",
 		&"category": CATEGORY_WOOD,
 		&"stack_limit": 99,

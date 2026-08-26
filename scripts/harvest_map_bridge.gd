@@ -81,10 +81,8 @@ var _ready_for_commands: bool = false
 var _last_presentation_signature: int = 0
 var _last_music_track: StringName = &""
 
-
 func _ready() -> void:
 	call_deferred("_bootstrap")
-
 
 func _process(_delta: float) -> void:
 	if not _ready_for_commands:
@@ -94,26 +92,20 @@ func _process(_delta: float) -> void:
 	_sync_clearing_music()
 	_sync_wilderness()
 
-
 func get_interaction_controller() -> Node2D:
 	return _controller
-
 
 func get_interaction_presenter() -> CanvasLayer:
 	return _presenter
 
-
 func get_farm_renderer() -> Node2D:
 	return _farm_renderer
-
 
 func get_farm_runtime() -> RefCounted:
 	return _farm_runtime
 
-
 func get_transaction_boundary() -> RefCounted:
 	return _transactions
-
 
 func get_interaction_phase_b_service() -> RefCounted:
 	return _interaction_phase_b_service
@@ -647,6 +639,8 @@ func _play_action_sfx(operation: StringName, cell: Vector2i) -> void:
 		&"water":
 			stream = WATER_SFX
 		&"harvest":
+			stream = HARVEST_SFX
+		&"world_clear_reward":
 			stream = HARVEST_SFX
 		&"ship":
 			stream = SHIPPING_SFX

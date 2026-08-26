@@ -8,6 +8,7 @@ const ResourceDepositCatalogScript: GDScript = preload(
 	"res://scripts/resource_deposit_catalog.gd"
 )
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
+const WildFloraGeneratorScript: GDScript = preload("res://scripts/wild_flora_generator.gd")
 const WoodlandClearingScript: GDScript = preload("res://scripts/woodland_clearing.gd")
 const WorldMutationLedgerScript: GDScript = preload("res://scripts/world_mutation_ledger.gd")
 const WorldSafetyScript: GDScript = preload("res://scripts/world_safety.gd")
@@ -190,6 +191,7 @@ func place_rock(cell: Vector2i, robot_cell: Vector2i) -> bool:
 		or _is_outpost(cell)
 		or _is_protected_clearing_cell(cell)
 		or _tree_kind_at(cell) != &""
+		or _flora_kind_at(cell) != &""
 		or _is_pond(cell)
 	):
 		return false
@@ -328,6 +330,29 @@ func _tree_kind_at(cell: Vector2i) -> StringName:
 	return WoodlandClearingScript.tree_kind_at(cell, _world_seed)
 
 
+func _flora_kind_at(cell: Vector2i) -> StringName:
+	if not _is_fresh_farm() or not is_valid_cell(cell):
+		return &""
+	var species_id: StringName = WildFloraGeneratorScript.candidate_species_at(cell, _world_seed)
+	if species_id == &"" or WorldMutationLedgerScript.is_cleared(
+		_mutation_ledger, &"object.flora", cell
+	):
+		return &""
+	if (
+		_is_outpost(cell)
+		or _is_pond(cell)
+		or _tree_kind_at(cell) != &""
+		or _placed_occupancy.has(cell)
+		or bool(_rocks.get(cell, false))
+		or int(_scrap.get(cell, 0)) > 0
+	):
+		return &""
+	var deposit: Dictionary = ResourceDepositCatalogScript.project_at(
+		cell, _world_seed, _gameplay_mode
+	)
+	return &"" if not deposit.is_empty() else species_id
+
+
 func _is_pond(cell: Vector2i) -> bool:
 	return _is_fresh_farm() and cell == WoodlandClearingScript.POND_CELL
 
@@ -345,6 +370,7 @@ func _resource_source_at(cell: Vector2i) -> Dictionary:
 		_is_outpost(cell)
 		or _is_pond(cell)
 		or _tree_kind_at(cell) != &""
+		or _flora_kind_at(cell) != &""
 		or _is_protected_clearing_cell(cell)
 		or _placed_occupancy.has(cell)
 		or bool(_rocks.get(cell, false))

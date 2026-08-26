@@ -9,6 +9,7 @@ const OptionScript: GDScript = preload("res://scripts/interaction_option.gd")
 const TargetBridgeScript: GDScript = preload("res://scripts/harvest_interaction_target_bridge.gd")
 const TargetScript: GDScript = preload("res://scripts/interaction_target_snapshot.gd")
 const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
+const WildFloraCatalogScript: GDScript = preload("res://scripts/wild_flora_catalog.gd")
 const WildernessLootScript: GDScript = preload("res://scripts/wilderness_loot_catalog.gd")
 const WoodlandClearingScript: GDScript = preload("res://scripts/woodland_clearing.gd")
 const WorldOperationScript: GDScript = preload("res://scripts/harvest_world_operation_adapter.gd")
@@ -109,6 +110,49 @@ static func resource(
 		{&"resource_kind": resource_kind, &"reward": reward},
 		options,
 		&"structure",
+	)
+
+
+static func flora(farm: Dictionary, cell: Vector2i, species_id: StringName) -> Dictionary:
+	var reward: Dictionary = WildFloraCatalogScript.smash_reward(species_id)
+	if reward.is_empty():
+		return {}
+	var enabled: bool = ToolServiceScript.can_spend(farm, ToolServiceScript.TOOL_CONTEXT)
+	var options: Array[Dictionary] = [
+		_inspect(cell),
+		_offer(
+			&"smash_flora",
+			&"world_clear_reward",
+			{
+				&"cell": cell,
+				&"world_kind": &"object.flora",
+				&"source_kind": species_id,
+				&"required_tool": ToolServiceScript.TOOL_CONTEXT,
+				&"reward_item_id": reward[&"produce_item_id"],
+				&"reward_count": int(reward[&"produce_count"]),
+				&"seed_item_id": reward[&"seed_item_id"],
+				&"seed_count": int(reward[&"seed_count"]),
+			},
+			enabled,
+			&"" if enabled else &"interaction.reason.exhausted",
+			200,
+			[
+				{
+					&"cost_id": &"tool.stamina",
+					&"amount": ToolServiceScript.stamina_cost(
+						farm, ToolServiceScript.TOOL_CONTEXT
+					),
+				}
+			],
+		),
+	]
+	return _target(
+		cell,
+		StringName("object.flora:%d,%d" % [cell.x, cell.y]),
+		&"flora",
+		{&"species_id": species_id, &"reward": reward},
+		options,
+		&"resource",
 	)
 
 

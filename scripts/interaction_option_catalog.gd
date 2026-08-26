@@ -31,7 +31,7 @@ const PROVIDERS: Array[StringName] = [
 ]
 const PROVIDER_SUBKINDS: Dictionary = {
 	PROVIDER_TERRAIN: [&"terrain", &"plot", &"crop"],
-	PROVIDER_RESOURCE: [&"tree", &"resource"],
+	PROVIDER_RESOURCE: [&"tree", &"resource", &"flora"],
 	PROVIDER_PICKUP: [&"pickup"],
 	PROVIDER_FACILITY: [&"home", &"facility", &"functional_prop", &"ruin", &"water"],
 	PROVIDER_MACHINE: [&"storage", &"shipping", &"machine"],

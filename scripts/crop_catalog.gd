@@ -9,6 +9,11 @@ const CROP_IDS: Array[StringName] = [
 	&"crop.rainleaf",
 	&"crop.starbloom",
 	&"crop.sunpod",
+	&"crop.starflower",
+	&"crop.brambleberry",
+	&"crop.sunpear",
+	&"crop.wildwheat",
+	&"crop.cotton",
 ]
 const DEFINITIONS: Array[Dictionary] = [
 	{
@@ -83,6 +88,66 @@ const DEFINITIONS: Array[Dictionary] = [
 		&"texture_path": "res://assets/crops/crop_sunpod_stages.png",
 		&"traits": [&"desert_affinity"]
 	},
+	{
+		&"crop_id": &"crop.starflower",
+		&"role": &"wild_flower",
+		&"seed_item_id": &"item.seed.starflower",
+		&"produce_item_id": &"item.produce.starflower",
+		&"stage_growth": [0, 1, 2, 3],
+		&"yield_min": 2,
+		&"yield_max": 2,
+		&"regrow_days": 0,
+		&"texture_path": "res://assets/flora/flora_starflower_stages.png",
+		&"traits": [&"forage_seed", &"wild_discovery"]
+	},
+	{
+		&"crop_id": &"crop.brambleberry",
+		&"role": &"wild_berry",
+		&"seed_item_id": &"item.seed.brambleberry",
+		&"produce_item_id": &"item.produce.brambleberry",
+		&"stage_growth": [0, 1, 2, 4],
+		&"yield_min": 4,
+		&"yield_max": 4,
+		&"regrow_days": 2,
+		&"texture_path": "res://assets/flora/flora_brambleberry_stages.png",
+		&"traits": [&"forage_seed", &"regrows", &"wild_discovery"]
+	},
+	{
+		&"crop_id": &"crop.sunpear",
+		&"role": &"compact_orchard",
+		&"seed_item_id": &"item.seed.sunpear",
+		&"produce_item_id": &"item.produce.sunpear",
+		&"stage_growth": [0, 2, 4, 6],
+		&"yield_min": 4,
+		&"yield_max": 4,
+		&"regrow_days": 3,
+		&"texture_path": "res://assets/flora/flora_sunpear_stages.png",
+		&"traits": [&"forage_seed", &"regrows", &"orchard", &"wild_discovery"]
+	},
+	{
+		&"crop_id": &"crop.wildwheat",
+		&"role": &"wild_grain",
+		&"seed_item_id": &"item.seed.wildwheat",
+		&"produce_item_id": &"item.produce.wildwheat",
+		&"stage_growth": [0, 1, 2, 4],
+		&"yield_min": 6,
+		&"yield_max": 6,
+		&"regrow_days": 0,
+		&"texture_path": "res://assets/flora/flora_wildwheat_stages.png",
+		&"traits": [&"forage_seed", &"grain", &"wild_discovery"]
+	},
+	{
+		&"crop_id": &"crop.cotton",
+		&"role": &"wild_fiber",
+		&"seed_item_id": &"item.seed.cotton",
+		&"produce_item_id": &"item.produce.cotton",
+		&"stage_growth": [0, 2, 3, 5],
+		&"yield_min": 4,
+		&"yield_max": 4,
+		&"regrow_days": 0,
+		&"texture_path": "res://assets/flora/flora_cotton_stages.png",
+		&"traits": [&"forage_seed", &"fiber", &"wild_discovery"]
+	},
 ]
 
 
@@ -148,7 +213,7 @@ static func validate(load_assets: bool = true) -> bool:
 				return false
 		seen[crop_id] = true
 		roles[crop[&"role"]] = true
-	return seen.size() == 6 and roles.size() == 6
+	return seen.size() == CROP_IDS.size() and roles.size() == CROP_IDS.size()
 
 
 static func _strictly_increasing(values: Array) -> bool:

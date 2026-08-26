@@ -10,6 +10,7 @@ const EcologyDirectorScript: GDScript = preload("res://scripts/ecology_director.
 const ExecutionResultScript: GDScript = preload("res://scripts/interaction_execution_result.gd")
 const FarmProviderScript: GDScript = preload("res://scripts/harvest_interaction_farm_provider.gd")
 const FarmSaveSchemaScript: GDScript = preload("res://scripts/farm_save_schema.gd")
+const FarmStateScript: GDScript = preload("res://scripts/farm_state.gd")
 const HazardCatalogScript: GDScript = preload("res://scripts/hazard_opportunity_catalog.gd")
 const HomesteadServiceScript: GDScript = preload("res://scripts/homestead_service.gd")
 const InfiniteWorldScript: GDScript = preload("res://scripts/infinite_world.gd")
@@ -34,6 +35,8 @@ const WildernessProviderScript: GDScript = preload(
 const WoodlandClearingScript: GDScript = preload("res://scripts/woodland_clearing.gd")
 const WorldMutationLedgerScript: GDScript = preload("res://scripts/world_mutation_ledger.gd")
 const WorldOperationScript: GDScript = preload("res://scripts/harvest_world_operation_adapter.gd")
+const WildFloraCatalogScript: GDScript = preload("res://scripts/wild_flora_catalog.gd")
+const WildFloraGeneratorScript: GDScript = preload("res://scripts/wild_flora_generator.gd")
 
 
 class RepositoryProbe:
@@ -79,6 +82,7 @@ static func evaluate(runtime: Node2D) -> Array[Dictionary]:
 	_test_residents_and_livestock(cases, farm)
 	_test_wilderness_catalogs(cases, farm)
 	_test_world_transaction(cases, farm)
+	_test_wild_flora(cases, farm)
 	_test_live_service(cases, runtime)
 	_test_stable_features(cases, farm)
 	return cases
@@ -536,6 +540,150 @@ static func _test_world_transaction(
 			and rollback_publisher.calls == 2
 			and rollback_publisher.current == source
 		),
+	)
+
+
+static func _test_wild_flora(cases: Array[Dictionary], farm: Dictionary) -> void:
+	var world: RefCounted = InfiniteWorldScript.new() as RefCounted
+	world.call("configure", {}, {}, {}, {}, {}, {})
+	world.call(
+		"_set_generation_context",
+		RuntimeIdsScript.MODE_FRESH_FARM,
+		WoodlandClearingScript.DEFAULT_SEED,
+	)
+	var flora_cell: Vector2i = Vector2i(1_000_001, 1_000_001)
+	var species_id: StringName = &""
+	for y: int in range(-16, 17):
+		for x: int in range(-16, 17):
+			var cell: Vector2i = Vector2i(x, y)
+			var candidate: StringName = world.call("_flora_kind_at", cell) as StringName
+			if candidate != &"":
+				flora_cell = cell
+				species_id = candidate
+				break
+		if species_id != &"":
+			break
+	var density: float = WildFloraGeneratorScript.density_for_seed(
+		WoodlandClearingScript.DEFAULT_SEED
+	)
+	_add(
+		cases,
+		"GF-01 five-species flora catalog and coordinate generation are stable and bounded",
+		(
+			WildFloraCatalogScript.validate(true)
+			and WildFloraCatalogScript.SPECIES_IDS.size() == 5
+			and species_id != &""
+			and not WoodlandClearingScript.is_protected_path(flora_cell)
+			and not WoodlandClearingScript.is_farm_apron(flora_cell)
+			and density >= 0.08
+			and density <= 0.14
+			and world.call("_flora_kind_at", flora_cell) == species_id
+		),
+	)
+	var reward: Dictionary = WildFloraCatalogScript.smash_reward(species_id)
+	var menu: Dictionary = _menu(WildernessProviderScript.flora(farm, flora_cell, species_id))
+	var smash: Dictionary = _action(menu, &"interaction.action.smash_flora")
+	var source: Dictionary = _source_envelope(farm)
+	var before_produce: int = InventoryServiceScript.count_all(
+		farm, reward[&"produce_item_id"] as StringName
+	)
+	var before_seed: int = InventoryServiceScript.count_all(
+		farm, reward[&"seed_item_id"] as StringName
+	)
+	var before_stamina: int = int((farm[&"tools"] as Dictionary)[&"stamina"])
+	var gathered: Dictionary = WorldOperationScript.build(
+		source, smash.get(&"arguments", {}) as Dictionary
+	)
+	var envelope: Dictionary = gathered.get(&"candidate", {}) as Dictionary
+	var gathered_farm: Dictionary = envelope.get(&"farm", {}) as Dictionary
+	var gathered_world: Dictionary = envelope.get(&"world", {}) as Dictionary
+	var applied_world: Dictionary = gathered_world.duplicate(true)
+	applied_world[&"schema"] = 2
+	world.call("apply_snapshot", applied_world)
+	_add(
+		cases,
+		"GF-02 Smash atomically clears one plant and credits half produce plus one seed",
+		(
+			not menu.is_empty()
+			and bool(smash[&"enabled"])
+			and bool(gathered[&"ok"])
+			and int((gathered_farm[&"tools"] as Dictionary)[&"stamina"]) == before_stamina - 2
+			and InventoryServiceScript.count_all(
+				gathered_farm, reward[&"produce_item_id"] as StringName
+			) == before_produce + int(reward[&"produce_count"])
+			and InventoryServiceScript.count_all(
+				gathered_farm, reward[&"seed_item_id"] as StringName
+			) == before_seed + 1
+			and WorldMutationLedgerScript.is_cleared(
+				gathered_world[&"mutation_ledger"], &"object.flora", flora_cell
+			)
+			and world.call("_flora_kind_at", flora_cell) == &""
+		),
+	)
+	var crop_id: StringName = WildFloraCatalogScript.definition(species_id)[&"crop_id"]
+	var crop: Dictionary = CropCatalogScript.definition(crop_id)
+	var plot_cell: Vector2i = _apron_cell()
+	var tilled: Dictionary = FarmStateScript.till(gathered_farm, plot_cell)
+	var planted: Dictionary = FarmStateScript.plant(
+		tilled[&"candidate"], plot_cell, reward[&"seed_item_id"], 1
+	)
+	var growing: Dictionary = planted[&"candidate"] as Dictionary
+	for day: int in range(1, int((crop[&"stage_growth"] as Array)[3]) + 1):
+		var watered: Dictionary = FarmStateScript.water(growing, plot_cell, day)
+		growing = FarmStateScript.grow(watered[&"candidate"], day)
+	var mature: Dictionary = FarmStateScript.plot_at(growing, plot_cell)
+	var harvested: Dictionary = FarmStateScript.harvest(growing, plot_cell)
+	_add(
+		cases,
+		"GF-03 discovered seed tills, plants, waters, matures, and returns full farm yield",
+		(
+			bool(tilled[&"ok"])
+			and bool(planted[&"ok"])
+			and bool(mature[&"ready"])
+			and int(mature[&"stage"]) == 3
+			and bool(harvested[&"ok"])
+			and int(harvested[&"yield_count"]) == int(crop[&"yield_min"])
+			and int(harvested[&"yield_count"]) > int(reward[&"produce_count"])
+		),
+	)
+	var all_species_valid: bool = true
+	for flora_id: StringName in WildFloraCatalogScript.SPECIES_IDS:
+		var flora: Dictionary = WildFloraCatalogScript.definition(flora_id)
+		var loop_crop_id: StringName = flora[&"crop_id"] as StringName
+		var loop_crop: Dictionary = CropCatalogScript.definition(loop_crop_id)
+		var loop_farm: Dictionary = _farm_with_all_seeds()
+		var loop_till: Dictionary = FarmStateScript.till(loop_farm, plot_cell)
+		var loop_plant: Dictionary = FarmStateScript.plant(
+			loop_till.get(&"candidate", {}) as Dictionary,
+			plot_cell,
+			flora[&"seed_item_id"] as StringName,
+			1,
+		)
+		if not bool(loop_till.get(&"ok", false)) or not bool(loop_plant.get(&"ok", false)):
+			all_species_valid = false
+			continue
+		var loop_growing: Dictionary = loop_plant[&"candidate"] as Dictionary
+		for day: int in range(1, int((loop_crop[&"stage_growth"] as Array)[3]) + 1):
+			var loop_water: Dictionary = FarmStateScript.water(loop_growing, plot_cell, day)
+			if not bool(loop_water.get(&"ok", false)):
+				all_species_valid = false
+				break
+			loop_growing = FarmStateScript.grow(loop_water[&"candidate"], day)
+		var loop_harvest: Dictionary = FarmStateScript.harvest(loop_growing, plot_cell)
+		var after_plot: Dictionary = FarmStateScript.plot_at(
+			loop_harvest.get(&"candidate", {}) as Dictionary, plot_cell
+		)
+		var regrows: bool = int(loop_crop[&"regrow_days"]) > 0
+		all_species_valid = (
+			all_species_valid
+			and bool(loop_harvest.get(&"ok", false))
+			and int(loop_harvest.get(&"yield_count", 0)) == int(loop_crop[&"yield_min"])
+			and ((after_plot[&"crop_id"] == loop_crop_id) if regrows else after_plot[&"crop_id"] == &"")
+		)
+	_add(
+		cases,
+		"GF-04 all five species complete four-stage growth with canonical clear or regrow outcomes",
+		all_species_valid,
 	)
 
 

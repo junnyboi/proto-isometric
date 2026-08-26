@@ -10,6 +10,7 @@ const LavaContactScript: GDScript = preload("res://scripts/lava_contact.gd")
 const OutpostEnergyScript: GDScript = preload("res://scripts/outpost_energy.gd")
 const OutpostVisualsScript: GDScript = preload("res://scripts/outpost_visuals.gd")
 const RunPickupsScript: GDScript = preload("res://scripts/run_pickups.gd")
+const WildFloraVisualsScript: GDScript = preload("res://scripts/wild_flora_visuals.gd")
 const WoodlandVisualsScript: GDScript = preload("res://scripts/woodland_visuals.gd")
 
 const TEAL: Color = Color("4eb6aa")
@@ -46,6 +47,7 @@ func configure(
 	tile_size: Vector2 = Vector2(90.0, 45.0),
 	sanctuary_radius: float = InfiniteWorldScript.SANCTUARY_RADIUS,
 ) -> void:
+	texture_repeat = CanvasItem.TEXTURE_REPEAT_DISABLED
 	_destructible_rocks = destructible_rocks
 	_scrap = scrap
 	_outposts = outposts
@@ -277,6 +279,11 @@ func _draw_cell_objects(cell: Vector2i) -> void:
 		_draw_woodland_object(tree_kind, center)
 	elif bool(_destructible_rocks.get(cell, false)):
 		_draw_destructible(cell, center)
+	var flora_kind: StringName = (
+		_world.call("_flora_kind_at", cell) as StringName if _world != null else &""
+	)
+	if flora_kind != &"":
+		_draw_wild_flora(flora_kind, center)
 	if int(_scrap.get(cell, 0)) > 0:
 		_draw_scrap(center, int(_scrap[cell]))
 
@@ -298,6 +305,15 @@ func _draw_woodland_object(kind: StringName, center: Vector2) -> void:
 	if texture == null or size.x <= 0.0 or size.y <= 0.0:
 		return
 	var rect: Rect2 = Rect2(center + WoodlandVisualsScript.draw_offset_for(kind), size)
+	draw_texture_rect(texture, rect, false)
+
+
+func _draw_wild_flora(species_id: StringName, center: Vector2) -> void:
+	var texture: Texture2D = WildFloraVisualsScript.texture_for(species_id)
+	var size: Vector2 = WildFloraVisualsScript.display_size_for(species_id)
+	if texture == null or size.x <= 0.0 or size.y <= 0.0:
+		return
+	var rect: Rect2 = Rect2(center + WildFloraVisualsScript.draw_offset_for(species_id), size)
 	draw_texture_rect(texture, rect, false)
 
 

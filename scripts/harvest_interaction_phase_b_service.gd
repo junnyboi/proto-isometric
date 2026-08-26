@@ -195,6 +195,10 @@ func project(cell: Vector2i, selected_tool: StringName) -> Dictionary:
 			projection = WildernessProviderScript.resource(
 				farm, cell, description[&"source_kind"], selected_tool
 			)
+		&"flora":
+			projection = WildernessProviderScript.flora(
+				farm, cell, description[&"source_kind"]
+			)
 		&"pickup":
 			projection = WildernessProviderScript.pickup(
 				cell,
@@ -218,6 +222,30 @@ func project(cell: Vector2i, selected_tool: StringName) -> Dictionary:
 		&"gate":
 			projection = WildernessProviderScript.gate(cell, _active_run())
 	return projection
+
+
+func smash_flora(cell: Vector2i) -> Dictionary:
+	var description: Dictionary = _describe(cell)
+	if description.get(&"family", &"") != &"flora":
+		return _result(false, &"flora_missing")
+	var pair: Dictionary = _current_pair(
+		cell, ToolServiceScript.TOOL_CONTEXT, &"interaction.action.smash_flora"
+	)
+	var option: Dictionary = pair.get(&"option", {}) as Dictionary
+	if pair.is_empty() or option.is_empty():
+		return _result(false, &"flora_operation_unrouted")
+	if not bool(option[&"enabled"]):
+		return _result(false, option[&"reason_key"] as StringName)
+	var result: Dictionary = _execute_option(
+		cell,
+		pair[&"menu"] as Dictionary,
+		option,
+		pair[&"descriptor"] as Dictionary,
+	)
+	var state: Dictionary = (pair[&"menu"] as Dictionary)[&"target_state"] as Dictionary
+	result[&"species_id"] = description[&"source_kind"]
+	result[&"reward"] = (state[&"reward"] as Dictionary).duplicate(true)
+	return result
 
 
 func _terrain_inspection_descriptor(
@@ -592,6 +620,14 @@ func _terrain_description(cell: Vector2i, world: RefCounted) -> Dictionary:
 			else ResolverScript.KIND_PLOT
 		)
 		return {&"family": &"terrain", &"kind": kind, &"blocked": false}
+	var flora_kind: StringName = world.call("_flora_kind_at", cell) as StringName
+	if flora_kind != &"":
+		return {
+			&"family": &"flora",
+			&"kind": ResolverScript.KIND_RESOURCE,
+			&"source_kind": flora_kind,
+			&"blocked": false,
+		}
 	var tree_kind: StringName = world.call("_tree_kind_at", cell) as StringName
 	if tree_kind != &"":
 		return {

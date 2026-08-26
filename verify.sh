@@ -41,6 +41,16 @@ if grep -E 'ERROR:|SCRIPT ERROR:' "$tmp/smoke.log"; then
   exit 1
 fi
 
+printf '[3b/4] interaction phase B\n'
+timeout 30s env XDG_DATA_HOME="$tmp/user-data" "$GODOT" \
+  --headless --audio-driver Dummy --path . \
+  -s test/harvest_interaction_phase_b_runner.gd >"$tmp/phase-b.log" 2>&1
+cat "$tmp/phase-b.log"
+grep -F '[HARVEST_INTERACTION_PHASE_B_PASS]' "$tmp/phase-b.log" >/dev/null
+if grep -E 'ERROR:|SCRIPT ERROR:' "$tmp/phase-b.log"; then
+  exit 1
+fi
+
 printf '[4/4] boot\n'
 timeout 20s "$GODOT" --headless --path . --quit-after 2 >"$tmp/boot.log" 2>&1
 grep -F '[PROTO_ISOMETRIC_READY]' "$tmp/boot.log" >/dev/null
