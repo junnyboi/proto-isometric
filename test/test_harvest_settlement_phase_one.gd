@@ -6,6 +6,7 @@ const BrowserCapabilityScript: GDScript = preload(
 const BudgetCatalogScript: GDScript = preload("res://scripts/persistence_budget_catalog.gd")
 const FaultInjectorScript: GDScript = preload("res://scripts/persistence_fault_injector.gd")
 const FarmSaveSchemaScript: GDScript = preload("res://scripts/farm_save_schema.gd")
+const FishingCatalogScript: GDScript = preload("res://scripts/fishing_catalog.gd")
 const ReceiptLedgerScript: GDScript = preload("res://scripts/exact_once_receipt_ledger.gd")
 const SaveRepositoryScript: GDScript = preload("res://scripts/save_repository.gd")
 const SectionsScript: GDScript = preload("res://scripts/settlement_persistence_sections.gd")
@@ -379,7 +380,7 @@ static func _test_budgets(
 		and ((farm[&"logistics"] as Dictionary)[&"jobs"] as Array).size()
 		== SectionsScript.MAX_LOGISTICS_JOBS
 		and ((farm[&"fishing"] as Dictionary)[&"spots"] as Array).size()
-		== SectionsScript.MAX_FISHING_SPOTS
+		== FishingCatalogScript.SPOT_IDS.size()
 		and ((farm[&"orchard"] as Dictionary)[&"trees"] as Array).size()
 		== SectionsScript.MAX_TREES
 		and ((farm[&"receipts"] as Dictionary)[&"entries"] as Array).size()

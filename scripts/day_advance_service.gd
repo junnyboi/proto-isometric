@@ -7,6 +7,7 @@ const CalendarStateScript: GDScript = preload("res://scripts/calendar_state.gd")
 const ConstructionDayScript: GDScript = preload("res://scripts/construction_day_service.gd")
 const EconomyServiceScript: GDScript = preload("res://scripts/economy_service.gd")
 const FarmStateScript: GDScript = preload("res://scripts/farm_state.gd")
+const FishingServiceScript: GDScript = preload("res://scripts/fishing_service.gd")
 const GatheringStateScript: GDScript = preload("res://scripts/gathering_state_service.gd")
 const GatheringExtractionScript: GDScript = preload(
 	"res://scripts/gathering_extraction_service.gd"
@@ -17,6 +18,7 @@ const ProductionPolicyScript: GDScript = preload(
 	"res://scripts/production_policy_service.gd"
 )
 const ResidentServiceScript: GDScript = preload("res://scripts/resident_service.gd")
+const OrchardServiceScript: GDScript = preload("res://scripts/orchard_service.gd")
 const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
 const WellbeingServiceScript: GDScript = preload("res://scripts/wellbeing_service.gd")
 
@@ -48,6 +50,7 @@ static func build_candidate(
 	if StringName(calendar[&"forecast_weather_id"]) == &"weather.rain":
 		candidate = FarmStateScript.apply_rain(candidate, current_absolute)
 	candidate = FarmStateScript.grow(candidate, current_absolute)
+	candidate = OrchardServiceScript.advance_day(candidate)
 	candidate = WellbeingServiceScript.reconcile_recovery(candidate, current_absolute)
 	var construction: Dictionary = ConstructionDayScript.advance(candidate)
 	if not bool(construction[&"ok"]):
@@ -102,6 +105,9 @@ static func build_candidate(
 		}
 	candidate = settled[&"candidate"] as Dictionary
 	candidate = CalendarStateScript.advance_calendar(candidate, world_seed)
+	candidate = FishingServiceScript.advance_day(
+		candidate, CalendarStateScript.absolute_day(candidate[&"calendar_weather"])
+	)
 	var renewed: Dictionary = GatheringStateScript.advance_day(
 		candidate,
 		world_seed,

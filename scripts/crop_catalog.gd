@@ -21,6 +21,7 @@ const DEFINITIONS: Array[Dictionary] = [
 		&"yield_max": 2,
 		&"regrow_days": 0,
 		&"texture_path": "res://assets/crops/crop_glowroot_stages.png",
+		&"favored_seasons": [&"season.spring", &"season.autumn"],
 		&"traits": []
 	},
 	{
@@ -33,6 +34,7 @@ const DEFINITIONS: Array[Dictionary] = [
 		&"yield_max": 4,
 		&"regrow_days": 3,
 		&"texture_path": "res://assets/crops/crop_coilbean_stages.png",
+		&"favored_seasons": [&"season.summer", &"season.autumn"],
 		&"traits": [&"regrows"]
 	},
 	{
@@ -45,6 +47,7 @@ const DEFINITIONS: Array[Dictionary] = [
 		&"yield_max": 3,
 		&"regrow_days": 0,
 		&"texture_path": "res://assets/crops/crop_ironturnip_stages.png",
+		&"favored_seasons": [&"season.autumn", &"season.winter"],
 		&"traits": [&"hardy"]
 	},
 	{
@@ -57,6 +60,7 @@ const DEFINITIONS: Array[Dictionary] = [
 		&"yield_max": 3,
 		&"regrow_days": 0,
 		&"texture_path": "res://assets/crops/crop_rainleaf_stages.png",
+		&"favored_seasons": [&"season.spring", &"season.summer"],
 		&"traits": [&"rain_bonus"]
 	},
 	{
@@ -69,6 +73,7 @@ const DEFINITIONS: Array[Dictionary] = [
 		&"yield_max": 2,
 		&"regrow_days": 0,
 		&"texture_path": "res://assets/crops/crop_starbloom_stages.png",
+		&"favored_seasons": [&"season.spring"],
 		&"traits": [&"forage_seed"]
 	},
 	{
@@ -81,6 +86,7 @@ const DEFINITIONS: Array[Dictionary] = [
 		&"yield_max": 4,
 		&"regrow_days": 0,
 		&"texture_path": "res://assets/crops/crop_sunpod_stages.png",
+		&"favored_seasons": [&"season.summer"],
 		&"traits": [&"desert_affinity"]
 	},
 ]
@@ -109,6 +115,14 @@ static func stage_for(crop_id: StringName, growth_points: int) -> int:
 	return clampi(stage, 0, 3)
 
 
+static func is_favored(crop_id: StringName, season_id: StringName) -> bool:
+	return season_id in (definition(crop_id).get(&"favored_seasons", []) as Array)
+
+
+static func growth_increment(crop_id: StringName, season_id: StringName) -> int:
+	return 2 if is_favored(crop_id, season_id) else 0
+
+
 static func deterministic_yield(
 	crop_id: StringName, cell: Vector2i, planted_day: int, harvest_sequence: int
 ) -> int:
@@ -131,10 +145,16 @@ static func validate(load_assets: bool = true) -> bool:
 	for crop: Dictionary in DEFINITIONS:
 		var crop_id: StringName = crop[&"crop_id"] as StringName
 		var stages: Array = crop[&"stage_growth"] as Array
+		var seasons: Array = crop.get(&"favored_seasons", []) as Array
 		if seen.has(crop_id) or crop_id not in CROP_IDS or stages.size() != 4:
 			return false
-		if not _strictly_increasing(stages):
+		if not _strictly_increasing(stages) or seasons.is_empty():
 			return false
+		for season_id: Variant in seasons:
+			if season_id not in [
+				&"season.spring", &"season.summer", &"season.autumn", &"season.winter"
+			]:
+				return false
 		if (
 			crop[&"seed_item_id"] not in ItemCatalogScript.ids()
 			or crop[&"produce_item_id"] not in ItemCatalogScript.ids()

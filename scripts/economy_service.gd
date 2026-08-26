@@ -85,7 +85,14 @@ static func settle(farm: Dictionary, day_token: String) -> Dictionary:
 
 static func buy_seed(farm: Dictionary, seed_item_id: StringName, count: int) -> Dictionary:
 	var price: int = ItemCatalogScript.buy_price(seed_item_id) * count
-	if count <= 0 or ItemCatalogScript.category(seed_item_id) != ItemCatalogScript.CATEGORY_SEED:
+	var category: StringName = ItemCatalogScript.category(seed_item_id)
+	var purchasable: Array[StringName] = [
+		ItemCatalogScript.CATEGORY_SEED,
+		ItemCatalogScript.CATEGORY_SAPLING,
+		ItemCatalogScript.CATEGORY_TOOL,
+		ItemCatalogScript.CATEGORY_BAIT,
+	]
+	if count <= 0 or category not in purchasable or price <= 0:
 		return _result(false, farm, &"invalid_seed")
 	var economy: Dictionary = farm[&"economy"] as Dictionary
 	if int(economy[&"money"]) < price:

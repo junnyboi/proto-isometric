@@ -7,6 +7,7 @@ const DriveInputBufferScript: GDScript = preload("res://scripts/drive_input_buff
 const FeedbackRouterScript: GDScript = preload("res://scripts/feedback_router.gd")
 const FieldHudScript: GDScript = preload("res://scripts/field_hud.gd")
 const FieldUIBuilderScript: GDScript = preload("res://scripts/field_ui_builder.gd")
+const FishingCatalogScript: GDScript = preload("res://scripts/fishing_catalog.gd")
 const ImpactChargeScript: GDScript = preload("res://scripts/impact_charge.gd")
 const ImpactEffectsScript: GDScript = preload("res://scripts/impact_effects.gd")
 const ImpactTargetingScript: GDScript = preload("res://scripts/impact_targeting.gd")
@@ -245,9 +246,18 @@ func screen_to_grid(point: Vector2) -> Vector2i:
 	var grid_x: float = local.x / TILE_SIZE.x + local.y / TILE_SIZE.y
 	var grid_y: float = local.y / TILE_SIZE.y - local.x / TILE_SIZE.x
 	return Vector2i(roundi(grid_x), roundi(grid_y))
-
 func is_walkable(cell: Vector2i) -> bool:
-	return _world != null and bool(_world.call("is_walkable", cell))
+	var bridge: Node = get_node_or_null("HarvestPhaseTwo")
+	var water_class: StringName = &""
+	if _world != null:
+		water_class = FishingCatalogScript.live_water_class(
+			cell, _world.call("_biome_at", cell) as StringName, bool(_world.call("_is_pond", cell))
+		)
+	return (
+		_world != null and bool(_world.call("is_walkable", cell))
+		and water_class == &""
+		and (bridge == null or not bool(bridge.call("is_orchard_cell_occupied", cell)))
+	)
 
 func update_drive(screen_direction: Vector2, delta: float, running: bool = false) -> bool:
 	return _update_drive_vector(screen_direction, delta, running)
@@ -394,7 +404,6 @@ func _on_avatar_impact_frame() -> void:
 		return
 	_update_status(&"status.impact_clear", {"scrap": "%03d" % _scrap_count})
 
-
 func place_destructible_rock(cell: Vector2i) -> bool:
 	if _world == null or not bool(_world.call("place_rock", cell, _robot_grid)):
 		return false
@@ -404,7 +413,6 @@ func place_destructible_rock(cell: Vector2i) -> bool:
 	queue_redraw()
 	return true
 
-
 func _break_rock(cell: Vector2i) -> bool:
 	if _world == null or not bool(_world.call("break_rock", cell)):
 		return false
@@ -413,7 +421,6 @@ func _break_rock(cell: Vector2i) -> bool:
 	queue_redraw()
 	return true
 
-
 func _place_scrap(cell: Vector2i, amount: int = 1) -> bool:
 	if _world == null or not bool(_world.call("place_scrap", cell, amount)):
 		return false
@@ -421,18 +428,14 @@ func _place_scrap(cell: Vector2i, amount: int = 1) -> bool:
 	queue_redraw()
 	return true
 
-
 func has_destructible_rock(cell: Vector2i) -> bool:
 	return bool(_destructible_rocks.get(cell, false))
-
 
 func has_scrap(cell: Vector2i) -> bool:
 	return int(_scrap.get(cell, 0)) > 0
 
-
 func get_scrap_count() -> int:
 	return _scrap_count
-
 
 func _get_chassis() -> int:
 	return _chassis

@@ -541,7 +541,7 @@ static func _test_live_boundary(cases: Array[Dictionary], runtime: Node2D) -> vo
 		bridge.call("get_transaction_boundary") as RefCounted if bridge != null else null
 	)
 	var result: Dictionary = (
-		farm_runtime.call("transact", &"till", {&"cell": Vector2i(12, 7)}) as Dictionary
+		farm_runtime.call("transact", &"till", {&"cell": Vector2i(10, 7)}) as Dictionary
 		if farm_runtime != null
 		else {}
 	)
