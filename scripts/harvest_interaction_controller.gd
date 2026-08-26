@@ -8,6 +8,13 @@ signal menu_selection_changed(index: int, action_id: StringName)
 signal menu_execution_result(result: Dictionary)
 signal quick_action_result(result: Dictionary)
 signal tool_preview_contact(result: Dictionary)
+signal target_acquired(result: Dictionary)
+signal menu_navigation_committed(
+	snapshot_id: StringName, from_index: int, to_index: int, action_id: StringName
+)
+signal safe_menu_action_committed(
+	snapshot_id: StringName, option: Dictionary, result: Dictionary
+)
 
 const CatalogScript: GDScript = preload("res://scripts/interaction_option_catalog.gd")
 const CommandsScript: GDScript = preload("res://scripts/harvest_command_intents.gd")
@@ -215,12 +222,20 @@ func navigate_menu(direction: int) -> bool:
 	if not is_menu_open() or direction == 0:
 		return false
 	var options: Array = _menu_snapshot[&"options"] as Array
-	var next_index: int = clampi(_selected_index + signi(direction), 0, options.size() - 1)
+	var previous_index: int = _selected_index
+	var next_index: int = clampi(previous_index + signi(direction), 0, options.size() - 1)
 	if next_index == _selected_index:
 		return false
 	_selected_index = next_index
 	_selected_action_id = (options[_selected_index] as Dictionary)[&"action_id"] as StringName
 	menu_selection_changed.emit(_selected_index, _selected_action_id)
+	if bool((options[_selected_index] as Dictionary)[&"enabled"]):
+		menu_navigation_committed.emit(
+			_menu_snapshot[&"snapshot_id"] as StringName,
+			previous_index,
+			_selected_index,
+			_selected_action_id,
+		)
 	return true
 
 
@@ -230,9 +245,17 @@ func select_menu_index(index: int) -> bool:
 	var options: Array = _menu_snapshot[&"options"] as Array
 	if index < 0 or index >= options.size() or index == _selected_index:
 		return false
+	var previous_index: int = _selected_index
 	_selected_index = index
 	_selected_action_id = (options[index] as Dictionary)[&"action_id"] as StringName
 	menu_selection_changed.emit(_selected_index, _selected_action_id)
+	if bool((options[_selected_index] as Dictionary)[&"enabled"]):
+		menu_navigation_committed.emit(
+			_menu_snapshot[&"snapshot_id"] as StringName,
+			previous_index,
+			_selected_index,
+			_selected_action_id,
+		)
 	return true
 
 
@@ -260,6 +283,7 @@ func confirm_menu() -> bool:
 		return false
 	if not is_menu_open() or _selected_index < 0:
 		return false
+	var snapshot_id: StringName = _menu_snapshot[&"snapshot_id"] as StringName
 	var option: Dictionary = (_menu_snapshot[&"options"] as Array)[_selected_index] as Dictionary
 	if not bool(option[&"enabled"]):
 		return false
@@ -278,6 +302,10 @@ func confirm_menu() -> bool:
 		) as Dictionary
 	_executing = false
 	menu_execution_result.emit(result.duplicate(true))
+	if bool(result.get(&"ok", false)):
+		safe_menu_action_committed.emit(
+			snapshot_id, option.duplicate(true), result.duplicate(true)
+		)
 	if bool(result.get(&"ok", false)):
 		if option[&"close_behavior"] in [&"always", &"on_success"]:
 			close_menu()
@@ -367,6 +395,8 @@ func _sync_target() -> void:
 	var context_mode: bool = kind in [ResolverScript.KIND_STRUCTURE, ResolverScript.KIND_PICKUP]
 	_reticle.call("present", result, context_mode)
 	_last_target = result
+	if bool(result[&"valid"]):
+		target_acquired.emit(result.duplicate(true))
 
 
 func _resolve(intent: StringName) -> Dictionary:

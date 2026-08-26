@@ -43,11 +43,14 @@ func load_preferences() -> Dictionary:
 
 
 func save_preferences() -> bool:
+	var serialized: String = JSON.stringify(to_dictionary())
+	if serialized.to_utf8_buffer().size() > MAX_BYTES:
+		return false
 	var temporary: String = PATH + ".tmp"
 	var file: FileAccess = FileAccess.open(temporary, FileAccess.WRITE)
 	if file == null:
 		return false
-	file.store_string(JSON.stringify(to_dictionary()))
+	file.store_string(serialized)
 	file.flush()
 	file = null
 	var directory: DirAccess = DirAccess.open("user://")

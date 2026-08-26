@@ -14,9 +14,9 @@ The homestead can support three engineered domestic species: the **Mossback Graz
 
 ## Controls
 
-Use **WASD** or the **arrow keys** to move and hold **Shift** to run. Press **E** for context interactions, **F** to use the selected farming tool, **Q/R** to cycle tools, **I** for inventory, **M** for the journal/map, **+/-** to zoom, and **Space**, **J**, or **K** for the preserved combat Smash. Controller and touch commands map to the same stable intent catalog. Mobile presents a floating movement joystick plus dedicated Context, Tool, Cycle, Inventory, Journal, Cancel, and Smash controls.
+Use **WASD** or the **arrow keys** to move and hold **Shift** to run. Press **E** for context interactions, **G** for a uniquely safe Quick action, **F** to use the selected farming tool, **Q/R** to cycle tools, **I** for inventory, **M** for the journal/map, **+/-** to zoom, and **Space**, **J**, or **K** for the preserved combat Smash. Controller and touch commands map to the same stable intent catalog. Mobile presents a floating movement joystick plus an eight-slot command dock with Context, Tool, Quick, Cycle, Inventory, Journal, Cancel, and the preserved Smash control.
 
-The title screen and field layout adapt between landscape and portrait viewports. Accessibility settings include UI scale, reduced flash, camera shake, haptics, left-handed controls, effects quality, and independent Master, SFX, Music, and Ambience levels.
+The title screen and field layout adapt between landscape and portrait viewports. A compact contextual tutorial advances only on committed movement, target, terminal, navigation, confirmation, Quick, construction, and worker-assignment events; it supports modality-specific bindings, Skip, Resume, Reset, and a focus-trapped More Help panel. Accessibility settings include UI scale, reduced flash, camera shake, haptics, left-handed controls, effects quality, and independent Master, SFX, Music, and Ambience levels.
 
 ## World and progression
 
@@ -28,7 +28,7 @@ Home time uses deterministic day, night, and rain music with bounded equal-power
 
 The runtime uses stable command intents, a pure adjacent-cell resolver, batched dirty-indexed farm and homestead rendering, deterministic diagonal depth, and no per-crop, per-resident, or per-animal scene nodes. Farming, inventory, economy, machines, upgrades, facilities, relationships, requests, and livestock mutations all validate detached candidate snapshots and persist through one cross-domain transaction boundary.
 
-Schema-5 persistence preserves legacy schema-1/2/3/4 migration while adding bounded settlement sections, exact-once receipts, canonical gameplay revisions, section budgets, recoverable validated temporary saves, and an honest browser-storage capability warning. Save validation enforces exact keys, hard collection caps, canonical sorting, stable IDs, coordinate bounds, duplicate rejection, atomic primary/backup replacement, and quarantine for malformed or future data.
+Schema-5 persistence preserves legacy schema-1/2/3/4 migration while adding bounded settlement sections, exact-once receipts, canonical gameplay revisions, section budgets, recoverable validated temporary saves, and an honest browser-storage capability warning. The tutorial uses the bounded farm-owned tutorial section rather than timers or duplicate preference authority; legacy dismissal migrates once to reversible suppression. Save validation enforces exact keys, hard collection caps, canonical sorting, stable IDs, coordinate bounds, duplicate rejection, atomic primary/backup replacement, and quarantine for malformed or future data.
 
 ## Develop and verify
 

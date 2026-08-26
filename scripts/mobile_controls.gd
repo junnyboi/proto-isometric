@@ -33,6 +33,7 @@ var _layout: Dictionary = {}
 var _touch_exclusions: Array[Rect2] = []
 var _modal_exclusion: Rect2 = Rect2()
 var _zoom_panel_exclusion: Rect2 = Rect2()
+var _tutorial_exclusion: Rect2 = Rect2()
 var _modal_input_suppressed: bool = false
 var _joystick: Control
 var _smash_button: Button
@@ -157,6 +158,11 @@ func _set_modal_input_suppressed(suppressed: bool) -> void:
 
 func _set_modal_touch_exclusion(rect: Rect2, active: bool) -> void:
 	_modal_exclusion = rect if active else Rect2()
+	_refresh_touch_exclusions()
+
+
+func _set_tutorial_touch_exclusion(rect: Rect2, active: bool) -> void:
+	_tutorial_exclusion = rect if active else Rect2()
 	_refresh_touch_exclusions()
 
 
@@ -395,6 +401,8 @@ func _refresh_touch_exclusions() -> void:
 		_touch_exclusions.append(_zoom_panel_exclusion)
 	if _modal_exclusion.has_area():
 		_touch_exclusions.append(_modal_exclusion)
+	if _tutorial_exclusion.has_area():
+		_touch_exclusions.append(_tutorial_exclusion)
 
 
 func _point_is_excluded(position: Vector2) -> bool:

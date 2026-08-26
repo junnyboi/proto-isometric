@@ -168,12 +168,9 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	var terminal: bool = _terminal_flow != null and bool(_terminal_flow.call("is_summary_visible"))
 	var bridge: Node = get_node_or_null("HarvestPhaseTwo")
-	var interaction: Node2D = (
-		bridge.call("get_interaction_controller") as Node2D
-		if bridge != null and bridge.has_method("get_interaction_controller")
-		else null
+	var modal: bool = terminal or (
+		bridge != null and bool(bridge.call("is_interaction_menu_open"))
 	)
-	var modal: bool = terminal or (interaction != null and bool(interaction.call("is_menu_open")))
 	var screen_direction: Vector2 = (
 		Vector2.ZERO if modal else IsometricControlsScript.read_drive_vector()
 	)

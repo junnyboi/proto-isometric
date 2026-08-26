@@ -238,6 +238,14 @@ func _commit_envelope(envelope: Dictionary, sequence: int) -> bool:
 	return true
 
 func validate_envelope(envelope: Dictionary) -> Dictionary:
+	return _validate_envelope(envelope, true)
+
+
+func validate_candidate_envelope(envelope: Dictionary) -> Dictionary:
+	return _validate_envelope(envelope, false)
+
+
+func _validate_envelope(envelope: Dictionary, verify_result_hash: bool) -> Dictionary:
 	if not _exact_keys(
 		envelope,
 		[&"save_format_version", &"metadata", &"world", &"active_run", &"profile", &"farm"],
@@ -275,7 +283,11 @@ func validate_envelope(envelope: Dictionary) -> Dictionary:
 		&"farm": farm,
 	}
 	var revisions: Dictionary = farm[&"revisions"] as Dictionary
-	if int(revisions[&"result_revision"]) > 0 and not StateHashScript.result_hash_matches(normalized):
+	if (
+		verify_result_hash
+		and int(revisions[&"result_revision"]) > 0
+		and not StateHashScript.result_hash_matches(normalized)
+	):
 		return {}
 	return normalized if bool(BudgetCatalogScript.preflight(normalized)[&"ok"]) else {}
 

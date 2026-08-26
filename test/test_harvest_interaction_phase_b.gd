@@ -482,6 +482,10 @@ static func _test_live_service(cases: Array[Dictionary], runtime: Node2D) -> voi
 	var before: Dictionary = farm_runtime.call("get_snapshot") if farm_runtime != null else {}
 	var opened: bool = bool(controller.call("open_menu")) if controller != null else false
 	var after: Dictionary = farm_runtime.call("get_snapshot") if farm_runtime != null else {}
+	var gameplay_after: Dictionary = after.duplicate(true)
+	if not before.is_empty() and not gameplay_after.is_empty():
+		gameplay_after[&"tutorial"] = before[&"tutorial"]
+		gameplay_after[&"revisions"] = before[&"revisions"]
 	var workbench: Dictionary = (
 		_menu(service.call("project", Vector2i(9, 7), ToolServiceScript.TOOL_HOE))
 		if service != null
@@ -490,7 +494,7 @@ static func _test_live_service(cases: Array[Dictionary], runtime: Node2D) -> voi
 	_add(
 		cases,
 		(
-			"PHB-16 live bridge exposes Phase B, menu opening mutates nothing, "
+			"PHB-16 live bridge opens without gameplay mutation, "
 			+ "and workbench projection is valid"
 		),
 		(
@@ -499,7 +503,7 @@ static func _test_live_service(cases: Array[Dictionary], runtime: Node2D) -> voi
 			and service != null
 			and controller != null
 			and opened
-			and before == after
+			and before == gameplay_after
 			and not workbench.is_empty()
 			and (workbench[&"options"] as Array).size() <= 32
 		),

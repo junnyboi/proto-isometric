@@ -114,7 +114,12 @@ func transact_exact_once(
 
 
 func _commit_candidate(source: Dictionary, candidate: Dictionary) -> Dictionary:
-	var validated: Dictionary = _repository.call("validate_envelope", candidate) as Dictionary
+	var validator: StringName = (
+		&"validate_candidate_envelope"
+		if _repository.has_method("validate_candidate_envelope")
+		else &"validate_envelope"
+	)
+	var validated: Dictionary = _repository.call(validator, candidate) as Dictionary
 	if validated.is_empty():
 		return _result(false, source, &"invalid_candidate")
 	if not bool(
