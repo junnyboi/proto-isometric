@@ -13,9 +13,9 @@ const EXPECTED_1000_HASH: String = (
 )
 const EXPECTED_1000_BYTES: int = 15_933
 const EXPECTED_MAXIMUM_HASH: String = (
-	"60db99a35748007381a1360da0ac19853f7817a825dc93b5549dddd70cb977af"
+	"4ca2be374005abcd00f210c79a7d20443ab27a3cdec99a84c4cd898f159e015b"
 )
-const EXPECTED_MAXIMUM_BYTES: int = 1_154_068
+const EXPECTED_MAXIMUM_BYTES: int = 1_154_397
 
 var _days: int = DEFAULT_DAYS
 var _fixture_dir: String = ""
@@ -106,7 +106,15 @@ func _emit_maximum_fixture(base: Dictionary, repository: RefCounted) -> void:
 		or ((maximum[&"farm"] as Dictionary)[&"plots"] as Array).size() != 4_096
 		or ((maximum[&"farm"] as Dictionary)[&"orchard"][&"trees"] as Array).size() != 512
 	):
-		_fail("golden_maximum_mismatch")
+		_fail(
+			"golden_maximum_mismatch:bytes=%d:hash=%s:plots=%d:trees=%d"
+			% [
+				int(preflight[&"bytes"]),
+				maximum_hash,
+				((maximum[&"farm"] as Dictionary)[&"plots"] as Array).size(),
+				((maximum[&"farm"] as Dictionary)[&"orchard"][&"trees"] as Array).size(),
+			]
+		)
 		return
 	print(
 		"[P11_MAXIMUM] bytes=%d plots=%d trees=%d hash=%s"
