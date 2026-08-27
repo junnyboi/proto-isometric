@@ -32,7 +32,7 @@ theme/custom="res://data/ui_theme.tres"
 
 [features]
 
-interaction_dossier_v2=false
+interaction_dossier_v2=true
 
 [debug]
 

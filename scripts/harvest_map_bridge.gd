@@ -25,12 +25,19 @@ const InteractionControllerScript: GDScript = preload(
 const InteractionPhaseBServiceScript: GDScript = preload(
 	"res://scripts/harvest_interaction_phase_b_service.gd"
 )
+const DossierCoordinatorScript: GDScript = preload(
+	"res://scripts/interaction_dossier_coordinator.gd"
+)
 const InteractionPresenterScript: GDScript = preload(
 	"res://scripts/harvest_interaction_presenter.gd"
 )
 const InteractionTargetBridgeScript: GDScript = preload(
 	"res://scripts/harvest_interaction_target_bridge.gd"
 )
+const TargetAnchorCatalogScript: GDScript = preload(
+	"res://scripts/interaction_target_anchor_catalog.gd"
+)
+const NearbyIndexScript: GDScript = preload("res://scripts/world_nearby_interest_index.gd")
 const InventoryServiceScript: GDScript = preload("res://scripts/inventory_service.gd")
 const MachineServiceScript: GDScript = preload("res://scripts/machine_service.gd")
 const OrchardServiceScript: GDScript = preload("res://scripts/orchard_service.gd")
@@ -62,9 +69,12 @@ const HOE_SFX: AudioStream = preload("res://assets/audio/harvest/hoe_soil.wav")
 const WATER_SFX: AudioStream = preload("res://assets/audio/harvest/water_pour.wav")
 const HARVEST_SFX: AudioStream = preload("res://assets/audio/harvest/harvest_pluck.wav")
 const SHIPPING_SFX: AudioStream = preload("res://assets/audio/harvest/shipping_drop.wav")
+const DOSSIER_FEATURE: String = "features/interaction_dossier_v2"
 var _map: Node2D
 var _controller: Node2D
 var _presenter: CanvasLayer
+var _dossier_coordinator: RefCounted
+var _nearby_index: RefCounted
 var _farm_renderer: Node2D
 var _farm_runtime: RefCounted
 var _transactions: RefCounted
@@ -79,8 +89,14 @@ var _visible_chunks: Array[Vector2i] = []
 var _ready_for_commands: bool = false
 var _last_presentation_signature: int = 0
 var _last_music_track: StringName = &""
+var _dossier_enabled: bool = false
+var _dossier_source_revision: int = 0
+var _sealed_dossier_snapshot: Dictionary = {}
+var _last_camera_signature: int = 0
+var _camera_generation: int = 0
 
 func _ready() -> void:
+	_dossier_enabled = bool(ProjectSettings.get_setting(DOSSIER_FEATURE, false))
 	call_deferred("_bootstrap")
 
 func _process(_delta: float) -> void:
@@ -90,12 +106,23 @@ func _process(_delta: float) -> void:
 	_sync_presentation_state()
 	_sync_clearing_music()
 	_sync_wilderness()
+	_sync_dossier_anchor()
 
 func get_interaction_controller() -> Node2D:
 	return _controller
 
 func get_interaction_presenter() -> CanvasLayer:
 	return _presenter
+
+
+func get_dossier_coordinator() -> RefCounted:
+	return _dossier_coordinator
+
+
+func get_nearby_interest_index() -> RefCounted:
+	return _nearby_index
+
+
 func get_farm_renderer() -> Node2D:
 	return _farm_renderer
 func get_farm_runtime() -> RefCounted:
@@ -201,9 +228,14 @@ func _bootstrap() -> void:
 		mobile.connect("command_pressed", Callable(_controller, "handle_touch_command"))
 	_controller.connect("menu_snapshot_opened", _on_menu_opened)
 	_controller.connect("menu_snapshot_closed", _on_menu_closed)
+	if _dossier_enabled:
+		_dossier_coordinator = DossierCoordinatorScript.new() as RefCounted
+		_nearby_index = NearbyIndexScript.new() as RefCounted
 	_presenter = InteractionPresenterScript.new() as CanvasLayer
 	_map.add_child(_presenter)
-	if not bool(_presenter.call("bind", _controller, mobile)):
+	if not bool(_presenter.call(
+		"bind", _controller, mobile, _dossier_coordinator, Callable(self, "_sealed_target_anchor")
+	)):
 		push_error("Phase C interaction presenter rejected live authorities.")
 		return
 	if not _initialize_post_interaction(mobile):
@@ -233,7 +265,10 @@ func _initialize_post_interaction(mobile: CanvasLayer) -> bool:
 	return true
 
 
-func _on_menu_opened(_snapshot: Dictionary) -> void:
+func _on_menu_opened(snapshot: Dictionary) -> void:
+	if _dossier_enabled:
+		_sealed_dossier_snapshot = snapshot.duplicate(true)
+		_refresh_dossier_nearby()
 	_map.set("_velocity", Vector2.ZERO)
 	_map.set("_is_moving", false)
 	_map.set("_is_running", false)
@@ -244,6 +279,9 @@ func _on_menu_opened(_snapshot: Dictionary) -> void:
 
 
 func _on_menu_closed() -> void:
+	_sealed_dossier_snapshot.clear()
+	if _dossier_enabled and _presenter != null:
+		_presenter.call("clear_sealed_target_anchor")
 	_set_modal_radar_yielded(false)
 
 
@@ -699,6 +737,8 @@ func _refresh_render_indexes(dirty_cells: Array[Vector2i] = []) -> void:
 	if not dirty_cells.is_empty():
 		_farm_renderer.call("invalidate_cells", dirty_cells)
 	_last_presentation_signature = _presentation_signature()
+	if _dossier_enabled:
+		_rebuild_nearby_index()
 
 
 func _merge_indexes(target: Dictionary, source: Dictionary) -> void:
@@ -848,3 +888,113 @@ func _sync_visible_chunks() -> void:
 		_visible_chunks = chunks.duplicate()
 		_refresh_render_indexes()
 	_farm_renderer.call("set_visible_chunks", chunks)
+
+
+
+func _rebuild_nearby_index() -> void:
+	if _nearby_index == null or _farm_runtime == null:
+		return
+	_dossier_source_revision += 1
+	var farm: Dictionary = _farm_runtime.call("get_snapshot") as Dictionary
+	var records: Array[Dictionary] = []
+	var homestead: Dictionary = farm.get(&"homestead", {}) as Dictionary
+	if homestead.has(&"home"):
+		records.append(_nearby_record(
+			HomesteadServiceScript.HOME_ID,
+			&"home",
+			&"facility.home.name",
+			HomesteadServiceScript.HOME_CELL,
+		))
+	for facility_id: StringName in HomesteadServiceScript.FACILITY_IDS:
+		var definition: Dictionary = HomesteadServiceScript.definition(facility_id)
+		var state: Dictionary = HomesteadServiceScript.facility_state(farm, facility_id)
+		if definition.is_empty() or state.is_empty():
+			continue
+		records.append(_nearby_record(
+			facility_id,
+			&"facility",
+			_facility_title_key(facility_id),
+			definition[&"cell"] as Vector2i,
+		))
+	_nearby_index.call("rebuild", records, _dossier_source_revision)
+	_refresh_dossier_nearby()
+
+
+func _nearby_record(
+	interest_id: StringName,
+	kind: StringName,
+	title_key: StringName,
+	cell: Vector2i,
+) -> Dictionary:
+	return {
+		&"interest_id": interest_id,
+		&"kind": kind,
+		&"title_key": title_key,
+		&"cell": cell,
+		&"source_revision": _dossier_source_revision,
+		&"available": true,
+	}
+
+
+func _facility_title_key(facility_id: StringName) -> StringName:
+	match facility_id:
+		HomesteadServiceScript.GREENHOUSE_ID:
+			return &"facility.greenhouse_seed_shop.name"
+		HomesteadServiceScript.WORKSHOP_ID:
+			return &"facility.workshop.name"
+		HomesteadServiceScript.CLINIC_ID:
+			return &"facility.clinic_kitchen.name"
+	return &"interaction.target.facility.title"
+
+
+func _refresh_dossier_nearby() -> void:
+	if (
+		_nearby_index == null
+		or _presenter == null
+		or _sealed_dossier_snapshot.is_empty()
+	):
+		return
+	var rows: Array[Dictionary] = _nearby_index.call(
+		"query",
+		_sealed_dossier_snapshot[&"target_cell"] as Vector2i,
+		NearbyIndexScript.MAX_RADIUS,
+		_sealed_dossier_snapshot[&"target_id"] as StringName,
+		NearbyIndexScript.MAX_RESULTS,
+	) as Array[Dictionary]
+	_presenter.call("set_dossier_nearby", rows)
+
+
+func _sync_dossier_anchor() -> void:
+	if (
+		not _dossier_enabled
+		or _presenter == null
+		or _sealed_dossier_snapshot.is_empty()
+	):
+		return
+	var camera: Camera2D = _map.get("_camera") as Camera2D
+	if camera == null:
+		return
+	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+	var signature: int = hash([
+		camera.position,
+		camera.zoom,
+		viewport_size,
+		_sealed_dossier_snapshot[&"snapshot_id"],
+	])
+	if signature == _last_camera_signature:
+		return
+	_last_camera_signature = signature
+	_camera_generation += 1
+	_presenter.call(
+		"update_sealed_target_anchor", _sealed_target_anchor(), _camera_generation
+	)
+
+
+func _sealed_target_anchor() -> Vector2:
+	if _sealed_dossier_snapshot.is_empty() or _map == null:
+		return Vector2.ZERO
+	var cell: Vector2i = _sealed_dossier_snapshot[&"target_cell"] as Vector2i
+	var world_position: Vector2 = _map.call("grid_to_screen", cell) as Vector2
+	var screen_position: Vector2 = get_viewport().get_canvas_transform() * world_position
+	var subkind: StringName = _sealed_dossier_snapshot[&"target_subkind"] as StringName
+	return screen_position + TargetAnchorCatalogScript.offset_for(subkind)
