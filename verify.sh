@@ -53,6 +53,29 @@ if grep -E 'ERROR:|SCRIPT ERROR:' "$tmp/phase-b.log"; then
   exit 1
 fi
 
+printf '[4/6] interaction dossier contracts\n'
+for dossier_runner in \
+  interaction_dossier_runner.gd \
+  interaction_dossier_assets_runner.gd \
+  test_interaction_dossier_primitives.gd \
+  test_interaction_overlay_and_nearby.gd; do
+  dossier_log="$tmp/${dossier_runner%.gd}.log"
+  timeout 60s env XDG_DATA_HOME="$tmp/user-data" "$GODOT" \
+    --headless --audio-driver Dummy --path . \
+    -s "test/$dossier_runner" >"$dossier_log" 2>&1
+  cat "$dossier_log"
+  if grep -E 'ERROR:|SCRIPT ERROR:|_FAIL\]' "$dossier_log"; then
+    exit 1
+  fi
+done
+grep -F '[INTERACTION_DOSSIER_PASS]' "$tmp/interaction_dossier_runner.log" >/dev/null
+grep -F '[INTERACTION_DOSSIER_ASSETS_PASS]' \
+  "$tmp/interaction_dossier_assets_runner.log" >/dev/null
+grep -F '[INTERACTION_DOSSIER_PRIMITIVES_PASS]' \
+  "$tmp/test_interaction_dossier_primitives.log" >/dev/null
+grep -F '[INTERACTION_OVERLAY_AND_NEARBY_PASS]' \
+  "$tmp/test_interaction_overlay_and_nearby.log" >/dev/null
+
 printf '[5/6] P11 golden 1,000-day schedule\n'
 timeout 240s env XDG_DATA_HOME="$tmp/user-data" "$GODOT" \
   --headless --path . -s test/harvest_settlement_phase_eleven_runner.gd -- \
