@@ -4,6 +4,8 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import subprocess
+import wave
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +39,24 @@ def strings(value: Any) -> list[str]:
     return []
 
 
+def verify_audio(path: Path) -> None:
+    if path.suffix.lower() == '.wav':
+        with wave.open(str(path), 'rb') as audio:
+            expected = audio.getnframes() * audio.getnchannels() * audio.getsampwidth()
+            if len(audio.readframes(audio.getnframes())) != expected:
+                raise RuntimeError(f'incomplete WAV decode: {path}')
+        return
+    completed = subprocess.run(
+        ['ffmpeg', '-v', 'error', '-i', str(path), '-map', '0:a:0', '-f', 'null', '-'],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(f'Ogg decode failed: {path}: {completed.stderr.strip()}')
+
+
 def verify_ledger() -> int:
     count = 0
     listed: set[str] = set()
@@ -56,6 +76,8 @@ def verify_ledger() -> int:
                     actual_descriptor = f'{image.width}x{image.height}:{image.mode}'
                 if actual_descriptor != row['descriptor']:
                     raise RuntimeError(f'image descriptor mismatch: {path}')
+            elif path.suffix.lower() in {'.wav', '.ogg'}:
+                verify_audio(path)
             count += 1
     actual = {
         path.relative_to(ROOT).as_posix()

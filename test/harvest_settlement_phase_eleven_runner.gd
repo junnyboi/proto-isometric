@@ -8,6 +8,14 @@ const ScheduleScript: GDScript = preload(
 const StateHashScript: GDScript = preload("res://scripts/persistence_state_hash.gd")
 
 const DEFAULT_DAYS: int = 1_000
+const EXPECTED_1000_HASH: String = (
+	"162fc7dec14149a3ea7beb67007b8be8cc474a310ecd87cacee19061b4f37270"
+)
+const EXPECTED_1000_BYTES: int = 15_933
+const EXPECTED_MAXIMUM_HASH: String = (
+	"60db99a35748007381a1360da0ac19853f7817a825dc93b5549dddd70cb977af"
+)
+const EXPECTED_MAXIMUM_BYTES: int = 1_154_068
 
 var _days: int = DEFAULT_DAYS
 var _fixture_dir: String = ""
@@ -65,6 +73,11 @@ func _run_schedule(base: Dictionary) -> void:
 		"[P11_SCHEDULE_HASH] run=%s days=%d hash=%s bytes=%d"
 		% [_run_id, _days, str(result[&"hash"]), int(result[&"bytes"])]
 	)
+	if _days == DEFAULT_DAYS and (
+		str(result[&"hash"]) != EXPECTED_1000_HASH
+		or int(result[&"bytes"]) != EXPECTED_1000_BYTES
+	):
+		_fail("golden_1000_day_mismatch")
 	if _days == 100 and not _fixture_dir.is_empty():
 		_write_fixture(
 			"representative-100-day.json",
@@ -86,13 +99,22 @@ func _emit_maximum_fixture(base: Dictionary, repository: RefCounted) -> void:
 			% [str(preflight.get(&"reason", "validation")), int(preflight.get(&"bytes", 0))]
 		)
 		return
+	var maximum_hash: String = StateHashScript.state_hash(maximum)
+	if (
+		int(preflight[&"bytes"]) != EXPECTED_MAXIMUM_BYTES
+		or maximum_hash != EXPECTED_MAXIMUM_HASH
+		or ((maximum[&"farm"] as Dictionary)[&"plots"] as Array).size() != 4_096
+		or ((maximum[&"farm"] as Dictionary)[&"orchard"][&"trees"] as Array).size() != 512
+	):
+		_fail("golden_maximum_mismatch")
+		return
 	print(
 		"[P11_MAXIMUM] bytes=%d plots=%d trees=%d hash=%s"
 		% [
 			int(preflight[&"bytes"]),
 			((maximum[&"farm"] as Dictionary)[&"plots"] as Array).size(),
 			((maximum[&"farm"] as Dictionary)[&"orchard"][&"trees"] as Array).size(),
-			StateHashScript.state_hash(maximum),
+			maximum_hash,
 		]
 	)
 	if not _fixture_dir.is_empty():
