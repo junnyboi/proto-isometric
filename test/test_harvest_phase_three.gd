@@ -66,8 +66,8 @@ static func _test_definitions(cases: Array[Dictionary]) -> void:
 	_add(cases, "PH-14 item definitions cover ten stable categories", ItemCatalogScript.validate())
 	_add(
 		cases,
-		"PH-15 all six four-stage crops validate against generated atlases",
-		CropCatalogScript.validate() and CropCatalogScript.CROP_IDS.size() == 6,
+		"PH-15 all eleven four-stage crops validate against generated atlases",
+		CropCatalogScript.validate() and CropCatalogScript.CROP_IDS.size() == 11,
 	)
 	var all_roles: Dictionary = {}
 	var deterministic: bool = true
@@ -86,8 +86,8 @@ static func _test_definitions(cases: Array[Dictionary]) -> void:
 		)
 	_add(
 		cases,
-		"PH-15 six distinct crop roles have deterministic bounded yields",
-		all_roles.size() == 6 and deterministic
+		"PH-15 eleven distinct crop roles have deterministic bounded yields",
+		all_roles.size() == 11 and deterministic
 	)
 
 

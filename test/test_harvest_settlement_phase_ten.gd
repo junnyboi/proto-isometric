@@ -338,6 +338,7 @@ static func _crop_season_cases(cases: Array[Dictionary], base: Dictionary) -> vo
 
 
 static func _fishing_cases(cases: Array[Dictionary], source: Dictionary) -> void:
+	source = _with_inventory_headroom(source)
 	var first: Dictionary = FishingServiceScript.cast(
 		source, FishingCatalogScript.WOODLAND_POND, 1, SEED, false
 	)
@@ -374,6 +375,7 @@ static func _fishing_cases(cases: Array[Dictionary], source: Dictionary) -> void
 	var blocked: Dictionary = FishingServiceScript.cast(
 		full_inventory, FishingCatalogScript.WOODLAND_POND, 1, SEED, false
 	)
+	var bait_changed: bool = _bait_changes_pool(source)
 	_add(
 		cases,
 		"P10 deterministic fishing repeats identity, depletes safely, renews, and consumes bait",
@@ -389,7 +391,7 @@ static func _fishing_cases(cases: Array[Dictionary], source: Dictionary) -> void
 	_add(
 		cases,
 		"P10 bait changes deterministic weights and failures roll back all fishing state",
-		_bait_changes_pool(source)
+			bait_changed
 		and not missing_bait[&"ok"] and missing_bait[&"reason"] == &"missing_fishing_bait"
 		and missing_bait[&"candidate"] == no_bait
 		and not blocked[&"ok"] and blocked[&"reason"] == &"inventory_full"
@@ -683,16 +685,37 @@ static func _with_full_inventories(farm: Dictionary) -> Dictionary:
 	var candidate: Dictionary = farm.duplicate(true)
 	var ids: Array[StringName] = ItemCatalogScript.ids()
 	ids.sort_custom(func(a: StringName, b: StringName) -> bool: return str(a) < str(b))
+	var fill_ids: Array[StringName] = []
+	for item_id: StringName in ids:
+		if item_id != FishingServiceScript.ROD_ITEM:
+			fill_ids.append(item_id)
 	for inventory: Dictionary in candidate[&"inventories"] as Array[Dictionary]:
 		var stacks: Array[Dictionary] = []
 		var capacity: int = int(inventory[&"capacity_slots"])
-		var offset: int = 0 if capacity > InventoryScript.ROBOT_SLOTS else ids.size() - capacity
-		for slot: int in capacity:
-			var item_id: StringName = ids[offset + slot]
+		var is_robot: bool = inventory[&"container_id"] == InventoryScript.ROBOT_ID
+		if is_robot:
+			stacks.append({
+				&"item_id": str(FishingServiceScript.ROD_ITEM), &"count": 1,
+			})
+		var fill_count: int = capacity - stacks.size()
+		var offset: int = 0 if capacity > InventoryScript.ROBOT_SLOTS else fill_ids.size() - fill_count
+		for slot: int in fill_count:
+			var item_id: StringName = fill_ids[offset + slot]
 			stacks.append({
 				&"item_id": str(item_id), &"count": ItemCatalogScript.stack_limit(item_id),
 			})
 		inventory[&"stacks"] = stacks
+	return candidate
+
+
+static func _with_inventory_headroom(farm: Dictionary) -> Dictionary:
+	var candidate: Dictionary = farm.duplicate(true)
+	for inventory: Dictionary in candidate[&"inventories"] as Array[Dictionary]:
+		if inventory[&"container_id"] == InventoryScript.ROBOT_ID:
+			inventory[&"capacity_slots"] = mini(
+			FarmSchemaScript.MAX_STACKS_PER_INVENTORY,
+			maxi(int(inventory[&"capacity_slots"]), (inventory[&"stacks"] as Array).size() + 4),
+			)
 	return candidate
 
 
