@@ -30,6 +30,10 @@ window/stretch/mode="disabled"
 
 theme/custom="res://data/ui_theme.tres"
 
+[features]
+
+interaction_dossier_v2=false
+
 [debug]
 
 gdscript/warnings/untyped_declaration=2
