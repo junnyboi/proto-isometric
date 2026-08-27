@@ -162,7 +162,7 @@ static func _effect(
 	return {
 		&"effect_id": StringName("interaction.effect.%s" % str(effect_id)),
 		&"label_key": label_key,
-		&"value_kind": &"identifier",
+		&"value_kind": &"text_key",
 		&"value": StringName("interaction.effect.value.%s" % str(value)),
 	}
 
@@ -179,7 +179,7 @@ static func _effect_rows_are_valid(rows: Array) -> bool:
 			row.keys() != EFFECT_KEYS
 			or not _stable_id(row[&"effect_id"], "interaction.effect.")
 			or not _stable_id(row[&"label_key"])
-			or row[&"value_kind"] != &"identifier"
+			or row[&"value_kind"] != &"text_key"
 			or not _stable_id(row[&"value"], "interaction.effect.value.")
 		):
 			return false
