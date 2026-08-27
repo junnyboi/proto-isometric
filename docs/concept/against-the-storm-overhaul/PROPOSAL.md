@@ -1,402 +1,480 @@
-# Protos Harvest: The Long Restoration
-## A Systemic Overhaul Proposal Inspired by *Against the Storm*
+# Protos Harvest: The Living Settlement
+## A Single-Map Construction, Production, and Survival Overhaul Inspired by *Against the Storm*
 
 **Author:** Manus AI
 **Canonical repository:** [junyboi/proto-isometric](https://github.com/junnyboi/proto-isometric)
-**Analyzed source baseline:** `888ca2ff192e26100627211dc2dafea9ff84895b`
+**Revised source baseline:** `8e0d04f19dd60558d7b4d6d65bc7e227d5d30f46`
 **Engine contract:** Godot 4.7.2 stable
-**Proposal status:** Recommended direction; implementation not yet authorized
+**Proposal status:** Revised recommended direction; implementation not yet authorized
 
 ## Executive recommendation
 
-**Protos Harvest should adopt the systemic structure that makes *Against the Storm* compelling without copying its fiction, map grammar, terminology, interface, or exact mechanics.** The most valuable lesson is not “add storms” or “make settlements temporary.” It is to build a closed network in which finite missions, production flexibility, population welfare, environmental pressure, bounded uncertainty, and campaign routing continually constrain one another.
+**Protos Harvest should become a persistent, single-map settlement game centered on construction, production, logistics, and survival.** The player spawns once in the safe grassland clearing and develops that same world for the duration of the save. There is no overworld, regional route, disposable deployment, secondary settlement simulation, or finale map. Every building, field, resident, warehouse, ruin, resource source, and dangerous biome exists in one continuous playable space.
 
-The recommended product is a **persistent stewardship roguelite**. The woodland homestead remains the permanent emotional and economic center. Protos remains the directly controlled robot. From that home, the player launches finite **Restoration Deployments** into deterministic regional routes. Each deployment asks the player to establish a viable human outpost, restore local ecology, adapt a physical production web, resolve sensor-obscured incidents, and complete enough verification before the restoration window closes. Successful sites remain in the world as autonomous telemetry and logistics relays. A regional expedition culminates at an ancient **Convergence Site**, where the player must combine the systems learned along the route through alternative proof objectives.
+The design should borrow the strongest local decision patterns from *Against the Storm* while deliberately rejecting its campaign topology. The useful ingredients are flexible production recipes, legible shortages, optional objective offers with meaningful rewards, predictable periods of opportunity and danger, population needs, difficult resource tradeoffs, and events that can be resolved in more than one way.[1] [2] [3] [4] Protos Harvest should express those ideas through its own fiction and existing embodied play: the player directly drives Protos, builds a permanent community, sends workers and supplies into hazardous outer biomes, reclaims or dismantles abandoned infrastructure, and survives increasingly demanding seasons.
 
-The overhaul should therefore preserve the implementation already completed through Stewardship Settlement Phase 9—construction, deposits, applicants, workforce, staffed extraction, logistics, production policy, and humane wellbeing—and place those authorities inside a stronger mission and campaign structure. This is an evolution, not a rewrite. The robot has suffered enough undocumented migrations.
+The resulting product is **same same, but different**. It should create the strategic tension of a systemic settlement builder without copying a world map, temporary towns, Reputation, Queen’s Impatience, Hostility, glades, or Seals. Progress happens because the one settlement becomes more capable, more connected, and better prepared—not because the player abandons it and selects another node.
 
-![Restoration Deployment concept](restoration-deployment.jpg)
+![Single persistent map concept](single-map-settlement.jpg)
 
-## 1. Why *Against the Storm* works as a system
+## 1. Product thesis and complexity boundary
 
-Eremite Games described its original campaign-layer problem as a lack of structure, risk, goals, exploration, and meaningful failure. Its cycle redesign addressed that by turning individual settlements into a route toward a visible finale, making the last successful settlement the next launch point, and tying difficult optional locations to campaign resources and routing choices.[1] The official world-map documentation reinforces the same structure: completed settlements reveal and unlock nearby space, distance increases minimum difficulty, modifiers are previewable, and the campaign has an explicit end objective.[2]
+> **Design thesis:** One map should contain the entire game loop. The safe grassland gives the player room to build; construction and production make survival possible; quests create changing priorities; ruins create transformative choices; outer biomes provide rare inputs at increasing risk; and every reward returns to the same settlement economy.
 
-At the local level, *Against the Storm* links success and failure through coupled pressure. Reputation immediately wins a settlement, Impatience loses it, and gaining Reputation also lowers Impatience.[3] Growth creates Hostility through time, exploration, population, and extraction; Hostility then crosses readable thresholds that worsen storm effects, while the player retains reversible mitigations such as reducing active woodcutters or building additional hearths.[8] This produces an unusually effective pattern: **the actions required to win also create the conditions that can make the player lose**.
+The overhaul is intentionally narrower than the previous proposal. It removes the systems most likely to multiply state, interface, save migration, and player cognitive load without improving minute-to-minute play.
 
-The economy survives random blueprint access because buildings expose multiple recipes, resources have overlapping uses, alternative buildings can produce the same good at different efficiencies, and gatherers remain useful across biome resource sets.[5] This is a **production web**, not a brittle single chain. The game then provides a recipe control surface with product and ingredient views, global and local targets, ingredient selection, and recipe enablement so that complexity remains operable rather than merely impressive in a spreadsheet.[10]
-
-Incidents and seasonal pressure complete the loop. Glade events present alternative approaches with different requirements, temporary working effects, and rewards; they are staged commitments rather than instant loot rolls.[6] Drizzle, Clearance, and Storm provide a predictable opportunity–production–stress cadence that schedules farming, hazards, resource collection, and trader availability.[7] The finale deliberately recombines prior systems: the Sealed Forest replaces normal victory with four staged objective levels, each offering alternative proof paths.[4]
-
-| Transferable principle | Why it matters | Protos Harvest adaptation |
+| Keep and deepen | Remove entirely | Replace with |
 |---|---|---|
-| **Finite local mission** | Creates a reason to prioritize, adapt, and finish | A Restoration Deployment has a bounded operational-day window and explicit evacuation state |
-| **Progress relieves pressure** | Prevents the pressure clock from becoming passive punishment | Restoration Verification grants bounded window recovery at thresholds |
-| **Growth creates delayed cost** | Makes expansion a decision instead of an automatic good | Buildings, extraction, subregion entry, and emissions add Biome Strain |
-| **Predictable stress cadence** | Lets players prepare rather than merely react | Recon, Yield, and Exposure phases rotate on authoritative day advancement |
-| **Production redundancy** | Makes constrained drafting strategic instead of unfair | Property-tagged ingredient alternatives and overlapping outputs form a recovery-capable production web |
-| **Bounded uncertainty** | Preserves replayability without invalidating planning | Feasibility-filtered directives, incidents, schematics, weather, and routes use stable seeded offers |
-| **Staged incidents** | Turns exploration into a cost–risk–value decision | Sensor-obscured bioregion incidents reveal full approaches after scan |
-| **Population as strategy** | Converts production into social tradeoffs | Authored settlers have target/current cohesion, needs, safety, recovery, preferences, and agency |
-| **Route-shaped campaign** | Makes individual missions strategically meaningful | Successful restoration sites become permanent relays on a deterministic node route |
-| **System-recombining finale** | Tests mastery rather than only higher numbers | A Convergence Site uses alternative four-stage proof objectives |
+| One persistent homestead and surrounding biomes | Overworld or regional node map | Seamless outward exploration on the spawn map |
+| Directly controlled Protos | Separate Restoration Deployments | Physical trips from the settlement into outer biomes |
+| Construction, farming, orchards, fishing, workforce, logistics, production, and wellbeing | Autonomous relay settlements | Permanent buildings and reclaimed facilities in the same world |
+| Predictable weather and seasonal survival | Restoration Window and mission evacuation | Persistent seasons, stockpile pressure, outages, injuries, and recovery |
+| Optional objective offers | Route objectives and Convergence finale | Accepted quests with explicit requirements and rewards |
+| Existing biome combat and hazards | Blight-clearing or ecological verification as the central goal | Resource access, infrastructure defense, and survival preparation |
+| Abandoned ruins | Disposable incident locations | Reclaim, demolish, or leave decisions with permanent map consequences |
 
-> **Design thesis:** The game should not imitate *Against the Storm*’s nouns. It should reproduce the quality of its decisions: every meaningful gain changes the next constraint, and every constraint has at least two legible responses.
+This boundary reduces the number of persistence horizons from three to one. There is no campaign graph to generate, no collection of summarized remote sites, no inter-map cargo manifest, no current relay, no Convergence qualification, and no migration of active expeditions into a new topology. The save remains about **one settlement and one world**.
 
-## 2. Current-game audit
+## 2. Why the local *Against the Storm* patterns still matter
 
-The repository is much closer to this destination than the present expedition loop suggests. The existing homestead already has exact-once cross-domain transactions, persistent construction, finite deposits, authored applicants, protected housing, workforce slots, staffed extraction, local storage, deterministic hauling, recipe policy, reserve floors, nonfatal injury, remedy windows, and voluntary departure. These are the expensive foundations of a systemic settlement game.
+*Against the Storm* is effective because production, objectives, weather, population wellbeing, and risk continually modify one another. Its recipe system uses overlapping inputs and outputs so a missing resource changes the plan rather than invalidating it.[1] Its recipe controls expose targets, ingredient choices, enablement, and local overrides so the player can diagnose why a chain is blocked.[2] Its Orders provide optional goals with visible rewards that can redirect priorities.[3] Its seasonal cadence tells the player when to exploit opportunity and when to prepare for stress.[4]
 
-The gap is primarily **macro structure and cross-system coupling**. The current expedition generates three relay objectives at authored radial distances, succeeds when all three are complete, banks scrap and cores, and then offers a run modifier before launching another independent expedition. The current recipe catalog contains only two production recipes. Settler needs and job preferences exist, but the mission does not yet turn settlement welfare, ecological restoration, production adaptation, exploration choices, and time pressure into alternative paths toward one shared conclusion.
+Those principles transfer cleanly to a single persistent map. They do **not** require a roguelite overworld.
 
-| System | Current authority | What should be retained | Overhaul gap |
-|---|---|---|---|
-| **Embodied player** | `isometric_map.gd`, `surface_drive.gd`, interaction phases, Quick action | WASD movement, direct farming, gathering, combat, inspection, contextual E/A/touch language | Strategic overlays must never replace physical traversal or direct intervention |
-| **Construction** | `construction_state_service.gd`, blueprint catalog, placement and modal authorities | Seven persistent buildings, footprints, bills, upgrades, exact-once placement | Buildings need deployment-specific roles, strain profiles, and schematic availability |
-| **Finite resources** | resource deposit catalog/deltas and gathering authorities | Stable IDs, finite/renewable sources, manual and staffed extraction | Sources need biome distributions, tags, incident links, and restoration consequences |
-| **Population** | `settler_catalog.gd`, housing, workforce, wellbeing services | Eight authored settlers, protected beds, two shifts, safety stops, nonfatal recovery, voluntary departure | Add transparent target/current group cohesion and deployment transfer decisions without turning people into score tokens |
-| **Logistics** | `logistics_service.gd`, local storage, warehouse jobs | Physical outputs, haulers, self-haul fallback, reserve floors, deterministic priority and receipts | Add network visualization, route pressure, supply/export manifests, and bottleneck explanations |
-| **Production** | `recipe_catalog.gd`, `production_policy_service.gd` | Ingredient groups, byproducts, targets, priorities, worker requirement | Expand from two recipes to a tagged production web with local/global overrides and feasibility-filtered schematics |
-| **Home farming** | farm state, crops, weather, machines, economy | Permanent clearing, manual agriculture, seasonal data, exact day commits | Home should provision expeditions and receive autonomous relay yields without becoming an idle-game faucet |
-| **Exploration** | inspectable-world and interaction providers | One authoritative inspect/approach/commit language | Add pre-entry severity, scan confidence, two-approach incident decisions, timed working effects, and projected ecological outcomes |
-| **Combat** | fauna, melee pressure, biome bosses, hazards, direct Smash/Impact Charge | Protos remains responsible for direct combat and apex threats | Combat should defend or unlock restoration plans rather than remain a separate relay hunt |
-| **Mission outcome** | `run_settlement.gd`, run state, terminal flow | Explicit settlement, failure, atomic banking, retry/deploy terminal | Replace three-relay binary with multi-channel Restoration Verification and a finite window |
-| **Campaign** | profile state, modifier offers | Permanent profile, rewards, run summary, deterministic offers | Add regional route, completed-site graph, expedition supply, convergence target, and cycle result |
-| **Information architecture** | field HUD, settlement terminal, biome intel, inspectable read results | Responsive landscape/portrait panels, localization, causal reasons | Add a compact Steward Console; do not resurrect removed tutorial cards |
+| Transferable principle | Single-map Protos Harvest adaptation |
+|---|---|
+| **Production redundancy** | Important goods have inefficient baseline recipes plus specialized alternatives using biome-specific inputs |
+| **Explicit objective offers** | A Quest Ledger offers optional contracts with requirements, risk, progress, and previewed rewards |
+| **Predictable stress cadence** | Seasons and weather forecasts determine crop performance, travel safety, power demand, and biome hazards |
+| **Expansion creates obligations** | More buildings and residents increase food, shelter, power, repair, hauling, and protection requirements |
+| **Population wellbeing affects capacity** | Safe housing, rations, work preferences, injury, concern, and recovery shape sustainable output |
+| **Events have multiple approaches** | Abandoned ruins can be reclaimed, demolished, or ignored; each path has different costs and rewards |
+| **Information must be causal** | Every blocked job, failed quest step, unsafe assignment, or stalled production order exposes a stable reason |
+| **Rewards change future possibilities** | Quests and ruins grant schematics, tools, applicants, rare inputs, building upgrades, and permanent service functions |
 
-## 3. Target experience
+The previous proposal emphasized restoration proof, biome strain, route advancement, and a finite operational window. Those systems are no longer recommended. Environmental care can remain one authored concern among many—especially around farming, fishing, and resource renewal—but **clearing blight is not the game’s organizing objective**.
 
-### 3.1 The permanent home
+## 3. Current-game audit at the revised baseline
 
-The woodland homestead remains permanent. It is the place where the player farms manually, maintains relationships with Lyra, Rook, and Mira, admits settlers, repairs facilities, prepares manifests, and chooses the next deployment. Its whole biome is mechanically safe; therefore, the `SAFE ZONE` label and luminous sanctuary ring are removed from woodland rendering while remote sanctuary markers remain visible where they communicate a genuinely local protection boundary.
+The synchronized repository already contains most of the expensive foundations required for this direction. Through the implemented settlement phases, the game has persistent construction, finite and renewable deposits, authored applicants, protected housing, workforce slots and shifts, staffed extraction, physical local storage, deterministic hauling, reserve floors, recipe policy, nonfatal injury, remedy windows, voluntary departure, seasonal crops, orchards, and deterministic fishing. These systems all operate through one persistent homestead and should be deepened rather than wrapped in a second strategic game.
 
-Home production should matter to the campaign through **bounded preparation**, not passive infinite accumulation. Before launch, the player allocates a cargo mass limit among food, parts, seed stock, tools, medical supplies, and one specialist module. Successful regional sites may contribute one small, capped relay benefit to future manifests, such as one water cache or one forecast reveal. Home never generates deployment victory while the player is absent.
+The principal gaps are now content breadth, quest orchestration, ruin operations, outer-biome economic identity, and a clearer survival arc.
 
-### 3.2 The Restoration Deployment
-
-A deployment starts with Protos, a chosen settler crew, a cargo manifest, a limited schematic roster, biome conditions, and three initial Stewardship Directives. The player physically explores, builds, assigns work, repairs infrastructure, manages local logistics, protects settlers, and fights when necessary. The deployment ends in one of three states:
-
-| Outcome | Trigger | Consequence |
+| System | Current foundation | Revision priority |
 |---|---|---|
-| **Verified** | Fill the Restoration Verification track through any valid mix of four proof channels | Site becomes an autonomous regional relay; campaign position advances; bounded cargo and data return home |
-| **Evacuated** | Restoration Window reaches zero, all active settlers are unable to work, or the player chooses evacuation | People survive; unreturned field cargo is lost; campaign time is spent; route remains at the last successful relay |
-| **Abandoned site** | The player leaves after a major incident or failed convergence attempt | Same as evacuation, plus the node gains a deterministic scar/modifier if revisited in the same expedition |
+| **Construction** | Seven persistent blueprints, rotation, footprints, bills, upgrades, relocation, demolition, scaffolds, exact-once receipts | Add settlement tiers, utility dependencies, maintenance, specialized biome structures, and reclaimed ruin facilities |
+| **Production** | Workbench/furnace stations, two recipes, alternatives, byproducts, targets, priority, enablement | Expand to a compact production web of approximately 18–24 recipes before adding many more buildings |
+| **Logistics** | Building-local input/output, warehouse jobs, haulers, self-haul fallback, reserve floors | Add route throughput, travel hazard effects, repair deliveries, quest reservations, and clear bottleneck projections |
+| **Population** | Authored applicants, beds, jobs, shifts, morale, concerns, recovery, voluntary departure | Make food, shelter, warmth, safety, and work conditions the central survival constraints |
+| **Food systems** | Six seasonal crops, two orchard species, fishing pools and catches | Connect preservation, meals, bait, winter stockpiles, and biome ingredients to resident survival |
+| **Resources** | Stable finite/renewable sources, tools, reservations, manual and staffed extraction | Give every outer biome exclusive resource tags and meaningful preparation requirements |
+| **Ruins** | Stable ruin IDs, discover/repair/power state, home and outpost classifications | Replace simple repair with explicit Reclaim, Demolish, and Leave operations, resource bills, workers, hazards, and rewards |
+| **Biomes** | Grassland, oasis, frozen, lava, desert terrain; fauna, hazards, bosses, weather presentation | Make biome entry an economic decision with unique resources, survival gear, travel costs, and escalating danger |
+| **Objectives** | Legacy relay objectives and run terminal outcomes | Replace with a persistent Quest Ledger; no new map or run-reset layer |
+| **Information architecture** | Inspectable world, sealed action menus, responsive native panels, production and roster controls | Add Settlement Overview, Quest Ledger, Ruin Operation, and Biome Logistics views without resurrecting tutorial cards |
 
-Verification and pressure must be coupled. Reaching each 25% verification threshold returns a small, capped number of operational days, so progress creates breathing room. However, the facilities, population, subregion access, and extraction used to gain verification also create Biome Strain. There is no optimal plan that ignores either side.
+## 4. Target player experience
 
-### 3.3 The regional expedition
+### 4.1 One world, one settlement
 
-A regional expedition is a deterministic **node network**, not a copied hex map. It begins at the woodland home, contains five to seven ordinary deployment choices, two optional event branches, and one visible Convergence Site. A successful site becomes the origin for the next launch and reveals connected nodes. Routes differ through biome, sensor uncertainty, payload opportunity, minimum strain tier, resident availability, and convergence requirements.
+The player begins in the biome-wide safe grassland clearing. That area contains the original home services, nearby farmland, water, basic salvage, and enough renewable material to recover from mistakes. The redundant `SAFE ZONE` world label and sanctuary ring remain absent because the entire grassland performs that role.
 
-![Regional Restoration Map concept](regional-restoration-map.jpg)
+The world extends seamlessly beyond the tree belt into authored outer biomes. The player can physically walk from the settlement into oasis wetlands, frozen tundra, lava fields, and scarred desert. Entering those biomes does not open another screen, load another settlement, or create a parallel save. It simply moves Protos farther from shelter and logistics support.
 
-Completed sites remain represented as autonomous farms, weather stations, habitats, or logistics relays. This preserves the fiction of care: settlements are not disposable score generators. Their strategic value persists, but their ongoing output is strictly capped and abstracted so the player does not manage several simulations at once.
+The settlement is permanent. Buildings do not disappear between chapters. Reclaimed ruins stay reclaimed. Demolished ruins stay cleared. Deposits remember depletion and renewal. Residents retain their history. Roads and hauling distances continue to matter. A bad season is a setback to overcome, not a prompt to throw the town into the campaign-layer recycling bin.
+
+### 4.2 The core play loop
 
 ```mermaid
 flowchart LR
-    H[Permanent Woodland Home] --> M[Prepare crew, cargo, schematics]
-    M --> N[Choose visible regional node]
-    N --> D[Finite Restoration Deployment]
-    D -->|Verified| R[Autonomous relay and route advance]
-    D -->|Evacuated| H
-    R --> N
-    R --> C{Convergence reachable and qualified?}
-    C -->|No| N
-    C -->|Yes| F[Convergence Site finale]
-    F -->|Success| P[Permanent research and next expedition tier]
-    F -->|Failure| H
-    P --> H
+    A[Review forecast, shortages, residents, and quests] --> B[Build, assign, farm, fish, and produce]
+    B --> C[Prepare tools, food, parts, and protection]
+    C --> D[Travel into an outer biome or inspect a ruin]
+    D --> E[Gather rare inputs, fight threats, reclaim, or demolish]
+    E --> F[Haul rewards back to the settlement]
+    F --> G[Complete quests and unlock new capabilities]
+    G --> H[Survive the next season with a stronger production network]
+    H --> A
 ```
 
-## 4. Core local systems
+The loop should produce a recurring strategic question: **What must the settlement make today so that it can safely obtain what it cannot make locally tomorrow?** A tundra quest may require insulated panels and preserved meals. Insulated panels may require desert fiber and furnace output. Furnace expansion may require a reclaimed regulator. The regulator may sit in lava territory behind a dangerous route. Every layer feeds the same economy.
 
-### 4.1 Restoration Verification
+### 4.3 Progress without an overworld
 
-Ordinary deployments use one 100-point track composed from four proof channels. The player does not need to maximize every channel, but no single channel may supply more than 45 points. This preserves alternative strategy while preventing degenerate one-system wins.
+Long-term progression is represented by **Settlement Tiers**, not locations on a route. Each tier is a permanent capability threshold based on buildings, survival reserves, population, production breadth, and selected quest or ruin achievements.
 
-| Proof channel | Examples | Design purpose |
+| Tier | Settlement identity | Typical unlocks |
 |---|---|---|
-| **Ecological recovery** | Rewild an incident, restore water quality, establish biodiversity, close a pollution source, maintain healthy fields | Rewards stewardship rather than extraction volume |
-| **Infrastructure resilience** | Complete a protected logistics loop, sustain power reserves, repair an ancient system, withstand Exposure without a critical failure | Makes construction and logistics part of victory |
-| **Community continuity** | Maintain safe housing and food, resolve concerns, sustain target cohesion, complete resident-led work without injuries | Makes humane welfare strategically relevant without commodifying settlers |
-| **Regional contribution** | Complete directives, transmit a survey, defeat an apex threat, return critical data, fulfill an outbound supply contract | Connects direct play, exploration, combat, and campaign goals |
+| **I — Clearing** | Protos and the original home services | Basic shelter, crops, salvage, hand tools, local fishing |
+| **II — Workshop** | Stable construction and first staffed production | Warehouse policy, furnace recipes, applicants, basic preservation |
+| **III — Settlement** | Sustainable food, housing, power, and logistics | Quest Ledger expansion, specialized tools, ruin reclamation, biome camps |
+| **IV — Frontier Hub** | Reliable outer-biome supply chains | Advanced processing, insulated/heat-shielded buildings, rare applicants, complex quests |
+| **V — Enduring Community** | A settlement capable of surviving every season and biome pressure | Capstone construction, final production families, optional mastery quests, cosmetic world improvements |
 
-Verification rewards must be event-based and exact-once. Continuous production should not passively grind victory. A stable logistics loop grants proof when it first satisfies a documented duration and load threshold; repeatedly toggling the same policy grants nothing further. Each proof receipt includes mission ID, proof ID, source revision, and canonical payload digest.
+Tier advancement is not a single score bar. Each tier has a short, explicit readiness checklist. The checklist should verify genuine system capacity—such as protected beds, preserved food days, reserve power, staffed production, and a functioning outer-biome supply route—rather than require repetitive resource grinding.
 
-### 4.2 Restoration Window
+Tier V culminates in one **on-map capstone**, such as a Community Beacon or Horizon Array, constructed in the grassland settlement from advanced products supplied by every major system and outer biome. Completing it provides narrative victory, a permanent visual transformation, and optional mastery quests while leaving the settlement playable indefinitely. It is not a remote finale, a second map, or a reset trigger.
 
-The mission clock is measured in **operational days committed through the existing sleep transaction**, not wall-clock seconds. This preserves deterministic replay, accessibility, and the current architecture. A baseline ordinary deployment begins with 18 days. Every sleep decrements the window by one after the closing-day transaction. Verification thresholds at 25, 50, and 75 restore two days each, capped at the mission’s starting window.
+## 5. Construction as the primary expression of progression
 
-Difficulty changes the starting window, supply costs, strain thresholds, and incident severity—not simulation speed. The UI must always show the projected next-day change before the player commits sleep.
+Construction should be the player’s most visible answer to survival problems. A building is valuable because it changes what the settlement can safely do, not merely because it raises an abstract number.
 
-### 4.3 Operational phases
+### 5.1 Building families
 
-Days rotate through a six-day forecast loop:
+The existing roster should remain the stable base. New content should first extend its upgrade paths and operational roles before creating a large blueprint catalog.
 
-| Days | Phase | Opportunity | Risk |
-|---|---|---|---|
-| 1–2 | **Recon** | Faster scanning, clearer node intelligence, efficient manual salvage | Lower staffed yield; entering new subregions adds less immediate strain |
-| 3–4 | **Yield** | Crop, water, renewable biomass, and staffed production bonuses | Storage and hauling bottlenecks become more likely |
-| 5–6 | **Exposure** | Rare energy collection and specific incident opportunities | Biome Strain thresholds activate; remote sites need shelter, reserves, and mitigation |
+| Family | Core role | Expansion examples |
+|---|---|---|
+| **Shelter and care** | Protected beds, rest, recovery, morale | Insulation, heating, cooling, clinic beds, communal meals |
+| **Storage and logistics** | Buffers, reserve floors, hauling endpoints | Cold storage, hazardous-material storage, biome transfer depots |
+| **Extraction** | Staffed access to deposits and renewable sources | Pumps, insulated drills, thermal collectors, wetland harvest rigs |
+| **Production** | Transform materials into survival and construction goods | Workbench modules, furnace upgrades, preservation, tool assembly |
+| **Food and water** | Farming, orchard, fishing, purification, meals | Greenhouses, smokehouse, canning, bait workshop, water treatment |
+| **Power and protection** | Facility operation and hazard resilience | Batteries, wind storage, thermal exchangers, perimeter warning systems |
+| **Community** | Recruitment, wellbeing, quest capacity, social recovery | Commons, communications desk, training bay, applicant lodging |
 
-The phase schedule is known at mission start. Biome modifiers change what each phase does, but not when it occurs. The design should generate planning, not calendar ambushes wearing a trench coat.
+### 5.2 Utilities and maintenance
 
-### 4.4 Biome Strain
+To deepen construction without producing a wiring simulator from the lower circles of bureaucracy, utilities should remain bounded and readable. Buildings can require one or more of **power**, **water**, **heat protection**, **cold protection**, and **safe access**. These are network capabilities, not manually routed individual pipes for every tile.
 
-Biome Strain is the local ecosystem’s response to disturbance. It is not moral condemnation and should not imply that settlement itself is illegitimate. The system exposes both a **Target Strain** and a **Current Strain**. Target is the additive total of known sources and mitigations. Current moves toward Target only at day commits, giving players time to react and making future Exposure effects forecastable. This adapts the readability rationale behind *Against the Storm*’s current/target Resolve model.[9]
+Completed buildings also generate predictable maintenance demand. Maintenance consumes small amounts of parts, tools, or filters at day or season boundaries. Insufficient maintenance does not randomly delete a building; it creates a visible degraded state, reduced output, and a repair quest opportunity. The player must be able to forecast the next maintenance bill and reserve goods for it.
 
-| Strain source | Typical contribution | Player response |
-|---|---:|---|
-| Operational day elapsed | +2 per day | Advance verification efficiently; use threshold day refunds |
-| Active extraction site | +3 to +8 by source tier | Unstaff, rotate, use managed sources, or complete restoration at the source |
-| Powered industrial building | +2 to +6 | Shut down, upgrade efficiency, or buffer through clean power |
-| Settler population | +1 per active settler above the first four | Expand shelter, food, and restoration capacity deliberately |
-| Opened subregion | +5 normal / +12 severe | Scan before entry and choose route timing |
-| Unresolved incident | +4 to +20 | Commit workers/resources to an approach or deliberately avoid the area |
-| Ecological buffer | −4 to −12 | Rewild, restore water, plant shelter belts, and maintain biodiversity |
-| Autonomous relay link | −3 once stabilized | Reward previous successful regional planning |
+### 5.3 Placement and settlement shape
 
-Exposure uses discrete threshold bands. The exact effects are biome-authored and visible from mission start. Examples include reduced outside work, water loss, unstable terrain, stronger fauna behavior, grid overload, and slower recovery. Thresholds must never directly delete buildings or settlers without a telegraphed, preventable state.
+The existing footprint, orientation, entrance, occupancy, corridor, and protected-path rules should remain authoritative. The one-map design makes placement more important because distances persist. The player should develop recognizable districts—housing near safe services, production near warehouses, farms near water, and biome depots near dangerous borders—without formal zoning.
 
-### 4.5 Stewardship Directives
+## 6. Production and physical logistics
 
-Each deployment offers three directives from a context-filtered pool. Completing one grants Verification plus a bounded reward: supplies, one schematic choice, a campaign datum, or temporary mitigation. A completed directive is replaced until a mission cap of six completions.
+### 6.1 A compact production web
 
-Offers are seeded by expedition, node, directive sequence, available buildings, biome resources, current population, and already-completed proofs. The filter must guarantee that at least one offered directive can be completed using current or guaranteed mission capabilities. One **Diagnostic Reroute** per mission redraws an unaccepted set; it is not an infinite reroll casino.
+The first content target should be **18–24 recipes across the existing stations and a small number of upgrades**. This is enough to create adaptation without burying the game beneath a fabricated encyclopedia.
 
-Directive archetypes should include delivery, sustained infrastructure, ecological repair, safe operations, exploration, and resident-led projects. No directive may require a unique random schematic that is not already owned or guaranteed in its reward chain.
-
-### 4.6 Production web and schematics
-
-The existing alternative-ingredient machinery is the correct foundation, but two recipes cannot carry a strategy game. The first overhaul slice should expand to approximately 18 recipes across the existing building roster before adding new structures. Inputs should carry gameplay tags—`metal_bearing`, `organic_carbon`, `binding_fiber`, `clean_water`, `nutrient`, and `energy_cell`—so one required function can be satisfied through multiple biome-specific materials.
-
-A schematic is a **production method plus building compatibility**, not a whole fantasy blueprint deck. Protos begins with survival methods and drafts a small number of specialized schematics during a deployment. Every offered schematic is feasibility-filtered against known biome tags and current roster. Each important function must have a low-efficiency baseline method and at least one specialized method.
+Important functions should have one inefficient baseline method and one or more specialized alternatives. Ingredients should carry functional tags so different biomes can support different versions of the same economy.
 
 | Function | Baseline method | Specialized alternatives |
 |---|---|---|
-| Clean water | Manual purifier using biomass filters | Wetland membrane, thermal distillation, cryogenic separation |
-| Field food | Raw produce and ration assembly | Greenhouse meal loop, fungal protein, geothermal kitchen |
-| Repair parts | Scrap reconditioning | Ore casting, ceramic composites, recovered precision modules |
-| Shelter protection | Basic insulated panels | Fiber laminate, frost shell, heat-reflective plating |
-| Ecological restoration | Seed and water treatment | Microbial slurry, mineral remediation, native habitat modules |
-| Grid stability | Salvaged cells | Wind storage, thermal capacitor, ancient regulator coupling |
+| **Preserved food** | Mixed produce ration | Smoked fish, orchard preserves, fungal protein, mineral-cured meals |
+| **Repair parts** | Scrap reconditioning | Iron casting, ceramic components, reclaimed precision modules |
+| **Construction panels** | Salvage plate and fiber | Wetland laminate, insulated tundra shell, heat-reflective lava composite |
+| **Tools** | Basic salvage tool | Thermal wrench, cryo drill, wetland harvester, precision demolition kit |
+| **Water treatment** | Biomass filter | Conductive algae membrane, thermal distillation, cryogenic separation |
+| **Power storage** | Reconditioned cells | Wind battery, thermal capacitor, reclaimed regulator bank |
+| **Medical supplies** | Clean cloth and food extract | Wetland medicine, cryo stabilizer, ruin-derived diagnostic kits |
+| **Protective gear** | Basic work covering | Mire boots, insulated suit, heat shielding, dust seals |
 
-The control plane should extend the current production policy with global targets, site overrides, selected ingredient preference, enablement, priority, and explicit idle reasons. The Steward Console should answer: **What is blocked? Where? By which missing input, worker, reserve floor, capacity, hazard, or target?** The official recipe-control design is valuable precisely because it makes a complex production web diagnosable.[10]
+The exact ingredient substitutions must be authored and validated; arbitrary tag matching should not allow reeds to become a transmission gear merely because both are technically “things found outdoors.”
 
-### 4.7 Physical logistics
+### 6.2 Production policy
 
-Goods remain physical. Extraction enters source output storage, haulers move it to a field warehouse, production consumes local input, and finished goods must be hauled or exported. No global magical stockpile is added.
+The existing production policy is the correct control plane. It should expose global targets, building-local overrides, selected ingredient preference, recipe enablement, priority, reserve floors, current orders, output capacity, and a single stable idle reason.
 
-The overhaul should add three capabilities to the existing logistics service:
+The UI should answer five questions without opening multiple panels:
 
-1. **Route cost:** distance, terrain, and Exposure conditions affect daily hauling capacity.
-2. **Export manifests:** a player may reserve and dispatch a bounded set of goods to the regional relay or home, with a visible arrival day.
-3. **Network graph:** the UI presents source, destination, buffer, target, priority, throughput, and idle reason without creating a parallel mutation path.
+1. What item is below target?
+2. Which building can produce it?
+3. Which ingredient, worker, utility, tool, reserve, or storage condition is blocking it?
+4. Where is the nearest valid source or stockpile?
+5. Which accepted quest or survival forecast is reserving the available stock?
 
-### 4.8 Settler cohesion and agency
+### 6.3 Physical hauling
 
-The authored individual model remains. Each settler keeps needs, preferences, injury, recovery, concern, remedy, notice, and voluntary departure. The overhaul adds two transparent derived values:
+Goods remain physical. Sources store output locally, haulers move goods to warehouses or production sites, production consumes local input, and completed goods require delivery. Outer-biome distance and hazard states reduce throughput. A lava route during an eruption warning may pause settler hauling entirely until Protos clears threats or a protected depot is built.
 
-- **Target Cohesion** is the additive result of protected housing, rations, rest, job preference, safety, community facilities, unresolved concerns, injuries, and Exposure.
-- **Current Cohesion** moves toward Target at day commits, with reaction speed modified only by authored resilience traits.
+Quest requirements must use the same stock and reservation system. Accepting a delivery quest may reserve a player-selected amount, but it must never silently steal ingredients from active production. The policy view should show both demand sources.
 
-Cohesion affects departure pressure, work consistency, recovery, and the Community Continuity proof channel. It does not directly convert happy humans into abstract victory points. Proof is granted for explicit humane outcomes such as sustaining safe operations through Exposure, resolving a concern before deadline, or completing a resident-led infrastructure project.
+## 7. Survival as sustained settlement pressure
 
-### 4.9 Sensor-obscured subregions and incidents
+Survival pressure should emerge from understandable resource obligations rather than a second defeat clock. The settlement persists, but poor preparation has lasting consequences.
 
-The current inspectable-world architecture should become the sole interaction language for exploration. A closed subregion shows perimeter severity, scan confidence, likely resource classes, and ecological value. Entering it is explicit and adds known Strain. Full scan then reveals incidents, sources, hazards, and exact approach options.
+### 7.1 Core survival dimensions
 
-![Bioregion Incident Scan concept](bioregion-incident-scan.jpg)
-
-Every major incident has two or three approaches. Each approach binds material requirements, worker slots, duration in day commits, temporary working effects, failure conditions, projected outcomes, and proof/reward consequences. The options must express the game’s identity: repair, rewild, isolate, relocate, salvage for emergency use, or synchronize with ancient systems. They should not collapse into “good reward versus evil reward.”
-
-A first vertical slice needs three incidents:
-
-| Incident | Approach A | Approach B |
+| Dimension | Pressure | Player responses |
 |---|---|---|
-| **Failed nutrient reactor** | Repair the fertilizer loop using parts and high temporary grid draw | Rewild with microbes and water, accepting slower immediate crop output |
-| **Collapsed flood regulator** | Reconstruct gates for predictable irrigation | Open a seasonal wetland corridor for biodiversity and variable water abundance |
-| **Dormant security habitat** | Restore containment and survey safely | Decommission the system, fight the released apex organism, and reclaim the site |
+| **Food** | Residents consume food; raw goods spoil or fail to cover harsh seasons | Diversify crops, orchard, fishing, meals, preservation, reserves, and quest rewards |
+| **Shelter** | Unprotected or poorly insulated residents recover slowly and lose morale | Build beds, insulation, heating/cooling, maintenance, and emergency shelter |
+| **Power** | Production, care, and biome protection compete for finite generation and storage | Prioritize loads, expand storage, reclaim generators, schedule production |
+| **Water** | Farming, residents, processing, and heat events consume clean water | Purify, store, upgrade pumps, exploit oasis technology, reduce demand |
+| **Safety** | Fauna, storms, terrain, and unsafe sites interrupt work and cause nonfatal injury | Escort with Protos, build protection, improve tools, reroute, pause work |
+| **Wellbeing** | Rations, work fit, rest, concern, injury, and housing affect retention | Assign humanely, remedy concerns, recover, expand community services |
+| **Maintenance** | Buildings and tools degrade predictably through use and seasons | Reserve parts, schedule downtime, complete repair quests, reclaim superior systems |
 
-### 4.10 Combat inside the settlement game
+### 7.2 Seasons and forecast
 
-Direct combat remains a differentiator. Protos—not the settlers—handles mobile fauna and apex threats. Combat should be connected to settlement decisions in four ways: subregion access, worker safety, infrastructure defense, and optional high-value proof. The player can often mitigate pressure through habitat repair, route choice, or Exposure preparation instead of fighting continuously.
+The existing seasonal crop, orchard, and fishing systems should anchor a known calendar. A compact forecast shows the current season, the next weather event, affected biomes, expected temperature or hazard changes, and settlement consequences.
 
-Settlers retreat to protected shelter during declared critical states. There is no squad micromanagement and no permanent settler death. Combat failure damages mission time, field equipment, or cargo and may force evacuation, preserving high stakes without discarding the humane rules already implemented.
+A season should change opportunity and preparation rather than merely recolor terrain. Green seasons favor crops and wetland gathering; dry periods improve desert access but increase water consumption; cold periods unlock some tundra resources while increasing heating demand; storms disrupt long routes and threaten exposed buildings. The cadence remains deterministic from the save seed and visible several days ahead.
 
-## 5. Campaign systems
+### 7.3 Failure and recovery
 
-### 5.1 Regional route generation
+The default game should avoid an abrupt global loss screen. Severe shortages create layered setbacks: residents stop unsafe work, morale falls, injuries require recovery, applicants stop arriving, residents may depart after an explainable remedy window, buildings degrade, and production contracts fail. Protos and the home clearing remain available for recovery.
 
-A regional map is generated from a stable expedition seed. It contains authored node archetypes arranged as a directed acyclic graph with one or two cross-links. The map generator guarantees biome diversity, at least two viable routes to Convergence, one recovery node after the first branch, and no mandatory dependency on an unavailable permanent unlock.
+An optional challenge mode may add a hard survival condition later, but it should not be part of the first overhaul slice. The base game’s tension comes from losing time, residents, opportunities, and material—not deleting the settlement.
 
-Node information is progressively revealed. Visible information includes biome, minimum Strain tier, expected resource tags, broad incident severity, relay benefit, and convergence value. Hidden information remains bounded to exact sources, directive offers, incident identities, and weather modifiers.
+## 8. Quest Ledger
 
-### 5.2 Expedition resources
+Quests are the primary source of changing priorities and curated rewards. They adapt the functional role of *Against the Storm* Orders without copying its presentation, hierarchy, terminology, or reward economy.[3]
 
-The campaign layer uses three bounded resources:
+![Quest Ledger concept](quest-ledger.jpg)
 
-| Resource | Earned from | Spent on | End-of-expedition behavior |
+### 8.1 Offer and acceptance rules
+
+The Quest Ledger presents **three offers** at a time. The player may accept up to **two active quests**. Unaccepted offers remain until the next scheduled refresh; accepted quests are never replaced automatically. The player may track one quest on the HUD and may abandon an accepted quest after a confirmation that shows its bounded quest-specific consequence, such as forfeiting a pledged resource deposit and leaving the slot occupied until the next refresh. Declining an unaccepted offer is consequence-free. There is no global reputation currency or victory track.
+
+Offers are deterministic and capability-filtered. A quest cannot require a building, item, tool, biome, resident count, or ruin operation that is neither currently available nor explicitly granted by the quest chain. The generator considers settlement tier, season, known biomes, discovered ruins, production capabilities, residents, unresolved shortages, and recent quest history.
+
+Quest completion is exact-once. Every accepted quest has a stable instance ID, objective state, reward bundle, source revision, expiry policy, and completion receipt. Replaying a completion token grants nothing twice.
+
+### 8.2 Quest archetypes
+
+| Archetype | Example objective | Typical reward |
+|---|---|---|
+| **Supply** | Deliver preserved meals, repair parts, medicine, or insulated panels | Rare material, applicant, tool, schematic |
+| **Construction** | Build and operate a shelter, depot, greenhouse, or power buffer | Blueprint upgrade, settlement tier credit, permanent efficiency option |
+| **Production** | Sustain an output target for several days without violating reserve floors | Recipe, station module, warehouse expansion |
+| **Survival** | Enter a forecast hazard with specified reserves and finish without a critical safety stop | Protective gear, medicine, morale benefit |
+| **Exploration** | Survey a biome landmark, fishing pool, source cluster, or ruin | Map intelligence, resource reveal, specialized tool |
+| **Ruin operation** | Reclaim or demolish a named ruin under explicit constraints | Unique facility, recovered component, cleared construction parcel |
+| **Community** | Resolve a concern, maintain protected beds, or complete a resident-led project | Applicant quality, community upgrade, wellbeing buffer |
+| **Defense** | Protect a work site, defeat an apex threat, or keep a route safe during hauling | Weapon module, hazard protection, rare biome cache |
+
+### 8.3 Objective composition
+
+A quest contains one to three objectives. Objectives may be sequential when causality matters—for example, survey a ruin, deliver a repair bill, then operate the reclaimed facility for one day. They should not be disguised shopping lists of unrelated chores.
+
+Quest progress is reduced **inside the existing `CrossDomainTransaction` candidate before its single validation, save, and publication**. A pure adapter translates the sealed operation payload and canonical result into objective deltas; it never mutates state after persistence. The authoritative operation applies those deltas, any exact-once completion receipt, and the owning inventory, construction, unlock, applicant, or world reward to the same detached candidate. Day advancement reduces quest progress from each subsystem’s canonical closing-day result in the existing deterministic order. A crash can therefore preserve either the complete operation and quest result or neither—never a committed action with missing progress or a reward in a second save.
+
+### 8.4 Rewards
+
+Rewards should create new possibilities rather than mostly return generic currency.
+
+| Reward family | Examples | Guardrail |
+|---|---|---|
+| **Schematics and recipes** | Preservation, thermal tools, advanced filters | Must be feasible with owned or discoverable inputs |
+| **Building capabilities** | Upgrade branch, extra storage, utility efficiency | Sidegrades and specialization before raw percentage inflation |
+| **Rare materials** | Cryo crystal, conductive algae, thermal glass, precision modules | Bounded amounts that accelerate but do not replace biome access |
+| **Tools and modules** | Demolition kit, insulated drill, Protos hazard module | New interaction or safer access rather than a generic damage ladder |
+| **People and knowledge** | Applicant, resident project, source reveal, forecast extension | Must respect housing and authored-person rules |
+| **Immediate relief** | Food cache, medicine, spare parts, temporary power cell | Useful recovery, never the only source of a critical item |
+| **World improvement** | Repaired service lane, beautification, home visual upgrade | Persistent and visible on the single map |
+
+## 9. Abandoned ruins: reclaim, demolish, or leave
+
+Abandoned ruins are permanent authored opportunities distributed across the one map. Discovering a ruin exposes its identity, hazards, structural condition, salvage profile, possible reclaimed function, and operation requirements.
+
+![Ruin reclamation concept](ruin-reclamation.jpg)
+
+### 9.1 Operation paths
+
+| Choice | Costs | Benefits | Permanent consequence |
 |---|---|---|---|
-| **Operational window** | Starting expedition budget, verified sites, specific events | Each attempted deployment | Unused value has no permanent conversion; it exists to create route pressure |
-| **Relay capacity** | Verified infrastructure and regional contribution | Longer jumps, extra cargo, one emergency evacuation | Resets after the expedition |
-| **Convergence data** | Ecology, infrastructure, community, and regional proof | Qualifying for finale approaches | Surplus converts to a small capped research bonus |
+| **Reclaim** | Repair parts, power components, workers, tools, several day commits, hazard protection | Restores a unique or more efficient building function; may unlock recipes, storage, shelter, power, or biome support | Ruin becomes an operational facility with maintenance and staffing needs |
+| **Demolish** | Demolition tool, workers, hauling capacity, time, possible threat clearance | Returns scrap, rare components, reusable modules, and building materials; clears valuable footprint | Ruin is removed permanently and the parcel becomes buildable |
+| **Leave** | No immediate cost | Preserves the option and avoids current danger | Site remains discoverable; some hazards or quests may persist |
 
-Failure should cost route opportunity and field cargo, not permanent residents or the homestead. A failed ordinary deployment consumes its operational cost and returns the campaign to the last successful relay. A failed Convergence attempt ends the current expedition; the player keeps permanent research earned before the attempt but not uncommitted expedition supplies.
+Neither path is morally superior. Reclaiming is a long-term capability investment. Demolishing is an immediate material and space decision. The correct choice depends on settlement needs, route distance, workforce, season, and the uniqueness of the facility.
 
-### 5.3 Autonomous sites
+### 9.2 Ruin operation lifecycle
 
-Successful sites persist as compact records, not live simulations. Each stores node ID, site archetype, selected legacy, protected population summary, ecological outcome, one relay benefit, and a small visual snapshot. Their effects are applied only when a future deployment starts or a campaign route is evaluated.
+A ruin progresses through `undiscovered`, `assessed`, `operation_committed`, `in_progress`, and one terminal state: `reclaimed` or `demolished`. Assessment is non-mutating. Committing an operation seals the cost, workers, tools, predicted duration, hazards, and result. Day resolution advances work only when the assigned crew, access, safety, utilities, and reserved inputs remain valid.
 
-This choice protects the central fiction. The player is not abandoning disposable cities every twenty minutes; Protos is creating a network of places capable of continuing without constant direct intervention.
+Interruption never deletes paid goods silently. Unconsumed reserved inputs remain recoverable, and the UI shows what is needed to resume. Completion creates one exact receipt and applies the world, construction, inventory, and quest effects atomically.
 
-### 5.4 The Convergence Site
+### 9.3 Ruin examples
 
-The finale is a bespoke biome whose ancient regulator destabilizes the whole region. Normal 100-point verification does not finish it. Instead, the player completes four stages. At each stage, one of three alternative proofs must be satisfied, and each alternative uses a different subsystem.
+| Ruin | Reclaimed function | Demolition yield |
+|---|---|---|
+| **Collapsed greenhouse-fabricator** | Advanced agricultural reagents and off-season crop support | Glass panels, irrigation parts, rare processor |
+| **Dormant thermal exchange** | Converts lava heat into stable settlement power | Thermal glass, heat shielding, capacitor core |
+| **Flooded membrane works** | High-efficiency water purification using wetland inputs | Conductive membranes, pumps, clean-water cache |
+| **Frozen archive shelter** | Cold-safe depot, forecast extension, cryo recipe access | Insulated panels, data core, precision components |
+| **Desert relay foundry** | Efficient ceramic and metal-bearing processing | Furnace modules, alloy stock, cleared large footprint |
 
-| Stage | Infrastructure path | Ecological path | Community path |
+## 10. Outer biomes: unique value, increasing danger
+
+The grassland is safe and broadly sustainable but intentionally cannot produce every advanced input. The outer biomes supply specialized resources, facilities, fish, plants, energy, and quest opportunities. Access is physical and continuous; the player must prepare Protos, workers, tools, depots, and hauling capacity.
+
+![Outer-biome production concept](outer-biome-production.jpg)
+
+| Biome | Unique rewards and resources | Primary dangers | Preparation and infrastructure |
 |---|---|---|---|
-| **I: Establish contact** | Build and power a long-range synchronizer | Restore three sensor habitats | Maintain safe survey teams through one Exposure phase |
-| **II: Recover control** | Deliver advanced components and stabilize the grid | Resolve two severe incidents through restoration approaches | Complete two resident-led directives and maintain target cohesion |
-| **III: Sustain the region** | Operate a closed production/logistics loop for two cycles | Achieve water, soil, and biodiversity thresholds simultaneously | Fulfill protected food, shelter, care, and rest for the full crew |
-| **IV: Converge** | Repair the core under maximum load | Rebalance the surrounding biome while the core remains unstable | Coordinate a timed multi-site effort with no critical safety stop |
+| **Grassland clearing** | Staple crops, orchard fruit, pond fish, biomass, common salvage, applicants | Low ambient danger; occasional perimeter threats and seasonal shortages | General storage, farms, housing, baseline power and production |
+| **Oasis wetlands** | Medicinal reeds, conductive algae, wetland fiber, membrane materials, rare fish | Mire fauna, flooding, contaminated water, slow movement, disease exposure | Mire boots, elevated paths, pumps, protected wetland depot, medicine |
+| **Frozen tundra** | Cryo crystal, insulated fiber, preserved biomass, cold-water catches, archive ruins | Cold exposure, whiteouts, reduced battery output, ice predators | Insulated gear, heated shelter, energy reserve, marked route, cryo drill |
+| **Lava fields** | Thermal glass, heat-resistant alloy, geothermal energy, furnace catalysts | Heat exposure, eruptions, unstable ground, aggressive fauna, equipment wear | Heat shielding, coolant, protected power, thermal tools, emergency depot |
+| **Scarred desert** | Ceramic mineral, solar components, dry fibers, precision salvage, foundry ruins | Dust storms, water consumption, long sight-line threats, tool abrasion | Water reserve, dust seals, shade shelter, route markers, spare tools |
 
-Success unlocks a higher expedition tier, one permanent sidegrade, and a visible improvement to the woodland home. It should not merely increase numbers. Examples include better pre-entry scanning, one extra manifest slot, a new baseline recipe family, or a new diplomatic/resident project.
+Outer-biome value should increase with travel and survival cost, but no single biome may contain the only source of a basic survival good. The settlement can always produce inefficient food, repair parts, water treatment, and shelter protection from grassland materials. Outer resources make those functions stronger, cheaper, faster, or capable of supporting higher tiers.
 
-## 6. Steward Console and information architecture
+### 10.1 Biome work sites and depots
 
-The UI should remain subordinate to the field. A compact top strip shows Restoration, Window, Current/Target Biome Strain, and Operational Phase. The left edge can hold three directive cards. The right edge forecasts the next Exposure threshold and active mitigations. The full **Steward Console** opens only on demand or while paused and contains four tabs: Objectives, Production, Population, and Region.
+Workers may be assigned to outer-biome sites only when a safe route and compatible depot exist. A depot is a normal persistent building on the same map, not a miniature settlement. It provides local storage, shelter during forecast hazards, and a hauling endpoint. It does not spawn residents or simulate a second economy.
 
-![Steward Console UI concept](steward-console-ui.jpg)
+A route projection shows distance, terrain cost, active hazards, expected daily throughput, required protection, and current threat state. Protos can clear threats, repair infrastructure, deliver emergency supplies, and escort initial operations. Once conditions are safe, assigned workers operate through the normal workforce and day-resolution systems.
+
+## 11. Combat inside the settlement economy
+
+Combat remains embodied and primarily owned by Protos. It should protect access, workers, facilities, and logistics rather than form an independent relay-hunting objective.
+
+Threats can block a deposit, damage an exposed route, interrupt ruin work, threaten a depot, or make a quest unsafe. The player can respond by fighting, improving protection, changing timing, building a safer route, temporarily unassigning workers, or abandoning the opportunity. Every dangerous task should expose at least one preparation or avoidance response in addition to combat.
+
+Settlers retreat from declared critical sites and remain governed by the existing nonfatal injury and recovery rules. The design does not add permanent settler death for dramatic seasoning. Protos damage consumes repair parts, time, and power and can force an outer-biome withdrawal.
+
+## 12. Settlement interface and information architecture
+
+The field remains primary. The HUD should show only settlement-level survival signals: current season and forecast, food buffer, protected beds, power reserve, tracked quest, and one highest-priority warning. Detailed management lives in modal native Godot panels.
+
+The recommended console has five sections:
+
+| View | Purpose |
+|---|---|
+| **Settlement** | Food days, shelter, power, water, maintenance, resident status, tier readiness |
+| **Production** | Targets, recipes, queues, ingredients, reserves, output, bottlenecks |
+| **Logistics** | Warehouses, depots, jobs, routes, throughput, quest reservations, idle reasons |
+| **Quests** | Offers, accepted objectives, progress, rewards, tracking, abandonment |
+| **World** | Known biomes, hazards, deposits, fishing pools, ruins, work sites, and route readiness on the same map |
+
+The old Region tab is not retained because there is no overworld. The removed tutorial system remains removed. Discovery uses inspectable reasons, glossary links, concise first-use highlights attached to existing controls, and pauseable diagnostics.
 
 Information follows four rules:
 
-1. Every threshold shows current value, target value, next consequence, and top contributors.
-2. Every blocked job has one stable reason and one suggested inspection target.
-3. Every deterministic future event shows the day or phase when it will resolve.
-4. Color is redundant with icon, shape, pattern, and text.
+1. Every requirement names the current amount, needed amount, source, and reservation owner.
+2. Every blocked job exposes one stable reason and one relevant inspection target.
+3. Every future season, quest expiry, ruin step, maintenance bill, or recovery event shows its resolving day.
+4. Color remains redundant with icon, shape, pattern, and localized text.
 
-The removed tutorial system should remain removed. Discovery uses inspectable tooltips, glossary links, first-use highlights attached to existing panels, and a pauseable diagnostics view—not timed cards that occupy the battlefield like a bureaucratic ambush.
+## 13. Distinctive identity and anti-copy boundary
 
-## 7. Distinctive identity and anti-copy boundary
+The revised proposal borrows systemic principles, not protected expression.
 
-The proposal borrows system principles, not protected expression. Protos Harvest should not reproduce *Against the Storm*’s hex-map layout, Smoldering City, Viceroy framing, Queen’s Impatience, Reputation bar, Hostility iconography, glades, hearths, species portraits, cornerstone rarity presentation, blueprint card layout, Seals, rainpunk fiction, or ornate fantasy UI.
-
-| *Against the Storm* expression | Protos Harvest identity |
+| *Against the Storm* expression | Protos Harvest expression |
 |---|---|
-| Disposable frontier settlements | Persistent autonomous restoration sites connected to a permanent home |
-| Viceroy/Queen hierarchy | Caretaker robot and human community stewardship |
-| Reputation and Impatience | Four-channel Restoration Verification and a finite operational-day window |
-| Forest Hostility | Measurable ecological Biome Strain with target/current telemetry |
-| Glades | Sensor-obscured bioregion subregions |
-| Orders | Stewardship Directives filtered by actual capability |
-| Cornerstones | Engineering protocols and caretaker doctrines |
-| Building blueprint deck | Feasibility-filtered production schematics applied to a stable building roster |
-| Ancient Seal | Biosphere Convergence Site |
-| Fantasy species needs | Authored human needs, safety, agency, recovery, and community continuity |
-| Passive overseer camera | Directly controlled Protos remains essential for traversal, farming, repair, and combat |
+| Multiple temporary settlements | One permanent settlement on one continuous map |
+| World-map cycle | Persistent seasons and settlement tiers |
+| Orders | Capability-filtered Quest Ledger |
+| Reputation victory | Permanent construction, production breadth, and tier readiness |
+| Queen’s Impatience defeat | Layered food, shelter, power, safety, wellbeing, and maintenance setbacks |
+| Forest Hostility | Authored biome hazards and forecast weather |
+| Glades | Visible outer-biome territories and persistent abandoned ruins |
+| Cornerstones | Tools, engineering modules, recipes, and building upgrade branches |
+| Blueprint draft deck | Stable construction roster with quest/ruin-earned specializations |
+| Species resolve | Authored human morale, needs, concerns, injury, recovery, and agency |
+| Overseer camera | Direct control of Protos remains essential for traversal, repair, gathering, and combat |
 
-## 8. Technical architecture
+Terms from the previous proposal that should be retired are: **Restoration Deployment, Restoration Verification, Restoration Window, Biome Strain, regional expedition, regional route, node graph, relay capacity, autonomous site, Convergence data, Convergence Site, evacuation state, and campaign graph**. “Restoration” may remain in narrative descriptions of repairing a specific facility, but it is not a global score or game mode.
 
-### 8.1 New bounded authorities
+## 14. Technical architecture
 
-The implementation should add small pure authorities rather than expanding existing monoliths:
+### 14.1 New bounded authorities
+
+The simplified architecture adds local authorities only.
 
 | Authority | Responsibility |
 |---|---|
-| `regional_expedition_schema.gd` | Strict campaign graph, node outcomes, resources, caps, and canonical ordering |
-| `regional_route_generator.gd` | Seeded feasibility-guaranteed node graph generation |
-| `restoration_mission_schema.gd` | Local window, phase, verification, strain, directives, incidents, and result |
-| `restoration_verification_service.gd` | Exact-once proof grants, channel caps, threshold refunds, victory readiness |
-| `operational_phase_service.gd` | Day-to-phase mapping and forecasted effects |
-| `biome_strain_service.gd` | Additive target calculation, bounded current convergence, thresholds, contributors |
-| `stewardship_directive_catalog.gd` | Data-driven directive definitions and feasibility predicates |
-| `directive_offer_service.gd` | Stable seeded filtered offers and one diagnostic reroute |
-| `bioregion_incident_catalog.gd` | Incident stages, approaches, costs, working effects, outcomes |
-| `incident_resolution_service.gd` | Exact-once approach start, daily progress, interruption, and completion |
-| `convergence_service.gd` | Four-stage alternative proof evaluation and expedition settlement |
-| `steward_console.gd` | Read-only projections and intents into existing transaction boundaries |
+| `settlement_progression_catalog.gd` | Tier requirements, unlocks, readiness projections, and stable IDs |
+| `settlement_progression_service.gd` | Exact tier advancement and unlock receipts |
+| `quest_catalog.gd` | Authored templates, objective definitions, capability predicates, reward bundles |
+| `quest_offer_service.gd` | Seeded capability-filtered offers, refresh cadence, recent-history exclusions |
+| `quest_state_service.gd` | Accept, track, abandon, progress, expiry, completion, exact-once rewards |
+| `quest_event_adapter.gd` | Pure translation of sealed operation/day results into quest deltas inside the owning transaction; never a post-save listener |
+| `ruin_operation_catalog.gd` | Reclaim/demolish bills, workers, tools, durations, hazards, and results by ruin kind |
+| `ruin_operation_service.gd` | Assessment, sealed commit, day progress, interruption, completion, and atomic effects |
+| `biome_access_catalog.gd` | Resource identity, hazard rules, gear requirements, and depot compatibility |
+| `biome_route_projection.gd` | Read-only distance, hazard, protection, and throughput calculations on the live map |
+| `settlement_survival_projection.gd` | Food days, water, power, shelter, maintenance, and forecast explanations |
+| `settlement_capstone_service.gd` | Exact on-map capstone contributions, completion, visual transformation, and endless-continuation flag |
+| `quest_ledger_presenter.gd` | Responsive read-only Quest Ledger and intents into transaction boundaries |
 
-Definitions belong in `.tres` resources or bounded catalogs. Service code owns validation and deterministic mutation. Presentation never writes domain dictionaries directly.
+The prior `regional_expedition_schema`, `regional_route_generator`, `restoration_mission_schema`, `restoration_verification_service`, `biome_strain_service`, `convergence_service`, and campaign persistence horizon are not recommended and should not be implemented.
 
-### 8.2 Reuse map
+### 14.2 Reuse map
 
-The overhaul should reuse `CrossDomainTransaction`, `SaveRepository`, exact-once receipts, canonical hashes, farm schema validation, construction, gathering, local storage, logistics, production policy, housing, workforce, settler day resolution, the interaction resolver, the inspectable-world read model, and the responsive modal framework. `run_settlement.gd` becomes a legacy adapter until old expedition saves finish; it should not be overloaded with campaign graph logic.
+The overhaul should reuse `CrossDomainTransaction`, `SaveRepository`, schema validation, canonical hashing, bounded receipts, construction, gathering, orchards, fishing, local storage, logistics, production policy, workforce, housing, wellbeing, day resolution, interaction phases, inspectable-world projections, responsive modal controls, and the current biome/combat authorities.
 
-### 8.3 Persistence horizons
+The **homestead ruin substate remains the sole persisted owner** of ruin lifecycle data. `ruin_operation_service.gd` builds candidate mutations through `CrossDomainTransaction`; `RuinRegistry` remains only the stable-ID lookup and read-only live projection populated from the committed homestead. The three existing fixed facilities retain compatibility adapters and protected-anchor rules while the validator expands to the bounded abandoned-ruin schema.
 
-The new system requires three explicit horizons:
+Compatibility is a one-time pre-game migration, not a playable second topology. A supported old save retains its farm, homestead, residents, inventory, permanent unlocks, and valid banked goods; any active relay expedition is deterministically archived or cancelled under a disclosed bounded compensation rule, then its compatibility `active_run` payload is neutralized. Every migrated and new save enters the same persistent woodland spawn map. New-run launch, relay progression, run extraction/settlement, launch-next flow, alternate gameplay-scene entry, and the old terminal are unreachable after migration.
 
-| Horizon | State | Commit boundary |
-|---|---|---|
-| **Local mission** | Window, phase, proof receipts, current/target strain, directives, incidents, field cargo | Every authoritative action and sleep transaction |
-| **Regional expedition** | Node graph, current relay, completed sites, expedition resources, Convergence state | Mission settlement or explicit regional event |
-| **Permanent home/profile** | Homestead, residents, permanent research, campaign history, accessibility/settings | Home action, expedition conclusion, or explicit upgrade |
+### 14.3 Persistence
 
-A new envelope **schema 6** is recommended because the campaign graph is a new top-level persistence horizon. Migration from schema 5 should first verify the original raw hash, add neutral campaign and mission sections, then rebase the normalized hash. An active legacy relay expedition remains in `legacy_expedition_mode` until its terminal resolves; new campaigns begin only from a clean title/home choice. This avoids rewriting a shared in-progress run into a different game.
+The one-map design preserves envelope schema 5 for the first release and performs an explicit **homestead substate v2 → v3 migration**. Migration verifies the original raw gameplay hash before adding exact bounded `progression`, `quests`, and `ruin_operations` keys, normalizes the three existing facility records into protected compatible states, canonicalizes all collections, and then rebases the normalized hash. `homestead_save_schema.gd`, `farm_save_schema.gd`, and their cross-section validators own the new exact-key and link contracts. A top-level schema 6 is not justified merely to add local quests and ruin operations.
 
-### 8.4 Determinism and caps
+| Section | Added bounded state |
+|---|---|
+| **Settlement progression** | Current tier, readiness receipts, selected upgrade branches |
+| **Quests** | Three offers, at most two accepted quests, one tracked ID, recent-history ring, completion receipts |
+| **Ruin operations** | Assessment, selected operation, progress, reservation, terminal reclaimed/demolished state, reward token |
+| **Production** | Expanded recipes and policies using existing bounded orders and stacks |
 
-No mission authority depends on frame delta, wall-clock time, Dictionary iteration order, or visibility. Operational days advance only through the existing commit pipeline. Offers sort by stable IDs before seeded selection. Every collection has a documented maximum: seven route nodes, eight completed site records, six directive completions, three active directives, six incidents, 64 mission receipts per namespace, 24 settlers, 18 schematic records, and four convergence stages.
+No biome route or cache state is persisted in the first release. Depots remain ordinary construction records, their inventories remain existing building-local stacks, and route readiness, distance, hazard, protection, and throughput are derived on demand from committed construction, world, weather, fauna, workforce, and logistics data. Expanded recipes remain catalog data plus existing per-building policy and order state.
 
-The simultaneous validator-valid save target should remain below 1.5 MiB, with ordinary play below 256 KiB. A 100-expedition soak must prove that campaign history compacts and that no receipt or event list grows from elapsed play alone.
+Caps should remain explicit: three offers, two accepted quests, one tracked quest, 32 recent/completed quest summaries, one active operation per ruin, 24 authored ruins, 24 residents, 24 recipes in the first release, and no collection that grows from elapsed time alone.
 
-## 9. Phased implementation plan
+### 14.4 Determinism and exact-once behavior
 
-The overhaul should be delivered as eight independently shippable phases. After every phase: integrate upstream, run focused regressions plus all historical suites, run direct import and bounded boot, execute landscape/portrait Xvfb checks with representative input, run `verify.sh --release`, boot the exact exported PCK, serve over HTTP, inspect browser/network/runtime logs, update evidence, commit, and fast-forward push to `main`.
+Quest offers sort eligible template IDs before seeded selection. The owning transaction invokes the pure quest reducer with its sealed payload and canonical operation result before validation; quest completion and reward mutation share that same candidate and a bounded quest receipt namespace. Receipt compaction may discard old operational detail only after the compact quest state and completion receipt are durable. Ruin operations bind source revision, ruin ID, choice, bill, workers, tools, duration, and projected result in a sealed payload. Day advancement remains the only clock for crops, orchards, fishing renewal, wellbeing, production, hauling, maintenance, quest deadlines, weather, and ruin work.
+
+No gameplay result depends on frame delta, wall-clock time, presentation visibility, or dictionary iteration order. A browser refresh must not duplicate a reward, advance ruin work, reroll offers, or consume another season day.
+
+## 15. Phased implementation plan
+
+The reduced design should be delivered in five independently shippable phases. After every phase: protect local work, integrate upstream, run focused and historical suites, import through Godot 4.7.2, run bounded headless boot, execute landscape/portrait Xvfb checks with representative input, run `verify.sh --release`, boot the exact exported PCK, serve over HTTP, inspect browser/network/runtime logs, update evidence, commit, and fast-forward push to `main`.
 
 | Phase | Scope | Exit gate | Relative effort |
 |---|---|---|---:|
-| **R0 — Contracts and simulation harness** | Freeze terminology, schemas, caps, proof/strain equations, route invariants, migration fixture, and headless 100-mission simulator | Deterministic golden seeds; schema-5 migration; no runtime UI changes | 4–7 engineer-days |
-| **R1 — One deployment vertical slice** | Restoration Window, four-channel Verification, phase loop, Biome Strain, three directives, new HUD strip, legacy-run adapter | One woodland-edge mission wins, evacuates, saves, reloads, and remains readable in both aspect ratios | 12–18 days |
-| **R2 — Production web and diagnostics** | Resource tags, ~18 recipes, schematic offers, global/site targets, ingredient preference, network graph, route cost | At least three viable production solutions per critical function; no unreachable draft set across seed corpus | 14–20 days |
-| **R3 — Community continuity** | Target/current cohesion, deployment crew selection, concern integration, shelter states, resident-led projects | Humane outcomes affect proof and operations; no death/instant eviction path; deterministic 10-year soak | 9–14 days |
-| **R4 — Subregions and incidents** | Pre-entry scan, six subregions, three incidents with two approaches, timed effects, ecology outcomes, combat integration | Every incident exposes costs/effects/outcomes; replay and interruption are exact-once | 12–18 days |
-| **R5 — Regional expedition map** | Seeded node graph, route selection, relay sites, payloads, expedition resources, site summaries | Two viable routes per seed; success/failure advances only intended horizons; old saves finish unchanged | 14–20 days |
-| **R6 — Convergence finale and research** | Four-stage alternative proof finale, permanent sidegrades, campaign summary, home visual consequences | All three strategy families can complete finale; failure closes expedition cleanly | 16–24 days |
-| **R7 — Balance, accessibility, performance, release** | Telemetry review, pacing passes, localization, save/load torture, input parity, final art/audio, Web tuning | Stable completion distribution, no dominant proof channel, complete release matrix and production publish | 12–18 days |
+| **S0 — Simplified contracts and quest vertical slice** | Freeze single-map terminology; implement one-time active-run migration; disable launch, relay, run settlement, and alternate scene entry; add homestead v3 quest keys; build three offers, one accepted quest, one supply objective, an in-transaction quest reducer, exact reward, and responsive Ledger | Every supported old/new save enters the same spawn map; no old run path is reachable; accept/progress/reward is crash-safe, compaction-safe, cold-reloadable, and exact once | 9–14 engineer-days |
+| **S1 — Production survival core** | Expand to 18–24 recipes, preserved food, utilities, maintenance, survival projection, quest reservations, forecast links | Three viable ways to sustain core food/parts; all shortages and maintenance states explain themselves | 15–22 days |
+| **S2 — Ruin operations** | Homestead ruin v3 validator/migration, protected adapters for the three existing facilities, Assessment, Reclaim/Demolish/Leave, five ruin archetypes, worker/resource scheduling, atomic world/inventory/building/quest results | Persisted homestead is sole authority; every path cold-reloads and completes exactly once; reclaimed facilities and cleared parcels persist | 12–18 days |
+| **S3 — Outer-biome economy** | Unique resource tags, gear, depots, route projection, hazard work stops, biome quests, production alternatives | Each outer biome provides unique optional value; grassland always supports inefficient recovery; no second economy | 15–22 days |
+| **S4 — Settlement tiers, capstone, balance, and release** | Tier readiness, reward pacing, quest pool, resident/community quests, on-map capstone construction, exact narrative completion and visual transformation, difficulty options, localization, performance and accessibility | Capstone consumes products from every major production/biome family through existing transactions, cold-reloads, completes once, changes no scene, resets nothing, and allows indefinite play; stable ten-year soak and full release matrix | 16–24 days |
 
-The order-of-magnitude implementation range is **93–139 engineer-days**, excluding major new music, voice, and animation production. R1 is the decisive greenlight gate: if the local proof/pressure loop is not intrinsically fun with existing assets and one biome, the regional layer should not be built. Strategy games are quite capable of multiplying a weak loop by seven.
+The order-of-magnitude implementation range is **63–94 engineer-days**, substantially below the previous route-based proposal’s 93–139 day estimate. S0 is the greenlight gate. If one accepted quest does not improve construction and production priorities on the current map, adding forty more quests will merely industrialize disappointment.
 
-## 10. Validation and balancing plan
+## 16. Validation and balancing plan
 
-### 10.1 Automated contracts
+### 16.1 Automated contracts
 
-The test matrix should include deterministic route generation across extreme seeds, feasibility of every offered directive and schematic set, proof channel caps, threshold refunds, exact mission-window accounting, strain target contributors, delayed current convergence, phase transitions, incident replay/conflict, evacuation cleanup, site-summary compaction, schema-5 migration, schema-6 cold reload, and finale alternative-path equivalence.
+The test matrix should cover capability-filtered quest offers, acceptance caps, tracking, abandonment, sequential objectives, deadlines, exact-once completion, reward feasibility, recent-history bounds, ruin assessment purity, sealed operation equality, resource reservation, interruption, resumed progress, reclaim/demolish exclusivity, cleared occupancy, unique facility activation, biome gear requirements, depot authority, route throughput, survival projections, maintenance forecasts, additive save normalization, and cold reload.
 
-Simulation tests should run at least 10,000 generated missions with simple policy agents: infrastructure-first, ecology-first, community-first, combat-heavy, production-minimal, and random-valid. No agent should encounter an unwinnable offer caused solely by generated content. A deliberately weak agent should still fail often enough to prove the pressure system has teeth rather than decorative molars.
+A deterministic simulation should run at least 10,000 generated quest sets across settlement tiers, seasons, known biomes, available recipes, ruins, and resident counts. Every offer set must contain at least one achievable quest. No quest may require its own reward as a prerequisite. No basic recovery resource may depend exclusively on an outer biome or random offer.
 
-### 10.2 Player-facing success metrics
+A ten-year settlement soak should advance seasons, production, logistics, residents, concerns, fishing renewal, orchards, maintenance, quests, ruins, and biome sites while proving bounded save size, receipt compaction, stable event history, no orphan reservation, and no second resident or inventory authority.
+
+### 16.2 Player-facing success metrics
 
 | Metric | Healthy signal | Failure signal |
 |---|---|---|
-| Ordinary deployment completion | Broad distribution with recoverable early losses | Near-automatic wins or abrupt unavoidable failure |
-| Proof-channel contribution | Multiple viable mixtures; no channel consistently above 45% | One dominant channel or a mandatory checklist |
-| Schematic pick diversity | Biome and manifest change selection | Same first pick across most seeds |
-| Idle reason frequency | Shortages and capacity produce understandable intervention | `unknown`, stale state, or perpetual blocked jobs |
-| Exposure preparedness | Most critical losses were forecast and had at least two mitigations | Consequences appear without sufficient lead time |
-| Settler outcomes | Concerns create decisions; departure is rare and explainable | Welfare becomes either irrelevant or punitive micromanagement |
-| Route diversity | Players trade reward, risk, and convergence qualification | One mathematically dominant route |
-| Field-to-console ratio | Most actions remain embodied; console supports diagnosis | Player spends the mission operating spreadsheets |
+| **Construction decisions** | Placement, upgrade, utility, and maintenance change logistics and survival | Buildings are cosmetic unlock gates or obvious linear upgrades |
+| **Production diversity** | Different biome inputs and quests produce different viable recipe choices | The same recipe sequence dominates every save |
+| **Quest acceptance** | Players decline or delay offers because opportunity cost is real | Every quest is free value or most offers are ignored as chores |
+| **Quest rewards** | Rewards unlock capabilities or solve strategic constraints | Rewards are mostly generic scrap or mandatory progression keys |
+| **Ruin choices** | Reclaim and demolish both appear in successful settlements | One option is mathematically correct for nearly every ruin |
+| **Outer-biome activity** | Players prepare, establish depots, and return for specific value | Biomes are mandatory grind zones or decorative combat arenas |
+| **Survival readability** | Most shortages and injuries were forecast and preventable | Failure arrives without causal information or recovery options |
+| **Settlement persistence** | Players develop attachment to layout, residents, and repaired landmarks | Progress feels like filling bars while the world remains unchanged |
+| **Field-to-console ratio** | Most actions remain embodied; panels diagnose and commit | The optimal game is played entirely in modal spreadsheets |
 
-### 10.3 Release acceptance
+### 16.3 First public overhaul release
 
-The first public overhaul release should contain one complete regional expedition, four biome node archetypes using existing biome assets, one Convergence finale, approximately 18 recipes, six directive archetypes, three major incidents, four permanent sidegrades, and full keyboard/controller/touch parity. It must preserve the borderless fullscreen Web host, current permanent homestead, legacy save completion, and all existing combat and biome regressions.
+The first release should contain one persistent map, the safe grassland plus four existing outer biomes, five ruin archetypes, 18–24 recipes, six quest archetypes with at least 24 authored templates, two accepted quest slots, five settlement tiers, utility and maintenance projections, four biome depot variants or upgrades, one on-map capstone assembled from every major production and biome family, and full keyboard/controller/touch parity.
 
-## 11. Recommended first decision
+It must preserve the borderless fullscreen Web host, current construction and settlement content, exact Godot 4.7.2 compatibility, existing humane resident rules, current combat, title presentation, tutorial removal, and biome-wide grassland safety presentation. Every supported old save must migrate before gameplay into the same woodland spawn map, with no launch or alternate run topology left reachable.
 
-Approve **R0 and R1 only**. They will answer the core product question with the smallest coherent build: does Protos Harvest become meaningfully better when its existing settlement systems are connected by finite verification, forecast phases, and Biome Strain?
+## 17. Recommended first decision
 
-If the answer is yes, R2–R6 expand a proven loop. If the answer is no, the repository retains a useful mission framework and improved HUD without carrying an unfinished campaign megastructure. That is the correct shape of risk for an overhaul this large.
+Approve **S0 only**. Build one complete Quest Ledger slice on the existing map:
+
+- three deterministic capability-filtered offers;
+- one accepted supply or construction quest;
+- visible progress from existing authoritative events;
+- one exact-once reward that unlocks a useful production option;
+- responsive landscape and portrait presentation;
+- additive schema-5 compatibility and cold reload.
+
+That slice answers the most important design question cheaply: **does an accepted objective make the persistent settlement’s construction and production decisions more interesting?** If yes, S1–S4 deepen one coherent game. If no, the repository retains a reusable objective service without inheriting an overworld-shaped mausoleum.
 
 ## References
 
-[1]: https://eremitegames.com/cycles-reforged-update/ "Eremite Games — Cycles Reforged Update"
-[2]: https://wiki.hoodedhorse.com/Against_the_Storm/World_Map "Against the Storm Official Wiki — World Map"
-[3]: https://wiki.hoodedhorse.com/Against_the_Storm/Beginner%27s_Guide "Against the Storm Official Wiki — Beginner's Guide"
-[4]: https://wiki.hoodedhorse.com/Against_the_Storm/Sealed_Forest "Against the Storm Official Wiki — Sealed Forest"
-[5]: https://eremitegames.com/devlog-7-blueprint-drafting-system-and-more/ "Eremite Games — Blueprint Drafting System and More"
-[6]: https://eremitegames.com/explorers-choice-update/ "Eremite Games — Explorer's Choice Update"
-[7]: https://wiki.hoodedhorse.com/Against_the_Storm/Seasons "Against the Storm Official Wiki — Seasons"
-[8]: https://wiki.hoodedhorse.com/Against_the_Storm/Hostility "Against the Storm Official Wiki — Hostility"
-[9]: https://eremitegames.com/resolve-revamp-update/ "Eremite Games — Resolve Revamp Update"
-[10]: https://eremitegames.com/recipes-cookbook-update/ "Eremite Games — Recipes Cookbook Update"
+[1]: https://eremitegames.com/devlog-7-blueprint-drafting-system-and-more/ "Eremite Games — Blueprint Drafting System and More"
+[2]: https://eremitegames.com/recipes-cookbook-update/ "Eremite Games — Recipes Cookbook Update"
+[3]: https://wiki.hoodedhorse.com/Against_the_Storm/Beginner%27s_Guide "Against the Storm Official Wiki — Beginner’s Guide"
+[4]: https://wiki.hoodedhorse.com/Against_the_Storm/Seasons "Against the Storm Official Wiki — Seasons"
