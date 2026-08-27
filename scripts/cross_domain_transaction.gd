@@ -17,11 +17,13 @@ const FarmCapabilityServiceScript: GDScript = preload("res://scripts/farm_capabi
 const FarmSaveSchemaScript: GDScript = preload("res://scripts/farm_save_schema.gd")
 const ReceiptLedgerScript: GDScript = preload("res://scripts/exact_once_receipt_ledger.gd")
 const FarmStateScript: GDScript = preload("res://scripts/farm_state.gd")
+const FishingServiceScript: GDScript = preload("res://scripts/fishing_service.gd")
 const HomesteadServiceScript: GDScript = preload("res://scripts/homestead_service.gd")
 const InventoryServiceScript: GDScript = preload("res://scripts/inventory_service.gd")
 const IronjawDesertArcScript: GDScript = preload("res://scripts/ironjaw_desert_arc.gd")
 const LivestockServiceScript: GDScript = preload("res://scripts/livestock_service.gd")
 const MachineServiceScript: GDScript = preload("res://scripts/machine_service.gd")
+const OrchardServiceScript: GDScript = preload("res://scripts/orchard_service.gd")
 const LogisticsServiceScript: GDScript = preload("res://scripts/logistics_service.gd")
 const ProductionPolicyScript: GDScript = preload(
 	"res://scripts/production_policy_service.gd"
@@ -234,6 +236,44 @@ func _build(source: Dictionary, operation: StringName, arguments: Dictionary) ->
 	match operation:
 		&"harvest":
 			mutation = FarmStateScript.harvest(farm, arguments[&"cell"] as Vector2i)
+		&"fish_cast":
+			if not _revision_matches(farm, arguments):
+				mutation = _mutation_rejected(farm, &"stale_seasonal_revision")
+			else:
+				mutation = FishingServiceScript.cast(
+					farm,
+					arguments.get(&"spot_id", &"") as StringName,
+					CalendarStateScript.absolute_day(farm[&"calendar_weather"]),
+					_world_seed,
+					bool(arguments.get(&"use_bait", false)),
+				)
+		&"tree_plant":
+			if not _revision_matches(farm, arguments):
+				mutation = _mutation_rejected(farm, &"stale_seasonal_revision")
+			else:
+				mutation = OrchardServiceScript.plant(
+					farm,
+					arguments.get(&"cell", Vector2i.ZERO) as Vector2i,
+					arguments.get(&"sapling_item_id", &"") as StringName,
+					CalendarStateScript.absolute_day(farm[&"calendar_weather"]),
+					Callable(_world_validator, "is_walkable"),
+				)
+		&"tree_harvest":
+			mutation = (
+				_mutation_rejected(farm, &"stale_seasonal_revision")
+				if not _revision_matches(farm, arguments)
+				else OrchardServiceScript.harvest(
+					farm, arguments.get(&"tree_id", &"") as StringName
+				)
+			)
+		&"tree_remove":
+			mutation = (
+				_mutation_rejected(farm, &"stale_seasonal_revision")
+				if not _revision_matches(farm, arguments)
+				else OrchardServiceScript.remove_immature(
+					farm, arguments.get(&"tree_id", &"") as StringName
+				)
+			)
 		&"transfer":
 			mutation = (
 				InventoryServiceScript

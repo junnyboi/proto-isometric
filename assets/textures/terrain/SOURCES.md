@@ -39,3 +39,22 @@ The generated assets are original production derivatives for Walker's Wake. Geom
 | `farm_soil.png` | `124799fbec83ade9a7f0351870518dcc17aad7a4b375330d01c25947f7702b26` |
 
 Raw generation masters and deterministic processing/verification scripts remain in the project asset workspace. Terrain identity, safety, generation precedence, collision, and farming state are authored by Godot and are never inferred from image pixels.
+
+## Retained predecessor textures
+
+The four textures below are retained Walker's Wake runtime materials that predate the
+Protos Harvest generated-asset mandate and the surviving per-generation workspace. They
+are **not represented as new GPT Image 2 generations**. P11 authenticates their exact
+checked-in 512×512 RGB derivatives while preserving them unchanged for gameplay and
+visual continuity.
+
+| Runtime file | SHA-256 |
+|---|---|
+| `ancient_ruin.png` | `0d8e7d508ea263a71ab570498ca22d9a43bb314300057b9f14abc947662db1f4` |
+| `desert_sand.png` | `d9dbd2e331962993e54bb65e314eec4a483a93b3e4471edc2ce927f283d3df24` |
+| `iron_rock.png` | `fba5e206d4d88a8f7541a876fc6e0c4c6ef3638ef26fd2e43cafcbb5887f74c8` |
+| `salt_crust.png` | `1cd6712a76bd7f6d4e1457df439c8a4c3f4ab0956baf3ccd3b0eb17c2d525f9d` |
+
+Every shipping PNG, including these retained files, is independently locked by
+`assets/RUNTIME_ASSET_INTEGRITY.tsv` and verified by
+`tools/verify_runtime_asset_integrity.py`.

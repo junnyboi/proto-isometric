@@ -3,6 +3,9 @@ extends RefCounted
 const ReceiptLedgerScript: GDScript = preload("res://scripts/exact_once_receipt_ledger.gd")
 const StateHashScript: GDScript = preload("res://scripts/persistence_state_hash.gd")
 const ItemCatalogScript: GDScript = preload("res://scripts/item_catalog.gd")
+const FishingCatalogScript: GDScript = preload("res://scripts/fishing_catalog.gd")
+const FarmOccupancyScript: GDScript = preload("res://scripts/farm_occupancy_service.gd")
+const OrchardCatalogScript: GDScript = preload("res://scripts/orchard_catalog.gd")
 const RecipeCatalogScript: GDScript = preload("res://scripts/recipe_catalog.gd")
 const BlueprintCatalogScript: GDScript = preload(
 	"res://scripts/construction_blueprint_catalog.gd"
@@ -22,7 +25,8 @@ const MAX_WELLBEING_REASONS: int = 8
 const MAX_LOGISTICS_JOBS: int = 128
 const MAX_RESERVE_RULES: int = 64
 const MAX_FISHING_SPOTS: int = 64
-const MAX_TREES: int = 512
+const MAX_TREES: int = FarmOccupancyScript.ORCHARD_CAPACITY
+const MAX_ORCHARD_DAY: int = 9_999 * 4 * 14
 const MAX_TUTORIAL_LESSONS: int = 16
 const MAX_LOCAL_STACKS: int = 12
 const MAX_RECIPES_PER_BUILDING: int = 8
@@ -281,6 +285,34 @@ static func validate_links(
 			)
 		):
 			return false
+	return true
+
+
+static func validate_orchard_links(
+	construction: Dictionary,
+	orchard: Dictionary,
+	plots: Array,
+	machines: Array,
+	home: Dictionary,
+	facilities: Array,
+) -> bool:
+	var farm: Dictionary = {
+		&"plots": plots,
+		&"machines": machines,
+		&"homestead": {
+			&"home": home,
+			&"facilities": facilities,
+			&"construction": construction,
+		},
+		&"orchard": orchard,
+	}
+	var occupied: Dictionary = {}
+	for tree: Dictionary in orchard.get(&"trees", []) as Array[Dictionary]:
+		var raw_tree: Array = tree[&"cell"] as Array
+		var cell: Vector2i = Vector2i(int(raw_tree[0]), int(raw_tree[1]))
+		if occupied.has(cell) or FarmOccupancyScript.orchard_reason(farm, cell, false) != &"":
+			return false
+		occupied[cell] = true
 	return true
 
 
@@ -604,13 +636,19 @@ static func _spot(value: Dictionary) -> Dictionary:
 	var keys: Array[StringName] = [&"spot_id", &"cast_sequence", &"remaining_catches", &"renewal_day"]
 	if not _exact_keys(value, keys) or not _identifier(value[&"spot_id"]):
 		return {}
+	var spot_id: StringName = StringName(str(value[&"spot_id"]))
+	var definition: Dictionary = FishingCatalogScript.spot(spot_id)
+	if definition.is_empty():
+		return {}
 	var sequence: Variant = _integer(value[&"cast_sequence"], 0, MAX_NUMBER)
-	var catches: Variant = _integer(value[&"remaining_catches"], 0, MAX_NUMBER)
-	var day: Variant = _integer(value[&"renewal_day"], 0, MAX_NUMBER)
+	var catches: Variant = _integer(
+		value[&"remaining_catches"], 0, int(definition[&"capacity"])
+	)
+	var day: Variant = _integer(value[&"renewal_day"], 1, MAX_NUMBER)
 	if sequence == null or catches == null or day == null:
 		return {}
 	return {
-		&"spot_id": str(value[&"spot_id"]),
+		&"spot_id": str(spot_id),
 		&"cast_sequence": int(sequence),
 		&"remaining_catches": int(catches),
 		&"renewal_day": int(day),
@@ -626,9 +664,15 @@ static func _tree(value: Dictionary) -> Dictionary:
 	var cell: Variant = _cell(value[&"cell"])
 	if cell == null or not _identifier(value[&"tree_id"]) or not _identifier(value[&"species_id"]):
 		return {}
-	var planted: Variant = _integer(value[&"planted_day"], 1, MAX_NUMBER)
-	var growth: Variant = _integer(value[&"growth_points"], 0, MAX_NUMBER)
-	var sequence: Variant = _integer(value[&"harvest_sequence"], 0, MAX_NUMBER)
+	if StringName(str(value[&"species_id"])) not in OrchardCatalogScript.SPECIES_IDS:
+		return {}
+	var planted: Variant = _integer(value[&"planted_day"], 1, MAX_ORCHARD_DAY)
+	var species: Dictionary = OrchardCatalogScript.definition(
+		StringName(str(value[&"species_id"]))
+	)
+	var mature_points: int = int((species[&"growth_thresholds"] as Array)[3])
+	var growth: Variant = _integer(value[&"growth_points"], 0, mature_points)
+	var sequence: Variant = _integer(value[&"harvest_sequence"], 0, MAX_ORCHARD_DAY)
 	if planted == null or growth == null or sequence == null:
 		return {}
 	return {

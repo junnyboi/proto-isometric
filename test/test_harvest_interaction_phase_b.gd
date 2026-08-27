@@ -652,6 +652,8 @@ static func _test_wild_flora(cases: Array[Dictionary], farm: Dictionary) -> void
 		var loop_crop_id: StringName = flora[&"crop_id"] as StringName
 		var loop_crop: Dictionary = CropCatalogScript.definition(loop_crop_id)
 		var loop_farm: Dictionary = _farm_with_all_seeds()
+		var favored_seasons: Array = loop_crop[&"favored_seasons"] as Array
+		(loop_farm[&"calendar_weather"] as Dictionary)[&"season_id"] = favored_seasons[0]
 		var loop_till: Dictionary = FarmStateScript.till(loop_farm, plot_cell)
 		var loop_plant: Dictionary = FarmStateScript.plant(
 			loop_till.get(&"candidate", {}) as Dictionary,

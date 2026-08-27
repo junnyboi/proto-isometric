@@ -2,6 +2,7 @@ extends RefCounted
 
 const CatalogScript: GDScript = preload("res://scripts/construction_blueprint_catalog.gd")
 const ClearingScript: GDScript = preload("res://scripts/woodland_clearing.gd")
+const FarmOccupancyScript: GDScript = preload("res://scripts/farm_occupancy_service.gd")
 const HomesteadScript: GDScript = preload("res://scripts/homestead_service.gd")
 const OccupancyScript: GDScript = preload("res://scripts/building_occupancy_index.gd")
 const PathSafetyScript: GDScript = preload("res://scripts/path_safety_service.gd")
@@ -122,26 +123,7 @@ static func _base_walkable(
 
 
 static func _farm_occupied(farm: Dictionary, cell: Vector2i) -> bool:
-	for plot: Dictionary in farm.get(&"plots", []) as Array[Dictionary]:
-		var encoded: Array = plot.get(&"cell", []) as Array
-		if encoded.size() == 2 and Vector2i(int(encoded[0]), int(encoded[1])) == cell:
-			return true
-	for machine: Dictionary in farm.get(&"machines", []) as Array[Dictionary]:
-		var encoded: Array = machine.get(&"cell", []) as Array
-		if encoded.size() == 2 and Vector2i(int(encoded[0]), int(encoded[1])) == cell:
-			return true
-	for tree: Dictionary in farm.get(&"orchard", {}).get(&"trees", []) as Array[Dictionary]:
-		var encoded: Array = tree.get(&"cell", []) as Array
-		if encoded.size() == 2 and Vector2i(int(encoded[0]), int(encoded[1])) == cell:
-			return true
-	var homestead: Dictionary = farm.get(&"homestead", {}) as Dictionary
-	var home: Dictionary = homestead.get(&"home", {}) as Dictionary
-	if _encoded_cell(home.get(&"cell")) == cell:
-		return true
-	for facility: Dictionary in homestead.get(&"facilities", []) as Array[Dictionary]:
-		if _encoded_cell(facility.get(&"cell")) == cell:
-			return true
-	return false
+	return FarmOccupancyScript.occupied(farm, cell)
 
 
 static func _entrance_for(building: Dictionary) -> Vector2i:
@@ -158,12 +140,6 @@ static func _record_cells(building: Dictionary) -> Dictionary:
 	for encoded: Array in building.get(&"footprint", []) as Array[Array]:
 		result[Vector2i(int(encoded[0]), int(encoded[1]))] = true
 	return result
-
-
-static func _encoded_cell(value: Variant) -> Vector2i:
-	if not value is Array or (value as Array).size() != 2:
-		return Vector2i(1_000_001, 1_000_001)
-	return Vector2i(int(value[0]), int(value[1]))
 
 
 static func _touches_pond(cells: Array[Vector2i]) -> bool:

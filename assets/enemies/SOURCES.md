@@ -22,7 +22,7 @@ Combat state, collision targeting, damage, rewards, and biome selection remain d
 
 | Runtime file | SHA-256 |
 |---|---|
-| `cinder_crawler.png` | `4c0b01e47c0c507a981e7ebea7ef2e9bef9e1dedd909d4e9be07fd102d5af526` |
+| `cinder_crawler.png` | `4c0b01e47c9c507a981e7ebea7ef2e9bef9e1dedd909d4e9be07fd102d5af526` |
 
 ## Biome-specific tiny mobs
 

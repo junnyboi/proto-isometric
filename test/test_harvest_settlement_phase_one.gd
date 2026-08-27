@@ -6,6 +6,7 @@ const BrowserCapabilityScript: GDScript = preload(
 const BudgetCatalogScript: GDScript = preload("res://scripts/persistence_budget_catalog.gd")
 const FaultInjectorScript: GDScript = preload("res://scripts/persistence_fault_injector.gd")
 const FarmSaveSchemaScript: GDScript = preload("res://scripts/farm_save_schema.gd")
+const FishingCatalogScript: GDScript = preload("res://scripts/fishing_catalog.gd")
 const ReceiptLedgerScript: GDScript = preload("res://scripts/exact_once_receipt_ledger.gd")
 const SaveRepositoryScript: GDScript = preload("res://scripts/save_repository.gd")
 const SectionsScript: GDScript = preload("res://scripts/settlement_persistence_sections.gd")
@@ -46,6 +47,7 @@ static func evaluate(
 	_test_hashes(cases, repository, base)
 	_test_budgets(cases, repository, base)
 	_test_fault_recovery(cases, world, run_snapshot, profile_snapshot)
+	_test_recovery_ordering(cases, world, run_snapshot, profile_snapshot)
 	_test_browser_capability(cases)
 	_clear_artifacts(TEST_ROOT)
 	return cases
@@ -370,7 +372,8 @@ static func _test_budgets(
 	_add_case(
 		cases,
 		"P1 maximum generator fills every documented bounded collection",
-		((homestead[&"construction"] as Dictionary)[&"buildings"] as Array).size()
+		(farm[&"plots"] as Array).size() == FarmSaveSchemaScript.MAX_PLOTS
+		and ((homestead[&"construction"] as Dictionary)[&"buildings"] as Array).size()
 		== SectionsScript.MAX_BUILDINGS
 		and ((homestead[&"workforce"] as Dictionary)[&"settlers"] as Array).size()
 		== SectionsScript.MAX_SETTLERS
@@ -379,7 +382,7 @@ static func _test_budgets(
 		and ((farm[&"logistics"] as Dictionary)[&"jobs"] as Array).size()
 		== SectionsScript.MAX_LOGISTICS_JOBS
 		and ((farm[&"fishing"] as Dictionary)[&"spots"] as Array).size()
-		== SectionsScript.MAX_FISHING_SPOTS
+		== FishingCatalogScript.SPOT_IDS.size()
 		and ((farm[&"orchard"] as Dictionary)[&"trees"] as Array).size()
 		== SectionsScript.MAX_TREES
 		and ((farm[&"receipts"] as Dictionary)[&"entries"] as Array).size()
@@ -455,6 +458,47 @@ static func _test_browser_capability(cases: Array[Dictionary]) -> void:
 		"P1 browser capability rejects dishonest guarantee combinations",
 		BrowserCapabilityScript.validate(dishonest).is_empty(),
 	)
+
+
+static func _test_recovery_ordering(
+	cases: Array[Dictionary],
+	world: RefCounted,
+	run_snapshot: Dictionary,
+	profile_snapshot: Dictionary,
+) -> void:
+	var path: String = TEST_ROOT + ".sequence-order"
+	_clear_artifacts(path)
+	var repository: RefCounted = _repository(path, world)
+	var first_saved: bool = bool(
+		repository.call("save_state", world.call("make_snapshot"), run_snapshot, profile_snapshot)
+	)
+	var source: Dictionary = repository.call("load_state") as Dictionary
+	var farm: Dictionary = (source.get(&"farm", {}) as Dictionary).duplicate(true)
+	if not farm.is_empty():
+		(farm[&"tutorial"] as Dictionary)[&"suppressed"] = true
+	var second_saved: bool = bool(repository.call("save_candidate_envelope", source, farm))
+	var backup_path: String = path + ".bak"
+	var parser: JSON = JSON.new()
+	var backup_text: String = _read_text(backup_path)
+	var parsed: bool = parser.parse(backup_text) == OK and parser.data is Dictionary
+	if parsed:
+		((parser.data as Dictionary)[&"metadata"] as Dictionary)[&"write_sequence"] = 999_999
+		_write_text(backup_path, JSON.stringify(parser.data, "", true, true))
+	var reopened: RefCounted = _repository(path, world)
+	var recovered: Dictionary = reopened.call("load_state") as Dictionary
+	var recovered_farm: Dictionary = recovered.get(&"farm", {}) as Dictionary
+	var revisions: Dictionary = recovered_farm.get(&"revisions", {}) as Dictionary
+	_add_case(
+		cases,
+		"P1 recovery orders valid candidates by hash-bound gameplay revision",
+		first_saved
+		and second_saved
+		and parsed
+		and reopened.call("get_selected_source") == path
+		and int(revisions.get(&"result_revision", 0)) == 2
+		and bool((recovered_farm.get(&"tutorial", {}) as Dictionary).get(&"suppressed", false)),
+	)
+	_clear_artifacts(path)
 
 
 static func _farm_v1(source: Dictionary) -> Dictionary:

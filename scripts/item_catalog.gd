@@ -12,6 +12,9 @@ const CATEGORY_TOOL: StringName = &"tool"
 const CATEGORY_CURRENCY: StringName = &"currency"
 const CATEGORY_FEED: StringName = &"animal_feed"
 const CATEGORY_PRODUCT: StringName = &"animal_product"
+const CATEGORY_SAPLING: StringName = &"sapling"
+const CATEGORY_BAIT: StringName = &"bait"
+const CATEGORY_FISH: StringName = &"fish"
 
 const DEFINITIONS: Array[Dictionary] = [
 	{
@@ -420,6 +423,73 @@ const DEFINITIONS: Array[Dictionary] = [
 		&"buy_price": 0,
 		&"sell_price": 0,
 	},
+	{
+		&"item_id": &"item.sapling.ironbark",
+		&"category": CATEGORY_SAPLING,
+		&"stack_limit": 20,
+		&"buy_price": 70,
+		&"sell_price": 15,
+		&"icon_path": "res://assets/ui/items/item_ironbark_sapling.png",
+	},
+	{
+		&"item_id": &"item.sapling.cinderapple",
+		&"category": CATEGORY_SAPLING,
+		&"stack_limit": 20,
+		&"buy_price": 90,
+		&"sell_price": 20,
+		&"icon_path": "res://assets/ui/items/item_cinderapple_sapling.png",
+	},
+	{
+		&"item_id": &"item.tool.fishing_rod",
+		&"category": CATEGORY_TOOL,
+		&"stack_limit": 1,
+		&"buy_price": 120,
+		&"sell_price": 0,
+		&"icon_path": "res://assets/ui/items/item_fishing_rod.png",
+	},
+	{
+		&"item_id": &"item.bait.luminous",
+		&"category": CATEGORY_BAIT,
+		&"stack_limit": 50,
+		&"buy_price": 12,
+		&"sell_price": 2,
+		&"icon_path": "res://assets/ui/items/item_luminous_bait.png",
+	},
+	{
+		&"item_id": &"item.fish.relay_minnow",
+		&"category": CATEGORY_FISH,
+		&"stack_limit": 99,
+		&"buy_price": 0,
+		&"sell_price": 28,
+	},
+	{
+		&"item_id": &"item.fish.rustfin_perch",
+		&"category": CATEGORY_FISH,
+		&"stack_limit": 99,
+		&"buy_price": 0,
+		&"sell_price": 54,
+	},
+	{
+		&"item_id": &"item.fish.glasslamp_eel",
+		&"category": CATEGORY_FISH,
+		&"stack_limit": 50,
+		&"buy_price": 0,
+		&"sell_price": 95,
+	},
+	{
+		&"item_id": &"item.fish.mossback_carp",
+		&"category": CATEGORY_FISH,
+		&"stack_limit": 50,
+		&"buy_price": 0,
+		&"sell_price": 72,
+	},
+	{
+		&"item_id": &"item.produce.cinderapple",
+		&"category": CATEGORY_PRODUCE,
+		&"stack_limit": 99,
+		&"buy_price": 0,
+		&"sell_price": 130,
+	},
 ]
 
 
@@ -467,4 +537,4 @@ static func validate() -> bool:
 			return false
 		seen[item_id] = true
 		categories[category_id] = true
-	return categories.size() == 12 and seen.size() == DEFINITIONS.size()
+	return categories.size() == 15 and seen.size() == DEFINITIONS.size()

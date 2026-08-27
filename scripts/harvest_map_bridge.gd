@@ -33,6 +33,7 @@ const InteractionTargetBridgeScript: GDScript = preload(
 )
 const InventoryServiceScript: GDScript = preload("res://scripts/inventory_service.gd")
 const MachineServiceScript: GDScript = preload("res://scripts/machine_service.gd")
+const OrchardServiceScript: GDScript = preload("res://scripts/orchard_service.gd")
 const ResolverScript: GDScript = preload("res://scripts/interaction_resolver.gd")
 const RuntimeIdsScript: GDScript = preload("res://scripts/runtime_ids.gd")
 const ResourceDepositPresentationScript: GDScript = preload(
@@ -46,7 +47,6 @@ const SettlerPresentationScript: GDScript = preload(
 const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
 const WildernessRuntimeScript: GDScript = preload("res://scripts/wilderness_runtime.gd")
 const WoodlandClearingScript: GDScript = preload("res://scripts/woodland_clearing.gd")
-
 const SHIPPING_CELL: Vector2i = Vector2i(7, 7)
 const STORAGE_CELL: Vector2i = Vector2i(8, 7)
 const WORKSHOP_CELL: Vector2i = Vector2i(9, 7)
@@ -62,7 +62,6 @@ const HOE_SFX: AudioStream = preload("res://assets/audio/harvest/hoe_soil.wav")
 const WATER_SFX: AudioStream = preload("res://assets/audio/harvest/water_pour.wav")
 const HARVEST_SFX: AudioStream = preload("res://assets/audio/harvest/harvest_pluck.wav")
 const SHIPPING_SFX: AudioStream = preload("res://assets/audio/harvest/shipping_drop.wav")
-
 var _map: Node2D
 var _controller: Node2D
 var _presenter: CanvasLayer
@@ -97,22 +96,24 @@ func get_interaction_controller() -> Node2D:
 
 func get_interaction_presenter() -> CanvasLayer:
 	return _presenter
-
 func get_farm_renderer() -> Node2D:
 	return _farm_renderer
-
 func get_farm_runtime() -> RefCounted:
 	return _farm_runtime
-
 func get_transaction_boundary() -> RefCounted:
 	return _transactions
-
 func get_interaction_phase_b_service() -> RefCounted:
 	return _interaction_phase_b_service
-
-
 func get_wilderness_runtime() -> RefCounted:
 	return _wilderness_runtime
+
+
+func is_orchard_cell_occupied(cell: Vector2i) -> bool:
+	if _farm_runtime == null:
+		return false
+	return not OrchardServiceScript.tree_at(
+		_farm_runtime.call("get_snapshot") as Dictionary, cell
+	).is_empty()
 
 
 func get_construction_mode_controller() -> Node2D:
@@ -152,6 +153,7 @@ func get_live_presentation_records() -> Array[Dictionary]:
 	var records: Array[Dictionary] = HomesteadPresentationScript.build_records(farm)
 	records.append_array(ConstructionPresentationScript.build_records(farm))
 	records.append_array(SettlerPresentationScript.build_records(farm))
+	records.append_array(OrchardServiceScript.build_records(farm))
 	return records
 
 
@@ -676,6 +678,7 @@ func _refresh_render_indexes(dirty_cells: Array[Vector2i] = []) -> void:
 		_merge_indexes(indexes, HomesteadPresentationScript.build_chunk_indexes(farm))
 		_merge_indexes(indexes, ConstructionPresentationScript.build_chunk_indexes(farm))
 		_merge_indexes(indexes, SettlerPresentationScript.build_chunk_indexes(farm))
+		_merge_indexes(indexes, OrchardServiceScript.build_chunk_indexes(farm))
 		var world: RefCounted = _map.get("_world") as RefCounted
 		_merge_indexes(
 			indexes,
@@ -752,6 +755,7 @@ func _sync_presentation_state() -> void:
 		previous = HomesteadPresentationScript.presentation_cells(farm)
 		previous.append_array(ConstructionPresentationScript.presentation_cells(farm))
 		previous.append_array(SettlerPresentationScript.presentation_cells(farm))
+		previous.append_array(OrchardServiceScript.presentation_cells(farm))
 	_refresh_render_indexes(previous)
 	_sync_ruin_registry()
 

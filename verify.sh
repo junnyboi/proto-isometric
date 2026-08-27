@@ -17,23 +17,25 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/user-data"
 
-printf '[1/4] import\n'
+printf '[1/6] import\n'
 timeout 30s "$GODOT" --headless --path . --import >"$tmp/import.log" 2>&1
 if grep -E 'ERROR:|SCRIPT ERROR:' "$tmp/import.log"; then
   cat "$tmp/import.log" >&2
   exit 1
 fi
 
-printf '[2/4] lint + BGM loop gate\n'
+printf '[2/6] lint + runtime asset integrity + BGM loop gate\n'
 mapfile -d '' gd_files < <(find scripts test -type f -name '*.gd' -print0 | sort -z)
 ((${#gd_files[@]} > 0))
 gdlint "${gd_files[@]}"
+/usr/bin/python3 tools/verify_gdscript_budgets.py
+/usr/bin/python3 tools/verify_runtime_asset_integrity.py
 python3 test/test_bgm_loops.py \
   --godot "$GODOT" \
   --json-report "$tmp/bgm-loops.json"
 
-printf '[3/4] smoke\n'
-timeout 30s env XDG_DATA_HOME="$tmp/user-data" "$GODOT" \
+printf '[3/6] smoke\n'
+timeout 180s env XDG_DATA_HOME="$tmp/user-data" "$GODOT" \
   --headless --path . -s test/smoke.gd >"$tmp/smoke.log" 2>&1
 cat "$tmp/smoke.log"
 grep -F '[SMOKE_PASS]' "$tmp/smoke.log" >/dev/null
@@ -41,7 +43,7 @@ if grep -E 'ERROR:|SCRIPT ERROR:' "$tmp/smoke.log"; then
   exit 1
 fi
 
-printf '[3b/4] interaction phase B\n'
+printf '[4/6] interaction phase B\n'
 timeout 30s env XDG_DATA_HOME="$tmp/user-data" "$GODOT" \
   --headless --audio-driver Dummy --path . \
   -s test/harvest_interaction_phase_b_runner.gd >"$tmp/phase-b.log" 2>&1
@@ -51,7 +53,19 @@ if grep -E 'ERROR:|SCRIPT ERROR:' "$tmp/phase-b.log"; then
   exit 1
 fi
 
-printf '[4/4] boot\n'
+printf '[5/6] P11 golden 1,000-day schedule\n'
+timeout 240s env XDG_DATA_HOME="$tmp/user-data" "$GODOT" \
+  --headless --path . -s test/harvest_settlement_phase_eleven_runner.gd -- \
+  --p11-days=1000 --p11-run-id=verify >"$tmp/p11.log" 2>&1
+cat "$tmp/p11.log"
+grep -F '[P11_SCHEDULE_HASH] run=verify days=1000 hash=162fc7dec14149a3ea7beb67007b8be8cc474a310ecd87cacee19061b4f37270 bytes=15933' \
+  "$tmp/p11.log" >/dev/null
+grep -F '[P11_CERTIFICATION_PASS] run=verify days=1000' "$tmp/p11.log" >/dev/null
+if grep -E 'ERROR:|SCRIPT ERROR:|P11_CERTIFICATION_FAIL' "$tmp/p11.log"; then
+  exit 1
+fi
+
+printf '[6/6] boot\n'
 timeout 20s "$GODOT" --headless --path . --quit-after 2 >"$tmp/boot.log" 2>&1
 grep -F '[PROTO_ISOMETRIC_READY]' "$tmp/boot.log" >/dev/null
 grep -F '[TITLE_MUSIC_READY]' "$tmp/boot.log" >/dev/null

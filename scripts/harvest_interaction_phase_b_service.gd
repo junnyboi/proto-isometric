@@ -16,6 +16,7 @@ const EcologyDirectorScript: GDScript = preload("res://scripts/ecology_director.
 const ExecutionResultScript: GDScript = preload("res://scripts/interaction_execution_result.gd")
 const FarmProviderScript: GDScript = preload("res://scripts/harvest_interaction_farm_provider.gd")
 const FarmStateScript: GDScript = preload("res://scripts/farm_state.gd")
+const FishingCatalogScript: GDScript = preload("res://scripts/fishing_catalog.gd")
 const HomesteadPresentationScript: GDScript = preload(
 	"res://scripts/homestead_presentation_catalog.gd"
 )
@@ -23,12 +24,16 @@ const HomesteadServiceScript: GDScript = preload("res://scripts/homestead_servic
 const IronjawDesertArcScript: GDScript = preload("res://scripts/ironjaw_desert_arc.gd")
 const CodecScript: GDScript = preload("res://scripts/interaction_contract_codec.gd")
 const OperationCatalogScript: GDScript = preload("res://scripts/interaction_operation_catalog.gd")
+const OrchardServiceScript: GDScript = preload("res://scripts/orchard_service.gd")
 const ReadResultCatalogScript: GDScript = preload(
 	"res://scripts/interaction_read_result_catalog.gd"
 )
 const ResolverScript: GDScript = preload("res://scripts/interaction_resolver.gd")
 const SettlementProviderScript: GDScript = preload(
 	"res://scripts/settlement_interaction_provider.gd"
+)
+const SeasonalProviderScript: GDScript = preload(
+	"res://scripts/seasonal_interaction_provider.gd"
 )
 const StableFeatureProviderScript: GDScript = preload(
 	"res://scripts/stable_feature_interaction_provider.gd"
@@ -115,9 +120,12 @@ func project(cell: Vector2i, selected_tool: StringName) -> Dictionary:
 				cell,
 				selected_tool,
 				_terrain_inspection_descriptor(cell, world, farm, description),
+				Callable(world, "is_walkable"),
 			)
 		&"water":
-			projection = StableFeatureProviderScript.water(cell, description[&"state"])
+			projection = SeasonalProviderScript.water(
+				farm, cell, description[&"state"], WoodlandClearingScript.DEFAULT_SEED
+			)
 		&"safe_exit":
 			projection = StableFeatureProviderScript.safe_exit(cell, description[&"state"])
 		&"functional_prop":
@@ -191,6 +199,8 @@ func project(cell: Vector2i, selected_tool: StringName) -> Dictionary:
 			projection = WildernessProviderScript.tree(
 				farm, cell, description[&"source_kind"], selected_tool
 			)
+		&"orchard_tree":
+			projection = SeasonalProviderScript.tree(farm, cell, description[&"record"])
 		&"resource":
 			projection = WildernessProviderScript.resource(
 				farm, cell, description[&"source_kind"], selected_tool
@@ -441,6 +451,8 @@ func _execute_persistent_option(
 	var arguments: Dictionary = (option[&"arguments"] as Dictionary).duplicate(true)
 	if operation == &"deposit_gather":
 		return _execute_deposit_gather(cell, option, arguments)
+	if operation in [&"fish_cast", &"tree_harvest", &"tree_plant", &"tree_remove"]:
+		return _execute_seasonal_exact_once(cell, option, arguments)
 	var result: Dictionary
 	if route == OperationCatalogScript.ROUTE_CROSS_DOMAIN:
 		result = _transactions.call("transact", operation, arguments) as Dictionary
@@ -507,6 +519,37 @@ func _execute_deposit_gather(
 	if bool(result.get(&"ok", false)) and not bool(result.get(&"replayed", false)):
 		result[&"dirty_cells"] = [cell]
 		_committed.call(&"deposit_gather", cell, result.duplicate(true))
+	return result
+
+
+func _execute_seasonal_exact_once(
+	cell: Vector2i, option: Dictionary, arguments: Dictionary
+) -> Dictionary:
+	var revision: int = int(arguments.get(&"expected_revision", -1))
+	if revision < 0:
+		return _result(false, &"missing_source_revision")
+	var digest: String = CodecScript.digest(option)
+	var operation: StringName = option[&"operation"] as StringName
+	var token_namespace: String = "fish" if operation == &"fish_cast" else "tree"
+	var token: String = "%s:%d:%s" % [token_namespace, revision, digest.left(32)]
+	var payload: Dictionary = {
+		&"operation": str(operation),
+		&"option_digest": digest,
+		&"source_revision": revision,
+	}
+	var deterministic: Dictionary = {
+		&"result_id": "%s.result.%s" % [token_namespace, digest.left(24)],
+		&"operation": str(operation),
+		&"source_revision": revision,
+	}
+	var result: Dictionary = _transactions.call(
+		"transact_exact_once", operation, arguments, token, payload, deterministic
+	) as Dictionary
+	if not _sync_cross_domain_farm(result):
+		return _result(false, &"live_farm_sync_failed")
+	if bool(result.get(&"ok", false)) and not bool(result.get(&"replayed", false)):
+		result[&"dirty_cells"] = [cell]
+		_committed.call(operation, cell, result.duplicate(true))
 	return result
 
 
@@ -684,14 +727,9 @@ func _pickup_at(cell: Vector2i) -> Dictionary:
 
 func _presentation_at(cell: Vector2i) -> Dictionary:
 	var farm: Dictionary = _farm_runtime.call("get_snapshot") as Dictionary
-	var building: Dictionary = OccupancyScript.building_at(OccupancyScript.build(farm), cell)
-	if not building.is_empty():
-		return {
-			&"family": &"construction",
-			&"kind": ResolverScript.KIND_STRUCTURE,
-			&"target_id": StringName(str(building[&"instance_id"])),
-			&"record": building,
-		}
+	var farm_structure: Dictionary = _farm_structure_presentation(farm, cell)
+	if not farm_structure.is_empty():
+		return farm_structure
 	for record: Dictionary in SettlerPresentationScript.build_records(farm):
 		if record[&"cell"] == cell:
 			return {
@@ -731,6 +769,26 @@ func _presentation_at(cell: Vector2i) -> Dictionary:
 	return {}
 
 
+func _farm_structure_presentation(farm: Dictionary, cell: Vector2i) -> Dictionary:
+	var orchard_tree: Dictionary = OrchardServiceScript.tree_at(farm, cell)
+	if not orchard_tree.is_empty():
+		return {
+			&"family": &"orchard_tree",
+			&"kind": ResolverScript.KIND_RESOURCE,
+			&"target_id": StringName(str(orchard_tree[&"tree_id"])),
+			&"record": orchard_tree,
+		}
+	var building: Dictionary = OccupancyScript.building_at(OccupancyScript.build(farm), cell)
+	if building.is_empty():
+		return {}
+	return {
+		&"family": &"construction",
+		&"kind": ResolverScript.KIND_STRUCTURE,
+		&"target_id": StringName(str(building[&"instance_id"])),
+		&"record": building,
+	}
+
+
 func _structure_at(
 	cell: Vector2i, presentation: Dictionary, world: RefCounted
 ) -> Dictionary:
@@ -764,20 +822,23 @@ func _structure_at(
 func _stable_feature_at(cell: Vector2i, world: RefCounted) -> Dictionary:
 	var farm: Dictionary = _farm_runtime.call("get_snapshot") as Dictionary
 	var pond: bool = world.has_method("_is_pond") and bool(world.call("_is_pond", cell))
-	return stable_feature_description(cell, farm, pond)
+	var biome_id: StringName = world.call("_biome_at", cell) as StringName
+	return stable_feature_description(cell, farm, pond, biome_id)
 
 
 static func stable_feature_description(
 	cell: Vector2i,
 	farm: Dictionary,
 	is_pond: bool,
+	biome_id: StringName = &"",
 ) -> Dictionary:
-	if is_pond:
+	var water_class: StringName = FishingCatalogScript.live_water_class(cell, biome_id, is_pond)
+	if water_class != &"":
 		return {
 			&"family": &"water",
 			&"kind": ResolverScript.KIND_STRUCTURE,
 			&"state": {
-				&"water_class": &"freshwater_pond",
+				&"water_class": water_class,
 				&"walkable": false,
 				&"irrigation_relevant": true,
 			},

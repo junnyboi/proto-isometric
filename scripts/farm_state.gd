@@ -1,6 +1,7 @@
 extends RefCounted
 
 const CropCatalogScript: GDScript = preload("res://scripts/crop_catalog.gd")
+const FarmOccupancyScript: GDScript = preload("res://scripts/farm_occupancy_service.gd")
 const InventoryServiceScript: GDScript = preload("res://scripts/inventory_service.gd")
 const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
 const WoodlandClearingScript: GDScript = preload("res://scripts/woodland_clearing.gd")
@@ -15,6 +16,14 @@ static func till(farm: Dictionary, cell: Vector2i) -> Dictionary:
 		or (IronjawDesertArcScript.deep_tillable(farm, cell))
 	)
 	if not tillable or _plot_index(farm, cell) >= 0:
+		return _result(false, farm, &"not_tillable", [])
+	if (
+		FarmOccupancyScript.occupied(farm, cell)
+		or (
+			WoodlandClearingScript.is_farm_apron(cell)
+			and FarmOccupancyScript.orchard_reason(farm, cell) == &"protected_path"
+		)
+	):
 		return _result(false, farm, &"not_tillable", [])
 	var spent: Dictionary = ToolServiceScript.spend(farm, ToolServiceScript.TOOL_HOE)
 	if not bool(spent[&"ok"]):
@@ -73,6 +82,10 @@ static func plant(
 	plot[&"stage"] = 0
 	plot[&"harvest_sequence"] = 0
 	plot[&"ready"] = false
+	var calendar: Dictionary = candidate[&"calendar_weather"] as Dictionary
+	plot[&"dormant"] = not CropCatalogScript.is_favored(
+		crop_id, StringName(str(calendar[&"season_id"]))
+	)
 	plots[plot_index] = plot
 	candidate[&"plots"] = plots
 	return _result(true, candidate, &"", [cell])
@@ -144,12 +157,19 @@ static func apply_rain(farm: Dictionary, absolute_day: int) -> Dictionary:
 static func grow(farm: Dictionary, watered_day: int) -> Dictionary:
 	var candidate: Dictionary = farm.duplicate(true)
 	var plots: Array = (candidate[&"plots"] as Array).duplicate(true)
+	var calendar: Dictionary = candidate[&"calendar_weather"] as Dictionary
+	var season_id: StringName = StringName(str(calendar[&"season_id"]))
 	for index: int in plots.size():
 		var plot: Dictionary = (plots[index] as Dictionary).duplicate(true)
 		var crop_id: StringName = StringName(plot[&"crop_id"])
-		if crop_id == &"" or bool(plot[&"ready"]) or int(plot[&"last_watered_day"]) != watered_day:
+		if crop_id == &"" or bool(plot[&"ready"]):
 			continue
-		plot[&"growth_points"] = int(plot[&"growth_points"]) + 1
+		var increment: int = CropCatalogScript.growth_increment(crop_id, season_id)
+		plot[&"dormant"] = increment == 0
+		if increment == 0 or int(plot[&"last_watered_day"]) != watered_day:
+			plots[index] = plot
+			continue
+		plot[&"growth_points"] = int(plot[&"growth_points"]) + increment
 		plot[&"stage"] = CropCatalogScript.stage_for(crop_id, int(plot[&"growth_points"]))
 		plot[&"ready"] = int(plot[&"stage"]) == 3
 		plots[index] = plot

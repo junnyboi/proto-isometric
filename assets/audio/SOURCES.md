@@ -6,9 +6,9 @@
 
 ## Title interaction feedback
 
-`ui_hover.wav` and `ui_click.wav` were generated on 2026-08-26 through the approved image-to-video-carrier workflow. GPT Image 2 first produced a repaired woodland control-console anchor; separate four-second Gemini Omni audio-bearing carriers then produced one isolated electro-organic focus cue and one compact confirmation cue. Those carrier videos and the anchor remain outside Git under `/home/ubuntu/start-button-media/`.
+`ui_hover.wav` and `ui_click.wav` were generated on 2026-08-26 through the approved image-to-video-carrier workflow. GPT Image 2 first produced a repaired woodland control-console anchor; separate four-second Gemini Omni audio-bearing carriers then produced one isolated electro-organic focus cue and one compact confirmation cue. The temporary `/home/ubuntu/start-button-media/` generation workspace is not retained in the current sandbox; the accepted runtime derivatives remain authenticated below and in the P11 binary integrity ledger.
 
-`ui_start_click.wav` is the dedicated Start Game activation cue generated on 2026-08-26 through the same mandated workflow. GPT Image 2 produced two 16:9 reclaimed electromechanical-button anchors; the selected spring-loaded rectangular console control conditioned a three-second Gemini Omni carrier containing one close-miked detent, brass-and-resin thunk, and restrained relay tick. The runtime derivative selects the 1.3-second action window, resamples it to 48 kHz stereo PCM16, applies 45 Hz high-pass and 16 kHz low-pass filtering, short boundary fades, and conservative gain for a -9.5 dBFS true peak. Its carrier and anchors remain outside Git under `/home/ubuntu/title-button-tactile/`.
+`ui_start_click.wav` is the dedicated Start Game activation cue generated on 2026-08-26 through the same mandated workflow. GPT Image 2 produced two 16:9 reclaimed electromechanical-button anchors; the selected spring-loaded rectangular console control conditioned a three-second Gemini Omni carrier containing one close-miked detent, brass-and-resin thunk, and restrained relay tick. The runtime derivative selects the 1.3-second action window, resamples it to 48 kHz stereo PCM16, applies 45 Hz high-pass and 16 kHz low-pass filtering, short boundary fades, and conservative gain for a -9.5 dBFS true peak. The temporary `/home/ubuntu/title-button-tactile/` production workspace is not retained in the current sandbox; the accepted derivative is hash-bound below and in the P11 ledger.
 
 | Runtime file | Role | Duration | SHA-256 |
 |---|---|---:|---|
@@ -85,7 +85,7 @@ Godot exposes a two-track pool per biome. A seeded shuffle bag randomizes which 
 
 ## Biome enemy movement and attack cues
 
-The twelve files under `assets/audio/enemies/` were generated on 2026-08-25 from original audio-bearing carrier videos created with the built-in video generation service. Each carrier used a 16:9 keyframe assembled from the shipped creature sprite and requested one isolated dry sound effect with no music, ambience, dialogue, or narration. The carriers remain under the ignored `.generated/` working directory. `tools/extract_enemy_sfx_from_carriers.py` deterministically extracts the audio, trims silence, converts it to mono 48 kHz PCM, applies conservative normalization and boundary fades, and enforces the target duration.
+The twelve files under `assets/audio/enemies/` were generated on 2026-08-25 from original audio-bearing carrier videos created with the built-in video generation service. Each carrier used a 16:9 keyframe assembled from the shipped creature sprite and requested one isolated dry sound effect with no music, ambience, dialogue, or narration. The ignored `.generated/` carrier workspace was temporary and is not retained in the current sandbox. `tools/extract_enemy_sfx_from_carriers.py` preserves the deterministic extraction contract, while P11 records the exact accepted runtime hashes and sizes in `assets/RUNTIME_ASSET_INTEGRITY.tsv`.
 
 | Runtime file | Enemy and trigger | Duration |
 |---|---|---:|
@@ -107,7 +107,7 @@ The twelve files under `assets/audio/enemies/` were generated on 2026-08-25 from
 
 ## Biome weather ambience layers
 
-The four files under `assets/audio/weather/` were generated on 2026-08-25 from original ten-second audio-bearing weather carriers created with the built-in video generation service. Each carrier used a generated 16:9 environment reference and requested one continuous biome-specific weather texture with no dialogue, narration, music, rhythm, animals, UI, or combat effects. Carrier videos and references remain under the ignored `.generated/weather_audio/` workspace and do not ship.
+The four files under `assets/audio/weather/` were generated on 2026-08-25 from original ten-second audio-bearing weather carriers created with the built-in video generation service. Each carrier used a generated 16:9 environment reference and requested one continuous biome-specific weather texture with no dialogue, narration, music, rhythm, animals, UI, or combat effects. The ignored `.generated/weather_audio/` workspace was temporary and is not retained in the current sandbox; the four accepted runtime loops remain individually hash-bound below and in the P11 ledger.
 
 `tools/extract_weather_audio_from_carriers.py` takes a stable interior source window, converts it to mono 48 kHz PCM, constructs an exact eight-second cyclic loop by equal-power tail-to-head overlap, matches −34 LUFS integrated through deterministic constant gain, and validates sample count, channel count, distinct hashes, nonzero energy, conservative peaks, edge-energy compatibility, and seam discontinuity. Godot 4.7.2 loads all four outputs as `AudioStreamWAV` resources and enables forward looping at runtime.
 
@@ -119,3 +119,13 @@ The four files under `assets/audio/weather/` were generated on 2026-08-25 from o
 | `weather/weather_volcanic_ashfall.wav` | Ash wind, geothermal rumble, and sparse ember crackle | 8.000 s | −34.0 LUFS | 0.000336 | `4fc6a3f6030140831661b024b058a0c56e4a5f74cda1fc00ee43940655d01e95` |
 
 These loops form a second environmental layer beneath actionable `Enemy`-bus cues. They share the existing `Ambient` bus and Ambience accessibility preference, use a hard two-voice crossfade cap, raise intensity only for matching live hazard activity, and apply a bounded duck when enemy warnings or attacks play.
+
+## P11 retention note
+
+P11 is fixes-only and does not replace accepted audio merely because temporary generation
+workspaces were not archived. All shipping WAV, Ogg, and font/image binaries are recorded
+with exact byte counts, SHA-256 values, and provenance-manifest links in
+`assets/RUNTIME_ASSET_INTEGRITY.tsv`; `tools/verify_runtime_asset_integrity.py` enforces
+that ledger in every `verify.sh` run. Future sound generation must retain the complete
+GPT Image 2 anchor, audio-bearing video carrier, extraction command, and runtime mapping
+inside the durable external release archive before the derivative is accepted.

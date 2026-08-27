@@ -24,6 +24,8 @@ Completed field warehouses now generate a canonical transfer queue ordered by **
 
 Settler wellbeing now resolves explainable daily morale from protected shelter, equitable field rations, rest, safe work, clinic care, worker voice, and belonging. Unsafe shifts stop without output or morale punishment. Deterministic injuries are always nonfatal, suspend work, and recover on an exact advertised day; a repaired powered clinic shortens recovery. Every concern names a concrete remedy in the wrapping roster detail pane. Low morale opens a two-day remedy window rather than an eviction path, and successful remedies cancel notice. If concerns remain unresolved, a settler may depart voluntarily; housing, work, and shift links are cleaned atomically, bounded departure history prevents coercive re-recruitment, and Lyra, Rook, and Mira remain untouched.
 
+Seasonal stewardship now gives every crop one or two frozen favored seasons. Favored crops gain one extra deterministic growth point per watered dawn; out-of-season crops remain planted but dormant rather than dying or disappearing. The greenhouse cache sells two authored saplings plus a permanent fishing rod and finite luminous bait. Cinderapple and Ironbark trees occupy protected farm-apron cells, block movement, grow through authored GPT Image 2 atlas stages, yield renewable produce or timber, and allow only young saplings to be lifted. Three live fishing pools—the woodland pond, oasis mire pool, and frozen rime melt—offer bounded seasonal and weather-weighted catches. Fishing requires the rod, bait changes deterministic pool weights without guaranteeing a catch, each spot renews at its own dawn cadence, and exact-once tree and fishing receipts reject replay conflicts and stale interaction snapshots without mutation.
+
 ## Controls
 
 Use **WASD** or the **arrow keys** to move and hold **Shift** to run. Press **E** for context interactions, **G** for a uniquely safe Quick action, **F** to use the selected farming tool, **Q/R** to cycle tools, **I** for inventory, **M** for the journal/map, **+/-** to zoom, and **Space**, **J**, or **K** for the preserved combat Smash. The safehouse, eligible completed work sites, and admitted settlers expose the Stewardship applicant/roster terminal through **E**; completed warehouses and fabricators open its Logistics & Production tab directly. Quick never performs applicant, workforce, logistics-policy, or forced-delivery decisions. Controller and touch commands map to the same stable intent catalog. Mobile presents a floating movement joystick plus an eight-slot command dock with Context, Tool, Quick, Cycle, Inventory, Journal, Cancel, and the preserved Smash control.
@@ -38,7 +40,7 @@ Home time uses deterministic day, night, and rain music with bounded equal-power
 
 ## Runtime architecture
 
-The runtime uses stable command intents, a pure adjacent-cell resolver, batched dirty-indexed farm and homestead rendering, deterministic diagonal depth, and no per-crop, per-resident, per-settler, or per-animal scene nodes. Farming, inventory, economy, machines, upgrades, facilities, relationships, requests, livestock, applicant, housing, and workforce mutations all validate detached candidate snapshots and persist through one cross-domain transaction boundary.
+The runtime uses stable command intents, a pure adjacent-cell resolver, batched dirty-indexed farm and homestead rendering, deterministic diagonal depth, and no per-crop, per-tree, per-resident, per-settler, or per-animal scene nodes. Farming, orchard, fishing, inventory, economy, machines, upgrades, facilities, relationships, requests, livestock, applicant, housing, and workforce mutations all validate detached candidate snapshots and persist through one cross-domain transaction boundary.
 
 Schema-5 persistence preserves legacy schema-1/2/3/4 migration while adding bounded settlement sections, exact-once receipts, canonical gameplay revisions, section budgets, recoverable validated temporary saves, and an honest browser-storage capability warning. The retired tutorial field remains a neutral validated compatibility slot so existing saves load without migration loss, but no runtime system reads or writes it. Save validation enforces exact keys, hard collection caps, canonical sorting, stable IDs, coordinate bounds, duplicate rejection, atomic primary/backup replacement, and quarantine for malformed or future data.
 
@@ -55,7 +57,17 @@ For a clean no-threads Web release:
 ./verify.sh --release
 ```
 
-The release command runs import, lint, repository tests, bounded headless boot, Web export, and exported-PCK boot checks. It writes the required HTML, JavaScript, WASM, PCK, audio worklets, icons, and splash assets to `/home/ubuntu/proto-isometric-build/web`.
+The release command runs import, lint, the complete runtime binary/provenance ledger,
+English and Simplified Chinese font-cmap coverage, repository tests, bounded headless boot,
+Web export, and exported-PCK boot checks. It writes the required HTML, JavaScript, WASM,
+PCK, audio worklets, icons, and splash assets to
+`/home/ubuntu/proto-isometric-build/web`.
+
+P11 certification additionally generates a validator-valid simultaneous maximum containing
+all 4,096 plots and 512 orchard trees, a representative 100-day save, and a shared
+1,000-day native/Web schedule. Recovery selects valid candidates by the hash-bound farm
+revision rather than mutable envelope metadata, preventing a stale backup with a tampered
+write sequence from outranking newer gameplay state.
 
 ## Project references
 

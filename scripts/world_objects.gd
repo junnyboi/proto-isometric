@@ -11,6 +11,7 @@ const OutpostEnergyScript: GDScript = preload("res://scripts/outpost_energy.gd")
 const OutpostVisualsScript: GDScript = preload("res://scripts/outpost_visuals.gd")
 const RunPickupsScript: GDScript = preload("res://scripts/run_pickups.gd")
 const WildFloraVisualsScript: GDScript = preload("res://scripts/wild_flora_visuals.gd")
+const WoodlandClearingScript: GDScript = preload("res://scripts/woodland_clearing.gd")
 const WoodlandVisualsScript: GDScript = preload("res://scripts/woodland_visuals.gd")
 
 const TEAL: Color = Color("4eb6aa")
@@ -146,7 +147,7 @@ func get_visible_sanctuary_count() -> int:
 	var count: int = 0
 	for value: Variant in _outposts:
 		var cell: Vector2i = value as Vector2i
-		if bool(_outposts[cell]) and cell in _visible_cells and _outpost_has_sanctuary(cell):
+		if bool(_outposts[cell]) and cell in _visible_cells and _shows_sanctuary_marker(cell):
 			count += 1
 	return count
 
@@ -219,7 +220,7 @@ func _draw() -> void:
 		if (
 			bool(_outposts[outpost_cell])
 			and outpost_cell in _visible_cells
-			and _outpost_has_sanctuary(outpost_cell)
+			and _shows_sanctuary_marker(outpost_cell)
 		):
 			_draw_sanctuary_boundary(outpost_cell)
 	for cell: Vector2i in _visible_cells:
@@ -229,7 +230,7 @@ func _draw() -> void:
 		if (
 			bool(_outposts[outpost_cell])
 			and outpost_cell in _visible_cells
-			and _outpost_has_sanctuary(outpost_cell)
+			and _shows_sanctuary_marker(outpost_cell)
 		):
 			_draw_sanctuary_label(outpost_cell)
 
@@ -347,4 +348,14 @@ func _outpost_has_sanctuary(cell: Vector2i) -> bool:
 		bool(_world.call("_is_sanctuary_outpost", cell))
 		if _world != null and _world.has_method("_is_sanctuary_outpost")
 		else true
+	)
+
+
+func _shows_sanctuary_marker(cell: Vector2i) -> bool:
+	if not _outpost_has_sanctuary(cell):
+		return false
+	return (
+		_world == null
+		or not _world.has_method("_biome_at")
+		or _world.call("_biome_at", cell) != WoodlandClearingScript.BIOME_WOODLAND
 	)

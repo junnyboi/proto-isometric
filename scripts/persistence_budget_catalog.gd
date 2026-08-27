@@ -1,6 +1,7 @@
 extends RefCounted
 
 const SectionsScript: GDScript = preload("res://scripts/settlement_persistence_sections.gd")
+const FarmSaveSchemaScript: GDScript = preload("res://scripts/farm_save_schema.gd")
 const ConstructionCatalogScript: GDScript = preload(
 	"res://scripts/construction_blueprint_catalog.gd"
 )
@@ -8,6 +9,9 @@ const ConstructionLinksScript: GDScript = preload("res://scripts/construction_en
 const ReceiptLedgerScript: GDScript = preload("res://scripts/exact_once_receipt_ledger.gd")
 const ResourceDepositCatalogScript: GDScript = preload("res://scripts/resource_deposit_catalog.gd")
 const ItemCatalogScript: GDScript = preload("res://scripts/item_catalog.gd")
+const FishingCatalogScript: GDScript = preload("res://scripts/fishing_catalog.gd")
+const FarmOccupancyScript: GDScript = preload("res://scripts/farm_occupancy_service.gd")
+const OrchardCatalogScript: GDScript = preload("res://scripts/orchard_catalog.gd")
 const RecipeCatalogScript: GDScript = preload("res://scripts/recipe_catalog.gd")
 const StateHashScript: GDScript = preload("res://scripts/persistence_state_hash.gd")
 const WorldLedgerScript: GDScript = preload("res://scripts/world_mutation_ledger.gd")
@@ -18,7 +22,7 @@ const SECTION_BUDGETS: Dictionary = {
 	"world": 600_000,
 	"active_run": 96_000,
 	"profile": 32_000,
-	"farm_legacy": 420_000,
+	"farm_legacy": 1_200_000,
 	"construction": 220_000,
 	"gathering": 90_000,
 	"workforce": 48_000,
@@ -100,6 +104,7 @@ static func measure_sections(envelope: Dictionary) -> Dictionary:
 static func simultaneous_maximum(base_envelope: Dictionary) -> Dictionary:
 	var envelope: Dictionary = base_envelope.duplicate(true)
 	var farm: Dictionary = envelope[&"farm"] as Dictionary
+	farm[&"plots"] = _maximum_plots()
 	var homestead: Dictionary = farm[&"homestead"] as Dictionary
 	var buildings: Array[Dictionary] = []
 	var blueprint_ids: Array[StringName] = ConstructionCatalogScript.ids()
@@ -181,6 +186,30 @@ static func simultaneous_maximum(base_envelope: Dictionary) -> Dictionary:
 	revisions[&"result_hash"] = StateHashScript.state_hash(envelope)
 	(envelope[&"farm"] as Dictionary)[&"revisions"] = revisions
 	return envelope
+
+
+static func _maximum_plots() -> Array[Dictionary]:
+	var records: Array[Dictionary] = []
+	for index: int in FarmSaveSchemaScript.MAX_PLOTS:
+		var cell: Vector2i = Vector2i(-900 + index % 64, -900 + index / 64)
+		records.append(
+			{
+				&"cell": [cell.x, cell.y],
+				&"tilled": true,
+				&"last_watered_day": 0,
+				&"crop_id": "",
+				&"planted_day": 0,
+				&"growth_points": 0,
+				&"stage": 0,
+				&"fertilizer_id": "",
+				&"regrowth_count": 0,
+				&"health": 100,
+				&"dormant": false,
+				&"harvest_sequence": 0,
+				&"ready": false,
+			}
+		)
+	return records
 
 
 static func _maximum_world(world_value: Variant, buildings: Array[Dictionary]) -> Dictionary:
@@ -360,25 +389,32 @@ static func _maximum_reserve_rules() -> Array[Dictionary]:
 
 static func _maximum_spots() -> Array[Dictionary]:
 	var records: Array[Dictionary] = []
-	for index: int in SectionsScript.MAX_FISHING_SPOTS:
+	for spot_id: StringName in FishingCatalogScript.SPOT_IDS:
+		var definition: Dictionary = FishingCatalogScript.spot(spot_id)
 		records.append(
-			{&"spot_id": "fish.spot.maximum.%03d" % index, &"cast_sequence": 999_999,
-			&"remaining_catches": 999_999, &"renewal_day": 999_999}
+			{&"spot_id": str(spot_id), &"cast_sequence": 999_999,
+			&"remaining_catches": int(definition[&"capacity"]), &"renewal_day": 999_999}
 		)
 	return records
 
 
 static func _maximum_trees() -> Array[Dictionary]:
 	var records: Array[Dictionary] = []
+	var cells: Array[Vector2i] = FarmOccupancyScript.orchard_cells()
 	for index: int in SectionsScript.MAX_TREES:
+		var species_id: StringName = (
+			OrchardCatalogScript.SPECIES_IDS[index % OrchardCatalogScript.SPECIES_IDS.size()]
+		)
+		var definition: Dictionary = OrchardCatalogScript.definition(species_id)
+		var cell: Vector2i = cells[index]
 		records.append(
 			{
 				&"tree_id": "tree.maximum.%03d" % index,
-				&"species_id": "tree.species.maximum",
-				&"cell": [index % 64, index / 64],
-				&"planted_day": 999_999,
-				&"growth_points": 999_999,
-				&"harvest_sequence": 999_999,
+				&"species_id": str(species_id),
+				&"cell": [cell.x, cell.y],
+				&"planted_day": SectionsScript.MAX_ORCHARD_DAY,
+				&"growth_points": int((definition[&"growth_thresholds"] as Array)[3]),
+				&"harvest_sequence": SectionsScript.MAX_ORCHARD_DAY,
 			}
 		)
 	return records

@@ -13,6 +13,8 @@ const ItemCatalogScript: GDScript = preload("res://scripts/item_catalog.gd")
 const LivestockServiceScript: GDScript = preload("res://scripts/livestock_service.gd")
 const MachineServiceScript: GDScript = preload("res://scripts/machine_service.gd")
 const OptionScript: GDScript = preload("res://scripts/interaction_option.gd")
+const OrchardCatalogScript: GDScript = preload("res://scripts/orchard_catalog.gd")
+const OrchardServiceScript: GDScript = preload("res://scripts/orchard_service.gd")
 const RecipeCatalogScript: GDScript = preload("res://scripts/recipe_catalog.gd")
 const RelationshipServiceScript: GDScript = preload("res://scripts/relationship_service.gd")
 const ResidentServiceScript: GDScript = preload("res://scripts/resident_service.gd")
@@ -21,6 +23,12 @@ const TargetScript: GDScript = preload("res://scripts/interaction_target_snapsho
 const ToolServiceScript: GDScript = preload("res://scripts/tool_service.gd")
 
 const MAX_SHIPPING_ROWS: int = 24
+const P10_SUPPLIES: Array[StringName] = [
+	&"item.sapling.cinderapple",
+	&"item.sapling.ironbark",
+	&"item.tool.fishing_rod",
+	&"item.bait.luminous",
+]
 
 
 static func terrain(
@@ -28,6 +36,7 @@ static func terrain(
 	cell: Vector2i,
 	selected_tool: StringName,
 	terrain_descriptor: Dictionary = {},
+	world_cell_clear: Callable = Callable(),
 ) -> Dictionary:
 	var plot: Dictionary = FarmStateScript.plot_at(farm, cell)
 	var subkind: StringName = &"terrain"
@@ -40,6 +49,7 @@ static func terrain(
 		_tool_offer(&"till", &"till", cell, ToolServiceScript.TOOL_HOE, selected_tool, till, 100)
 	)
 	var day: int = CalendarStateScript.absolute_day(farm[&"calendar_weather"])
+	var expected_revision: int = int((farm[&"revisions"] as Dictionary)[&"result_revision"])
 	for crop_id: StringName in CropCatalogScript.CROP_IDS:
 		var crop: Dictionary = CropCatalogScript.definition(crop_id)
 		var seed_id: StringName = crop[&"seed_item_id"] as StringName
@@ -63,6 +73,30 @@ static func terrain(
 				)
 			)
 		)
+	for species_id: StringName in OrchardCatalogScript.SPECIES_IDS:
+		var tree: Dictionary = OrchardCatalogScript.definition(species_id)
+		var sapling_id: StringName = tree[&"sapling_item_id"] as StringName
+		var owned: int = InventoryServiceScript.count_item(
+			farm, InventoryServiceScript.ROBOT_ID, sapling_id
+		)
+		if owned <= 0:
+			continue
+		var planted_tree: Dictionary = OrchardServiceScript.plant(
+			farm, cell, sapling_id, day, world_cell_clear
+		)
+		options.append(_offer(
+			StringName("tree_plant.%s" % str(species_id)),
+			&"tree_plant",
+			{
+				&"cell": cell,
+				&"sapling_item_id": sapling_id,
+				&"expected_revision": expected_revision,
+			},
+			bool(planted_tree[&"ok"]),
+			_reason(planted_tree[&"reason"] as StringName),
+			250,
+			[{&"cost_id": sapling_id, &"amount": 1}],
+		))
 	var watered: Dictionary = FarmStateScript.water(farm, cell, day)
 	(
 		options
@@ -419,11 +453,15 @@ static func livestock(farm: Dictionary, cell: Vector2i, animal: Dictionary) -> D
 
 
 static func _append_seed_shop(options: Array[Dictionary], farm: Dictionary, active: bool) -> void:
+	var shop_items: Array[StringName] = []
 	for crop_id: StringName in CropCatalogScript.CROP_IDS:
 		var crop: Dictionary = CropCatalogScript.definition(crop_id)
 		if &"wild_discovery" in (crop[&"traits"] as Array):
 			continue
 		var seed_id: StringName = crop[&"seed_item_id"] as StringName
+		shop_items.append(seed_id)
+	shop_items.append_array(P10_SUPPLIES)
+	for seed_id: StringName in shop_items:
 		var purchase: Dictionary = EconomyServiceScript.buy_seed(farm, seed_id, 1)
 		var enabled: bool = active and bool(purchase[&"ok"])
 		var reason: StringName = (

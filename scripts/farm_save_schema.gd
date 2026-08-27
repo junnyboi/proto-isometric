@@ -235,6 +235,15 @@ static func validate(snapshot: Variant) -> Dictionary:
 		logistics,
 	):
 		return {}
+	if not SettlementSectionsScript.validate_orchard_links(
+		homestead[&"construction"] as Dictionary,
+		orchard,
+		plots as Array,
+		machines as Array,
+		homestead.get(&"home", {}) as Dictionary,
+		homestead.get(&"facilities", []) as Array,
+	):
+		return {}
 	if not ResourceDepositDeltaValidatorScript.validate(gathering):
 		return {}
 	return {

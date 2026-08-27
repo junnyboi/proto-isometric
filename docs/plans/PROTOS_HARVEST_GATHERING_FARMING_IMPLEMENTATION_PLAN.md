@@ -65,8 +65,10 @@
 
 ## Implementation result
 
-**Status: completed end to end.** GF-01 through GF-21 were implemented in the canonical repository and the release harness now permanently runs the dedicated interaction Phase B suite. The final source candidate passed **2,158 general smoke assertions**, **27 Phase B integration assertions**, including four new GF lifecycle contracts, a direct 120-frame headless boot, deterministic live Smash gathering, native 1280 × 720 and 720 × 1280 visual checks, Web export generation, and exported-PCK boot.
+**Status: completed end to end.** GF-01 through GF-21 were implemented in the canonical repository and the release harness now permanently runs the dedicated interaction Phase B suite. The final source candidate passed **2,142 general smoke assertions**, **27 Phase B integration assertions**, including four new GF lifecycle contracts, a direct 120-frame headless boot, deterministic live Smash gathering, native 1280 × 720 and 720 × 1280 visual checks, Web export generation, and exported-PCK boot.
 
 The production art implementation uses five four-stage 1024 × 256 atlases for cultivated crops and five exact 256 × 256 mature-frame derivatives for wild rendering. Native verification exposed a compressed-texture alpha artifact during development; the shipped renderer therefore reconstructs mature specimens as cached RGBA `ImageTexture` objects. This preserves transparent botanical silhouettes without per-flora scene nodes in both desktop and portrait rendering.
 
 Discovery-derived seeds carry the `wild_discovery` trait and are intentionally excluded from the baseline greenhouse seed shop. They become plantable automatically when the atomic wild-harvest transaction credits ownership. Brambleberry and Sunpear use the existing regrowth authority; Starflower, Wildwheat, and Cotton clear after harvest.
+
+The final integration also preserves the concurrent stewardship expansion: seasonal crop dormancy, orchards, fishing, woodland sanctuary suppression, runtime-asset integrity, GDScript budgets, and the golden **1,000-day P11 schedule** all pass in the same six-stage release gate. Each forage-derived crop declares two favored seasons, and the Simplified Chinese farming vocabulary is included in the regenerated runtime font subset.

@@ -209,8 +209,6 @@ static func layout_for(
 	var bottom_clearance: float = 0.0
 	if viewport.y > viewport.x:
 		bottom_clearance = minf(96.0 * scale_value, safe.size.y * 0.24)
-	elif viewport.y < 500.0:
-		bottom_clearance = minf(150.0 * scale_value, safe.size.y * 0.36)
 	var popup: Rect2 = Rect2(
 		Vector2(x, safe.position.y), Vector2(width, safe.size.y - bottom_clearance)
 	)
@@ -556,7 +554,7 @@ func _apply_layout(viewport_size: Vector2) -> void:
 	_panel.position = popup.position
 	_panel.size = popup.size
 	var rows: Rect2 = _layout[&"row_viewport"] as Rect2
-	_scroll.custom_minimum_size = Vector2(0.0, rows.size.y)
+	_scroll.custom_minimum_size = Vector2(0.0, minf(rows.size.y, 48.0))
 	_apply_view_visibility()
 	_title_label.add_theme_font_size_override("font_size", roundi(24.0 * _ui_scale))
 	_subkind_label.add_theme_font_size_override("font_size", roundi(12.0 * _ui_scale))

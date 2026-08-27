@@ -261,6 +261,8 @@ static func _build_descriptors() -> Array[Dictionary]:
 		[PROVIDER_LEGACY], [DOMAIN_ACTIVE_RUN], RECEIPT_REQUIRED)
 	_add_cross_domain(result, &"facility_power", [PROVIDER_FACILITY])
 	_add_cross_domain(result, &"facility_repair", [PROVIDER_FACILITY])
+	_add_mutation(result, &"fish_cast", ROUTE_CROSS_DOMAIN, ADAPTER_CROSS_DOMAIN,
+		[PROVIDER_FACILITY], [DOMAIN_FARM], RECEIPT_REQUIRED)
 	_add_cross_domain(result, &"gift", [PROVIDER_RESIDENT])
 	_add_farm(result, &"harvest", [PROVIDER_TERRAIN])
 	_add_cross_domain(result, &"herd_interact", [PROVIDER_WILDERNESS])
@@ -312,6 +314,12 @@ static func _build_descriptors() -> Array[Dictionary]:
 		[PROVIDER_WILDERNESS], [DOMAIN_FARM, DOMAIN_WORLD], RECEIPT_REQUIRED)
 	_add_cross_domain(result, &"talk", [PROVIDER_RESIDENT])
 	_add_farm(result, &"till", [PROVIDER_TERRAIN])
+	_add_mutation(result, &"tree_harvest", ROUTE_CROSS_DOMAIN, ADAPTER_CROSS_DOMAIN,
+		[PROVIDER_RESOURCE], [DOMAIN_FARM], RECEIPT_REQUIRED)
+	_add_mutation(result, &"tree_plant", ROUTE_CROSS_DOMAIN, ADAPTER_CROSS_DOMAIN,
+		[PROVIDER_TERRAIN], [DOMAIN_FARM], RECEIPT_REQUIRED)
+	_add_mutation(result, &"tree_remove", ROUTE_CROSS_DOMAIN, ADAPTER_CROSS_DOMAIN,
+		[PROVIDER_RESOURCE], [DOMAIN_FARM], RECEIPT_REQUIRED)
 	_add_cross_domain(result, &"upgrade", [PROVIDER_MACHINE])
 	_add_farm(result, &"water", [PROVIDER_TERRAIN])
 	_add_mutation(result, &"world_clear_reward", ROUTE_CROSS_DOMAIN, ADAPTER_CROSS_DOMAIN,
