@@ -381,6 +381,11 @@ static func _test_preview(cases: Array[Dictionary]) -> void:
 		"DOS-20 effect rows are closed descriptor facts and mutation previews claim no effect",
 		(
 			(inspect_preview[&"effect_rows"] as Array).size() == 1
+			and (inspect_preview[&"effect_rows"] as Array)[0][&"value_kind"] == &"text_key"
+			and (
+				(inspect_preview[&"effect_rows"] as Array)[0][&"value"]
+				== &"interaction.effect.value.read_only"
+			)
 			and (preview[&"effect_rows"] as Array).is_empty()
 		),
 	)
