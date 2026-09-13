@@ -28,6 +28,8 @@ window/stretch/mode="disabled"
 
 [gui]
 
+theme/custom_font="res://resources/manuscc0_font.tres"
+
 theme/custom="res://data/ui_theme.tres"
 
 [features]
