@@ -257,7 +257,7 @@ func _draw_sanctuary_label(outpost_cell: Vector2i) -> void:
 	var center: Vector2 = _grid_to_screen.call(outpost_cell) as Vector2
 	var kind: StringName = get_outpost_kind(outpost_cell)
 	draw_string(
-		ThemeDB.fallback_font,
+		preload("res://resources/manuscc0_font.tres"),
 		center + OutpostVisualsScript.draw_offset_for(kind) + OUTPOST_LABEL_MARGIN,
 		LocalizationScript.t(&"world.safe_zone"),
 		HORIZONTAL_ALIGNMENT_LEFT,

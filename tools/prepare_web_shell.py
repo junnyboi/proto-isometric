@@ -65,7 +65,7 @@ LOADER_CSS = r"""
 	justify-content: space-between;
 	gap: 1rem;
 	color: #f3a21e;
-	font: 600 12px/1.2 system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+	font: 600 12px/1.2 'ManusCC0', sans-serif;
 	letter-spacing: 0.16em;
 	text-transform: uppercase;
 	text-shadow: 0 1px 12px rgba(0, 0, 0, 0.72);

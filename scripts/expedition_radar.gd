@@ -3,7 +3,7 @@ extends Control
 const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 const FrozenTundraScript: GDScript = preload("res://scripts/frozen_tundra.gd")
 const LavaFieldsScript: GDScript = preload("res://scripts/lava_fields.gd")
-const RADAR_FONT: Font = preload("res://assets/fonts/NotoSansCJKsc-ProtoIsometric.otf")
+const RADAR_FONT: Font = preload("res://resources/manuscc0_font.tres")
 
 const AMBER: Color = Color("f5a62d")
 const TEAL: Color = Color("4eb6aa")
