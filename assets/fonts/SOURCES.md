@@ -12,3 +12,7 @@ The deterministic builder is `tools/build_runtime_font_subset.py`. P11 verifies 
 - Source: https://github.com/notofonts/noto-cjk
 - Copyright: 2010–2012 Google Corporation
 - License: SIL Open Font License 1.1; see `OFL.txt`.
+
+## Full in-game Chinese coverage
+
+`NotoSansCJKsc-ProtoIsometric.otf` now retains the complete Noto Sans CJK SC Regular upstream bytes (SHA-256 `2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b`, 16,437,364 bytes). The filename is retained for existing resource references. See `NotoSansCJK-COPYRIGHT.txt` and `cjk-font.json`. The historical subset figures above record the previous version. Run `python3 tools/sync_cjk_font.py --check`; the legacy subset command delegates to this full-font installer.
