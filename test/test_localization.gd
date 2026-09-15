@@ -3,7 +3,7 @@ extends RefCounted
 const LocalizationScript: GDScript = preload("res://scripts/localization_service.gd")
 const EN_PATH: String = "res://data/locales/en.json"
 const ZH_PATH: String = "res://data/locales/zh-CN.json"
-const FONT_PATH: String = "res://assets/fonts/NotoSansCJKsc-ProtoIsometric.otf"
+const FONT_PATH: String = "res://assets/fonts/ManusGameSC-Common.woff2"
 
 
 class LocaleObserver:

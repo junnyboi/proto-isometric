@@ -2,13 +2,12 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://cue3jkoyjryi2"
-path="res://.godot/imported/NotoSansCJKsc-ProtoIsometric.otf-6f0f9adaa848c693363cee9e338c7eb1.fontdata"
+path="res://.godot/imported/ManusGameSC-Common.woff2-5267e9e195a5c8eec0f850c9a74141a7.fontdata"
 
 [deps]
 
-source_file="res://assets/fonts/NotoSansCJKsc-ProtoIsometric.otf"
-dest_files=["res://.godot/imported/NotoSansCJKsc-ProtoIsometric.otf-6f0f9adaa848c693363cee9e338c7eb1.fontdata"]
+source_file="res://assets/fonts/ManusGameSC-Common.woff2"
+dest_files=["res://.godot/imported/ManusGameSC-Common.woff2-5267e9e195a5c8eec0f850c9a74141a7.fontdata"]
 
 [params]
 

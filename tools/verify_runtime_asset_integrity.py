@@ -14,7 +14,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 LEDGER = ROOT / 'assets/RUNTIME_ASSET_INTEGRITY.tsv'
-FONT = ROOT / 'assets/fonts/NotoSansCJKsc-ProtoIsometric.otf'
+FONT = ROOT / 'assets/fonts/ManusGameSC-Common.woff2'
 LOCALES = (
     ROOT / 'data/locales/en.json',
     ROOT / 'data/locales/zh-CN.json',
@@ -82,7 +82,7 @@ def verify_ledger() -> int:
     actual = {
         path.relative_to(ROOT).as_posix()
         for path in (ROOT / 'assets').rglob('*')
-        if path.is_file() and path.suffix.lower() in {'.png', '.wav', '.ogg', '.otf'}
+        if path.is_file() and path.suffix.lower() in {'.png', '.wav', '.ogg', '.otf', '.woff2'}
     }
     if listed != actual:
         raise RuntimeError(
@@ -98,6 +98,9 @@ def verify_font() -> int:
     for table in font['cmap'].tables:
         if table.isUnicode():
             cmap.update(table.cmap)
+    # Latin and shared symbols resolve through the approved primary family.
+    with TTFont(ROOT / "assets/fonts/ManusCC0-Regular.ttf") as primary:
+        cmap.update(primary.getBestCmap())
     required: set[int] = set(range(32, 127))
     for path in LOCALES:
         data = json.loads(path.read_text(encoding='utf-8'))
