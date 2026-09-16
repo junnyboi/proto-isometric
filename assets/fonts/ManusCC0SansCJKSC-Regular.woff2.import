@@ -2,12 +2,12 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-path="res://.godot/imported/ManusGameSC-Common.woff2-5267e9e195a5c8eec0f850c9a74141a7.fontdata"
+path="res://.godot/imported/ManusCC0SansCJKSC-Regular.woff2-72caee52ebddb8de4868f2cc69fb012c.fontdata"
 
 [deps]
 
-source_file="res://assets/fonts/ManusGameSC-Common.woff2"
-dest_files=["res://.godot/imported/ManusGameSC-Common.woff2-5267e9e195a5c8eec0f850c9a74141a7.fontdata"]
+source_file="res://assets/fonts/ManusCC0SansCJKSC-Regular.woff2"
+dest_files=["res://.godot/imported/ManusCC0SansCJKSC-Regular.woff2-72caee52ebddb8de4868f2cc69fb012c.fontdata"]
 
 [params]
 

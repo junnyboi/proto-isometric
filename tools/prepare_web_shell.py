@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PRIMARY_HASHES = {'Regular':'b5124032e8e51434e05a51c327a9a614ac96b85ecf9b6cdcfc58834a9ae1347d','Medium':'f28a0f3aee8f427798bf972504d5640d5d28b8692a73102ac39556fa7ffb1ee2','Bold':'099f6d50114f83533f689ddc37028fcff2bd2a2c4871a332488c1a433f440804'}
-CJK_SOURCE_HASH = '2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b'
+CJK_SOURCE_HASH = '0a4981b817d7fb556dd8cd80f278483f1849017a312ca965e027d8e0e066968c'
 # Compatibility coverage only: the existing Protos Harvest loader copy stays English.
 # These five strings are shipped by manus-addon-webdev/runtime-src/game-dev/loading-shell.html.
 CJK_COMPATIBILITY_COPY = ['正在加载…', '重试', '下载进度', '游戏加载失败，请重试。', '正在启动游戏…']
@@ -27,7 +27,7 @@ def rebuild_loader_font(source: Path) -> None:
     from fontTools import subset
     from fontTools.ttLib import TTFont
     if hashlib.sha256(source.read_bytes()).hexdigest() != CJK_SOURCE_HASH:
-        raise ValueError('CJK source must match the existing published Noto Sans CJK SC Regular pin')
+        raise ValueError('CJK source must match the approved CC0 ManusCC0 Sans CJK SC pin')
     primary_points = sorted(TTFont(ROOT / 'assets/fonts/ManusCC0-Regular.ttf').getBestCmap())
     corpus = '\n'.join(CJK_COMPATIBILITY_COPY)
     points = sorted({ord(c) for c in corpus} - set(primary_points) - {10})
@@ -35,9 +35,6 @@ def rebuild_loader_font(source: Path) -> None:
     assert set(points) <= set(font.getBestCmap()), 'Pinned font lacks a compatibility glyph'
     options = subset.Options(); options.name_IDs = ['*']; options.recalc_timestamp = False
     worker = subset.Subsetter(options=options); worker.populate(unicodes=points); worker.subset(font)
-    for record in font['name'].names:
-        if record.nameID in (1, 4, 6, 16):
-            record.string = 'ProtosLoaderCJK'.encode(record.getEncoding())
     font.flavor = 'woff2'; output = io.BytesIO(); font.save(output); raw = output.getvalue()
     covered = sorted(TTFont(io.BytesIO(raw)).getBestCmap())
     assert set(points) <= set(covered)
@@ -45,8 +42,8 @@ def rebuild_loader_font(source: Path) -> None:
     (target / '.gdignore').write_text('')
     (target / 'loader-cjk.woff2').write_bytes(raw)
     (target / 'manifest.json').write_text(json.dumps({
-        'family': 'ProtosLoaderCJK', 'source': 'NotoSansCJKsc-Regular.otf',
-        'sourceSha256': CJK_SOURCE_HASH, 'license': 'assets/fonts/OFL.txt',
+        'family': 'ManusCC0CJKSC', 'source': 'assets/fonts/ManusCC0SansCJKSC-Regular.woff2',
+        'sourceSha256': CJK_SOURCE_HASH, 'license': 'assets/fonts/ManusCC0-CJK-LICENSE.txt',
         'sha256': hashlib.sha256(raw).hexdigest(), 'codepoints': covered,
         'primaryCodepoints': primary_points,
         'compatibilityCorpus': CJK_COMPATIBILITY_COPY,
@@ -69,15 +66,15 @@ def font_styles() -> str:
         primary = (ROOT / 'assets/fonts' / f'ManusCC0-{style}.ttf').read_bytes()
         assert hashlib.sha256(primary).hexdigest() == PRIMARY_HASHES[style]
         rules.append("@font-face{font-family:ManusCC0;src:url(data:font/ttf;base64,%s) format('truetype');font-weight:%d;font-style:normal;font-display:swap}" % (base64.b64encode(primary).decode(), weight))
-    rules.append('/* ' + (ROOT / manifest['license']).read_text().replace('*/', '* /') + ' */')
-    rules.append("@font-face{font-family:ProtosLoaderCJK;src:url(data:font/woff2;base64,%s) format('woff2');font-weight:400 700;font-style:normal;font-display:swap;unicode-range:%s}" % (base64.b64encode(raw).decode(), ','.join('U+%X' % p for p in manifest['codepoints'])))
-    rules.append("html,body,#status-notice{font-family:ManusCC0,ProtosLoaderCJK,sans-serif;font-synthesis:none}button,input,select,textarea{font-family:inherit}")
+    rules.append('/* ManusCC0 Sans CJK SC; CC0-1.0; notices optional. */')
+    rules.append("@font-face{font-family:ManusCC0CJKSC;src:url(data:font/woff2;base64,%s) format('woff2');font-weight:400 700;font-style:normal;font-display:swap;unicode-range:%s}" % (base64.b64encode(raw).decode(), ','.join('U+%X' % p for p in manifest['codepoints'])))
+    rules.append("html,body,#status-notice{font-family:ManusCC0,ManusCC0CJKSC,sans-serif;font-synthesis:none}button,input,select,textarea{font-family:inherit}")
     return '\n'.join(rules)
 
 
 def install_font_styles(html: str) -> str:
     html = re.sub(r'\s*' + re.escape(FONT_START) + '.*?' + re.escape(FONT_END) + r'\s*', '\n', html, flags=re.S)
-    html = html.replace("font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif", "font-family:ManusCC0,ProtosLoaderCJK,sans-serif")
+    html = html.replace("font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif", "font-family:ManusCC0,ManusCC0CJKSC,sans-serif")
     if html.count('</head>') != 1:
         raise RuntimeError('Expected a single generated HTML head')
     html = re.sub(r'\s*</head>', '\n</head>', html)
@@ -148,7 +145,7 @@ LOADER_CSS = r"""
 	justify-content: space-between;
 	gap: 1rem;
 	color: #f3a21e;
-	font: 500 12px/1.2 'ManusCC0', ProtosLoaderCJK, sans-serif;
+	font: 500 12px/1.2 'ManusCC0', ManusCC0CJKSC, sans-serif;
 	letter-spacing: 0.16em;
 	text-transform: uppercase;
 	text-shadow: 0 1px 12px rgba(0, 0, 0, 0.72);
@@ -222,7 +219,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mobile-source", type=Path)
     parser.add_argument("--ffmpeg", default="ffmpeg")
     parser.add_argument("--rebuild-fonts", action="store_true", help="Rebuild the pinned subset with the existing fontTools/Brotli environment")
-    parser.add_argument("--cjk-source", type=Path, help="Existing full Noto Sans CJK SC Regular file for explicit subset rebuilds")
+    parser.add_argument("--cjk-source", type=Path, help="Approved CC0 Chinese WOFF2 for explicit loader subset rebuilds")
     parser.add_argument("--update-export-fonts", action="store_true", help="Refresh the source Web export font head from the verified cached subset")
     return parser.parse_args()
 

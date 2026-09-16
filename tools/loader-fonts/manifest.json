@@ -1,9 +1,9 @@
 {
-  "family": "ProtosLoaderCJK",
-  "source": "NotoSansCJKsc-Regular.otf",
-  "sourceSha256": "2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b",
-  "license": "assets/fonts/OFL.txt",
-  "sha256": "7c8587699cbb5a3c86bdb3d46ecc477370b263878c15608a00b9ec00d1765ddd",
+  "family": "ManusCC0CJKSC",
+  "source": "assets/fonts/ManusCC0SansCJKSC-Regular.woff2",
+  "sourceSha256": "0a4981b817d7fb556dd8cd80f278483f1849017a312ca965e027d8e0e066968c",
+  "license": "assets/fonts/ManusCC0-CJK-LICENSE.txt",
+  "sha256": "eaea1816c3a5c348500681253903b5e702c7bf36a50b07d925c1e1c804d71939",
   "codepoints": [
     12290,
     19979,

@@ -12,7 +12,7 @@ fresh = "<html><head><style>body{font-family: 'Noto Sans', 'Droid Sans', Arial, 
 once = module.install_font_styles(fresh)
 assert module.install_font_styles(once) == once, 'Repeated postprocessing duplicates font blocks'
 assert 'Restoring the clearing' in once and not any(text in once for text in module.CJK_COMPATIBILITY_COPY)
-assert 'font-family:ManusCC0,ProtosLoaderCJK,sans-serif' in once
+assert 'font-family:ManusCC0,ManusCC0CJKSC,sans-serif' in once
 assert 'font-family: \'Noto Sans\'' not in once
 assert len(re.findall('data:font/ttf;base64,', once)) == 3
 assert len(re.findall('data:font/woff2;base64,', once)) == 1

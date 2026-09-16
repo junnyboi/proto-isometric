@@ -14,7 +14,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 LEDGER = ROOT / 'assets/RUNTIME_ASSET_INTEGRITY.tsv'
-FONT = ROOT / 'assets/fonts/ManusGameSC-Common.woff2'
+FONT = ROOT / 'assets/fonts/ManusCC0SansCJKSC-Regular.woff2'
 LOCALES = (
     ROOT / 'data/locales/en.json',
     ROOT / 'data/locales/zh-CN.json',
